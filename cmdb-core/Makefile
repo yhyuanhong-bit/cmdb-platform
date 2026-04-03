@@ -1,4 +1,4 @@
-.PHONY: infra infra-down migrate migrate-down sqlc wire dev test build seed
+.PHONY: infra infra-down migrate migrate-down sqlc wire dev test build seed generate-api
 
 infra:
 	docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example up -d
@@ -52,3 +52,6 @@ grafana:
 
 jaeger:
 	@echo "Jaeger: http://localhost:16686"
+
+generate-api:
+	oapi-codegen --config oapi-codegen.yaml ../api/openapi.yaml

@@ -1,4 +1,4 @@
-openapi: "3.1.0"
+openapi: "3.0.3"
 info:
   title: CMDB Platform API
   version: "1.0.0"
@@ -1146,9 +1146,11 @@ components:
         asset_tag:
           type: string
         property_number:
-          type: ['string', 'null']
+          type: string
+          nullable: true
         control_number:
-          type: ['string', 'null']
+          type: string
+          nullable: true
         name:
           type: string
         type:
@@ -1160,7 +1162,8 @@ components:
         bia_level:
           type: string
         rack_id:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: uuid
         vendor:
           type: string
@@ -1214,7 +1217,8 @@ components:
         level:
           type: string
         parent_id:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: uuid
         path:
           type: string
@@ -1310,7 +1314,8 @@ components:
           type: string
           format: uuid
         assignee_id:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: uuid
         description:
           type: string
@@ -1321,10 +1326,12 @@ components:
           type: string
           format: date-time
         actual_start:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: date-time
         actual_end:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: date-time
         created_at:
           type: string
@@ -1367,7 +1374,8 @@ components:
           type: string
           format: date-time
         resolved_at:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: date-time
       required:
         - id
@@ -1400,7 +1408,8 @@ components:
         planned_date:
           type: string
         completed_date:
-          type: ['string', 'null']
+          type: string
+          nullable: true
         assigned_to:
           type: string
           format: uuid
@@ -1425,24 +1434,29 @@ components:
           type: string
           format: uuid
         asset_id:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: uuid
         rack_id:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: uuid
         expected:
           type: object
           additionalProperties: true
         actual:
-          type: ['object', 'null']
+          type: object
+          nullable: true
           additionalProperties: true
         status:
           type: string
         scanned_at:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: date-time
         scanned_by:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: uuid
       required:
         - id
@@ -1622,7 +1636,8 @@ components:
           type: object
           additionalProperties: true
         conclusion_ci_id:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: uuid
         confidence:
           type: number
@@ -1648,14 +1663,18 @@ components:
         action:
           type: string
         from_status:
-          type: ['string', 'null']
+          type: string
+          nullable: true
         to_status:
-          type: ['string', 'null']
+          type: string
+          nullable: true
         operator_id:
-          type: ['string', 'null']
+          type: string
+          nullable: true
           format: uuid
         comment:
-          type: ['string', 'null']
+          type: string
+          nullable: true
         created_at:
           type: string
           format: date-time
