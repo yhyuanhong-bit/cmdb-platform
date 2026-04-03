@@ -16,6 +16,10 @@ type Config struct {
 	DeployMode  string
 	TenantID    string
 	LogLevel    string
+	MCPEnabled   bool
+	MCPPort      int
+	WSEnabled    bool
+	OTELEndpoint string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -40,6 +44,17 @@ func Load() (*Config, error) {
 		TenantID:    os.Getenv("TENANT_ID"),
 		LogLevel:    envOrDefault("LOG_LEVEL", "info"),
 	}
+
+	cfg.MCPEnabled = envOrDefault("MCP_ENABLED", "true") == "true"
+	mcpPort := 3001
+	if v := os.Getenv("MCP_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil {
+			mcpPort = p
+		}
+	}
+	cfg.MCPPort = mcpPort
+	cfg.WSEnabled = envOrDefault("WS_ENABLED", "true") == "true"
+	cfg.OTELEndpoint = os.Getenv("OTEL_ENDPOINT")
 
 	if cfg.DeployMode == "edge" && cfg.TenantID == "" {
 		return nil, fmt.Errorf("TENANT_ID is required in edge deploy mode")

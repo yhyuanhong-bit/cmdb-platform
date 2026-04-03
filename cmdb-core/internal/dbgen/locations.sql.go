@@ -102,6 +102,38 @@ func (q *Queries) GetLocation(ctx context.Context, id uuid.UUID) (Location, erro
 	return i, err
 }
 
+const getLocationBySlug = `-- name: GetLocationBySlug :one
+SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at FROM locations
+WHERE tenant_id = $1 AND slug = $2 AND level = $3
+`
+
+type GetLocationBySlugParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Slug     string    `json:"slug"`
+	Level    string    `json:"level"`
+}
+
+func (q *Queries) GetLocationBySlug(ctx context.Context, arg GetLocationBySlugParams) (Location, error) {
+	row := q.db.QueryRow(ctx, getLocationBySlug, arg.TenantID, arg.Slug, arg.Level)
+	var i Location
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.NameEn,
+		&i.Slug,
+		&i.Level,
+		&i.ParentID,
+		&i.Path,
+		&i.Status,
+		&i.Metadata,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listAncestors = `-- name: ListAncestors :many
 SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at FROM locations
 WHERE tenant_id = $1 AND path @> $2::ltree

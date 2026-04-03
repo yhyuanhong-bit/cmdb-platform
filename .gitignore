@@ -1,0 +1,25 @@
+# Dependencies
+cmdb-demo/node_modules/
+cmdb-demo/dist/
+ingestion-engine/.venv/
+ingestion-engine/*.egg-info/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Go binaries
+cmdb-core/bin/
+cmdb-core/server
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store

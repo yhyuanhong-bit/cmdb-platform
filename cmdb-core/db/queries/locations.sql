@@ -45,3 +45,7 @@ RETURNING *;
 
 -- name: DeleteLocation :exec
 DELETE FROM locations WHERE id = $1;
+
+-- name: GetLocationBySlug :one
+SELECT * FROM locations
+WHERE tenant_id = $1 AND slug = $2 AND level = $3;

@@ -97,6 +97,19 @@ func (s *Service) GetLocationStats(ctx context.Context, locationID uuid.UUID) (L
 	}, nil
 }
 
+// GetBySlug looks up a location by its slug and level for a given tenant.
+func (s *Service) GetBySlug(ctx context.Context, tenantID uuid.UUID, slug, level string) (*dbgen.Location, error) {
+	loc, err := s.queries.GetLocationBySlug(ctx, dbgen.GetLocationBySlugParams{
+		TenantID: tenantID,
+		Slug:     slug,
+		Level:    level,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &loc, nil
+}
+
 // ListRacksByLocation returns all racks at a location.
 func (s *Service) ListRacksByLocation(ctx context.Context, locationID uuid.UUID) ([]dbgen.Rack, error) {
 	return s.queries.ListRacksByLocation(ctx, locationID)

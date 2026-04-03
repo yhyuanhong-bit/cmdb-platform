@@ -162,6 +162,29 @@ type Metrics5min struct {
 	MinValue interface{} `json:"min_value"`
 }
 
+type PredictionModel struct {
+	ID        uuid.UUID          `json:"id"`
+	Name      string             `json:"name"`
+	Type      string             `json:"type"`
+	Provider  string             `json:"provider"`
+	Config    json.RawMessage    `json:"config"`
+	Enabled   pgtype.Bool        `json:"enabled"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type PredictionResult struct {
+	ID                uuid.UUID          `json:"id"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	ModelID           uuid.UUID          `json:"model_id"`
+	AssetID           uuid.UUID          `json:"asset_id"`
+	PredictionType    string             `json:"prediction_type"`
+	Result            json.RawMessage    `json:"result"`
+	Severity          pgtype.Text        `json:"severity"`
+	RecommendedAction pgtype.Text        `json:"recommended_action"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
 type Rack struct {
 	ID              uuid.UUID      `json:"id"`
 	TenantID        uuid.UUID      `json:"tenant_id"`
@@ -182,6 +205,19 @@ type RackSlot struct {
 	StartU  int32     `json:"start_u"`
 	EndU    int32     `json:"end_u"`
 	Side    string    `json:"side"`
+}
+
+type RcaAnalysis struct {
+	ID                uuid.UUID          `json:"id"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	IncidentID        uuid.UUID          `json:"incident_id"`
+	ModelID           pgtype.UUID        `json:"model_id"`
+	Reasoning         json.RawMessage    `json:"reasoning"`
+	ConclusionAssetID pgtype.UUID        `json:"conclusion_asset_id"`
+	Confidence        pgtype.Numeric     `json:"confidence"`
+	HumanVerified     pgtype.Bool        `json:"human_verified"`
+	VerifiedBy        pgtype.UUID        `json:"verified_by"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 }
 
 type Role struct {

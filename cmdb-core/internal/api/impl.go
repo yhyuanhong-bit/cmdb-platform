@@ -1,0 +1,737 @@
+package api
+
+import (
+	"encoding/json"
+
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	openapi_types "github.com/oapi-codegen/runtime/types"
+)
+
+// Ensure APIServer implements ServerInterface at compile time.
+var _ ServerInterface = (*APIServer)(nil)
+
+// APIServer implements every method of the generated ServerInterface,
+// delegating business logic to the domain services.
+type APIServer struct {
+	authSvc        *identity.AuthService
+	identitySvc    *identity.Service
+	topologySvc    *topology.Service
+	assetSvc       *asset.Service
+	maintenanceSvc *maintenance.Service
+	monitoringSvc  *monitoring.Service
+	inventorySvc   *inventory.Service
+	auditSvc       *audit.Service
+	dashboardSvc   *dashboard.Service
+	predictionSvc  *prediction.Service
+}
+
+// NewAPIServer constructs an APIServer with all required domain services.
+func NewAPIServer(
+	authSvc *identity.AuthService,
+	identitySvc *identity.Service,
+	topologySvc *topology.Service,
+	assetSvc *asset.Service,
+	maintenanceSvc *maintenance.Service,
+	monitoringSvc *monitoring.Service,
+	inventorySvc *inventory.Service,
+	auditSvc *audit.Service,
+	dashboardSvc *dashboard.Service,
+	predictionSvc *prediction.Service,
+) *APIServer {
+	return &APIServer{
+		authSvc:        authSvc,
+		identitySvc:    identitySvc,
+		topologySvc:    topologySvc,
+		assetSvc:       assetSvc,
+		maintenanceSvc: maintenanceSvc,
+		monitoringSvc:  monitoringSvc,
+		inventorySvc:   inventorySvc,
+		auditSvc:       auditSvc,
+		dashboardSvc:   dashboardSvc,
+		predictionSvc:  predictionSvc,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
+
+func tenantIDFromContext(c *gin.Context) uuid.UUID {
+	id, _ := uuid.Parse(c.GetString("tenant_id"))
+	return id
+}
+
+func userIDFromContext(c *gin.Context) uuid.UUID {
+	id, _ := uuid.Parse(c.GetString("user_id"))
+	return id
+}
+
+func paginationDefaults(page, pageSize *int) (int, int, int32, int32) {
+	p := 1
+	ps := 20
+	if page != nil && *page > 0 {
+		p = *page
+	}
+	if pageSize != nil && *pageSize > 0 {
+		ps = *pageSize
+		if ps > 100 {
+			ps = 100
+		}
+	}
+	offset := (p - 1) * ps
+	return p, ps, int32(ps), int32(offset)
+}
+
+func uuidPtrFromOAPI(v *openapi_types.UUID) *uuid.UUID {
+	if v == nil {
+		return nil
+	}
+	u := uuid.UUID(*v)
+	return &u
+}
+
+func textFromPtr(s *string) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: *s, Valid: true}
+}
+
+func pguuidFromPtr(v *uuid.UUID) pgtype.UUID {
+	if v == nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: *v, Valid: true}
+}
+
+// ---------------------------------------------------------------------------
+// Auth endpoints
+// ---------------------------------------------------------------------------
+
+// Login authenticates a user and returns a token pair.
+// (POST /auth/login)
+func (s *APIServer) Login(c *gin.Context) {
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+	tokens, err := s.authSvc.Login(c.Request.Context(), identity.LoginRequest{
+		Username: req.Username,
+		Password: req.Password,
+	})
+	if err != nil {
+		response.Unauthorized(c, err.Error())
+		return
+	}
+	response.OK(c, TokenPair{
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+		ExpiresIn:    tokens.ExpiresIn,
+	})
+}
+
+// RefreshToken issues a new token pair using a refresh token.
+// (POST /auth/refresh)
+func (s *APIServer) RefreshToken(c *gin.Context) {
+	var req RefreshRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+	tokens, err := s.authSvc.Refresh(c.Request.Context(), req.RefreshToken)
+	if err != nil {
+		response.Unauthorized(c, err.Error())
+		return
+	}
+	response.OK(c, TokenPair{
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+		ExpiresIn:    tokens.ExpiresIn,
+	})
+}
+
+// GetCurrentUser returns the authenticated user with merged permissions.
+// (GET /auth/me)
+func (s *APIServer) GetCurrentUser(c *gin.Context) {
+	userID := c.GetString("user_id")
+	cu, err := s.authSvc.GetCurrentUser(c.Request.Context(), userID)
+	if err != nil {
+		response.Unauthorized(c, "failed to get current user")
+		return
+	}
+	response.OK(c, CurrentUser{
+		Id:          cu.ID,
+		Username:    cu.Username,
+		DisplayName: cu.DisplayName,
+		Email:       cu.Email,
+		Permissions: cu.Permissions,
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Asset endpoints
+// ---------------------------------------------------------------------------
+
+// ListAssets returns a paginated, filtered list of assets.
+// (GET /assets)
+func (s *APIServer) ListAssets(c *gin.Context, params ListAssetsParams) {
+	tenantID := tenantIDFromContext(c)
+	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
+
+	assets, total, err := s.assetSvc.List(c.Request.Context(), asset.ListParams{
+		TenantID:     tenantID,
+		Type:         params.Type,
+		Status:       params.Status,
+		LocationID:   uuidPtrFromOAPI(params.LocationId),
+		RackID:       uuidPtrFromOAPI(params.RackId),
+		SerialNumber: params.SerialNumber,
+		Limit:        limit,
+		Offset:       offset,
+	})
+	if err != nil {
+		response.InternalError(c, "failed to list assets")
+		return
+	}
+
+	response.OKList(c, convertSlice(assets, toAPIAsset), page, pageSize, int(total))
+}
+
+// CreateAsset creates a new asset.
+// (POST /assets)
+func (s *APIServer) CreateAsset(c *gin.Context) {
+	var req CreateAssetJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+
+	var attrsJSON json.RawMessage
+	if req.Attributes != nil {
+		attrsJSON, _ = json.Marshal(req.Attributes)
+	}
+
+	params := dbgen.CreateAssetParams{
+		TenantID:       tenantID,
+		AssetTag:       req.AssetTag,
+		PropertyNumber: textFromPtr(req.PropertyNumber),
+		ControlNumber:  textFromPtr(req.ControlNumber),
+		Name:           req.Name,
+		Type:           req.Type,
+		SubType:        pgtype.Text{String: req.SubType, Valid: req.SubType != ""},
+		Status:         req.Status,
+		BiaLevel:       req.BiaLevel,
+		RackID:         pguuidFromPtr(uuidPtrFromOAPI(req.RackId)),
+		Vendor:         pgtype.Text{String: req.Vendor, Valid: req.Vendor != ""},
+		Model:          pgtype.Text{String: req.Model, Valid: req.Model != ""},
+		SerialNumber:   pgtype.Text{String: req.SerialNumber, Valid: req.SerialNumber != ""},
+		Attributes:     attrsJSON,
+		Tags:           req.Tags,
+	}
+
+	created, err := s.assetSvc.Create(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, "failed to create asset")
+		return
+	}
+	response.Created(c, toAPIAsset(*created))
+}
+
+// GetAsset returns a single asset by ID.
+// (GET /assets/{id})
+func (s *APIServer) GetAsset(c *gin.Context, id IdPath) {
+	a, err := s.assetSvc.GetByID(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "asset not found")
+		return
+	}
+	response.OK(c, toAPIAsset(*a))
+}
+
+// ---------------------------------------------------------------------------
+// Location endpoints
+// ---------------------------------------------------------------------------
+
+// ListLocations returns root locations, or looks up a location by slug+level.
+// (GET /locations)
+func (s *APIServer) ListLocations(c *gin.Context, params ListLocationsParams) {
+	tenantID := tenantIDFromContext(c)
+
+	if params.Slug != nil && params.Level != nil {
+		loc, err := s.topologySvc.GetBySlug(c.Request.Context(), tenantID, *params.Slug, *params.Level)
+		if err != nil {
+			response.NotFound(c, "location not found")
+			return
+		}
+		response.OK(c, toAPILocation(*loc))
+		return
+	}
+
+	locations, err := s.topologySvc.ListRootLocations(c.Request.Context(), tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to list locations")
+		return
+	}
+	response.OK(c, convertSlice(locations, toAPILocation))
+}
+
+// GetLocation returns a single location by ID.
+// (GET /locations/{id})
+func (s *APIServer) GetLocation(c *gin.Context, id IdPath) {
+	loc, err := s.topologySvc.GetLocation(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "location not found")
+		return
+	}
+	response.OK(c, toAPILocation(loc))
+}
+
+// ListLocationAncestors returns ancestor locations for a given location.
+// (GET /locations/{id}/ancestors)
+func (s *APIServer) ListLocationAncestors(c *gin.Context, id IdPath) {
+	tenantID := tenantIDFromContext(c)
+
+	loc, err := s.topologySvc.GetLocation(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "location not found")
+		return
+	}
+
+	path := pgtextToStr(loc.Path)
+	ancestors, err := s.topologySvc.ListAncestors(c.Request.Context(), tenantID, path)
+	if err != nil {
+		response.InternalError(c, "failed to list ancestors")
+		return
+	}
+	response.OK(c, convertSlice(ancestors, toAPILocation))
+}
+
+// ListLocationChildren returns child locations for a given parent.
+// (GET /locations/{id}/children)
+func (s *APIServer) ListLocationChildren(c *gin.Context, id IdPath) {
+	children, err := s.topologySvc.ListChildren(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.InternalError(c, "failed to list children")
+		return
+	}
+	response.OK(c, convertSlice(children, toAPILocation))
+}
+
+// ListLocationRacks returns racks at a location.
+// (GET /locations/{id}/racks)
+func (s *APIServer) ListLocationRacks(c *gin.Context, id IdPath) {
+	racks, err := s.topologySvc.ListRacksByLocation(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.InternalError(c, "failed to list racks")
+		return
+	}
+	response.OK(c, convertSlice(racks, toAPIRack))
+}
+
+// GetLocationStats returns aggregate statistics for a location.
+// (GET /locations/{id}/stats)
+func (s *APIServer) GetLocationStats(c *gin.Context, id IdPath) {
+	stats, err := s.topologySvc.GetLocationStats(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.InternalError(c, "failed to get location stats")
+		return
+	}
+	response.OK(c, LocationStats{
+		TotalAssets:    int(stats.TotalAssets),
+		TotalRacks:     int(stats.TotalRacks),
+		CriticalAlerts: int(stats.CriticalAlerts),
+		AvgOccupancy:   float32(stats.AvgOccupancy),
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Rack endpoints
+// ---------------------------------------------------------------------------
+
+// GetRack returns a single rack by ID.
+// (GET /racks/{id})
+func (s *APIServer) GetRack(c *gin.Context, id IdPath) {
+	rack, err := s.topologySvc.GetRack(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "rack not found")
+		return
+	}
+	response.OK(c, toAPIRack(rack))
+}
+
+// ListRackAssets returns all assets in a rack.
+// (GET /racks/{id}/assets)
+func (s *APIServer) ListRackAssets(c *gin.Context, id IdPath) {
+	assets, err := s.topologySvc.ListAssetsByRack(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.InternalError(c, "failed to list rack assets")
+		return
+	}
+	response.OK(c, convertSlice(assets, toAPIAsset))
+}
+
+// ---------------------------------------------------------------------------
+// Maintenance endpoints
+// ---------------------------------------------------------------------------
+
+// ListWorkOrders returns a paginated list of work orders.
+// (GET /maintenance/orders)
+func (s *APIServer) ListWorkOrders(c *gin.Context, params ListWorkOrdersParams) {
+	tenantID := tenantIDFromContext(c)
+	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
+
+	orders, total, err := s.maintenanceSvc.List(c.Request.Context(), tenantID, params.Status, limit, offset)
+	if err != nil {
+		response.InternalError(c, "failed to list work orders")
+		return
+	}
+	response.OKList(c, convertSlice(orders, toAPIWorkOrder), page, pageSize, int(total))
+}
+
+// CreateWorkOrder creates a new work order.
+// (POST /maintenance/orders)
+func (s *APIServer) CreateWorkOrder(c *gin.Context) {
+	var req CreateWorkOrderJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+	requestorID := userIDFromContext(c)
+
+	domainReq := maintenance.CreateOrderRequest{
+		Title: req.Title,
+		Type:  req.Type,
+	}
+	if req.Priority != nil {
+		domainReq.Priority = *req.Priority
+	}
+	if req.LocationId != nil {
+		u := uuid.UUID(*req.LocationId)
+		domainReq.LocationID = &u
+	}
+	if req.AssigneeId != nil {
+		u := uuid.UUID(*req.AssigneeId)
+		domainReq.AssigneeID = &u
+	}
+	if req.Description != nil {
+		domainReq.Description = *req.Description
+	}
+	if req.ScheduledStart != nil {
+		domainReq.ScheduledStart = req.ScheduledStart
+	}
+	if req.ScheduledEnd != nil {
+		domainReq.ScheduledEnd = req.ScheduledEnd
+	}
+
+	order, err := s.maintenanceSvc.Create(c.Request.Context(), tenantID, requestorID, domainReq)
+	if err != nil {
+		response.InternalError(c, "failed to create work order")
+		return
+	}
+	response.Created(c, toAPIWorkOrder(*order))
+}
+
+// GetWorkOrder returns a single work order by ID.
+// (GET /maintenance/orders/{id})
+func (s *APIServer) GetWorkOrder(c *gin.Context, id IdPath) {
+	order, err := s.maintenanceSvc.GetByID(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "work order not found")
+		return
+	}
+	response.OK(c, toAPIWorkOrder(*order))
+}
+
+// TransitionWorkOrder transitions a work order to a new status.
+// (POST /maintenance/orders/{id}/transition)
+func (s *APIServer) TransitionWorkOrder(c *gin.Context, id IdPath) {
+	var req TransitionWorkOrderJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	operatorID := userIDFromContext(c)
+	comment := ""
+	if req.Comment != nil {
+		comment = *req.Comment
+	}
+
+	order, err := s.maintenanceSvc.Transition(c.Request.Context(), uuid.UUID(id), operatorID, maintenance.TransitionRequest{
+		Status:  req.Status,
+		Comment: comment,
+	})
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.OK(c, toAPIWorkOrder(*order))
+}
+
+// ---------------------------------------------------------------------------
+// Monitoring endpoints
+// ---------------------------------------------------------------------------
+
+// ListAlerts returns a paginated list of alert events.
+// (GET /monitoring/alerts)
+func (s *APIServer) ListAlerts(c *gin.Context, params ListAlertsParams) {
+	tenantID := tenantIDFromContext(c)
+	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
+
+	var assetID *uuid.UUID
+	if params.AssetId != nil {
+		u := uuid.UUID(*params.AssetId)
+		assetID = &u
+	}
+
+	alerts, total, err := s.monitoringSvc.ListAlerts(c.Request.Context(), tenantID, params.Status, params.Severity, assetID, limit, offset)
+	if err != nil {
+		response.InternalError(c, "failed to list alerts")
+		return
+	}
+	response.OKList(c, convertSlice(alerts, toAPIAlertEvent), page, pageSize, int(total))
+}
+
+// AcknowledgeAlert acknowledges an alert event.
+// (POST /monitoring/alerts/{id}/ack)
+func (s *APIServer) AcknowledgeAlert(c *gin.Context, id IdPath) {
+	alert, err := s.monitoringSvc.Acknowledge(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "alert not found")
+		return
+	}
+	response.OK(c, toAPIAlertEvent(*alert))
+}
+
+// ResolveAlert resolves an alert event.
+// (POST /monitoring/alerts/{id}/resolve)
+func (s *APIServer) ResolveAlert(c *gin.Context, id IdPath) {
+	alert, err := s.monitoringSvc.Resolve(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "alert not found")
+		return
+	}
+	response.OK(c, toAPIAlertEvent(*alert))
+}
+
+// ---------------------------------------------------------------------------
+// Inventory endpoints
+// ---------------------------------------------------------------------------
+
+// ListInventoryTasks returns a paginated list of inventory tasks.
+// (GET /inventory/tasks)
+func (s *APIServer) ListInventoryTasks(c *gin.Context, params ListInventoryTasksParams) {
+	tenantID := tenantIDFromContext(c)
+	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
+
+	tasks, total, err := s.inventorySvc.List(c.Request.Context(), tenantID, limit, offset)
+	if err != nil {
+		response.InternalError(c, "failed to list inventory tasks")
+		return
+	}
+	response.OKList(c, convertSlice(tasks, toAPIInventoryTask), page, pageSize, int(total))
+}
+
+// GetInventoryTask returns a single inventory task by ID.
+// (GET /inventory/tasks/{id})
+func (s *APIServer) GetInventoryTask(c *gin.Context, id IdPath) {
+	task, err := s.inventorySvc.GetByID(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "inventory task not found")
+		return
+	}
+	response.OK(c, toAPIInventoryTask(*task))
+}
+
+// ListInventoryItems returns all items in an inventory task.
+// (GET /inventory/tasks/{id}/items)
+func (s *APIServer) ListInventoryItems(c *gin.Context, id IdPath) {
+	items, err := s.inventorySvc.ListItems(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.InternalError(c, "failed to list inventory items")
+		return
+	}
+	response.OK(c, convertSlice(items, toAPIInventoryItem))
+}
+
+// ---------------------------------------------------------------------------
+// Audit endpoints
+// ---------------------------------------------------------------------------
+
+// QueryAuditEvents returns a paginated list of audit events.
+// (GET /audit/events)
+func (s *APIServer) QueryAuditEvents(c *gin.Context, params QueryAuditEventsParams) {
+	tenantID := tenantIDFromContext(c)
+	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
+
+	var targetID *uuid.UUID
+	if params.TargetId != nil {
+		u := uuid.UUID(*params.TargetId)
+		targetID = &u
+	}
+
+	events, total, err := s.auditSvc.Query(c.Request.Context(), tenantID, params.Module, params.TargetType, targetID, limit, offset)
+	if err != nil {
+		response.InternalError(c, "failed to query audit events")
+		return
+	}
+	response.OKList(c, convertSlice(events, toAPIAuditEvent), page, pageSize, int(total))
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard endpoints
+// ---------------------------------------------------------------------------
+
+// GetDashboardStats returns aggregated dashboard statistics.
+// (GET /dashboard/stats)
+func (s *APIServer) GetDashboardStats(c *gin.Context, params GetDashboardStatsParams) {
+	tenantID := tenantIDFromContext(c)
+
+	stats, err := s.dashboardSvc.GetStats(c.Request.Context(), tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to get dashboard stats")
+		return
+	}
+	response.OK(c, DashboardStats{
+		TotalAssets:    int(stats.TotalAssets),
+		TotalRacks:     int(stats.TotalRacks),
+		CriticalAlerts: int(stats.CriticalAlerts),
+		ActiveOrders:   int(stats.ActiveOrders),
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Identity endpoints
+// ---------------------------------------------------------------------------
+
+// ListUsers returns a paginated list of users.
+// (GET /users)
+func (s *APIServer) ListUsers(c *gin.Context, params ListUsersParams) {
+	tenantID := tenantIDFromContext(c)
+	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
+
+	users, total, err := s.identitySvc.ListUsers(c.Request.Context(), tenantID, limit, offset)
+	if err != nil {
+		response.InternalError(c, "failed to list users")
+		return
+	}
+	response.OKList(c, convertSlice(users, toAPIUser), page, pageSize, int(total))
+}
+
+// GetUser returns a single user by ID.
+// (GET /users/{id})
+func (s *APIServer) GetUser(c *gin.Context, id IdPath) {
+	user, err := s.identitySvc.GetUser(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "user not found")
+		return
+	}
+	response.OK(c, toAPIUser(*user))
+}
+
+// ListRoles returns all roles for the tenant.
+// (GET /roles)
+func (s *APIServer) ListRoles(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+
+	roles, err := s.identitySvc.ListRoles(c.Request.Context(), tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to list roles")
+		return
+	}
+	response.OK(c, convertSlice(roles, toAPIRole))
+}
+
+// ---------------------------------------------------------------------------
+// Prediction endpoints
+// ---------------------------------------------------------------------------
+
+// ListPredictionModels returns all prediction models.
+// (GET /prediction/models)
+func (s *APIServer) ListPredictionModels(c *gin.Context) {
+	models, err := s.predictionSvc.ListModels(c.Request.Context())
+	if err != nil {
+		response.InternalError(c, "failed to list prediction models")
+		return
+	}
+	response.OK(c, convertSlice(models, toAPIPredictionModel))
+}
+
+// ListPredictionsByAsset returns prediction results for an asset.
+// (GET /prediction/results/ci/{ciId})
+func (s *APIServer) ListPredictionsByAsset(c *gin.Context, ciId openapi_types.UUID) {
+	results, err := s.predictionSvc.ListByAsset(c.Request.Context(), uuid.UUID(ciId), 50)
+	if err != nil {
+		response.InternalError(c, "failed to list predictions")
+		return
+	}
+	response.OK(c, convertSlice(results, toAPIPredictionResult))
+}
+
+// CreateRCA triggers a root-cause analysis.
+// (POST /prediction/rca)
+func (s *APIServer) CreateRCA(c *gin.Context) {
+	var req CreateRCAJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+
+	modelName := ""
+	if req.ModelName != nil {
+		modelName = *req.ModelName
+	}
+
+	var contextStr string
+	if req.Context != nil {
+		b, _ := json.Marshal(*req.Context)
+		contextStr = string(b)
+	}
+
+	rca, err := s.predictionSvc.CreateRCA(c.Request.Context(), tenantID, prediction.CreateRCARequest{
+		IncidentID: uuid.UUID(req.IncidentId),
+		ModelName:  modelName,
+		Context:    contextStr,
+	})
+	if err != nil {
+		response.InternalError(c, "failed to create RCA")
+		return
+	}
+	response.Created(c, toAPIRCAAnalysis(*rca))
+}
+
+// VerifyRCA marks an RCA as human-verified.
+// (POST /prediction/rca/{id}/verify)
+func (s *APIServer) VerifyRCA(c *gin.Context, id IdPath) {
+	var req VerifyRCAJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	rca, err := s.predictionSvc.VerifyRCA(c.Request.Context(), uuid.UUID(id), uuid.UUID(req.VerifiedBy))
+	if err != nil {
+		response.NotFound(c, "RCA not found")
+		return
+	}
+	response.OK(c, toAPIRCAAnalysis(*rca))
+}
