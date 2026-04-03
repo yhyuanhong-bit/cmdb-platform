@@ -1,0 +1,56 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+)
+
+// Config holds all configuration for the cmdb-core service.
+type Config struct {
+	Port        int
+	DatabaseURL string
+	RedisURL    string
+	NatsURL     string
+	JWTSecret   string
+	DeployMode  string
+	TenantID    string
+	LogLevel    string
+}
+
+// Load reads configuration from environment variables with sensible defaults.
+// In edge mode, TenantID is required.
+func Load() (*Config, error) {
+	port := 8080
+	if v := os.Getenv("PORT"); v != "" {
+		p, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, fmt.Errorf("invalid PORT: %w", err)
+		}
+		port = p
+	}
+
+	cfg := &Config{
+		Port:        port,
+		DatabaseURL: envOrDefault("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/cmdb?sslmode=disable"),
+		RedisURL:    envOrDefault("REDIS_URL", "redis://localhost:6379/0"),
+		NatsURL:     envOrDefault("NATS_URL", "nats://localhost:4222"),
+		JWTSecret:   envOrDefault("JWT_SECRET", "dev-secret-change-me"),
+		DeployMode:  envOrDefault("DEPLOY_MODE", "cloud"),
+		TenantID:    os.Getenv("TENANT_ID"),
+		LogLevel:    envOrDefault("LOG_LEVEL", "info"),
+	}
+
+	if cfg.DeployMode == "edge" && cfg.TenantID == "" {
+		return nil, fmt.Errorf("TENANT_ID is required in edge deploy mode")
+	}
+
+	return cfg, nil
+}
+
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
