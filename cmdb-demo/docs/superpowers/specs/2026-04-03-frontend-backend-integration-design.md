@@ -106,7 +106,7 @@ security:
 - `Pagination` — `{ page, page_size, total, total_pages: integer }`
 - `ErrorResponse` — `{ error: { code, message: string }, meta: Meta }`
 
-**Business types (12 schemas):**
+**Business types (18 schemas):**
 
 | Schema | Key Fields | Nullable Fields |
 |--------|-----------|-----------------|
@@ -244,7 +244,7 @@ security:
 
 Converts internal `dbgen.*` types (with `pgtype.UUID`, `pgtype.Text`, etc.) to generated API types (with `string`, `*string`, etc.).
 
-12 conversion functions + 3 helpers:
+14 conversion functions + 3 helpers:
 
 ```
 toAPIAsset(dbgen.Asset) → api.Asset
@@ -258,7 +258,9 @@ toAPIInventoryItem(dbgen.InventoryItem) → api.InventoryItem
 toAPIAuditEvent(dbgen.AuditEvent) → api.AuditEvent
 toAPIUser(dbgen.User) → api.User
 toAPIRole(dbgen.Role) → api.Role
+toAPIPredictionModel(dbgen.PredictionModel) → api.PredictionModel
 toAPIPredictionResult(dbgen.PredictionResult) → api.PredictionResult
+toAPIRCAAnalysis(dbgen.RcaAnalysis) → api.RCAAnalysis
 
 pguuidToPtr(pgtype.UUID) → *string       // Valid → "uuid-string", !Valid → nil
 pgtextToPtr(pgtype.Text) → *string       // Valid → "string", !Valid → nil
