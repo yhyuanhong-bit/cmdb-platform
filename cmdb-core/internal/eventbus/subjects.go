@@ -1,0 +1,23 @@
+package eventbus
+
+// Subject constants for all domain events in the CMDB platform.
+const (
+	SubjectAssetCreated         = "asset.created"
+	SubjectAssetUpdated         = "asset.updated"
+	SubjectAssetStatusChanged   = "asset.status_changed"
+	SubjectAssetDeleted         = "asset.deleted"
+	SubjectRackOccupancyChanged = "rack.occupancy_changed"
+
+	SubjectOrderCreated      = "maintenance.order_created"
+	SubjectOrderTransitioned = "maintenance.order_transitioned"
+
+	SubjectAlertFired    = "alert.fired"
+	SubjectAlertResolved = "alert.resolved"
+
+	SubjectImportCompleted = "import.completed"
+	SubjectConflictCreated = "import.conflict_created"
+
+	SubjectPredictionCreated = "prediction.created"
+
+	SubjectAuditRecorded = "audit.recorded"
+)
