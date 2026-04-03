@@ -1,0 +1,11 @@
+# Binaries
+server
+bin/
+*.exe
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
