@@ -380,3 +380,150 @@ CROSS JOIN (VALUES
     ('Teams Notifications', 'maintenance.order_created', '{"work_order_id": "20000000-0000-0000-0000-000000000001", "title": "UPS Battery Replacement"}', 200, '{"id": "msg-001"}')
 ) AS v(sub_name, event_type, payload, status_code, response_body)
 WHERE ws.name = v.sub_name;
+
+-- ============================================================
+-- Asset Attributes Enrichment (W4)
+-- AssetDetail pages read from attributes JSONB for cpu, memory, etc.
+-- ============================================================
+
+UPDATE assets SET attributes = '{
+  "cpu": "2x Intel Xeon Gold 6348 (56C/112T)",
+  "memory": "512GB DDR4-3200 ECC",
+  "storage": "8x 3.84TB NVMe SSD (RAID-10)",
+  "network": "4x 25GbE + 2x 100GbE",
+  "os": "Rocky Linux 9.3",
+  "primary_ip": "10.134.143.101",
+  "mgmt_ip": "10.134.144.101",
+  "form_factor": "2U Rackmount",
+  "warranty_expiry": "2028-03-15",
+  "purchase_date": "2025-03-15",
+  "uptime_days": 342,
+  "mtbf_hours": 45000
+}' WHERE asset_tag = 'SRV-PROD-001';
+
+UPDATE assets SET attributes = '{
+  "cpu": "2x Intel Xeon Gold 6348 (56C/112T)",
+  "memory": "512GB DDR4-3200 ECC",
+  "storage": "8x 3.84TB NVMe SSD (RAID-10)",
+  "network": "4x 25GbE + 2x 100GbE",
+  "os": "Rocky Linux 9.3",
+  "primary_ip": "10.134.143.102",
+  "mgmt_ip": "10.134.144.102",
+  "form_factor": "2U Rackmount",
+  "warranty_expiry": "2028-03-15",
+  "purchase_date": "2025-03-15",
+  "uptime_days": 342,
+  "mtbf_hours": 48000
+}' WHERE asset_tag = 'SRV-PROD-002';
+
+UPDATE assets SET attributes = '{
+  "cpu": "2x Intel Xeon Gold 6330 (56C/112T)",
+  "memory": "1TB DDR4-3200 ECC",
+  "storage": "12x 7.68TB NVMe SSD (RAID-60)",
+  "network": "2x 25GbE + 2x 100GbE",
+  "os": "Rocky Linux 9.3 + PostgreSQL 16",
+  "primary_ip": "10.134.143.105",
+  "mgmt_ip": "10.134.144.105",
+  "form_factor": "2U Rackmount",
+  "warranty_expiry": "2028-06-01",
+  "purchase_date": "2025-06-01",
+  "uptime_days": 256,
+  "mtbf_hours": 52000
+}' WHERE asset_tag = 'SRV-DB-001';
+
+UPDATE assets SET attributes = '{
+  "cpu": "2x Intel Xeon Silver 4314 (32C/64T)",
+  "memory": "256GB DDR4-3200 ECC",
+  "storage": "4x 1.92TB NVMe SSD (RAID-10)",
+  "network": "4x 25GbE",
+  "os": "Rocky Linux 9.3 + Kubernetes 1.29",
+  "primary_ip": "10.134.143.106",
+  "mgmt_ip": "10.134.144.106",
+  "form_factor": "2U Rackmount",
+  "warranty_expiry": "2028-06-01",
+  "purchase_date": "2025-06-01",
+  "uptime_days": 198,
+  "mtbf_hours": 40000
+}' WHERE asset_tag = 'SRV-APP-001';
+
+UPDATE assets SET attributes = '{
+  "ports": "36x 400GbE QSFP-DD",
+  "firmware": "NX-OS 10.3(4a)",
+  "primary_ip": "10.134.143.1",
+  "mgmt_ip": "10.134.144.1",
+  "form_factor": "1U Rackmount",
+  "warranty_expiry": "2027-09-01",
+  "purchase_date": "2024-09-01",
+  "uptime_days": 520,
+  "mtbf_hours": 87000,
+  "ha_status": "active"
+}' WHERE asset_tag = 'NET-SW-A01';
+
+UPDATE assets SET attributes = '{
+  "ports": "36x 400GbE QSFP-DD",
+  "firmware": "NX-OS 10.3(4a)",
+  "primary_ip": "10.134.143.2",
+  "mgmt_ip": "10.134.144.2",
+  "form_factor": "1U Rackmount",
+  "warranty_expiry": "2027-09-01",
+  "purchase_date": "2024-09-01",
+  "uptime_days": 520,
+  "mtbf_hours": 87000,
+  "ha_status": "standby"
+}' WHERE asset_tag = 'NET-SW-A02';
+
+UPDATE assets SET attributes = '{
+  "throughput": "72 Gbps",
+  "firmware": "PAN-OS 11.1.2",
+  "primary_ip": "10.134.143.10",
+  "mgmt_ip": "10.134.144.10",
+  "form_factor": "2U Rackmount",
+  "warranty_expiry": "2027-06-01",
+  "purchase_date": "2024-06-01",
+  "ha_status": "active/active",
+  "uptime_days": 380,
+  "mtbf_hours": 62000,
+  "sessions_active": 45000,
+  "sessions_max": 100000
+}' WHERE asset_tag = 'NET-FW-001';
+
+UPDATE assets SET attributes = '{
+  "capacity": "100kW / 360kWh",
+  "battery_type": "Lithium-ion",
+  "efficiency": "96%",
+  "primary_ip": "10.134.145.1",
+  "form_factor": "Floor Standing",
+  "warranty_expiry": "2029-01-15",
+  "purchase_date": "2024-01-15",
+  "runtime_at_full_load": "18 minutes",
+  "battery_health": "78%",
+  "last_test_date": "2026-03-01"
+}' WHERE asset_tag = 'PWR-UPS-001';
+
+UPDATE assets SET attributes = '{
+  "raw_capacity": "144TB (12x 12TB)",
+  "usable_capacity": "108TB (RAID-6)",
+  "protocol": "NFS/SMB/iSCSI",
+  "primary_ip": "10.134.143.20",
+  "mgmt_ip": "10.134.144.20",
+  "form_factor": "4U Rackmount",
+  "warranty_expiry": "2028-02-01",
+  "purchase_date": "2025-02-01",
+  "uptime_days": 410,
+  "usage_percent": 68
+}' WHERE asset_tag = 'STG-NAS-001';
+
+UPDATE assets SET attributes = '{
+  "raw_capacity": "460TB (24x 19.2TB NVMe)",
+  "usable_capacity": "300TB",
+  "protocol": "FC 32Gbps / NVMe-oF",
+  "primary_ip": "10.134.143.21",
+  "mgmt_ip": "10.134.144.21",
+  "form_factor": "4U Rackmount",
+  "warranty_expiry": "2028-08-01",
+  "purchase_date": "2025-08-01",
+  "uptime_days": 280,
+  "iops": 500000,
+  "latency_us": 200,
+  "usage_percent": 42
+}' WHERE asset_tag = 'STG-SAN-001';
