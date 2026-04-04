@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/json"
-
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
@@ -539,6 +541,81 @@ func (s *APIServer) ResolveAlert(c *gin.Context, id IdPath) {
 		return
 	}
 	response.OK(c, toAPIAlertEvent(*alert))
+}
+
+// QueryMetrics queries time-series metric data for an asset.
+// (GET /monitoring/metrics)
+func (s *APIServer) QueryMetrics(c *gin.Context, params QueryMetricsParams) {
+	assetID := uuid.UUID(params.AssetId)
+	metricName := params.MetricName
+	timeRange := params.TimeRange
+
+	// Parse time_range (e.g., "1h", "6h", "24h", "7d") into a duration.
+	cutoff, err := parseTimeRange(timeRange)
+	if err != nil {
+		response.BadRequest(c, fmt.Sprintf("invalid time_range: %s", timeRange))
+		return
+	}
+
+	since := time.Now().Add(-cutoff)
+
+	rows, err := s.pool.Query(c.Request.Context(),
+		`SELECT time, name, value
+		 FROM metrics
+		 WHERE asset_id = $1
+		   AND name = $2
+		   AND time > $3
+		 ORDER BY time DESC
+		 LIMIT 500`,
+		assetID, metricName, since,
+	)
+	if err != nil {
+		response.InternalError(c, "failed to query metrics")
+		return
+	}
+	defer rows.Close()
+
+	points := make([]MetricPoint, 0, 128)
+	for rows.Next() {
+		var p MetricPoint
+		if err := rows.Scan(&p.Time, &p.Name, &p.Value); err != nil {
+			response.InternalError(c, "failed to scan metric row")
+			return
+		}
+		points = append(points, p)
+	}
+	if err := rows.Err(); err != nil {
+		response.InternalError(c, "error reading metric rows")
+		return
+	}
+
+	response.OK(c, points)
+}
+
+// parseTimeRange converts a string like "6h", "24h", "7d" into a time.Duration.
+func parseTimeRange(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if len(s) < 2 {
+		return 0, fmt.Errorf("too short")
+	}
+
+	unit := s[len(s)-1]
+	numStr := s[:len(s)-1]
+	num, err := strconv.Atoi(numStr)
+	if err != nil {
+		return 0, err
+	}
+
+	switch unit {
+	case 'h':
+		return time.Duration(num) * time.Hour, nil
+	case 'd':
+		return time.Duration(num) * 24 * time.Hour, nil
+	case 'm':
+		return time.Duration(num) * time.Minute, nil
+	default:
+		return 0, fmt.Errorf("unknown unit: %c", unit)
+	}
 }
 
 // ---------------------------------------------------------------------------
