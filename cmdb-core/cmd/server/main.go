@@ -111,7 +111,7 @@ func main() {
 
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
-		pool, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
+		pool, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc,
 	)

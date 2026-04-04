@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
@@ -33,6 +35,7 @@ var _ ServerInterface = (*APIServer)(nil)
 // delegating business logic to the domain services.
 type APIServer struct {
 	pool           *pgxpool.Pool
+	eventBus       eventbus.Bus
 	authSvc        *identity.AuthService
 	identitySvc    *identity.Service
 	topologySvc    *topology.Service
@@ -49,6 +52,7 @@ type APIServer struct {
 // NewAPIServer constructs an APIServer with all required domain services.
 func NewAPIServer(
 	pool *pgxpool.Pool,
+	bus eventbus.Bus,
 	authSvc *identity.AuthService,
 	identitySvc *identity.Service,
 	topologySvc *topology.Service,
@@ -63,6 +67,7 @@ func NewAPIServer(
 ) *APIServer {
 	return &APIServer{
 		pool:           pool,
+		eventBus:       bus,
 		authSvc:        authSvc,
 		identitySvc:    identitySvc,
 		topologySvc:    topologySvc,
@@ -136,6 +141,25 @@ func (s *APIServer) recordAudit(c *gin.Context, action, module, targetType strin
 	if err := s.auditSvc.Record(c.Request.Context(), tenantID, action, module, targetType, targetID, operatorID, diff, "api"); err != nil {
 		// Log but don't fail the request
 		fmt.Printf("audit record error: %v\n", err)
+	}
+}
+
+// publishEvent publishes a domain event to the event bus. Errors are logged but don't fail the request.
+func (s *APIServer) publishEvent(ctx context.Context, subject, tenantID string, payload any) {
+	if s.eventBus == nil {
+		return
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		fmt.Printf("event marshal error: %v\n", err)
+		return
+	}
+	if err := s.eventBus.Publish(ctx, eventbus.Event{
+		Subject:  subject,
+		TenantID: tenantID,
+		Payload:  data,
+	}); err != nil {
+		fmt.Printf("event publish error: %v\n", err)
 	}
 }
 
@@ -275,6 +299,9 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 		"asset_tag": created.AssetTag,
 		"name":      created.Name,
 	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectAssetCreated, tenantID.String(), map[string]any{
+		"asset_id": created.ID.String(), "tenant_id": tenantID.String(), "asset_tag": created.AssetTag, "type": created.Type,
+	})
 	response.Created(c, toAPIAsset(*created))
 }
 
@@ -358,6 +385,9 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 		diff["model"] = *req.Model
 	}
 	s.recordAudit(c, "asset.updated", "asset", "asset", updated.ID, diff)
+	s.publishEvent(c.Request.Context(), eventbus.SubjectAssetUpdated, tenantIDFromContext(c).String(), map[string]any{
+		"asset_id": updated.ID.String(), "tenant_id": tenantIDFromContext(c).String(),
+	})
 	response.OK(c, toAPIAsset(*updated))
 }
 
@@ -370,6 +400,9 @@ func (s *APIServer) DeleteAsset(c *gin.Context, id IdPath) {
 		return
 	}
 	s.recordAudit(c, "asset.deleted", "asset", "asset", uuid.UUID(id), nil)
+	s.publishEvent(c.Request.Context(), eventbus.SubjectAssetDeleted, tenantIDFromContext(c).String(), map[string]any{
+		"asset_id": uuid.UUID(id).String(), "tenant_id": tenantIDFromContext(c).String(),
+	})
 	c.Status(204)
 }
 
@@ -559,6 +592,9 @@ func (s *APIServer) CreateWorkOrder(c *gin.Context) {
 		"code":  order.Code,
 		"title": order.Title,
 	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectOrderCreated, tenantID.String(), map[string]any{
+		"order_id": order.ID.String(), "tenant_id": tenantID.String(), "code": order.Code, "priority": order.Priority,
+	})
 	response.Created(c, toAPIWorkOrder(*order))
 }
 
@@ -600,6 +636,9 @@ func (s *APIServer) TransitionWorkOrder(c *gin.Context, id IdPath) {
 		"status":  req.Status,
 		"comment": comment,
 	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectOrderTransitioned, tenantIDFromContext(c).String(), map[string]any{
+		"order_id": uuid.UUID(id).String(), "status": req.Status,
+	})
 	response.OK(c, toAPIWorkOrder(*order))
 }
 
@@ -638,6 +677,9 @@ func (s *APIServer) AcknowledgeAlert(c *gin.Context, id IdPath) {
 	s.recordAudit(c, "alert.acknowledged", "monitoring", "alert", alert.ID, map[string]any{
 		"status": alert.Status,
 	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectAlertResolved, tenantIDFromContext(c).String(), map[string]any{
+		"alert_id": alert.ID.String(), "status": "acknowledged",
+	})
 	response.OK(c, toAPIAlertEvent(*alert))
 }
 
@@ -651,6 +693,9 @@ func (s *APIServer) ResolveAlert(c *gin.Context, id IdPath) {
 	}
 	s.recordAudit(c, "alert.resolved", "monitoring", "alert", alert.ID, map[string]any{
 		"status": alert.Status,
+	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectAlertResolved, tenantIDFromContext(c).String(), map[string]any{
+		"alert_id": alert.ID.String(), "status": "resolved",
 	})
 	response.OK(c, toAPIAlertEvent(*alert))
 }
@@ -708,6 +753,9 @@ func (s *APIServer) CreateAlertRule(c *gin.Context) {
 		"name":     rule.Name,
 		"severity": rule.Severity,
 	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectAlertFired, tenantIDFromContext(c).String(), map[string]any{
+		"rule_id": rule.ID.String(), "name": rule.Name,
+	})
 	response.Created(c, toAPIAlertRule(*rule))
 }
 
@@ -762,6 +810,9 @@ func (s *APIServer) CreateIncident(c *gin.Context) {
 		"title":    incident.Title,
 		"severity": incident.Severity,
 	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectAlertFired, tenantIDFromContext(c).String(), map[string]any{
+		"incident_id": incident.ID.String(), "title": incident.Title, "severity": incident.Severity,
+	})
 	response.Created(c, toAPIIncident(*incident))
 }
 
@@ -812,6 +863,9 @@ func (s *APIServer) UpdateIncident(c *gin.Context, id IdPath) {
 	}
 	s.recordAudit(c, "incident.updated", "monitoring", "incident", updated.ID, map[string]any{
 		"status": updated.Status,
+	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectAlertResolved, tenantIDFromContext(c).String(), map[string]any{
+		"incident_id": updated.ID.String(), "status": updated.Status,
 	})
 	response.OK(c, toAPIIncident(*updated))
 }
@@ -1078,6 +1132,9 @@ func (s *APIServer) CreateRCA(c *gin.Context) {
 	}
 	s.recordAudit(c, "rca.created", "prediction", "rca", rca.ID, map[string]any{
 		"incident_id": rca.IncidentID,
+	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectPredictionCreated, tenantID.String(), map[string]any{
+		"rca_id": rca.ID.String(), "incident_id": rca.IncidentID.String(),
 	})
 	response.Created(c, toAPIRCAAnalysis(*rca))
 }
