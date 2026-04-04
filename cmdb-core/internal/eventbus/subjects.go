@@ -15,7 +15,12 @@ const (
 	SubjectRackOccupancyChanged = "rack.occupancy_changed"
 
 	SubjectOrderCreated      = "maintenance.order_created"
+	SubjectOrderUpdated      = "maintenance.order_updated"
 	SubjectOrderTransitioned = "maintenance.order_transitioned"
+
+	SubjectInventoryTaskCreated   = "inventory.task_created"
+	SubjectInventoryTaskCompleted = "inventory.task_completed"
+	SubjectInventoryItemScanned   = "inventory.item_scanned"
 
 	SubjectAlertFired    = "alert.fired"
 	SubjectAlertResolved = "alert.resolved"

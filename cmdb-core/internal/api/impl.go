@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -920,6 +921,63 @@ func (s *APIServer) TransitionWorkOrder(c *gin.Context, id IdPath) {
 	response.OK(c, toAPIWorkOrder(*order))
 }
 
+// UpdateWorkOrder updates a work order's details.
+// (PUT /maintenance/orders/{id})
+func (s *APIServer) UpdateWorkOrder(c *gin.Context, id IdPath) {
+	var req UpdateWorkOrderJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	params := dbgen.UpdateWorkOrderParams{
+		ID: uuid.UUID(id),
+	}
+	if req.Title != nil {
+		params.Title = pgtype.Text{String: *req.Title, Valid: true}
+	}
+	if req.Description != nil {
+		params.Description = pgtype.Text{String: *req.Description, Valid: true}
+	}
+	if req.Priority != nil {
+		params.Priority = pgtype.Text{String: *req.Priority, Valid: true}
+	}
+	if req.AssigneeId != nil {
+		params.AssigneeID = pgtype.UUID{Bytes: uuid.UUID(*req.AssigneeId), Valid: true}
+	}
+	if req.ScheduledStart != nil {
+		params.ScheduledStart = pgtype.Timestamptz{Time: *req.ScheduledStart, Valid: true}
+	}
+	if req.ScheduledEnd != nil {
+		params.ScheduledEnd = pgtype.Timestamptz{Time: *req.ScheduledEnd, Valid: true}
+	}
+
+	order, err := s.maintenanceSvc.Update(c.Request.Context(), params)
+	if err != nil {
+		response.NotFound(c, "work order not found")
+		return
+	}
+	s.recordAudit(c, "order.updated", "maintenance", "work_order", uuid.UUID(id), map[string]any{
+		"title":    req.Title,
+		"priority": req.Priority,
+	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectOrderUpdated, tenantIDFromContext(c).String(), map[string]any{
+		"order_id": uuid.UUID(id).String(), "action": "updated",
+	})
+	response.OK(c, toAPIWorkOrder(*order))
+}
+
+// ListWorkOrderLogs returns the audit trail for a work order.
+// (GET /maintenance/orders/{id}/logs)
+func (s *APIServer) ListWorkOrderLogs(c *gin.Context, id IdPath) {
+	logs, err := s.maintenanceSvc.ListLogs(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "work order not found")
+		return
+	}
+	response.OK(c, convertSlice(logs, toAPIWorkOrderLog))
+}
+
 // ---------------------------------------------------------------------------
 // Monitoring endpoints
 // ---------------------------------------------------------------------------
@@ -1261,6 +1319,109 @@ func (s *APIServer) ListInventoryItems(c *gin.Context, id IdPath) {
 		return
 	}
 	response.OK(c, convertSlice(items, toAPIInventoryItem))
+}
+
+// CreateInventoryTask creates a new inventory task.
+// (POST /inventory/tasks)
+func (s *APIServer) CreateInventoryTask(c *gin.Context) {
+	var req CreateInventoryTaskJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+	code := fmt.Sprintf("INV-%d-%04d", time.Now().Year(), rand.Intn(10000))
+
+	params := dbgen.CreateInventoryTaskParams{
+		TenantID: tenantID,
+		Code:     code,
+		Name:     req.Name,
+		Method:   pgtype.Text{String: req.Method, Valid: true},
+	}
+	if req.PlannedDate != "" {
+		t, err := time.Parse("2006-01-02", req.PlannedDate)
+		if err == nil {
+			params.PlannedDate = pgtype.Date{Time: t, Valid: true}
+		}
+	}
+	if req.ScopeLocationId != nil {
+		params.ScopeLocationID = pgtype.UUID{Bytes: uuid.UUID(*req.ScopeLocationId), Valid: true}
+	}
+	if req.AssignedTo != nil {
+		params.AssignedTo = pgtype.UUID{Bytes: uuid.UUID(*req.AssignedTo), Valid: true}
+	}
+
+	task, err := s.inventorySvc.Create(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, "failed to create inventory task")
+		return
+	}
+	s.recordAudit(c, "task.created", "inventory", "inventory_task", task.ID, map[string]any{
+		"code": task.Code,
+		"name": task.Name,
+	})
+	response.Created(c, toAPIInventoryTask(*task))
+}
+
+// CompleteInventoryTask marks an inventory task as completed.
+// (POST /inventory/tasks/{id}/complete)
+func (s *APIServer) CompleteInventoryTask(c *gin.Context, id IdPath) {
+	task, err := s.inventorySvc.Complete(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "inventory task not found")
+		return
+	}
+	s.recordAudit(c, "task.completed", "inventory", "inventory_task", uuid.UUID(id), map[string]any{
+		"code": task.Code,
+	})
+	response.OK(c, toAPIInventoryTask(*task))
+}
+
+// ScanInventoryItem records a scan result for an inventory item.
+// (POST /inventory/tasks/{taskId}/items/{itemId}/scan)
+func (s *APIServer) ScanInventoryItem(c *gin.Context, taskId openapi_types.UUID, itemId openapi_types.UUID) {
+	var req ScanInventoryItemJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	actualJSON, _ := json.Marshal(req.Actual)
+	userID := userIDFromContext(c)
+
+	params := dbgen.ScanInventoryItemParams{
+		ID:        uuid.UUID(itemId),
+		Actual:    actualJSON,
+		Status:    req.Status,
+		ScannedBy: pgtype.UUID{Bytes: userID, Valid: true},
+	}
+
+	item, err := s.inventorySvc.ScanItem(c.Request.Context(), params)
+	if err != nil {
+		response.NotFound(c, "inventory item not found")
+		return
+	}
+	s.recordAudit(c, "item.scanned", "inventory", "inventory_item", uuid.UUID(itemId), map[string]any{
+		"status": req.Status,
+	})
+	response.OK(c, toAPIInventoryItem(*item))
+}
+
+// GetInventorySummary returns scan progress counts for an inventory task.
+// (GET /inventory/tasks/{id}/summary)
+func (s *APIServer) GetInventorySummary(c *gin.Context, id IdPath) {
+	summary, err := s.inventorySvc.GetSummary(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "inventory task not found")
+		return
+	}
+	response.OK(c, map[string]any{
+		"total":       summary.Total,
+		"scanned":     summary.Scanned,
+		"pending":     summary.Pending,
+		"discrepancy": summary.Discrepancy,
+	})
 }
 
 // ---------------------------------------------------------------------------

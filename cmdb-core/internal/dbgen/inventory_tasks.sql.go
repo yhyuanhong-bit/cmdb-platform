@@ -9,7 +9,33 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const completeInventoryTask = `-- name: CompleteInventoryTask :one
+UPDATE inventory_tasks SET status = 'completed', completed_date = now()
+WHERE id = $1
+RETURNING id, tenant_id, code, name, scope_location_id, status, method, planned_date, completed_date, assigned_to, created_at
+`
+
+func (q *Queries) CompleteInventoryTask(ctx context.Context, id uuid.UUID) (InventoryTask, error) {
+	row := q.db.QueryRow(ctx, completeInventoryTask, id)
+	var i InventoryTask
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Name,
+		&i.ScopeLocationID,
+		&i.Status,
+		&i.Method,
+		&i.PlannedDate,
+		&i.CompletedDate,
+		&i.AssignedTo,
+		&i.CreatedAt,
+	)
+	return i, err
+}
 
 const countInventoryTasks = `-- name: CountInventoryTasks :one
 SELECT count(*) FROM inventory_tasks WHERE tenant_id = $1
@@ -20,6 +46,78 @@ func (q *Queries) CountInventoryTasks(ctx context.Context, tenantID uuid.UUID) (
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const createInventoryTask = `-- name: CreateInventoryTask :one
+INSERT INTO inventory_tasks (tenant_id, code, name, scope_location_id, status, method, planned_date, assigned_to)
+VALUES ($1, $2, $3, $4, 'planned', $5, $6, $7)
+RETURNING id, tenant_id, code, name, scope_location_id, status, method, planned_date, completed_date, assigned_to, created_at
+`
+
+type CreateInventoryTaskParams struct {
+	TenantID        uuid.UUID   `json:"tenant_id"`
+	Code            string      `json:"code"`
+	Name            string      `json:"name"`
+	ScopeLocationID pgtype.UUID `json:"scope_location_id"`
+	Method          pgtype.Text `json:"method"`
+	PlannedDate     pgtype.Date `json:"planned_date"`
+	AssignedTo      pgtype.UUID `json:"assigned_to"`
+}
+
+func (q *Queries) CreateInventoryTask(ctx context.Context, arg CreateInventoryTaskParams) (InventoryTask, error) {
+	row := q.db.QueryRow(ctx, createInventoryTask,
+		arg.TenantID,
+		arg.Code,
+		arg.Name,
+		arg.ScopeLocationID,
+		arg.Method,
+		arg.PlannedDate,
+		arg.AssignedTo,
+	)
+	var i InventoryTask
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Name,
+		&i.ScopeLocationID,
+		&i.Status,
+		&i.Method,
+		&i.PlannedDate,
+		&i.CompletedDate,
+		&i.AssignedTo,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getInventorySummary = `-- name: GetInventorySummary :one
+SELECT
+    count(*) as total,
+    count(*) FILTER (WHERE status = 'scanned') as scanned,
+    count(*) FILTER (WHERE status = 'pending') as pending,
+    count(*) FILTER (WHERE status = 'discrepancy') as discrepancy
+FROM inventory_items
+WHERE task_id = $1
+`
+
+type GetInventorySummaryRow struct {
+	Total       int64 `json:"total"`
+	Scanned     int64 `json:"scanned"`
+	Pending     int64 `json:"pending"`
+	Discrepancy int64 `json:"discrepancy"`
+}
+
+func (q *Queries) GetInventorySummary(ctx context.Context, taskID uuid.UUID) (GetInventorySummaryRow, error) {
+	row := q.db.QueryRow(ctx, getInventorySummary, taskID)
+	var i GetInventorySummaryRow
+	err := row.Scan(
+		&i.Total,
+		&i.Scanned,
+		&i.Pending,
+		&i.Discrepancy,
+	)
+	return i, err
 }
 
 const getInventoryTask = `-- name: GetInventoryTask :one
@@ -124,4 +222,43 @@ func (q *Queries) ListInventoryTasks(ctx context.Context, arg ListInventoryTasks
 		return nil, err
 	}
 	return items, nil
+}
+
+const scanInventoryItem = `-- name: ScanInventoryItem :one
+UPDATE inventory_items SET
+    actual = $2,
+    status = $3,
+    scanned_at = now(),
+    scanned_by = $4
+WHERE id = $1
+RETURNING id, task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by
+`
+
+type ScanInventoryItemParams struct {
+	ID        uuid.UUID   `json:"id"`
+	Actual    []byte      `json:"actual"`
+	Status    string      `json:"status"`
+	ScannedBy pgtype.UUID `json:"scanned_by"`
+}
+
+func (q *Queries) ScanInventoryItem(ctx context.Context, arg ScanInventoryItemParams) (InventoryItem, error) {
+	row := q.db.QueryRow(ctx, scanInventoryItem,
+		arg.ID,
+		arg.Actual,
+		arg.Status,
+		arg.ScannedBy,
+	)
+	var i InventoryItem
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.AssetID,
+		&i.RackID,
+		&i.Expected,
+		&i.Actual,
+		&i.Status,
+		&i.ScannedAt,
+		&i.ScannedBy,
+	)
+	return i, err
 }

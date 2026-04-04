@@ -156,3 +156,21 @@ func (s *Service) Transition(ctx context.Context, id, operatorID uuid.UUID, req 
 
 	return &updated, nil
 }
+
+// Update applies partial updates to a work order.
+func (s *Service) Update(ctx context.Context, params dbgen.UpdateWorkOrderParams) (*dbgen.WorkOrder, error) {
+	order, err := s.queries.UpdateWorkOrder(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("update work order: %w", err)
+	}
+	return &order, nil
+}
+
+// ListLogs returns all log entries for a work order.
+func (s *Service) ListLogs(ctx context.Context, orderID uuid.UUID) ([]dbgen.WorkOrderLog, error) {
+	logs, err := s.queries.ListWorkOrderLogs(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("list work order logs: %w", err)
+	}
+	return logs, nil
+}

@@ -54,3 +54,39 @@ func (s *Service) ListItems(ctx context.Context, taskID uuid.UUID) ([]dbgen.Inve
 	}
 	return items, nil
 }
+
+// Create creates a new inventory task.
+func (s *Service) Create(ctx context.Context, params dbgen.CreateInventoryTaskParams) (*dbgen.InventoryTask, error) {
+	task, err := s.queries.CreateInventoryTask(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("create inventory task: %w", err)
+	}
+	return &task, nil
+}
+
+// Complete marks an inventory task as completed.
+func (s *Service) Complete(ctx context.Context, id uuid.UUID) (*dbgen.InventoryTask, error) {
+	task, err := s.queries.CompleteInventoryTask(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("complete inventory task: %w", err)
+	}
+	return &task, nil
+}
+
+// ScanItem records a scan result for an inventory item.
+func (s *Service) ScanItem(ctx context.Context, params dbgen.ScanInventoryItemParams) (*dbgen.InventoryItem, error) {
+	item, err := s.queries.ScanInventoryItem(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("scan inventory item: %w", err)
+	}
+	return &item, nil
+}
+
+// GetSummary returns scan progress counts for an inventory task.
+func (s *Service) GetSummary(ctx context.Context, taskID uuid.UUID) (*dbgen.GetInventorySummaryRow, error) {
+	summary, err := s.queries.GetInventorySummary(ctx, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("get inventory summary: %w", err)
+	}
+	return &summary, nil
+}

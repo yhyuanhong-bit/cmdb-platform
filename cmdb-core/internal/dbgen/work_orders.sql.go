@@ -281,6 +281,65 @@ func (q *Queries) ListWorkOrders(ctx context.Context, arg ListWorkOrdersParams) 
 	return items, nil
 }
 
+const updateWorkOrder = `-- name: UpdateWorkOrder :one
+UPDATE work_orders SET
+    title           = COALESCE($1, title),
+    description     = COALESCE($2, description),
+    priority        = COALESCE($3, priority),
+    assignee_id     = COALESCE($4, assignee_id),
+    scheduled_start = COALESCE($5, scheduled_start),
+    scheduled_end   = COALESCE($6, scheduled_end),
+    updated_at      = now()
+WHERE id = $7
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at
+`
+
+type UpdateWorkOrderParams struct {
+	Title          pgtype.Text        `json:"title"`
+	Description    pgtype.Text        `json:"description"`
+	Priority       pgtype.Text        `json:"priority"`
+	AssigneeID     pgtype.UUID        `json:"assignee_id"`
+	ScheduledStart pgtype.Timestamptz `json:"scheduled_start"`
+	ScheduledEnd   pgtype.Timestamptz `json:"scheduled_end"`
+	ID             uuid.UUID          `json:"id"`
+}
+
+func (q *Queries) UpdateWorkOrder(ctx context.Context, arg UpdateWorkOrderParams) (WorkOrder, error) {
+	row := q.db.QueryRow(ctx, updateWorkOrder,
+		arg.Title,
+		arg.Description,
+		arg.Priority,
+		arg.AssigneeID,
+		arg.ScheduledStart,
+		arg.ScheduledEnd,
+		arg.ID,
+	)
+	var i WorkOrder
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Title,
+		&i.Type,
+		&i.Status,
+		&i.Priority,
+		&i.LocationID,
+		&i.AssetID,
+		&i.RequestorID,
+		&i.AssigneeID,
+		&i.Description,
+		&i.Reason,
+		&i.PredictionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.ActualStart,
+		&i.ActualEnd,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateWorkOrderStatus = `-- name: UpdateWorkOrderStatus :one
 UPDATE work_orders SET
     status     = $2,

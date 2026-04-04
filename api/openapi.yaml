@@ -836,6 +836,74 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateWorkOrder
+      tags: [maintenance]
+      summary: Update a work order
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                priority:
+                  type: string
+                assignee_id:
+                  type: string
+                  format: uuid
+                scheduled_start:
+                  type: string
+                  format: date-time
+                scheduled_end:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Work order updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkOrder'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /maintenance/orders/{id}/logs:
+    get:
+      operationId: listWorkOrderLogs
+      tags: [maintenance]
+      summary: List work order logs
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Work order logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkOrderLog'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /maintenance/orders/{id}/transition:
     post:
@@ -1229,6 +1297,44 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '401':
           $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createInventoryTask
+      tags: [inventory]
+      summary: Create an inventory task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, method, planned_date]
+              properties:
+                name:
+                  type: string
+                scope_location_id:
+                  type: string
+                  format: uuid
+                method:
+                  type: string
+                planned_date:
+                  type: string
+                assigned_to:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Inventory task created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InventoryTask'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /inventory/tasks/{id}:
     get:
@@ -1279,6 +1385,103 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /inventory/tasks/{id}/complete:
+    post:
+      operationId: completeInventoryTask
+      tags: [inventory]
+      summary: Complete an inventory task
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Inventory task completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InventoryTask'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /inventory/tasks/{taskId}/items/{itemId}/scan:
+    post:
+      operationId: scanInventoryItem
+      tags: [inventory]
+      summary: Scan an inventory item
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actual, status]
+              properties:
+                actual:
+                  type: object
+                  additionalProperties: true
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Item scanned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InventoryItem'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /inventory/tasks/{id}/summary:
+    get:
+      operationId: getInventorySummary
+      tags: [inventory]
+      summary: Get inventory task summary
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Inventory task summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      scanned:
+                        type: integer
+                      pending:
+                        type: integer
+                      discrepancy:
+                        type: integer
+                  meta:
+                    $ref: '#/components/schemas/Meta'
 
   # ── Audit ───────────────────────────────────────────────────────────────
   /audit/events:

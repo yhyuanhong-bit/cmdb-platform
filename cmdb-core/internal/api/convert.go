@@ -10,18 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// WorkOrderLog is not in the OpenAPI spec yet, but we need it for the conversion layer.
-type WorkOrderLog struct {
-	Id         string  `json:"id"`
-	OrderId    string  `json:"order_id"`
-	Action     string  `json:"action"`
-	FromStatus *string `json:"from_status,omitempty"`
-	ToStatus   *string `json:"to_status,omitempty"`
-	OperatorId *string `json:"operator_id,omitempty"`
-	Comment    *string `json:"comment,omitempty"`
-	CreatedAt  string  `json:"created_at"`
-}
-
 // ---------------------------------------------------------------------------
 // Helper functions
 // ---------------------------------------------------------------------------
@@ -319,14 +307,14 @@ func pgUUIDToUUID(v pgtype.UUID) uuid.UUID {
 
 func toAPIWorkOrderLog(db dbgen.WorkOrderLog) WorkOrderLog {
 	return WorkOrderLog{
-		Id:         db.ID.String(),
-		OrderId:    db.OrderID.String(),
+		Id:         db.ID,
+		OrderId:    db.OrderID,
 		Action:     db.Action,
 		FromStatus: pgtextToPtr(db.FromStatus),
 		ToStatus:   pgtextToPtr(db.ToStatus),
-		OperatorId: pguuidToPtr(db.OperatorID),
+		OperatorId: pguuidToUUIDPtr(db.OperatorID),
 		Comment:    pgtextToPtr(db.Comment),
-		CreatedAt:  timeToStr(db.CreatedAt),
+		CreatedAt:  db.CreatedAt,
 	}
 }
 
