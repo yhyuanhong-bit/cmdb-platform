@@ -334,6 +334,19 @@ type ListAssetsParams struct {
 	SerialNumber *string             `form:"serial_number,omitempty" json:"serial_number,omitempty"`
 }
 
+// UpdateAssetJSONBody defines parameters for UpdateAsset.
+type UpdateAssetJSONBody struct {
+	Attributes *map[string]interface{} `json:"attributes,omitempty"`
+	BiaLevel   *string                 `json:"bia_level,omitempty"`
+	LocationId *openapi_types.UUID     `json:"location_id,omitempty"`
+	Model      *string                 `json:"model,omitempty"`
+	Name       *string                 `json:"name,omitempty"`
+	RackId     *openapi_types.UUID     `json:"rack_id,omitempty"`
+	Status     *string                 `json:"status,omitempty"`
+	Tags       *[]string               `json:"tags,omitempty"`
+	Vendor     *string                 `json:"vendor,omitempty"`
+}
+
 // QueryAuditEventsParams defines parameters for QueryAuditEvents.
 type QueryAuditEventsParams struct {
 	Page       *Page               `form:"page,omitempty" json:"page,omitempty"`
@@ -423,6 +436,9 @@ type ListUsersParams struct {
 // CreateAssetJSONRequestBody defines body for CreateAsset for application/json ContentType.
 type CreateAssetJSONRequestBody = Asset
 
+// UpdateAssetJSONRequestBody defines body for UpdateAsset for application/json ContentType.
+type UpdateAssetJSONRequestBody UpdateAssetJSONBody
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -449,9 +465,15 @@ type ServerInterface interface {
 	// Create a new asset
 	// (POST /assets)
 	CreateAsset(c *gin.Context)
+	// Delete an asset
+	// (DELETE /assets/{id})
+	DeleteAsset(c *gin.Context, id IdPath)
 	// Get an asset by ID
 	// (GET /assets/{id})
 	GetAsset(c *gin.Context, id IdPath)
+	// Update an asset
+	// (PUT /assets/{id})
+	UpdateAsset(c *gin.Context, id IdPath)
 	// Query audit events
 	// (GET /audit/events)
 	QueryAuditEvents(c *gin.Context, params QueryAuditEventsParams)
@@ -656,6 +678,32 @@ func (siw *ServerInterfaceWrapper) CreateAsset(c *gin.Context) {
 	siw.Handler.CreateAsset(c)
 }
 
+// DeleteAsset operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAsset(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAsset(c, id)
+}
+
 // GetAsset operation middleware
 func (siw *ServerInterfaceWrapper) GetAsset(c *gin.Context) {
 
@@ -680,6 +728,32 @@ func (siw *ServerInterfaceWrapper) GetAsset(c *gin.Context) {
 	}
 
 	siw.Handler.GetAsset(c, id)
+}
+
+// UpdateAsset operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAsset(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAsset(c, id)
 }
 
 // QueryAuditEvents operation middleware
@@ -1646,7 +1720,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/assets", wrapper.ListAssets)
 	router.POST(options.BaseURL+"/assets", wrapper.CreateAsset)
+	router.DELETE(options.BaseURL+"/assets/:id", wrapper.DeleteAsset)
 	router.GET(options.BaseURL+"/assets/:id", wrapper.GetAsset)
+	router.PUT(options.BaseURL+"/assets/:id", wrapper.UpdateAsset)
 	router.GET(options.BaseURL+"/audit/events", wrapper.QueryAuditEvents)
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
 	router.GET(options.BaseURL+"/auth/me", wrapper.GetCurrentUser)

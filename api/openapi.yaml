@@ -421,6 +421,75 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateAsset
+      tags: [assets]
+      summary: Update an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                status:
+                  type: string
+                bia_level:
+                  type: string
+                location_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                rack_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                vendor:
+                  type: string
+                model:
+                  type: string
+                attributes:
+                  type: object
+                  additionalProperties: true
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Asset updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Asset'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteAsset
+      tags: [assets]
+      summary: Delete an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Asset deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ── Maintenance ─────────────────────────────────────────────────────────
   /maintenance/orders:

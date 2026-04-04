@@ -289,6 +289,90 @@ func (s *APIServer) GetAsset(c *gin.Context, id IdPath) {
 	response.OK(c, toAPIAsset(*a))
 }
 
+// UpdateAsset updates an existing asset.
+// (PUT /assets/{id})
+func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
+	var req UpdateAssetJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	params := dbgen.UpdateAssetParams{
+		ID: uuid.UUID(id),
+	}
+	if req.Name != nil {
+		params.Name = pgtype.Text{String: *req.Name, Valid: true}
+	}
+	if req.Status != nil {
+		params.Status = pgtype.Text{String: *req.Status, Valid: true}
+	}
+	if req.BiaLevel != nil {
+		params.BiaLevel = pgtype.Text{String: *req.BiaLevel, Valid: true}
+	}
+	if req.LocationId != nil {
+		u := uuid.UUID(*req.LocationId)
+		params.LocationID = pgtype.UUID{Bytes: u, Valid: true}
+	}
+	if req.RackId != nil {
+		u := uuid.UUID(*req.RackId)
+		params.RackID = pgtype.UUID{Bytes: u, Valid: true}
+	}
+	if req.Vendor != nil {
+		params.Vendor = pgtype.Text{String: *req.Vendor, Valid: true}
+	}
+	if req.Model != nil {
+		params.Model = pgtype.Text{String: *req.Model, Valid: true}
+	}
+	if req.Attributes != nil {
+		b, _ := json.Marshal(req.Attributes)
+		params.Attributes = b
+	}
+	if req.Tags != nil {
+		params.Tags = *req.Tags
+	}
+
+	updated, err := s.assetSvc.Update(c.Request.Context(), params)
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			response.NotFound(c, "asset not found")
+		} else {
+			response.InternalError(c, "failed to update asset")
+		}
+		return
+	}
+	diff := map[string]any{}
+	if req.Name != nil {
+		diff["name"] = *req.Name
+	}
+	if req.Status != nil {
+		diff["status"] = *req.Status
+	}
+	if req.BiaLevel != nil {
+		diff["bia_level"] = *req.BiaLevel
+	}
+	if req.Vendor != nil {
+		diff["vendor"] = *req.Vendor
+	}
+	if req.Model != nil {
+		diff["model"] = *req.Model
+	}
+	s.recordAudit(c, "asset.updated", "asset", "asset", updated.ID, diff)
+	response.OK(c, toAPIAsset(*updated))
+}
+
+// DeleteAsset deletes an asset.
+// (DELETE /assets/{id})
+func (s *APIServer) DeleteAsset(c *gin.Context, id IdPath) {
+	err := s.assetSvc.Delete(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "asset not found")
+		return
+	}
+	s.recordAudit(c, "asset.deleted", "asset", "asset", uuid.UUID(id), nil)
+	c.Status(204)
+}
+
 // ---------------------------------------------------------------------------
 // Location endpoints
 // ---------------------------------------------------------------------------

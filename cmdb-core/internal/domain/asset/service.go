@@ -95,3 +95,20 @@ func (s *Service) Create(ctx context.Context, params dbgen.CreateAssetParams) (*
 	}
 	return &a, nil
 }
+
+// Update modifies an existing asset and returns it.
+func (s *Service) Update(ctx context.Context, params dbgen.UpdateAssetParams) (*dbgen.Asset, error) {
+	a, err := s.queries.UpdateAsset(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("update asset: %w", err)
+	}
+	return &a, nil
+}
+
+// Delete removes an asset by ID.
+func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := s.queries.DeleteAsset(ctx, id); err != nil {
+		return fmt.Errorf("delete asset: %w", err)
+	}
+	return nil
+}
