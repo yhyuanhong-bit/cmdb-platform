@@ -38,6 +38,7 @@ type Asset struct {
 	ControlNumber  *string                `json:"control_number,omitempty"`
 	CreatedAt      time.Time              `json:"created_at"`
 	Id             openapi_types.UUID     `json:"id"`
+	LocationId     *openapi_types.UUID    `json:"location_id,omitempty"`
 	Model          string                 `json:"model"`
 	Name           string                 `json:"name"`
 	PropertyNumber *string                `json:"property_number,omitempty"`

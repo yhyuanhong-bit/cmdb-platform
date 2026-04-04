@@ -1161,6 +1161,10 @@ components:
           type: string
         bia_level:
           type: string
+        location_id:
+          type: string
+          nullable: true
+          format: uuid
         rack_id:
           type: string
           nullable: true

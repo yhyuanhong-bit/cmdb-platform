@@ -215,6 +215,7 @@ func toAPIAsset(db dbgen.Asset) Asset {
 		SubType:        pgtextToStr(db.SubType),
 		Status:         db.Status,
 		BiaLevel:       db.BiaLevel,
+		LocationId:     pguuidToUUIDPtr(db.LocationID),
 		RackId:         pguuidToUUIDPtr(db.RackID),
 		Vendor:         pgtextToStr(db.Vendor),
 		Model:          pgtextToStr(db.Model),
