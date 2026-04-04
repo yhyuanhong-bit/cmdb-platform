@@ -20,6 +20,7 @@ type Config struct {
 	MCPPort      int
 	WSEnabled    bool
 	OTELEndpoint string
+	MCPApiKey    string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -55,6 +56,7 @@ func Load() (*Config, error) {
 	cfg.MCPPort = mcpPort
 	cfg.WSEnabled = envOrDefault("WS_ENABLED", "true") == "true"
 	cfg.OTELEndpoint = os.Getenv("OTEL_ENDPOINT")
+	cfg.MCPApiKey = os.Getenv("MCP_API_KEY")
 
 	if cfg.DeployMode == "edge" && cfg.TenantID == "" {
 		return nil, fmt.Errorf("TENANT_ID is required in edge deploy mode")

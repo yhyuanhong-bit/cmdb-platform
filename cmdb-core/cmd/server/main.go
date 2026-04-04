@@ -156,10 +156,25 @@ func main() {
 	if cfg.MCPEnabled {
 		mcpSrv := cmdbmcp.New(queries)
 		sseServer := mcpserver.NewSSEServer(mcpSrv.Server())
+
+		// Wrap with API key auth if configured
+		var mcpHandler http.Handler = sseServer
+		if cfg.MCPApiKey != "" {
+			mcpHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				auth := r.Header.Get("Authorization")
+				if auth != "Bearer "+cfg.MCPApiKey {
+					http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+					return
+				}
+				sseServer.ServeHTTP(w, r)
+			})
+			zap.L().Info("MCP Server auth enabled")
+		}
+
 		go func() {
 			addr := fmt.Sprintf(":%d", cfg.MCPPort)
 			zap.L().Info("MCP Server starting", zap.String("addr", addr))
-			if err := http.ListenAndServe(addr, sseServer); err != nil {
+			if err := http.ListenAndServe(addr, mcpHandler); err != nil {
 				zap.L().Error("MCP Server error", zap.Error(err))
 			}
 		}()
