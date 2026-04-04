@@ -48,6 +48,14 @@ export function useCreateRack() {
   })
 }
 
+export function useLocationStats(id: string) {
+  return useQuery({
+    queryKey: ['locations', id, 'stats'],
+    queryFn: () => topologyApi.getLocationStats(id),
+    enabled: !!id,
+  })
+}
+
 export function useCreateLocation() {
   const qc = useQueryClient()
   return useMutation({
