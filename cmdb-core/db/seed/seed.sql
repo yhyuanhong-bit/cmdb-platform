@@ -221,3 +221,162 @@ INSERT INTO audit_events (tenant_id, action, module, target_type, target_id, ope
     ('a0000000-0000-0000-0000-000000000001', 'alert.resolved', 'monitoring', 'alert', '10000000-0000-0000-0000-000000000006', 'b0000000-0000-0000-0000-000000000003', '{"status": {"old": "firing", "new": "resolved"}}', 'web'),
     ('a0000000-0000-0000-0000-000000000001', 'inventory.completed', 'inventory', 'inventory_task', '30000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002', '{"status": {"old": "in_progress", "new": "completed"}}', 'web')
 ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- Departments (4 departments)
+-- ============================================================
+INSERT INTO departments (id, tenant_id, name, slug, permissions) VALUES
+    ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Infrastructure Operations', 'infra-ops', '{"modules": ["asset", "topology", "monitoring", "maintenance"]}'),
+    ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Network Engineering', 'net-eng', '{"modules": ["asset", "topology", "monitoring"]}'),
+    ('c0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Security & Compliance', 'security', '{"modules": ["monitoring", "audit", "inventory"]}'),
+    ('c0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Platform Engineering', 'platform-eng', '{"modules": ["asset", "integration", "prediction"]}')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- Rack Slots (20 slots mapping assets to rack U positions)
+-- ============================================================
+INSERT INTO rack_slots (rack_id, asset_id, start_u, end_u, side) VALUES
+    -- RACK-A01: SRV-PROD-001 (2U), SRV-PROD-002 (2U), PDU (3U back)
+    ('e0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000001', 1, 2, 'front'),
+    ('e0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000002', 3, 4, 'front'),
+    ('e0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000013', 40, 42, 'back'),
+    -- RACK-A02: SRV-DB-001 (2U), SRV-APP-001 (2U)
+    ('e0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000005', 1, 2, 'front'),
+    ('e0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000006', 3, 4, 'front'),
+    -- RACK-B01: SRV-DEV-001 (2U), SRV-BACKUP-001 (4U)
+    ('e0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000007', 1, 2, 'front'),
+    ('e0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000008', 3, 6, 'front'),
+    -- RACK-B02: Switches (1U each)
+    ('e0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000003', 1, 1, 'front'),
+    ('e0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000009', 2, 2, 'front'),
+    -- RACK-C01: Firewall (2U), NAS (4U), SAN (4U)
+    ('e0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000010', 1, 2, 'front'),
+    ('e0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000004', 3, 6, 'front'),
+    ('e0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000011', 7, 10, 'front'),
+    -- RACK-H01: HSIP servers
+    ('e0000000-0000-0000-0000-000000000007', 'f0000000-0000-0000-0000-000000000014', 1, 2, 'front'),
+    ('e0000000-0000-0000-0000-000000000007', 'f0000000-0000-0000-0000-000000000015', 3, 4, 'front'),
+    -- RACK-H02: HSIP switch + storage
+    ('e0000000-0000-0000-0000-000000000008', 'f0000000-0000-0000-0000-000000000016', 1, 1, 'front'),
+    ('e0000000-0000-0000-0000-000000000008', 'f0000000-0000-0000-0000-000000000017', 2, 5, 'front'),
+    -- RACK-Q01: Kaohsiung servers
+    ('e0000000-0000-0000-0000-000000000009', 'f0000000-0000-0000-0000-000000000018', 1, 2, 'front'),
+    ('e0000000-0000-0000-0000-000000000009', 'f0000000-0000-0000-0000-000000000019', 3, 4, 'front'),
+    -- RACK-Q02: Kaohsiung switch
+    ('e0000000-0000-0000-0000-000000000010', 'f0000000-0000-0000-0000-000000000020', 1, 1, 'front')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- Alert Rules (5 monitoring thresholds)
+-- ============================================================
+INSERT INTO alert_rules (id, tenant_id, name, metric_name, condition, severity, enabled) VALUES
+    ('40000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'CPU High', 'cpu_usage', '{"op": ">", "threshold": 85}', 'warning', true),
+    ('40000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'CPU Critical', 'cpu_usage', '{"op": ">", "threshold": 95}', 'critical', true),
+    ('40000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Temp High', 'temperature', '{"op": ">", "threshold": 40}', 'warning', true),
+    ('40000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Disk Full', 'disk_usage', '{"op": ">", "threshold": 90}', 'critical', true),
+    ('40000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'Memory High', 'memory_usage', '{"op": ">", "threshold": 90}', 'warning', true)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- Incidents (3 incidents in various states)
+-- ============================================================
+INSERT INTO incidents (id, tenant_id, title, status, severity, started_at, resolved_at) VALUES
+    ('50000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Network Core Switch Failure', 'open', 'critical', now() - interval '2 hours', NULL),
+    ('50000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Storage Latency Degradation', 'investigating', 'warning', now() - interval '4 hours', NULL),
+    ('50000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'UPS Battery Alert', 'resolved', 'warning', now() - interval '1 day', now() - interval '20 hours')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- Prediction Models (2 models - note: migration already seeds one with id 20000000-...-001)
+-- ============================================================
+INSERT INTO prediction_models (id, name, type, provider, config, enabled) VALUES
+    ('60000000-0000-0000-0000-000000000001', 'Dify RCA Analyzer', 'rca', 'dify', '{"workflow_id": "rca-v1", "endpoint": "https://dify.example.com/api"}', true),
+    ('60000000-0000-0000-0000-000000000002', 'Local Failure Predictor', 'failure_prediction', 'local', '{"model_path": "/models/failure-pred-v2.onnx", "threshold": 0.7}', true)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- Prediction Results (5 failure predictions)
+-- ============================================================
+INSERT INTO prediction_results (id, tenant_id, model_id, asset_id, prediction_type, result, severity, recommended_action, expires_at) VALUES
+    ('70000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000001', 'failure_prediction', '{"probability": 0.82, "component": "disk", "mtbf_hours": 720}', 'warning', 'Schedule preventive disk replacement within 30 days', now() + interval '30 days'),
+    ('70000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000005', 'failure_prediction', '{"probability": 0.91, "component": "memory", "mtbf_hours": 360}', 'critical', 'Replace memory module immediately - high failure risk', now() + interval '15 days'),
+    ('70000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000012', 'failure_prediction', '{"probability": 0.65, "component": "battery", "mtbf_hours": 1440}', 'info', 'Monitor UPS battery health, schedule replacement in Q3', now() + interval '60 days'),
+    ('70000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000003', 'failure_prediction', '{"probability": 0.45, "component": "fan", "mtbf_hours": 2880}', 'info', 'No immediate action required - standard wear', now() + interval '90 days'),
+    ('70000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000014', 'failure_prediction', '{"probability": 0.73, "component": "power_supply", "mtbf_hours": 960}', 'warning', 'Order replacement PSU, schedule swap during next maintenance window', now() + interval '40 days')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- RCA Analyses (2 root cause analyses)
+-- ============================================================
+INSERT INTO rca_analyses (id, tenant_id, incident_id, model_id, reasoning, conclusion_asset_id, confidence, human_verified, verified_by) VALUES
+    ('80000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001',
+     '{"steps": ["Analyzed network topology", "Identified switch port errors", "Correlated with recent firmware update"], "root_cause": "Firmware bug causing intermittent port flapping", "evidence": ["Error logs show CRC errors on Eth1/1", "Issue started after firmware v3.2.1 update"]}',
+     'f0000000-0000-0000-0000-000000000003', 0.87, true, 'b0000000-0000-0000-0000-000000000002'),
+    ('80000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000001',
+     '{"steps": ["Checked storage IOPS metrics", "Analyzed disk queue depth", "Reviewed recent workload changes"], "root_cause": "Database backup job causing I/O contention", "evidence": ["IOPS spike at 03:00 correlates with backup schedule", "Queue depth exceeds 64 during backup window"]}',
+     'f0000000-0000-0000-0000-000000000011', 0.72, false, NULL)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- Inventory Items (10 items with scanned/pending/discrepancy)
+-- ============================================================
+INSERT INTO inventory_items (task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by) VALUES
+    -- Task 1 (Neihu full - completed): all scanned
+    ('30000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001',
+     '{"location": "RACK-A01 U1-2", "serial": "SN-DELL-001"}',
+     '{"location": "RACK-A01 U1-2", "serial": "SN-DELL-001"}',
+     'scanned', now() - interval '78 days', 'b0000000-0000-0000-0000-000000000002'),
+    ('30000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001',
+     '{"location": "RACK-A01 U3-4", "serial": "SN-DELL-002"}',
+     '{"location": "RACK-A01 U3-4", "serial": "SN-DELL-002"}',
+     'scanned', now() - interval '78 days', 'b0000000-0000-0000-0000-000000000002'),
+    ('30000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000004',
+     '{"location": "RACK-B02 U1", "serial": "SN-CISCO-001"}',
+     '{"location": "RACK-B01 U5", "serial": "SN-CISCO-001"}',
+     'discrepancy', now() - interval '78 days', 'b0000000-0000-0000-0000-000000000002'),
+    ('30000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000010', 'e0000000-0000-0000-0000-000000000005',
+     '{"location": "RACK-C01 U1-2", "serial": "SN-PA-001"}',
+     '{"location": "RACK-C01 U1-2", "serial": "SN-PA-001"}',
+     'scanned', now() - interval '78 days', 'b0000000-0000-0000-0000-000000000002'),
+    ('30000000-0000-0000-0000-000000000001', NULL, 'e0000000-0000-0000-0000-000000000006',
+     '{"location": "RACK-C02 U10", "serial": "UNKNOWN"}',
+     '{"location": "RACK-C02 U10", "serial": "SN-ROGUE-001"}',
+     'discrepancy', now() - interval '78 days', 'b0000000-0000-0000-0000-000000000002'),
+    -- Task 2 (HSIP spot check - in progress): some scanned, some pending
+    ('30000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000014', 'e0000000-0000-0000-0000-000000000007',
+     '{"location": "RACK-H01 U1-2", "serial": "SN-DELL-H01"}',
+     '{"location": "RACK-H01 U1-2", "serial": "SN-DELL-H01"}',
+     'scanned', now() - interval '7 days', 'b0000000-0000-0000-0000-000000000003'),
+    ('30000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000015', 'e0000000-0000-0000-0000-000000000007',
+     '{"location": "RACK-H01 U3-4", "serial": "SN-DELL-H02"}',
+     NULL,
+     'pending', NULL, NULL),
+    ('30000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000016', 'e0000000-0000-0000-0000-000000000008',
+     '{"location": "RACK-H02 U1", "serial": "SN-ARI-001"}',
+     NULL,
+     'pending', NULL, NULL),
+    -- Task 3 (Q2 full - planned): all pending
+    ('30000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000018', 'e0000000-0000-0000-0000-000000000009',
+     '{"location": "RACK-Q01 U1-2", "serial": "SN-HP-K01"}',
+     NULL,
+     'pending', NULL, NULL),
+    ('30000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000019', 'e0000000-0000-0000-0000-000000000009',
+     '{"location": "RACK-Q01 U3-4", "serial": "SN-HP-K02"}',
+     NULL,
+     'pending', NULL, NULL)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- Webhook Deliveries (5 delivery records using subquery for subscription IDs)
+-- ============================================================
+INSERT INTO webhook_deliveries (subscription_id, event_type, payload, status_code, response_body)
+SELECT ws.id, v.event_type, v.payload::jsonb, v.status_code, v.response_body
+FROM webhook_subscriptions ws
+CROSS JOIN (VALUES
+    ('Slack Alerts', 'alert.fired', '{"alert_id": "10000000-0000-0000-0000-000000000001", "severity": "critical", "message": "CPU Critical on SRV-PROD-001"}', 200, '{"ok": true}'),
+    ('Slack Alerts', 'alert.fired', '{"alert_id": "10000000-0000-0000-0000-000000000003", "severity": "warning", "message": "Temperature High in RACK-A01"}', 200, '{"ok": true}'),
+    ('Slack Alerts', 'alert.resolved', '{"alert_id": "10000000-0000-0000-0000-000000000006", "severity": "warning", "message": "Memory alert resolved on SRV-DEV-001"}', 200, '{"ok": true}'),
+    ('Slack Alerts', 'alert.fired', '{"alert_id": "10000000-0000-0000-0000-000000000007", "severity": "critical", "message": "Disk Full on SRV-DB-001"}', 500, '{"error": "channel_not_found"}'),
+    ('Teams Notifications', 'maintenance.order_created', '{"work_order_id": "20000000-0000-0000-0000-000000000001", "title": "UPS Battery Replacement"}', 200, '{"id": "msg-001"}')
+) AS v(sub_name, event_type, payload, status_code, response_body)
+WHERE ws.name = v.sub_name;
