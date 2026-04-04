@@ -55,23 +55,23 @@ INSERT INTO locations (id, tenant_id, name, name_en, slug, level, parent_id, pat
     -- Cities
     ('d0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001',
      '台北', 'Taipei', 'taipei', 'city', 'd0000000-0000-0000-0000-000000000002', 'tw.north.taipei',
-     '{}', 1),
+     '{"campuses": 1, "idc_count": 1, "racks": 6, "pue": 1.35, "occupancy": 72, "alerts": 4, "power": 740, "reliability": 99.97}', 1),
     ('d0000000-0000-0000-0000-000000000011', 'a0000000-0000-0000-0000-000000000001',
      '新竹', 'Hsinchu', 'hsinchu', 'city', 'd0000000-0000-0000-0000-000000000002', 'tw.north.hsinchu',
-     '{}', 2),
+     '{"campuses": 1, "idc_count": 1, "racks": 2, "pue": 1.42, "occupancy": 58, "alerts": 1, "power": 280, "reliability": 99.95}', 2),
     ('d0000000-0000-0000-0000-000000000012', 'a0000000-0000-0000-0000-000000000001',
      '高雄', 'Kaohsiung', 'kaohsiung', 'city', 'd0000000-0000-0000-0000-000000000010', 'tw.south.kaohsiung',
-     '{}', 1),
+     '{"campuses": 1, "idc_count": 1, "racks": 2, "pue": 1.51, "occupancy": 45, "alerts": 1, "power": 160, "reliability": 99.92}', 1),
     -- Campuses / IDCs
     ('d0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001',
      '内湖園區', 'Neihu Campus', 'neihu', 'campus', 'd0000000-0000-0000-0000-000000000003', 'tw.north.taipei.neihu',
-     '{"pue": 1.35, "modules": 4}', 1),
+     '{"pue": 1.35, "modules": 4, "racks": 6, "assets": 13, "alerts": 4, "occupancy": 72, "power": 740}', 1),
     ('d0000000-0000-0000-0000-000000000013', 'a0000000-0000-0000-0000-000000000001',
      '竹科園區', 'HSIP Campus', 'hsip', 'campus', 'd0000000-0000-0000-0000-000000000011', 'tw.north.hsinchu.hsip',
-     '{"pue": 1.42, "modules": 2}', 1),
+     '{"pue": 1.42, "modules": 2, "racks": 2, "assets": 4, "alerts": 1, "occupancy": 58, "power": 280}', 1),
     ('d0000000-0000-0000-0000-000000000014', 'a0000000-0000-0000-0000-000000000001',
      '前鎮園區', 'Qianzhen Campus', 'qianzhen', 'campus', 'd0000000-0000-0000-0000-000000000012', 'tw.south.kaohsiung.qianzhen',
-     '{"pue": 1.51, "modules": 1}', 1)
+     '{"pue": 1.51, "modules": 1, "racks": 2, "assets": 3, "alerts": 1, "occupancy": 45, "power": 160}', 1)
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
