@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { useRack } from "../hooks/useTopology";
+import { useRack, useRackAssets } from "../hooks/useTopology";
 
 // ---------------------------------------------------------------------------
 // Shared types & data (equipment slots — no API for sub-rack assets yet)
@@ -152,10 +152,13 @@ function getSlotAccent(type: SlotType): string {
 function VisualizationTab({
   selectedAsset,
   setSelectedAsset,
+  equipmentList,
 }: {
   selectedAsset: Equipment | null;
   setSelectedAsset: (eq: Equipment | null) => void;
+  equipmentList?: Equipment[];
 }) {
+  const eqList = equipmentList ?? equipment;
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [view, setView] = useState<"FRONT" | "REAR">("FRONT");
@@ -204,7 +207,7 @@ function VisualizationTab({
               <div className="flex flex-col gap-px">
                 {Array.from({ length: 42 }, (_, i) => {
                   const u = 42 - i;
-                  const eq = equipment.find((e) => u >= e.startU && u <= e.endU);
+                  const eq = eqList.find((e) => u >= e.startU && u <= e.endU);
                   const isStart = eq && u === eq.endU;
                   const span = eq ? eq.endU - eq.startU + 1 : 0;
 
@@ -814,13 +817,27 @@ export default function RackDetailUnified() {
   const { id: rackId } = useParams<{ id: string }>();
   const { data: rackResponse, isLoading, error } = useRack(rackId ?? "");
   const rack = rackResponse?.data;
+  const { data: rackAssetsResponse } = useRackAssets(rackId ?? "");
+  const rackAssets = rackAssetsResponse?.data;
+
+  // Build equipment list from real rack assets if available, fallback to hardcoded
+  const liveEquipment: Equipment[] = useMemo(() => {
+    if (!rackAssets || rackAssets.length === 0) return equipment;
+    return rackAssets.map((a: any) => ({
+      startU: a.attributes?.start_u ?? a.start_u ?? 1,
+      endU: a.attributes?.end_u ?? a.end_u ?? 1,
+      label: a.name ?? `${a.vendor} ${a.model}`,
+      assetTag: a.asset_tag ?? a.id,
+      type: (a.type?.toLowerCase() ?? 'compute') as Equipment['type'],
+    }));
+  }, [rackAssets]);
 
   const [activeTab, setActiveTab] = useState<string>("visualization");
   const [selectedAsset, setSelectedAsset] = useState<Equipment | null>(
-    equipment.find((e) => e.assetTag === "APP-SRV-042-PROD") ?? null,
+    liveEquipment.find((e) => e.assetTag === "APP-SRV-042-PROD") ?? liveEquipment[0] ?? null,
   );
 
-  const occupiedUs = equipment.reduce((acc, eq) => acc + (eq.endU - eq.startU + 1), 0);
+  const occupiedUs = liveEquipment.reduce((acc, eq) => acc + (eq.endU - eq.startU + 1), 0);
   const occupancy = rack ? Math.round((rack.used_u / rack.total_u) * 100) : Math.round((occupiedUs / 42) * 100);
 
   if (isLoading) {
@@ -907,7 +924,7 @@ export default function RackDetailUnified() {
 
         {/* Tab content */}
         {activeTab === "visualization" && (
-          <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} />
+          <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} />
         )}
         {activeTab === "console" && <ConsoleTab />}
         {activeTab === "network" && <NetworkTab />}

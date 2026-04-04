@@ -24,11 +24,28 @@ export function useCreateWorkOrder() {
   })
 }
 
+export function useUpdateWorkOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      maintenanceApi.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrders'] }),
+  })
+}
+
 export function useTransitionWorkOrder() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: { status: string; comment: string } }) =>
       maintenanceApi.transition(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrders'] }),
+  })
+}
+
+export function useWorkOrderLogs(id: string) {
+  return useQuery({
+    queryKey: ['workOrders', id, 'logs'],
+    queryFn: () => maintenanceApi.listLogs(id),
+    enabled: !!id,
   })
 }

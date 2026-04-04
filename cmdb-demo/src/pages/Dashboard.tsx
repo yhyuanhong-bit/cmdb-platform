@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useLocationContext } from '../contexts/LocationContext';
 import LocationBreadcrumb from '../components/LocationBreadcrumb';
 import { useDashboardStats } from '../hooks/useDashboard';
+import { useAlerts } from '../hooks/useMonitoring';
+import { useAssets } from '../hooks/useAssets';
 
 /* ──────────────────────────────────────────────
    Mock data
@@ -165,6 +167,31 @@ function Dashboard() {
   const statsQuery = useDashboardStats();
   const stats = statsQuery.data?.data;
 
+  // Fetch real critical alerts for the events table
+  const { data: alertsResponse } = useAlerts({ severity: 'critical' });
+  const criticalAlerts = alertsResponse?.data ?? [];
+
+  // Fetch assets to derive BIA distribution
+  const { data: assetsResponse } = useAssets();
+  const allAssets = assetsResponse?.data ?? [];
+
+  const biaDerived = useMemo(() => {
+    if (allAssets.length === 0) return BIA_SEGMENTS;
+    const counts: Record<string, number> = { critical: 0, important: 0, normal: 0, minor: 0 };
+    allAssets.forEach((a: any) => {
+      const level = (a.bia_level ?? '').toLowerCase();
+      if (level in counts) counts[level]++;
+      else counts['normal']++;
+    });
+    const total = allAssets.length || 1;
+    return [
+      { labelKey: "common.critical", pct: Math.round((counts.critical / total) * 100), color: "#ff6b6b" },
+      { labelKey: "common.important", pct: Math.round((counts.important / total) * 100), color: "#ffa94d" },
+      { labelKey: "common.normal", pct: Math.round((counts.normal / total) * 100), color: "#9ecaff" },
+      { labelKey: "common.minor", pct: Math.round((counts.minor / total) * 100) || (100 - Math.round((counts.critical / total) * 100) - Math.round((counts.important / total) * 100) - Math.round((counts.normal / total) * 100)), color: "#69db7c" },
+    ];
+  }, [allAssets]);
+
   // Display data derived from API stats (or fallback zeros while loading)
   const displayData = useMemo(() => ({
     assets: stats?.total_assets ?? 0,
@@ -277,9 +304,9 @@ function Dashboard() {
           icon="donut_large"
           className="lg:col-span-2"
         >
-          <DonutChart segments={BIA_SEGMENTS} />
+          <DonutChart segments={biaDerived} />
           <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2">
-            {BIA_SEGMENTS.map((s) => (
+            {biaDerived.map((s) => (
               <div key={s.labelKey} className="flex items-center gap-2">
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -471,29 +498,33 @@ function Dashboard() {
 
             {/* Table rows */}
             <div className="space-y-1">
-              {CRITICAL_EVENTS.map((evt) => (
+              {criticalAlerts.length === 0 ? (
+                <div className="rounded-md bg-surface-container-low px-3 py-4 text-center text-xs text-on-surface-variant">
+                  {t('dashboard.no_critical_events')}
+                </div>
+              ) : criticalAlerts.slice(0, 8).map((evt: any) => (
                 <div
                   key={evt.id}
                   onClick={() => navigate('/monitoring')}
                   className="grid grid-cols-[1fr_2fr_auto_auto] items-center gap-3 rounded-md bg-surface-container-low px-3 py-2.5 cursor-pointer hover:bg-surface-container-high transition-colors"
                 >
                   <span className="text-sm font-semibold text-on-surface">
-                    {evt.id}
+                    {evt.ci_id ?? evt.id?.slice(0, 12)}
                   </span>
                   <span className="text-xs text-on-surface-variant truncate">
                     {evt.message}
                   </span>
                   <span
                     className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                      evt.severity === "CRITICAL"
+                      evt.severity === "critical"
                         ? "bg-red-900/50 text-error"
                         : "bg-yellow-900/40 text-[#ffa94d]"
                     }`}
                   >
-                    {evt.severity}
+                    {(evt.severity ?? '').toUpperCase()}
                   </span>
                   <span className="rounded bg-surface-container px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
-                    {evt.priority}
+                    {evt.fired_at ? new Date(evt.fired_at).toLocaleTimeString() : '—'}
                   </span>
                 </div>
               ))}

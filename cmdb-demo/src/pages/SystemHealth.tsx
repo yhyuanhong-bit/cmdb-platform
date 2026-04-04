@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon";
 import StatusBadge from "../components/StatusBadge";
 import { useAlerts } from "../hooks/useMonitoring";
+import { useSystemHealth } from "../hooks/useSystemHealth";
 
 /* ──────────────────────────────────────────────
    Static data (needs dedicated metrics endpoint)
@@ -115,6 +116,10 @@ function SystemHealth() {
   const navigate = useNavigate();
   const { data: alertsResponse, isLoading: alertsLoading } = useAlerts({ severity: 'critical' });
   const criticalAlerts = alertsResponse?.data ?? [];
+  const { data: healthResponse } = useSystemHealth();
+  const health = healthResponse?.data;
+  const dbStatus = health?.database?.status ?? 'unknown';
+  const dbLatency = health?.database?.latency_ms;
   const trendMax = Math.max(
     ...TREND_BARS.map((b) => b.critical + b.warning + b.info),
   );
@@ -202,10 +207,10 @@ function SystemHealth() {
             </span>
           </div>
           <p className="font-headline text-3xl font-bold text-[#34d399]">
-            12<span className="text-lg text-on-surface-variant">ms</span>
+            {dbLatency ?? 12}<span className="text-lg text-on-surface-variant">ms</span>
           </p>
           <span className="mt-1 text-xs text-on-surface-variant">
-            {t('system_health.p99_latency_within_sla')}
+            DB: {dbStatus} &mdash; {t('system_health.p99_latency_within_sla')}
           </span>
         </div>
 

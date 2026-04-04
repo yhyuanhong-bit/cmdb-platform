@@ -2,7 +2,7 @@ import { memo, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLocationContext } from '../../contexts/LocationContext';
-import { useRootLocations, useLocationChildren, useRacks, useLocationStats } from '../../hooks/useTopology';
+import { useRootLocations, useLocationChildren, useLocationDescendants, useRacks, useLocationStats } from '../../hooks/useTopology';
 import type { Location } from '../../lib/api/topology';
 
 /* ──────────────────────────────────────────────
@@ -416,14 +416,16 @@ function CampusOverview() {
   );
   const campusChildrenQ = useLocationChildren(cityLoc?.id ?? '');
 
+  // Fetch all descendants of city to get IDC-level locations
+  const cityDescendantsQ = useLocationDescendants(cityLoc?.id ?? '');
+  const allDescendants: Location[] = cityDescendantsQ.data?.data ?? [];
+
   // Campuses are the children of city; IDCs are children of campuses
-  // For a simpler approach we treat all children as campuses with IDC data from metadata
   const campuses: CampusData[] = useMemo(() => {
     const campusLocs = campusChildrenQ.data?.data ?? [];
-    // Since we can't fetch IDC children for each campus in a single call,
-    // we rely on metadata populated by the backend
-    return campusLocs.map((loc) => locationToCampus(loc, []));
-  }, [campusChildrenQ.data]);
+    // Pass all descendants so locationToCampus can filter by parent_id
+    return campusLocs.map((loc) => locationToCampus(loc, allDescendants));
+  }, [campusChildrenQ.data, allDescendants]);
 
   const racksQ = useRacks(cityLoc?.id ?? '');
   const cityStatsQ = useLocationStats(cityLoc?.id ?? '');
@@ -447,8 +449,8 @@ function CampusOverview() {
   const country = countrySlug ?? city.countrySlug;
   const region = regionSlug ?? city.regionSlug;
 
-  const isLoading = rootQ.isLoading || countryChildrenQ.isLoading || regionChildrenQ.isLoading || campusChildrenQ.isLoading;
-  const hasError = rootQ.error || countryChildrenQ.error || regionChildrenQ.error || campusChildrenQ.error;
+  const isLoading = rootQ.isLoading || countryChildrenQ.isLoading || regionChildrenQ.isLoading || campusChildrenQ.isLoading || cityDescendantsQ.isLoading;
+  const hasError = rootQ.error || countryChildrenQ.error || regionChildrenQ.error || campusChildrenQ.error || cityDescendantsQ.error;
 
   if (isLoading) {
     return (

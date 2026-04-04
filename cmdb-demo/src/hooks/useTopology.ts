@@ -56,10 +56,60 @@ export function useLocationStats(id: string) {
   })
 }
 
+export function useLocationDescendants(id: string) {
+  return useQuery({
+    queryKey: ['locations', id, 'descendants'],
+    queryFn: () => topologyApi.listDescendants(id),
+    enabled: !!id,
+  })
+}
+
+export function useRackAssets(rackId: string) {
+  return useQuery({
+    queryKey: ['racks', rackId, 'assets'],
+    queryFn: () => topologyApi.listRackAssets(rackId),
+    enabled: !!rackId,
+  })
+}
+
 export function useCreateLocation() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: topologyApi.createLocation,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
+  })
+}
+
+export function useUpdateLocation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<any> }) =>
+      topologyApi.updateLocation(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
+  })
+}
+
+export function useDeleteLocation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: topologyApi.deleteLocation,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
+  })
+}
+
+export function useUpdateRack() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<any> }) =>
+      topologyApi.updateRack(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['racks'] }),
+  })
+}
+
+export function useDeleteRack() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: topologyApi.deleteRack,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['racks'] }),
   })
 }

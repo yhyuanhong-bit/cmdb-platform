@@ -107,6 +107,7 @@ export default function AssetManagementUnified() {
   const [typeFilter, setTypeFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All Status')
   const [locationFilter, setLocationFilter] = useState('All Locations')
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Build query params from filter state
   const queryParams = useMemo(() => {
@@ -114,17 +115,24 @@ export default function AssetManagementUnified() {
     if (typeFilter !== 'All') params.type = typeFilter.toLowerCase()
     if (statusFilter !== 'All Status') params.status = statusFilter.toLowerCase()
     if (search) params.search = search
+    params.page = String(currentPage)
     return params
-  }, [typeFilter, statusFilter, search])
+  }, [typeFilter, statusFilter, search, currentPage])
 
   // Fetch assets from API
   const { data: apiData, isLoading, error, refetch } = useAssets(queryParams)
   const assets: Asset[] = apiData?.data ?? []
   const totalCount = apiData?.pagination?.total ?? assets.length
 
+  const pagination = apiData?.pagination
+  const totalPages = pagination?.total_pages ?? 1
+
   const filtered = assets.filter((a) => {
-    // Client-side location filter (not a backend param)
-    if (locationFilter !== 'All Locations') return false // TODO: filter by location when backend supports it
+    // Client-side location filter — only filter if location selected and asset has location info
+    if (locationFilter !== 'All Locations') {
+      const assetLocation = (a as any).location_name ?? ''
+      if (!assetLocation.includes(locationFilter)) return false
+    }
     return true
   })
 
@@ -243,7 +251,10 @@ export default function AssetManagementUnified() {
         <div className="flex-1" />
 
         {/* Actions */}
-        <button className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2.5 text-sm font-semibold text-white rounded hover:brightness-110 transition-all">
+        <button
+          onClick={() => navigate('/assets/new')}
+          className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2.5 text-sm font-semibold text-white rounded hover:brightness-110 transition-all"
+        >
           <Icon name="add" className="text-[18px]" />
           {t('assets.add_asset')}
         </button>
@@ -355,25 +366,49 @@ export default function AssetManagementUnified() {
 
       {/* Pagination */}
       <div className="mt-4 flex items-center justify-between text-sm text-on-surface-variant">
-        <span>{t('common.showing')} 1-{filtered.length} {t('common.of')} {totalCount.toLocaleString()} {t('common.entries')}</span>
+        <span>{t('common.showing')} {((currentPage - 1) * (pagination?.page_size ?? filtered.length)) + 1}-{Math.min(currentPage * (pagination?.page_size ?? filtered.length), totalCount)} {t('common.of')} {totalCount.toLocaleString()} {t('common.entries')}</span>
         <div className="flex items-center gap-1">
-          <button className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+          <button
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors disabled:opacity-30"
+          >
             <Icon name="chevron_left" className="text-[18px]" />
           </button>
-          <button className="px-3 py-1.5 rounded bg-on-primary-container text-white text-xs font-semibold min-w-[32px]">
-            1
-          </button>
-          <button className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors min-w-[32px]">
-            2
-          </button>
-          <button className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors min-w-[32px]">
-            3
-          </button>
-          <span className="px-2 text-on-surface-variant">...</span>
-          <button className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors min-w-[32px]">
-            1,606
-          </button>
-          <button className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+          {(() => {
+            const pages: (number | '...')[] = [];
+            if (totalPages <= 7) {
+              for (let i = 1; i <= totalPages; i++) pages.push(i);
+            } else {
+              pages.push(1);
+              if (currentPage > 3) pages.push('...');
+              for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+              if (currentPage < totalPages - 2) pages.push('...');
+              pages.push(totalPages);
+            }
+            return pages.map((p, idx) =>
+              p === '...' ? (
+                <span key={`dots-${idx}`} className="px-2 text-on-surface-variant">...</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setCurrentPage(p)}
+                  className={`px-3 py-1.5 rounded text-xs font-semibold min-w-[32px] transition-colors ${
+                    p === currentPage
+                      ? 'bg-on-primary-container text-white'
+                      : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
+                  }`}
+                >
+                  {p.toLocaleString()}
+                </button>
+              )
+            );
+          })()}
+          <button
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors disabled:opacity-30"
+          >
             <Icon name="chevron_right" className="text-[18px]" />
           </button>
         </div>
