@@ -511,6 +511,21 @@ func toAPIAlertRule(db dbgen.AlertRule) AlertRule {
 // 17. toAPIWebhook
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// 18. toAPIIncident
+// ---------------------------------------------------------------------------
+
+func toAPIIncident(db dbgen.Incident) Incident {
+	return Incident{
+		Id:         db.ID,
+		Title:      db.Title,
+		Status:     db.Status,
+		Severity:   db.Severity,
+		StartedAt:  db.StartedAt,
+		ResolvedAt: pgtsToTimePtr(db.ResolvedAt),
+	}
+}
+
 func toAPIWebhook(db dbgen.WebhookSubscription) WebhookSubscription {
 	createdAt := pgtsToTime(db.CreatedAt)
 	return WebhookSubscription{

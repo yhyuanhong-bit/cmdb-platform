@@ -788,6 +788,141 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /monitoring/incidents:
+    get:
+      operationId: listIncidents
+      tags: [monitoring]
+      summary: List incidents
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: severity
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated incidents list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Incident'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createIncident
+      tags: [monitoring]
+      summary: Create an incident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, severity]
+              properties:
+                title:
+                  type: string
+                severity:
+                  type: string
+                status:
+                  type: string
+                  default: open
+      responses:
+        '201':
+          description: Incident created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Incident'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /monitoring/incidents/{id}:
+    get:
+      operationId: getIncident
+      tags: [monitoring]
+      summary: Get an incident by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Incident detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Incident'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateIncident
+      tags: [monitoring]
+      summary: Update an incident
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                status:
+                  type: string
+                severity:
+                  type: string
+                resolved_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        '200':
+          description: Incident updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Incident'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /monitoring/metrics:
     get:
       operationId: queryMetrics
@@ -1680,6 +1815,33 @@ components:
         - severity
         - enabled
         - created_at
+
+    # ── Incident ──────────────────────────────────────────────────────
+    Incident:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+        severity:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          nullable: true
+          format: date-time
+      required:
+        - id
+        - title
+        - status
+        - severity
+        - started_at
 
     # ── InventoryTask ─────────────────────────────────────────────────────
     InventoryTask:

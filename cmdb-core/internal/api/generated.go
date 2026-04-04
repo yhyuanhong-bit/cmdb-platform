@@ -104,6 +104,16 @@ type ErrorResponse struct {
 	Meta  Meta      `json:"meta"`
 }
 
+// Incident defines model for Incident.
+type Incident struct {
+	Id         openapi_types.UUID `json:"id"`
+	ResolvedAt *time.Time         `json:"resolved_at,omitempty"`
+	Severity   string             `json:"severity"`
+	StartedAt  time.Time          `json:"started_at"`
+	Status     string             `json:"status"`
+	Title      string             `json:"title"`
+}
+
 // IntegrationAdapter defines model for IntegrationAdapter.
 type IntegrationAdapter struct {
 	CreatedAt *time.Time          `json:"created_at,omitempty"`
@@ -419,6 +429,29 @@ type ListAlertsParams struct {
 	AssetId  *openapi_types.UUID `form:"asset_id,omitempty" json:"asset_id,omitempty"`
 }
 
+// ListIncidentsParams defines parameters for ListIncidents.
+type ListIncidentsParams struct {
+	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *PageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
+	Status   *string   `form:"status,omitempty" json:"status,omitempty"`
+	Severity *string   `form:"severity,omitempty" json:"severity,omitempty"`
+}
+
+// CreateIncidentJSONBody defines parameters for CreateIncident.
+type CreateIncidentJSONBody struct {
+	Severity string  `json:"severity"`
+	Status   *string `json:"status,omitempty"`
+	Title    string  `json:"title"`
+}
+
+// UpdateIncidentJSONBody defines parameters for UpdateIncident.
+type UpdateIncidentJSONBody struct {
+	ResolvedAt *time.Time `json:"resolved_at,omitempty"`
+	Severity   *string    `json:"severity,omitempty"`
+	Status     *string    `json:"status,omitempty"`
+	Title      *string    `json:"title,omitempty"`
+}
+
 // QueryMetricsParams defines parameters for QueryMetrics.
 type QueryMetricsParams struct {
 	AssetId    openapi_types.UUID `form:"asset_id" json:"asset_id"`
@@ -476,6 +509,12 @@ type CreateWorkOrderJSONRequestBody CreateWorkOrderJSONBody
 
 // TransitionWorkOrderJSONRequestBody defines body for TransitionWorkOrder for application/json ContentType.
 type TransitionWorkOrderJSONRequestBody TransitionWorkOrderJSONBody
+
+// CreateIncidentJSONRequestBody defines body for CreateIncident for application/json ContentType.
+type CreateIncidentJSONRequestBody CreateIncidentJSONBody
+
+// UpdateIncidentJSONRequestBody defines body for UpdateIncident for application/json ContentType.
+type UpdateIncidentJSONRequestBody UpdateIncidentJSONBody
 
 // CreateAlertRuleJSONRequestBody defines body for CreateAlertRule for application/json ContentType.
 type CreateAlertRuleJSONRequestBody CreateAlertRuleJSONBody
@@ -572,6 +611,18 @@ type ServerInterface interface {
 	// Resolve an alert
 	// (POST /monitoring/alerts/{id}/resolve)
 	ResolveAlert(c *gin.Context, id IdPath)
+	// List incidents
+	// (GET /monitoring/incidents)
+	ListIncidents(c *gin.Context, params ListIncidentsParams)
+	// Create an incident
+	// (POST /monitoring/incidents)
+	CreateIncident(c *gin.Context)
+	// Get an incident by ID
+	// (GET /monitoring/incidents/{id})
+	GetIncident(c *gin.Context, id IdPath)
+	// Update an incident
+	// (PUT /monitoring/incidents/{id})
+	UpdateIncident(c *gin.Context, id IdPath)
 	// Query time-series metrics for an asset
 	// (GET /monitoring/metrics)
 	QueryMetrics(c *gin.Context, params QueryMetricsParams)
@@ -1435,6 +1486,125 @@ func (siw *ServerInterfaceWrapper) ResolveAlert(c *gin.Context) {
 	siw.Handler.ResolveAlert(c, id)
 }
 
+// ListIncidents operation middleware
+func (siw *ServerInterfaceWrapper) ListIncidents(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListIncidentsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_size", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page_size: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "severity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "severity", c.Request.URL.Query(), &params.Severity, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter severity: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListIncidents(c, params)
+}
+
+// CreateIncident operation middleware
+func (siw *ServerInterfaceWrapper) CreateIncident(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateIncident(c)
+}
+
+// GetIncident operation middleware
+func (siw *ServerInterfaceWrapper) GetIncident(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetIncident(c, id)
+}
+
+// UpdateIncident operation middleware
+func (siw *ServerInterfaceWrapper) UpdateIncident(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateIncident(c, id)
+}
+
 // QueryMetrics operation middleware
 func (siw *ServerInterfaceWrapper) QueryMetrics(c *gin.Context) {
 
@@ -1832,6 +2002,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/monitoring/alerts", wrapper.ListAlerts)
 	router.POST(options.BaseURL+"/monitoring/alerts/:id/ack", wrapper.AcknowledgeAlert)
 	router.POST(options.BaseURL+"/monitoring/alerts/:id/resolve", wrapper.ResolveAlert)
+	router.GET(options.BaseURL+"/monitoring/incidents", wrapper.ListIncidents)
+	router.POST(options.BaseURL+"/monitoring/incidents", wrapper.CreateIncident)
+	router.GET(options.BaseURL+"/monitoring/incidents/:id", wrapper.GetIncident)
+	router.PUT(options.BaseURL+"/monitoring/incidents/:id", wrapper.UpdateIncident)
 	router.GET(options.BaseURL+"/monitoring/metrics", wrapper.QueryMetrics)
 	router.GET(options.BaseURL+"/monitoring/rules", wrapper.ListAlertRules)
 	router.POST(options.BaseURL+"/monitoring/rules", wrapper.CreateAlertRule)

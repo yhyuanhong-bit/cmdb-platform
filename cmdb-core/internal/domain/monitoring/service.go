@@ -82,6 +82,63 @@ func (s *Service) CreateRule(ctx context.Context, params dbgen.CreateAlertRulePa
 	return &rule, nil
 }
 
+// ListIncidents returns a paginated list of incidents.
+func (s *Service) ListIncidents(ctx context.Context, tenantID uuid.UUID, status, severity *string, limit, offset int32) ([]dbgen.Incident, int64, error) {
+	listParams := dbgen.ListIncidentsParams{
+		TenantID: tenantID,
+		Limit:    limit,
+		Offset:   offset,
+	}
+	countParams := dbgen.CountIncidentsParams{
+		TenantID: tenantID,
+	}
+	if status != nil {
+		listParams.Status = pgtype.Text{String: *status, Valid: true}
+		countParams.Status = pgtype.Text{String: *status, Valid: true}
+	}
+	if severity != nil {
+		listParams.Severity = pgtype.Text{String: *severity, Valid: true}
+		countParams.Severity = pgtype.Text{String: *severity, Valid: true}
+	}
+
+	incidents, err := s.queries.ListIncidents(ctx, listParams)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list incidents: %w", err)
+	}
+	total, err := s.queries.CountIncidents(ctx, countParams)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count incidents: %w", err)
+	}
+	return incidents, total, nil
+}
+
+// GetIncident returns a single incident by ID.
+func (s *Service) GetIncident(ctx context.Context, id uuid.UUID) (*dbgen.Incident, error) {
+	incident, err := s.queries.GetIncident(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get incident: %w", err)
+	}
+	return &incident, nil
+}
+
+// CreateIncident creates a new incident.
+func (s *Service) CreateIncident(ctx context.Context, params dbgen.CreateIncidentParams) (*dbgen.Incident, error) {
+	incident, err := s.queries.CreateIncident(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("create incident: %w", err)
+	}
+	return &incident, nil
+}
+
+// UpdateIncident updates an existing incident.
+func (s *Service) UpdateIncident(ctx context.Context, params dbgen.UpdateIncidentParams) (*dbgen.Incident, error) {
+	incident, err := s.queries.UpdateIncident(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("update incident: %w", err)
+	}
+	return &incident, nil
+}
+
 // Acknowledge marks a firing alert as acknowledged.
 func (s *Service) Acknowledge(ctx context.Context, id uuid.UUID) (*dbgen.AlertEvent, error) {
 	alert, err := s.queries.AcknowledgeAlert(ctx, id)
