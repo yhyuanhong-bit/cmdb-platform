@@ -1499,6 +1499,86 @@ func (s *APIServer) GetUser(c *gin.Context, id IdPath) {
 	response.OK(c, toAPIUser(*user))
 }
 
+// CreateUser creates a new user.
+// (POST /users)
+func (s *APIServer) CreateUser(c *gin.Context) {
+	var req CreateUserJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+
+	status := "active"
+	if req.Status != nil {
+		status = *req.Status
+	}
+	source := "local"
+	if req.Source != nil {
+		source = *req.Source
+	}
+
+	params := dbgen.CreateUserParams{
+		TenantID:    tenantID,
+		Username:    req.Username,
+		DisplayName: req.DisplayName,
+		Email:       req.Email,
+		Phone:       pgtype.Text{String: "", Valid: false},
+		Status:      status,
+		Source:      source,
+	}
+	if req.Phone != nil {
+		params.Phone = pgtype.Text{String: *req.Phone, Valid: true}
+	}
+
+	user, err := s.identitySvc.CreateUser(c.Request.Context(), params, req.Password)
+	if err != nil {
+		response.InternalError(c, "failed to create user")
+		return
+	}
+	s.recordAudit(c, "user.created", "identity", "user", user.ID, map[string]any{
+		"username": user.Username,
+	})
+	response.Created(c, toAPIUser(*user))
+}
+
+// UpdateUser updates an existing user.
+// (PUT /users/{id})
+func (s *APIServer) UpdateUser(c *gin.Context, id IdPath) {
+	var req UpdateUserJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	params := dbgen.UpdateUserParams{
+		ID: uuid.UUID(id),
+	}
+	if req.DisplayName != nil {
+		params.DisplayName = pgtype.Text{String: *req.DisplayName, Valid: true}
+	}
+	if req.Email != nil {
+		params.Email = pgtype.Text{String: *req.Email, Valid: true}
+	}
+	if req.Phone != nil {
+		params.Phone = pgtype.Text{String: *req.Phone, Valid: true}
+	}
+	if req.Status != nil {
+		params.Status = pgtype.Text{String: *req.Status, Valid: true}
+	}
+
+	user, err := s.identitySvc.UpdateUser(c.Request.Context(), params)
+	if err != nil {
+		response.NotFound(c, "user not found")
+		return
+	}
+	s.recordAudit(c, "user.updated", "identity", "user", user.ID, map[string]any{
+		"username": user.Username,
+	})
+	response.OK(c, toAPIUser(*user))
+}
+
 // ListRoles returns all roles for the tenant.
 // (GET /roles)
 func (s *APIServer) ListRoles(c *gin.Context) {
@@ -1510,6 +1590,58 @@ func (s *APIServer) ListRoles(c *gin.Context) {
 		return
 	}
 	response.OK(c, convertSlice(roles, toAPIRole))
+}
+
+// CreateRole creates a new custom role.
+// (POST /roles)
+func (s *APIServer) CreateRole(c *gin.Context) {
+	var req CreateRoleJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+
+	var permJSON json.RawMessage
+	if req.Permissions != nil {
+		b, _ := json.Marshal(*req.Permissions)
+		permJSON = b
+	} else {
+		permJSON = json.RawMessage(`{}`)
+	}
+
+	params := dbgen.CreateRoleParams{
+		TenantID:    pgtype.UUID{Bytes: tenantID, Valid: true},
+		Name:        req.Name,
+		Permissions: permJSON,
+		IsSystem:    false,
+	}
+	if req.Description != nil {
+		params.Description = pgtype.Text{String: *req.Description, Valid: true}
+	}
+
+	role, err := s.identitySvc.CreateRole(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, "failed to create role")
+		return
+	}
+	s.recordAudit(c, "role.created", "identity", "role", role.ID, map[string]any{
+		"name": role.Name,
+	})
+	response.Created(c, toAPIRole(*role))
+}
+
+// DeleteRole deletes a non-system role.
+// (DELETE /roles/{id})
+func (s *APIServer) DeleteRole(c *gin.Context, id IdPath) {
+	err := s.identitySvc.DeleteRole(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "role not found or is a system role")
+		return
+	}
+	s.recordAudit(c, "role.deleted", "identity", "role", uuid.UUID(id), nil)
+	c.Status(204)
 }
 
 // ---------------------------------------------------------------------------
@@ -1647,6 +1779,48 @@ func (s *APIServer) ListAdapters(c *gin.Context) {
 	response.OK(c, convertSlice(adapters, toAPIAdapter))
 }
 
+// CreateAdapter creates a new integration adapter.
+// (POST /integration/adapters)
+func (s *APIServer) CreateAdapter(c *gin.Context) {
+	var req CreateAdapterJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+
+	var configBytes []byte
+	if req.Config != nil {
+		configBytes, _ = json.Marshal(*req.Config)
+	} else {
+		configBytes = []byte(`{}`)
+	}
+
+	params := dbgen.CreateAdapterParams{
+		TenantID:  tenantID,
+		Name:      req.Name,
+		Type:      req.Type,
+		Direction: req.Direction,
+		Config:    configBytes,
+	}
+	if req.Endpoint != nil {
+		params.Endpoint = pgtype.Text{String: *req.Endpoint, Valid: true}
+	}
+	if req.Enabled != nil {
+		params.Enabled = pgtype.Bool{Bool: *req.Enabled, Valid: true}
+	} else {
+		params.Enabled = pgtype.Bool{Bool: true, Valid: true}
+	}
+
+	adapter, err := s.integrationSvc.CreateAdapter(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, "failed to create adapter")
+		return
+	}
+	response.Created(c, toAPIAdapter(adapter))
+}
+
 // ListWebhooks returns all webhook subscriptions for the tenant.
 // (GET /integration/webhooks)
 func (s *APIServer) ListWebhooks(c *gin.Context) {
@@ -1658,4 +1832,49 @@ func (s *APIServer) ListWebhooks(c *gin.Context) {
 		return
 	}
 	response.OK(c, convertSlice(webhooks, toAPIWebhook))
+}
+
+// CreateWebhook creates a new webhook subscription.
+// (POST /integration/webhooks)
+func (s *APIServer) CreateWebhook(c *gin.Context) {
+	var req CreateWebhookJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+
+	params := dbgen.CreateWebhookParams{
+		TenantID: tenantID,
+		Name:     req.Name,
+		Url:      req.Url,
+		Events:   req.Events,
+	}
+	if req.Secret != nil {
+		params.Secret = pgtype.Text{String: *req.Secret, Valid: true}
+	}
+	if req.Enabled != nil {
+		params.Enabled = pgtype.Bool{Bool: *req.Enabled, Valid: true}
+	} else {
+		params.Enabled = pgtype.Bool{Bool: true, Valid: true}
+	}
+
+	webhook, err := s.integrationSvc.CreateWebhook(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, "failed to create webhook")
+		return
+	}
+	response.Created(c, toAPIWebhook(webhook))
+}
+
+// ListWebhookDeliveries returns delivery history for a webhook.
+// (GET /integration/webhooks/{id}/deliveries)
+func (s *APIServer) ListWebhookDeliveries(c *gin.Context, id IdPath) {
+	deliveries, err := s.integrationSvc.ListDeliveries(c.Request.Context(), uuid.UUID(id), 100)
+	if err != nil {
+		response.InternalError(c, "failed to list deliveries")
+		return
+	}
+	response.OK(c, convertSlice(deliveries, toAPIWebhookDelivery))
 }

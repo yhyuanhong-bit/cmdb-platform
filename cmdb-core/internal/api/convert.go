@@ -520,6 +520,29 @@ func toAPIIncident(db dbgen.Incident) Incident {
 	}
 }
 
+func toAPIWebhookDelivery(db dbgen.WebhookDelivery) WebhookDelivery {
+	id := (*uuid.UUID)(&db.ID)
+	subID := (*uuid.UUID)(&db.SubscriptionID)
+	eventType := db.EventType
+	payload := rawJSONToMap(db.Payload)
+	var statusCode *int
+	if db.StatusCode.Valid {
+		v := int(db.StatusCode.Int32)
+		statusCode = &v
+	}
+	responseBody := pgtextToPtr(db.ResponseBody)
+	deliveredAt := pgtsToTimePtr(db.DeliveredAt)
+	return WebhookDelivery{
+		Id:             id,
+		SubscriptionId: subID,
+		EventType:      &eventType,
+		Payload:        payload,
+		StatusCode:     statusCode,
+		ResponseBody:   responseBody,
+		DeliveredAt:    deliveredAt,
+	}
+}
+
 func toAPIWebhook(db dbgen.WebhookSubscription) WebhookSubscription {
 	createdAt := pgtsToTime(db.CreatedAt)
 	return WebhookSubscription{

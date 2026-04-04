@@ -1578,6 +1578,48 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '401':
           $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createUser
+      tags: [identity]
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, display_name, email, password]
+              properties:
+                username:
+                  type: string
+                display_name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                password:
+                  type: string
+                status:
+                  type: string
+                  default: active
+                source:
+                  type: string
+                  default: local
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /users/{id}:
     get:
@@ -1602,6 +1644,41 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateUser
+      tags: [identity]
+      summary: Update a user
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                status:
+                  type: string
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /roles:
     get:
@@ -1624,6 +1701,55 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '401':
           $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createRole
+      tags: [identity]
+      summary: Create a role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                permissions:
+                  type: object
+                  additionalProperties:
+                    type: array
+                    items:
+                      type: string
+      responses:
+        '201':
+          description: Role created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Role'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /roles/{id}:
+    delete:
+      operationId: deleteRole
+      tags: [identity]
+      summary: Delete a role
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Role deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ── Prediction ──────────────────────────────────────────────────────────
   /prediction/models:
@@ -1795,6 +1921,46 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '401':
           $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createAdapter
+      tags: [integration]
+      summary: Create an integration adapter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type, direction]
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                direction:
+                  type: string
+                endpoint:
+                  type: string
+                config:
+                  type: object
+                  additionalProperties: true
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: Adapter created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/IntegrationAdapter'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /integration/webhooks:
     get:
@@ -1817,6 +1983,67 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '401':
           $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createWebhook
+      tags: [integration]
+      summary: Create a webhook subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url, events]
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+                secret:
+                  type: string
+                events:
+                  type: array
+                  items:
+                    type: string
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WebhookSubscription'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /integration/webhooks/{id}/deliveries:
+    get:
+      operationId: listWebhookDeliveries
+      tags: [integration]
+      summary: List webhook delivery history
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Webhook deliveries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookDelivery'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
 
 components:
   securitySchemes:
@@ -2681,5 +2908,28 @@ components:
         enabled:
           type: boolean
         created_at:
+          type: string
+          format: date-time
+
+    # ── WebhookDelivery ──────────────────────────────────────────────
+    WebhookDelivery:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        subscription_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        status_code:
+          type: integer
+        response_body:
+          type: string
+        delivered_at:
           type: string
           format: date-time

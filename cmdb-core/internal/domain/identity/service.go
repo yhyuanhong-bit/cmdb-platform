@@ -7,6 +7,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Service provides user and role listing operations.
@@ -54,4 +55,46 @@ func (s *Service) ListRoles(ctx context.Context, tenantID uuid.UUID) ([]dbgen.Ro
 		return nil, fmt.Errorf("list roles: %w", err)
 	}
 	return roles, nil
+}
+
+// CreateUser creates a new user with a bcrypt-hashed password.
+func (s *Service) CreateUser(ctx context.Context, params dbgen.CreateUserParams, plainPassword string) (*dbgen.User, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(plainPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+	params.PasswordHash = string(hash)
+
+	user, err := s.queries.CreateUser(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("create user: %w", err)
+	}
+	return &user, nil
+}
+
+// UpdateUser updates an existing user's profile fields.
+func (s *Service) UpdateUser(ctx context.Context, params dbgen.UpdateUserParams) (*dbgen.User, error) {
+	user, err := s.queries.UpdateUser(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("update user: %w", err)
+	}
+	return &user, nil
+}
+
+// CreateRole creates a new custom role.
+func (s *Service) CreateRole(ctx context.Context, params dbgen.CreateRoleParams) (*dbgen.Role, error) {
+	role, err := s.queries.CreateRole(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("create role: %w", err)
+	}
+	return &role, nil
+}
+
+// DeleteRole deletes a non-system role by ID.
+func (s *Service) DeleteRole(ctx context.Context, id uuid.UUID) error {
+	err := s.queries.DeleteRole(ctx, id)
+	if err != nil {
+		return fmt.Errorf("delete role: %w", err)
+	}
+	return nil
 }

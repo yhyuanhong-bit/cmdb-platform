@@ -298,6 +298,17 @@ type User struct {
 	Username    string             `json:"username"`
 }
 
+// WebhookDelivery defines model for WebhookDelivery.
+type WebhookDelivery struct {
+	DeliveredAt    *time.Time              `json:"delivered_at,omitempty"`
+	EventType      *string                 `json:"event_type,omitempty"`
+	Id             *openapi_types.UUID     `json:"id,omitempty"`
+	Payload        *map[string]interface{} `json:"payload,omitempty"`
+	ResponseBody   *string                 `json:"response_body,omitempty"`
+	StatusCode     *int                    `json:"status_code,omitempty"`
+	SubscriptionId *openapi_types.UUID     `json:"subscription_id,omitempty"`
+}
+
 // WebhookSubscription defines model for WebhookSubscription.
 type WebhookSubscription struct {
 	CreatedAt *time.Time          `json:"created_at,omitempty"`
@@ -392,6 +403,25 @@ type QueryAuditEventsParams struct {
 // GetDashboardStatsParams defines parameters for GetDashboardStats.
 type GetDashboardStatsParams struct {
 	IdcId *openapi_types.UUID `form:"idc_id,omitempty" json:"idc_id,omitempty"`
+}
+
+// CreateAdapterJSONBody defines parameters for CreateAdapter.
+type CreateAdapterJSONBody struct {
+	Config    *map[string]interface{} `json:"config,omitempty"`
+	Direction string                  `json:"direction"`
+	Enabled   *bool                   `json:"enabled,omitempty"`
+	Endpoint  *string                 `json:"endpoint,omitempty"`
+	Name      string                  `json:"name"`
+	Type      string                  `json:"type"`
+}
+
+// CreateWebhookJSONBody defines parameters for CreateWebhook.
+type CreateWebhookJSONBody struct {
+	Enabled *bool    `json:"enabled,omitempty"`
+	Events  []string `json:"events"`
+	Name    string   `json:"name"`
+	Secret  *string  `json:"secret,omitempty"`
+	Url     string   `json:"url"`
 }
 
 // ListInventoryTasksParams defines parameters for ListInventoryTasks.
@@ -567,10 +597,36 @@ type UpdateRackJSONBody struct {
 	TotalU          *int      `json:"total_u,omitempty"`
 }
 
+// CreateRoleJSONBody defines parameters for CreateRole.
+type CreateRoleJSONBody struct {
+	Description *string              `json:"description,omitempty"`
+	Name        string               `json:"name"`
+	Permissions *map[string][]string `json:"permissions,omitempty"`
+}
+
 // ListUsersParams defines parameters for ListUsers.
 type ListUsersParams struct {
 	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
 	PageSize *PageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
+// CreateUserJSONBody defines parameters for CreateUser.
+type CreateUserJSONBody struct {
+	DisplayName string  `json:"display_name"`
+	Email       string  `json:"email"`
+	Password    string  `json:"password"`
+	Phone       *string `json:"phone,omitempty"`
+	Source      *string `json:"source,omitempty"`
+	Status      *string `json:"status,omitempty"`
+	Username    string  `json:"username"`
+}
+
+// UpdateUserJSONBody defines parameters for UpdateUser.
+type UpdateUserJSONBody struct {
+	DisplayName *string `json:"display_name,omitempty"`
+	Email       *string `json:"email,omitempty"`
+	Phone       *string `json:"phone,omitempty"`
+	Status      *string `json:"status,omitempty"`
 }
 
 // CreateAssetJSONRequestBody defines body for CreateAsset for application/json ContentType.
@@ -584,6 +640,12 @@ type LoginJSONRequestBody = LoginRequest
 
 // RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
 type RefreshTokenJSONRequestBody = RefreshRequest
+
+// CreateAdapterJSONRequestBody defines body for CreateAdapter for application/json ContentType.
+type CreateAdapterJSONRequestBody CreateAdapterJSONBody
+
+// CreateWebhookJSONRequestBody defines body for CreateWebhook for application/json ContentType.
+type CreateWebhookJSONRequestBody CreateWebhookJSONBody
 
 // CreateInventoryTaskJSONRequestBody defines body for CreateInventoryTask for application/json ContentType.
 type CreateInventoryTaskJSONRequestBody CreateInventoryTaskJSONBody
@@ -627,6 +689,15 @@ type CreateRackJSONRequestBody CreateRackJSONBody
 // UpdateRackJSONRequestBody defines body for UpdateRack for application/json ContentType.
 type UpdateRackJSONRequestBody UpdateRackJSONBody
 
+// CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
+type CreateRoleJSONRequestBody CreateRoleJSONBody
+
+// CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
+type CreateUserJSONRequestBody CreateUserJSONBody
+
+// UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
+type UpdateUserJSONRequestBody UpdateUserJSONBody
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// List assets with pagination and filters
@@ -662,9 +733,18 @@ type ServerInterface interface {
 	// List integration adapters
 	// (GET /integration/adapters)
 	ListAdapters(c *gin.Context)
+	// Create an integration adapter
+	// (POST /integration/adapters)
+	CreateAdapter(c *gin.Context)
 	// List webhook subscriptions
 	// (GET /integration/webhooks)
 	ListWebhooks(c *gin.Context)
+	// Create a webhook subscription
+	// (POST /integration/webhooks)
+	CreateWebhook(c *gin.Context)
+	// List webhook delivery history
+	// (GET /integration/webhooks/{id}/deliveries)
+	ListWebhookDeliveries(c *gin.Context, id IdPath)
 	// List inventory tasks
 	// (GET /inventory/tasks)
 	ListInventoryTasks(c *gin.Context, params ListInventoryTasksParams)
@@ -794,15 +874,27 @@ type ServerInterface interface {
 	// List roles
 	// (GET /roles)
 	ListRoles(c *gin.Context)
+	// Create a role
+	// (POST /roles)
+	CreateRole(c *gin.Context)
+	// Delete a role
+	// (DELETE /roles/{id})
+	DeleteRole(c *gin.Context, id IdPath)
 	// Get system health status
 	// (GET /system/health)
 	GetSystemHealth(c *gin.Context)
 	// List users
 	// (GET /users)
 	ListUsers(c *gin.Context, params ListUsersParams)
+	// Create a user
+	// (POST /users)
+	CreateUser(c *gin.Context)
 	// Get a user by ID
 	// (GET /users/{id})
 	GetUser(c *gin.Context, id IdPath)
+	// Update a user
+	// (PUT /users/{id})
+	UpdateUser(c *gin.Context, id IdPath)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1127,6 +1219,21 @@ func (siw *ServerInterfaceWrapper) ListAdapters(c *gin.Context) {
 	siw.Handler.ListAdapters(c)
 }
 
+// CreateAdapter operation middleware
+func (siw *ServerInterfaceWrapper) CreateAdapter(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAdapter(c)
+}
+
 // ListWebhooks operation middleware
 func (siw *ServerInterfaceWrapper) ListWebhooks(c *gin.Context) {
 
@@ -1140,6 +1247,47 @@ func (siw *ServerInterfaceWrapper) ListWebhooks(c *gin.Context) {
 	}
 
 	siw.Handler.ListWebhooks(c)
+}
+
+// CreateWebhook operation middleware
+func (siw *ServerInterfaceWrapper) CreateWebhook(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateWebhook(c)
+}
+
+// ListWebhookDeliveries operation middleware
+func (siw *ServerInterfaceWrapper) ListWebhookDeliveries(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListWebhookDeliveries(c, id)
 }
 
 // ListInventoryTasks operation middleware
@@ -2325,6 +2473,47 @@ func (siw *ServerInterfaceWrapper) ListRoles(c *gin.Context) {
 	siw.Handler.ListRoles(c)
 }
 
+// CreateRole operation middleware
+func (siw *ServerInterfaceWrapper) CreateRole(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateRole(c)
+}
+
+// DeleteRole operation middleware
+func (siw *ServerInterfaceWrapper) DeleteRole(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteRole(c, id)
+}
+
 // GetSystemHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemHealth(c *gin.Context) {
 
@@ -2376,6 +2565,21 @@ func (siw *ServerInterfaceWrapper) ListUsers(c *gin.Context) {
 	siw.Handler.ListUsers(c, params)
 }
 
+// CreateUser operation middleware
+func (siw *ServerInterfaceWrapper) CreateUser(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateUser(c)
+}
+
 // GetUser operation middleware
 func (siw *ServerInterfaceWrapper) GetUser(c *gin.Context) {
 
@@ -2400,6 +2604,32 @@ func (siw *ServerInterfaceWrapper) GetUser(c *gin.Context) {
 	}
 
 	siw.Handler.GetUser(c, id)
+}
+
+// UpdateUser operation middleware
+func (siw *ServerInterfaceWrapper) UpdateUser(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateUser(c, id)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -2440,7 +2670,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.GET(options.BaseURL+"/dashboard/stats", wrapper.GetDashboardStats)
 	router.GET(options.BaseURL+"/integration/adapters", wrapper.ListAdapters)
+	router.POST(options.BaseURL+"/integration/adapters", wrapper.CreateAdapter)
 	router.GET(options.BaseURL+"/integration/webhooks", wrapper.ListWebhooks)
+	router.POST(options.BaseURL+"/integration/webhooks", wrapper.CreateWebhook)
+	router.GET(options.BaseURL+"/integration/webhooks/:id/deliveries", wrapper.ListWebhookDeliveries)
 	router.GET(options.BaseURL+"/inventory/tasks", wrapper.ListInventoryTasks)
 	router.POST(options.BaseURL+"/inventory/tasks", wrapper.CreateInventoryTask)
 	router.GET(options.BaseURL+"/inventory/tasks/:id", wrapper.GetInventoryTask)
@@ -2484,7 +2717,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/racks/:id", wrapper.UpdateRack)
 	router.GET(options.BaseURL+"/racks/:id/assets", wrapper.ListRackAssets)
 	router.GET(options.BaseURL+"/roles", wrapper.ListRoles)
+	router.POST(options.BaseURL+"/roles", wrapper.CreateRole)
+	router.DELETE(options.BaseURL+"/roles/:id", wrapper.DeleteRole)
 	router.GET(options.BaseURL+"/system/health", wrapper.GetSystemHealth)
 	router.GET(options.BaseURL+"/users", wrapper.ListUsers)
+	router.POST(options.BaseURL+"/users", wrapper.CreateUser)
 	router.GET(options.BaseURL+"/users/:id", wrapper.GetUser)
+	router.PUT(options.BaseURL+"/users/:id", wrapper.UpdateUser)
 }
