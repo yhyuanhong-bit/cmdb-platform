@@ -93,6 +93,17 @@ type ErrorResponse struct {
 	Meta  Meta      `json:"meta"`
 }
 
+// IntegrationAdapter defines model for IntegrationAdapter.
+type IntegrationAdapter struct {
+	CreatedAt *time.Time          `json:"created_at,omitempty"`
+	Direction *string             `json:"direction,omitempty"`
+	Enabled   *bool               `json:"enabled,omitempty"`
+	Endpoint  *string             `json:"endpoint,omitempty"`
+	Id        *openapi_types.UUID `json:"id,omitempty"`
+	Name      *string             `json:"name,omitempty"`
+	Type      *string             `json:"type,omitempty"`
+}
+
 // InventoryItem defines model for InventoryItem.
 type InventoryItem struct {
 	Actual    *map[string]interface{} `json:"actual,omitempty"`
@@ -152,6 +163,13 @@ type LoginRequest struct {
 // Meta defines model for Meta.
 type Meta struct {
 	RequestId string `json:"request_id"`
+}
+
+// MetricPoint defines model for MetricPoint.
+type MetricPoint struct {
+	Name  string    `json:"name"`
+	Time  time.Time `json:"time"`
+	Value float64   `json:"value"`
 }
 
 // Pagination defines model for Pagination.
@@ -224,6 +242,22 @@ type Role struct {
 	Permissions map[string][]string `json:"permissions"`
 }
 
+// SystemHealth defines model for SystemHealth.
+type SystemHealth struct {
+	Database *struct {
+		LatencyMs *float32 `json:"latency_ms,omitempty"`
+		Status    *string  `json:"status,omitempty"`
+	} `json:"database,omitempty"`
+	Nats *struct {
+		Connected *bool   `json:"connected,omitempty"`
+		Status    *string `json:"status,omitempty"`
+	} `json:"nats,omitempty"`
+	Redis *struct {
+		LatencyMs *float32 `json:"latency_ms,omitempty"`
+		Status    *string  `json:"status,omitempty"`
+	} `json:"redis,omitempty"`
+}
+
 // TokenPair defines model for TokenPair.
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
@@ -241,6 +275,16 @@ type User struct {
 	Source      string             `json:"source"`
 	Status      string             `json:"status"`
 	Username    string             `json:"username"`
+}
+
+// WebhookSubscription defines model for WebhookSubscription.
+type WebhookSubscription struct {
+	CreatedAt *time.Time          `json:"created_at,omitempty"`
+	Enabled   *bool               `json:"enabled,omitempty"`
+	Events    *[]string           `json:"events,omitempty"`
+	Id        *openapi_types.UUID `json:"id,omitempty"`
+	Name      *string             `json:"name,omitempty"`
+	Url       *string             `json:"url,omitempty"`
 }
 
 // WorkOrder defines model for WorkOrder.
@@ -351,6 +395,13 @@ type ListAlertsParams struct {
 	AssetId  *openapi_types.UUID `form:"asset_id,omitempty" json:"asset_id,omitempty"`
 }
 
+// QueryMetricsParams defines parameters for QueryMetrics.
+type QueryMetricsParams struct {
+	AssetId    openapi_types.UUID `form:"asset_id" json:"asset_id"`
+	MetricName string             `form:"metric_name" json:"metric_name"`
+	TimeRange  string             `form:"time_range" json:"time_range"`
+}
+
 // CreateRCAJSONBody defines parameters for CreateRCA.
 type CreateRCAJSONBody struct {
 	Context    *map[string]interface{} `json:"context,omitempty"`
@@ -416,6 +467,12 @@ type ServerInterface interface {
 	// Get dashboard statistics
 	// (GET /dashboard/stats)
 	GetDashboardStats(c *gin.Context, params GetDashboardStatsParams)
+	// List integration adapters
+	// (GET /integration/adapters)
+	ListAdapters(c *gin.Context)
+	// List webhook subscriptions
+	// (GET /integration/webhooks)
+	ListWebhooks(c *gin.Context)
 	// List inventory tasks
 	// (GET /inventory/tasks)
 	ListInventoryTasks(c *gin.Context, params ListInventoryTasksParams)
@@ -464,6 +521,9 @@ type ServerInterface interface {
 	// Resolve an alert
 	// (POST /monitoring/alerts/{id}/resolve)
 	ResolveAlert(c *gin.Context, id IdPath)
+	// Query time-series metrics for an asset
+	// (GET /monitoring/metrics)
+	QueryMetrics(c *gin.Context, params QueryMetricsParams)
 	// List prediction models
 	// (GET /prediction/models)
 	ListPredictionModels(c *gin.Context)
@@ -485,6 +545,9 @@ type ServerInterface interface {
 	// List roles
 	// (GET /roles)
 	ListRoles(c *gin.Context)
+	// Get system health status
+	// (GET /system/health)
+	GetSystemHealth(c *gin.Context)
 	// List users
 	// (GET /users)
 	ListUsers(c *gin.Context, params ListUsersParams)
@@ -746,6 +809,36 @@ func (siw *ServerInterfaceWrapper) GetDashboardStats(c *gin.Context) {
 	}
 
 	siw.Handler.GetDashboardStats(c, params)
+}
+
+// ListAdapters operation middleware
+func (siw *ServerInterfaceWrapper) ListAdapters(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAdapters(c)
+}
+
+// ListWebhooks operation middleware
+func (siw *ServerInterfaceWrapper) ListWebhooks(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListWebhooks(c)
 }
 
 // ListInventoryTasks operation middleware
@@ -1233,6 +1326,71 @@ func (siw *ServerInterfaceWrapper) ResolveAlert(c *gin.Context) {
 	siw.Handler.ResolveAlert(c, id)
 }
 
+// QueryMetrics operation middleware
+func (siw *ServerInterfaceWrapper) QueryMetrics(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params QueryMetricsParams
+
+	// ------------- Required query parameter "asset_id" -------------
+
+	if paramValue := c.Query("asset_id"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument asset_id is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "asset_id", c.Request.URL.Query(), &params.AssetId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter asset_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "metric_name" -------------
+
+	if paramValue := c.Query("metric_name"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument metric_name is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "metric_name", c.Request.URL.Query(), &params.MetricName, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter metric_name: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "time_range" -------------
+
+	if paramValue := c.Query("time_range"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument time_range is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "time_range", c.Request.URL.Query(), &params.TimeRange, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter time_range: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.QueryMetrics(c, params)
+}
+
 // ListPredictionModels operation middleware
 func (siw *ServerInterfaceWrapper) ListPredictionModels(c *gin.Context) {
 
@@ -1382,6 +1540,21 @@ func (siw *ServerInterfaceWrapper) ListRoles(c *gin.Context) {
 	siw.Handler.ListRoles(c)
 }
 
+// GetSystemHealth operation middleware
+func (siw *ServerInterfaceWrapper) GetSystemHealth(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSystemHealth(c)
+}
+
 // ListUsers operation middleware
 func (siw *ServerInterfaceWrapper) ListUsers(c *gin.Context) {
 
@@ -1479,6 +1652,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/auth/me", wrapper.GetCurrentUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.GET(options.BaseURL+"/dashboard/stats", wrapper.GetDashboardStats)
+	router.GET(options.BaseURL+"/integration/adapters", wrapper.ListAdapters)
+	router.GET(options.BaseURL+"/integration/webhooks", wrapper.ListWebhooks)
 	router.GET(options.BaseURL+"/inventory/tasks", wrapper.ListInventoryTasks)
 	router.GET(options.BaseURL+"/inventory/tasks/:id", wrapper.GetInventoryTask)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/items", wrapper.ListInventoryItems)
@@ -1495,6 +1670,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/monitoring/alerts", wrapper.ListAlerts)
 	router.POST(options.BaseURL+"/monitoring/alerts/:id/ack", wrapper.AcknowledgeAlert)
 	router.POST(options.BaseURL+"/monitoring/alerts/:id/resolve", wrapper.ResolveAlert)
+	router.GET(options.BaseURL+"/monitoring/metrics", wrapper.QueryMetrics)
 	router.GET(options.BaseURL+"/prediction/models", wrapper.ListPredictionModels)
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)
@@ -1502,6 +1678,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/racks/:id", wrapper.GetRack)
 	router.GET(options.BaseURL+"/racks/:id/assets", wrapper.ListRackAssets)
 	router.GET(options.BaseURL+"/roles", wrapper.ListRoles)
+	router.GET(options.BaseURL+"/system/health", wrapper.GetSystemHealth)
 	router.GET(options.BaseURL+"/users", wrapper.ListUsers)
 	router.GET(options.BaseURL+"/users/:id", wrapper.GetUser)
 }

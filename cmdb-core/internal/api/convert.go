@@ -473,3 +473,36 @@ func toAPIRCAAnalysis(db dbgen.RcaAnalysis) RCAAnalysis {
 		HumanVerified:  pgboolVal(db.HumanVerified),
 	}
 }
+
+// ---------------------------------------------------------------------------
+// 15. toAPIAdapter
+// ---------------------------------------------------------------------------
+
+func toAPIAdapter(db dbgen.IntegrationAdapter) IntegrationAdapter {
+	createdAt := pgtsToTime(db.CreatedAt)
+	return IntegrationAdapter{
+		Id:        (*uuid.UUID)(&db.ID),
+		Name:      &db.Name,
+		Type:      &db.Type,
+		Direction: &db.Direction,
+		Endpoint:  pgtextToPtr(db.Endpoint),
+		Enabled:   pgboolToPtr(db.Enabled),
+		CreatedAt: &createdAt,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 16. toAPIWebhook
+// ---------------------------------------------------------------------------
+
+func toAPIWebhook(db dbgen.WebhookSubscription) WebhookSubscription {
+	createdAt := pgtsToTime(db.CreatedAt)
+	return WebhookSubscription{
+		Id:        (*uuid.UUID)(&db.ID),
+		Name:      &db.Name,
+		Url:       &db.Url,
+		Events:    &db.Events,
+		Enabled:   pgboolToPtr(db.Enabled),
+		CreatedAt: &createdAt,
+	}
+}

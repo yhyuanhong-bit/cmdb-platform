@@ -3,11 +3,14 @@ package api
 import (
 	"encoding/json"
 
+	"time"
+
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
@@ -17,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -26,6 +30,7 @@ var _ ServerInterface = (*APIServer)(nil)
 // APIServer implements every method of the generated ServerInterface,
 // delegating business logic to the domain services.
 type APIServer struct {
+	pool           *pgxpool.Pool
 	authSvc        *identity.AuthService
 	identitySvc    *identity.Service
 	topologySvc    *topology.Service
@@ -36,10 +41,12 @@ type APIServer struct {
 	auditSvc       *audit.Service
 	dashboardSvc   *dashboard.Service
 	predictionSvc  *prediction.Service
+	integrationSvc *integration.Service
 }
 
 // NewAPIServer constructs an APIServer with all required domain services.
 func NewAPIServer(
+	pool *pgxpool.Pool,
 	authSvc *identity.AuthService,
 	identitySvc *identity.Service,
 	topologySvc *topology.Service,
@@ -50,8 +57,10 @@ func NewAPIServer(
 	auditSvc *audit.Service,
 	dashboardSvc *dashboard.Service,
 	predictionSvc *prediction.Service,
+	integrationSvc *integration.Service,
 ) *APIServer {
 	return &APIServer{
+		pool:           pool,
 		authSvc:        authSvc,
 		identitySvc:    identitySvc,
 		topologySvc:    topologySvc,
@@ -62,6 +71,7 @@ func NewAPIServer(
 		auditSvc:       auditSvc,
 		dashboardSvc:   dashboardSvc,
 		predictionSvc:  predictionSvc,
+		integrationSvc: integrationSvc,
 	}
 }
 
@@ -734,4 +744,66 @@ func (s *APIServer) VerifyRCA(c *gin.Context, id IdPath) {
 		return
 	}
 	response.OK(c, toAPIRCAAnalysis(*rca))
+}
+
+// ---------------------------------------------------------------------------
+// System endpoints
+// ---------------------------------------------------------------------------
+
+// GetSystemHealth returns health status of backend dependencies.
+// (GET /system/health)
+func (s *APIServer) GetSystemHealth(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Check database
+	dbStatus := "ok"
+	dbStart := time.Now()
+	var one int
+	err := s.pool.QueryRow(ctx, "SELECT 1").Scan(&one)
+	dbLatency := float32(time.Since(dbStart).Milliseconds())
+	if err != nil {
+		dbStatus = "error"
+	}
+
+	health := SystemHealth{
+		Database: &struct {
+			LatencyMs *float32 `json:"latency_ms,omitempty"`
+			Status    *string  `json:"status,omitempty"`
+		}{
+			Status:    &dbStatus,
+			LatencyMs: &dbLatency,
+		},
+	}
+
+	response.OK(c, health)
+}
+
+// ---------------------------------------------------------------------------
+// Integration endpoints
+// ---------------------------------------------------------------------------
+
+// ListAdapters returns all integration adapters for the tenant.
+// (GET /integration/adapters)
+func (s *APIServer) ListAdapters(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+
+	adapters, err := s.integrationSvc.ListAdapters(c.Request.Context(), tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to list adapters")
+		return
+	}
+	response.OK(c, convertSlice(adapters, toAPIAdapter))
+}
+
+// ListWebhooks returns all webhook subscriptions for the tenant.
+// (GET /integration/webhooks)
+func (s *APIServer) ListWebhooks(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+
+	webhooks, err := s.integrationSvc.ListWebhooks(c.Request.Context(), tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to list webhooks")
+		return
+	}
+	response.OK(c, convertSlice(webhooks, toAPIWebhook))
 }

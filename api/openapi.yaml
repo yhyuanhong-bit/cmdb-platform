@@ -29,6 +29,10 @@ tags:
     description: Users and roles
   - name: prediction
     description: AI predictions and RCA
+  - name: system
+    description: System health and diagnostics
+  - name: integration
+    description: Integration adapters and webhooks
 
 paths:
   # ── Auth ────────────────────────────────────────────────────────────────
@@ -648,6 +652,48 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /monitoring/metrics:
+    get:
+      operationId: queryMetrics
+      tags: [monitoring]
+      summary: Query time-series metrics for an asset
+      parameters:
+        - name: asset_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: metric_name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: time_range
+          in: query
+          required: true
+          schema:
+            type: string
+            description: "Time range, e.g. 1h, 6h, 24h, 7d"
+      responses:
+        '200':
+          description: Metric data points
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MetricPoint'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # ── Inventory ───────────────────────────────────────────────────────────
   /inventory/tasks:
     get:
@@ -996,6 +1042,70 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # ── System ───────────────────────────────────────────────────────────
+  /system/health:
+    get:
+      operationId: getSystemHealth
+      tags: [system]
+      summary: Get system health status
+      responses:
+        '200':
+          description: System health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SystemHealth'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  # ── Integration ────────────────────────────────────────────────────
+  /integration/adapters:
+    get:
+      operationId: listAdapters
+      tags: [integration]
+      summary: List integration adapters
+      responses:
+        '200':
+          description: Adapter list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/IntegrationAdapter'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /integration/webhooks:
+    get:
+      operationId: listWebhooks
+      tags: [integration]
+      summary: List webhook subscriptions
+      responses:
+        '200':
+          description: Webhook list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookSubscription'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
 components:
   securitySchemes:
@@ -1352,6 +1462,20 @@ components:
         - scheduled_start
         - scheduled_end
         - created_at
+
+    # ── MetricPoint ──────────────────────────────────────────────────────
+    MetricPoint:
+      type: object
+      properties:
+        time:
+          type: string
+          format: date-time
+        name:
+          type: string
+        value:
+          type: number
+          format: double
+      required: [time, name, value]
 
     # ── AlertEvent ────────────────────────────────────────────────────────
     AlertEvent:
@@ -1723,3 +1847,71 @@ components:
         - total_racks
         - critical_alerts
         - active_orders
+
+    # ── SystemHealth ──────────────────────────────────────────────────
+    SystemHealth:
+      type: object
+      properties:
+        database:
+          type: object
+          properties:
+            status:
+              type: string
+            latency_ms:
+              type: number
+        redis:
+          type: object
+          properties:
+            status:
+              type: string
+            latency_ms:
+              type: number
+        nats:
+          type: object
+          properties:
+            status:
+              type: string
+            connected:
+              type: boolean
+
+    # ── IntegrationAdapter ────────────────────────────────────────────
+    IntegrationAdapter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+        direction:
+          type: string
+        endpoint:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    # ── WebhookSubscription ───────────────────────────────────────────
+    WebhookSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        url:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time

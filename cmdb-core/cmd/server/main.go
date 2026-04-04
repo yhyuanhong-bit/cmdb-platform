@@ -17,6 +17,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
@@ -97,6 +98,8 @@ func main() {
 	auditSvc := audit.NewService(queries)
 	dashboardSvc := dashboard.NewService(queries)
 
+	integrationSvc := integration.NewService(queries)
+
 	// AI Registry
 	aiRegistry := ai.NewRegistry()
 	if err := aiRegistry.LoadFromDB(ctx, &ai.QueriesAdapter{Q: queries}); err != nil {
@@ -108,8 +111,9 @@ func main() {
 
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
-		authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
+		pool, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
+		integrationSvc,
 	)
 
 	// 10. Set up Gin router
