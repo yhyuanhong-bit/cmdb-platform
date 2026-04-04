@@ -63,7 +63,7 @@ function toRecord(wo: WorkOrder): MaintenanceRecord {
     duration: wo.actual_start && wo.actual_end
       ? `${((new Date(wo.actual_end).getTime() - new Date(wo.actual_start).getTime()) / 3600000).toFixed(1)}h`
       : '-',
-    outcome: wo.status === 'COMPLETED' ? 'Success' : wo.status ?? '',
+    outcome: wo.status.toLowerCase() === 'completed' ? 'Success' : wo.status ?? '',
   }
 }
 
@@ -329,11 +329,11 @@ export default function MaintenanceHub() {
   const workOrders: WorkOrder[] = woResponse?.data ?? []
 
   const tasks = useMemo(() =>
-    workOrders.filter((wo) => wo.status !== 'COMPLETED').map(toTask),
+    workOrders.filter((wo) => wo.status.toLowerCase() !== 'completed').map(toTask),
     [workOrders],
   )
   const records = useMemo(() =>
-    workOrders.filter((wo) => wo.status === 'COMPLETED').map(toRecord),
+    workOrders.filter((wo) => wo.status.toLowerCase() === 'completed').map(toRecord),
     [workOrders],
   )
 

@@ -130,6 +130,7 @@ export default function App() {
           {/* Maintenance */}
           <Route path="/maintenance" element={<MaintenanceHub />} />
           <Route path="/maintenance/task" element={<MaintenanceTaskView />} />
+          <Route path="/maintenance/task/:id" element={<MaintenanceTaskView />} />
           <Route path="/maintenance/workorder" element={<WorkOrder />} />
           <Route path="/maintenance/add" element={<AddMaintenanceTask />} />
           <Route path="/maintenance/dispatch" element={<TaskDispatch />} />

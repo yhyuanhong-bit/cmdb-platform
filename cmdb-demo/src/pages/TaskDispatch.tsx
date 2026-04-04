@@ -114,10 +114,10 @@ function ProgressBar({
 function TaskDispatch() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data: woResponse, isLoading, error } = useWorkOrders({ status: 'PENDING' });
+  const { data: woResponse, isLoading, error } = useWorkOrders();
   const apiOrders: WorkOrder[] = woResponse?.data ?? [];
   const TASKS = useMemo(
-    () => apiOrders.filter((wo) => wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED').map(toTask),
+    () => apiOrders.filter((wo) => !['completed', 'closed', 'rejected'].includes(wo.status?.toLowerCase())).map(toTask),
     [apiOrders],
   );
   const [selectedTask, setSelectedTask] = useState<string>("");
