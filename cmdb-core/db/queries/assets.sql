@@ -58,3 +58,10 @@ RETURNING *;
 
 -- name: DeleteAsset :exec
 DELETE FROM assets WHERE id = $1;
+
+-- name: CountAssetsUnderLocation :one
+-- Count all assets under a location and all its descendants (using ltree)
+SELECT count(*) FROM assets a
+JOIN locations l ON a.location_id = l.id
+WHERE a.tenant_id = $1
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree;

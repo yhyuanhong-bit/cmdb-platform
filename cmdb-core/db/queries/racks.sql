@@ -40,3 +40,10 @@ FROM racks r
 LEFT JOIN rack_slots rs ON rs.rack_id = r.id
 WHERE r.id = $1
 GROUP BY r.id;
+
+-- name: CountRacksUnderLocation :one
+-- Count all racks under a location and all its descendants (using ltree)
+SELECT count(*) FROM racks r
+JOIN locations l ON r.location_id = l.id
+WHERE r.tenant_id = $1
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree;

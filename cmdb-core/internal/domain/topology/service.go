@@ -41,59 +41,46 @@ func (s *Service) ListAncestors(ctx context.Context, tenantID uuid.UUID, path st
 	})
 }
 
-// GetLocationStats computes aggregate statistics for a location.
+// GetLocationStats computes aggregate statistics for a location
+// including ALL descendant locations (recursive via ltree).
 func (s *Service) GetLocationStats(ctx context.Context, locationID uuid.UUID) (LocationStats, error) {
 	loc, err := s.queries.GetLocation(ctx, locationID)
 	if err != nil {
 		return LocationStats{}, err
 	}
 
-	// Count assets at this location.
-	totalAssets, err := s.queries.CountAssets(ctx, dbgen.CountAssetsParams{
-		TenantID:   loc.TenantID,
-		LocationID: pgtype.UUID{Bytes: locationID, Valid: true},
-	})
-	if err != nil {
-		return LocationStats{}, err
-	}
-
-	// Count racks at this location.
-	racks, err := s.queries.ListRacksByLocation(ctx, locationID)
-	if err != nil {
-		return LocationStats{}, err
-	}
-
-	// Count firing alerts (critical severity) for this tenant.
-	criticalAlerts, err := s.queries.CountAlerts(ctx, dbgen.CountAlertsParams{
+	// Count assets under this location and ALL descendants.
+	totalAssets, err := s.queries.CountAssetsUnderLocation(ctx, dbgen.CountAssetsUnderLocationParams{
 		TenantID: loc.TenantID,
-		Status:   pgtype.Text{String: "firing", Valid: true},
-		Severity: pgtype.Text{String: "critical", Valid: true},
+		ID:       locationID,
 	})
 	if err != nil {
 		return LocationStats{}, err
 	}
 
-	// Compute average rack occupancy.
-	var avgOccupancy float64
-	if len(racks) > 0 {
-		var totalPct float64
-		for _, r := range racks {
-			occ, err := s.queries.GetRackOccupancy(ctx, r.ID)
-			if err != nil {
-				continue
-			}
-			if occ.TotalU > 0 {
-				totalPct += float64(occ.UsedU) / float64(occ.TotalU)
-			}
-		}
-		avgOccupancy = totalPct / float64(len(racks))
+	// Count racks under this location and ALL descendants.
+	totalRacks, err := s.queries.CountRacksUnderLocation(ctx, dbgen.CountRacksUnderLocationParams{
+		TenantID: loc.TenantID,
+		ID:       locationID,
+	})
+	if err != nil {
+		return LocationStats{}, err
+	}
+
+	// Count firing alerts for assets under this location tree.
+	criticalAlerts, err := s.queries.CountAlertsUnderLocation(ctx, dbgen.CountAlertsUnderLocationParams{
+		TenantID: loc.TenantID,
+		ID:       locationID,
+	})
+	if err != nil {
+		return LocationStats{}, err
 	}
 
 	return LocationStats{
 		TotalAssets:    totalAssets,
-		TotalRacks:     int64(len(racks)),
+		TotalRacks:     totalRacks,
 		CriticalAlerts: criticalAlerts,
-		AvgOccupancy:   avgOccupancy,
+		AvgOccupancy:   0, // TODO: compute when rack_slots data is populated
 	}, nil
 }
 

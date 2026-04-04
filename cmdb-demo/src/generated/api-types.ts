@@ -329,6 +329,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/monitoring/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Query time-series metrics for an asset */
+        get: operations["queryMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/inventory/tasks": {
         parameters: {
             query?: never;
@@ -533,6 +550,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/system/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get system health status */
+        get: operations["getSystemHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integration/adapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List integration adapters */
+        get: operations["listAdapters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integration/webhooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List webhook subscriptions */
+        get: operations["listWebhooks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -664,6 +732,13 @@ export interface components {
             actual_end?: string | null;
             /** Format: date-time */
             created_at: string;
+        };
+        MetricPoint: {
+            /** Format: date-time */
+            time: string;
+            name: string;
+            /** Format: double */
+            value: number;
         };
         AlertEvent: {
             /** Format: uuid */
@@ -821,6 +896,41 @@ export interface components {
             total_racks: number;
             critical_alerts: number;
             active_orders: number;
+        };
+        SystemHealth: {
+            database?: {
+                status?: string;
+                latency_ms?: number;
+            };
+            redis?: {
+                status?: string;
+                latency_ms?: number;
+            };
+            nats?: {
+                status?: string;
+                connected?: boolean;
+            };
+        };
+        IntegrationAdapter: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            type?: string;
+            direction?: string;
+            endpoint?: string;
+            enabled?: boolean;
+            /** Format: date-time */
+            created_at?: string;
+        };
+        WebhookSubscription: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            url?: string;
+            events?: string[];
+            enabled?: boolean;
+            /** Format: date-time */
+            created_at?: string;
         };
     };
     responses: {
@@ -1466,6 +1576,35 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    queryMetrics: {
+        parameters: {
+            query: {
+                asset_id: string;
+                metric_name: string;
+                time_range: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Metric data points */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["MetricPoint"][];
+                        meta?: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
     listInventoryTasks: {
         parameters: {
             query?: {
@@ -1804,6 +1943,77 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    getSystemHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description System health */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["SystemHealth"];
+                        meta?: components["schemas"]["Meta"];
+                    };
+                };
+            };
+        };
+    };
+    listAdapters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Adapter list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["IntegrationAdapter"][];
+                        meta?: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listWebhooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Webhook list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["WebhookSubscription"][];
+                        meta?: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
 }

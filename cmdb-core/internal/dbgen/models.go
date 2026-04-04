@@ -91,6 +91,18 @@ type Incident struct {
 	ResolvedAt pgtype.Timestamptz `json:"resolved_at"`
 }
 
+type IntegrationAdapter struct {
+	ID        uuid.UUID          `json:"id"`
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	Name      string             `json:"name"`
+	Type      string             `json:"type"`
+	Direction string             `json:"direction"`
+	Endpoint  pgtype.Text        `json:"endpoint"`
+	Config    []byte             `json:"config"`
+	Enabled   pgtype.Bool        `json:"enabled"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type InventoryItem struct {
 	ID        uuid.UUID          `json:"id"`
 	TaskID    uuid.UUID          `json:"task_id"`
@@ -258,6 +270,27 @@ type User struct {
 type UserRole struct {
 	UserID uuid.UUID `json:"user_id"`
 	RoleID uuid.UUID `json:"role_id"`
+}
+
+type WebhookDelivery struct {
+	ID             uuid.UUID          `json:"id"`
+	SubscriptionID uuid.UUID          `json:"subscription_id"`
+	EventType      string             `json:"event_type"`
+	Payload        json.RawMessage    `json:"payload"`
+	StatusCode     pgtype.Int4        `json:"status_code"`
+	ResponseBody   pgtype.Text        `json:"response_body"`
+	DeliveredAt    pgtype.Timestamptz `json:"delivered_at"`
+}
+
+type WebhookSubscription struct {
+	ID        uuid.UUID          `json:"id"`
+	TenantID  uuid.UUID          `json:"tenant_id"`
+	Name      string             `json:"name"`
+	Url       string             `json:"url"`
+	Secret    pgtype.Text        `json:"secret"`
+	Events    []string           `json:"events"`
+	Enabled   pgtype.Bool        `json:"enabled"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type WorkOrder struct {

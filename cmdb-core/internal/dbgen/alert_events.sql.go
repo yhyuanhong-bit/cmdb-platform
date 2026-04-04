@@ -66,6 +66,28 @@ func (q *Queries) CountAlerts(ctx context.Context, arg CountAlertsParams) (int64
 	return count, err
 }
 
+const countAlertsUnderLocation = `-- name: CountAlertsUnderLocation :one
+SELECT count(*) FROM alert_events ae
+JOIN assets a ON ae.asset_id = a.id
+JOIN locations l ON a.location_id = l.id
+WHERE a.tenant_id = $1
+  AND ae.status = 'firing'
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
+`
+
+type CountAlertsUnderLocationParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	ID       uuid.UUID `json:"id"`
+}
+
+// Count firing alerts for assets under a location and all its descendants
+func (q *Queries) CountAlertsUnderLocation(ctx context.Context, arg CountAlertsUnderLocationParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAlertsUnderLocation, arg.TenantID, arg.ID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const listAlerts = `-- name: ListAlerts :many
 SELECT id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at FROM alert_events
 WHERE tenant_id = $1

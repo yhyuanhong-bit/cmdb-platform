@@ -46,6 +46,26 @@ func (q *Queries) CountAssets(ctx context.Context, arg CountAssetsParams) (int64
 	return count, err
 }
 
+const countAssetsUnderLocation = `-- name: CountAssetsUnderLocation :one
+SELECT count(*) FROM assets a
+JOIN locations l ON a.location_id = l.id
+WHERE a.tenant_id = $1
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
+`
+
+type CountAssetsUnderLocationParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	ID       uuid.UUID `json:"id"`
+}
+
+// Count all assets under a location and all its descendants (using ltree)
+func (q *Queries) CountAssetsUnderLocation(ctx context.Context, arg CountAssetsUnderLocationParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAssetsUnderLocation, arg.TenantID, arg.ID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAsset = `-- name: CreateAsset :one
 INSERT INTO assets (
     tenant_id, asset_tag, property_number, control_number, name,

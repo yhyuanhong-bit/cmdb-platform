@@ -27,3 +27,12 @@ UPDATE alert_events SET
     resolved_at = now()
 WHERE id = $1 AND status IN ('firing', 'acknowledged')
 RETURNING *;
+
+-- name: CountAlertsUnderLocation :one
+-- Count firing alerts for assets under a location and all its descendants
+SELECT count(*) FROM alert_events ae
+JOIN assets a ON ae.asset_id = a.id
+JOIN locations l ON a.location_id = l.id
+WHERE a.tenant_id = $1
+  AND ae.status = 'firing'
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree;

@@ -12,6 +12,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countRacksUnderLocation = `-- name: CountRacksUnderLocation :one
+SELECT count(*) FROM racks r
+JOIN locations l ON r.location_id = l.id
+WHERE r.tenant_id = $1
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
+`
+
+type CountRacksUnderLocationParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	ID       uuid.UUID `json:"id"`
+}
+
+// Count all racks under a location and all its descendants (using ltree)
+func (q *Queries) CountRacksUnderLocation(ctx context.Context, arg CountRacksUnderLocationParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRacksUnderLocation, arg.TenantID, arg.ID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createRack = `-- name: CreateRack :one
 INSERT INTO racks (
     tenant_id, location_id, name, row_label,
