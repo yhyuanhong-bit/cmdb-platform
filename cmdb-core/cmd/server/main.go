@@ -144,6 +144,7 @@ func main() {
 		}
 		authMW(c)
 	})
+	v1.Use(middleware.RBAC(queries, redisClient))
 
 	// Register all API routes via generated handler
 	api.RegisterHandlers(v1, apiServer)

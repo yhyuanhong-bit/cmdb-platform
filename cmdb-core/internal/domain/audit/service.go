@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
@@ -54,4 +55,21 @@ func (s *Service) Query(ctx context.Context, tenantID uuid.UUID, module, targetT
 	}
 
 	return events, total, nil
+}
+
+// Record creates a new audit event entry for a write operation.
+func (s *Service) Record(ctx context.Context, tenantID uuid.UUID, action, module, targetType string, targetID, operatorID uuid.UUID, diff map[string]any, source string) error {
+	diffJSON, _ := json.Marshal(diff)
+
+	_, err := s.queries.CreateAuditEvent(ctx, dbgen.CreateAuditEventParams{
+		TenantID:   tenantID,
+		Action:     action,
+		Module:     pgtype.Text{String: module, Valid: true},
+		TargetType: pgtype.Text{String: targetType, Valid: true},
+		TargetID:   pgtype.UUID{Bytes: targetID, Valid: true},
+		OperatorID: pgtype.UUID{Bytes: operatorID, Valid: true},
+		Diff:       diffJSON,
+		Source:     source,
+	})
+	return err
 }

@@ -129,6 +129,16 @@ func pguuidFromPtr(v *uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: *v, Valid: true}
 }
 
+// recordAudit logs an audit event. Errors are logged but don't fail the request.
+func (s *APIServer) recordAudit(c *gin.Context, action, module, targetType string, targetID uuid.UUID, diff map[string]any) {
+	tenantID := tenantIDFromContext(c)
+	operatorID := userIDFromContext(c)
+	if err := s.auditSvc.Record(c.Request.Context(), tenantID, action, module, targetType, targetID, operatorID, diff, "api"); err != nil {
+		// Log but don't fail the request
+		fmt.Printf("audit record error: %v\n", err)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Auth endpoints
 // ---------------------------------------------------------------------------
@@ -261,6 +271,10 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 		response.InternalError(c, "failed to create asset")
 		return
 	}
+	s.recordAudit(c, "asset.created", "asset", "asset", created.ID, map[string]any{
+		"asset_tag": created.AssetTag,
+		"name":      created.Name,
+	})
 	response.Created(c, toAPIAsset(*created))
 }
 
@@ -457,6 +471,10 @@ func (s *APIServer) CreateWorkOrder(c *gin.Context) {
 		response.InternalError(c, "failed to create work order")
 		return
 	}
+	s.recordAudit(c, "order.created", "maintenance", "work_order", order.ID, map[string]any{
+		"code":  order.Code,
+		"title": order.Title,
+	})
 	response.Created(c, toAPIWorkOrder(*order))
 }
 
@@ -494,6 +512,10 @@ func (s *APIServer) TransitionWorkOrder(c *gin.Context, id IdPath) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	s.recordAudit(c, "order.transitioned", "maintenance", "work_order", uuid.UUID(id), map[string]any{
+		"status":  req.Status,
+		"comment": comment,
+	})
 	response.OK(c, toAPIWorkOrder(*order))
 }
 
@@ -529,6 +551,9 @@ func (s *APIServer) AcknowledgeAlert(c *gin.Context, id IdPath) {
 		response.NotFound(c, "alert not found")
 		return
 	}
+	s.recordAudit(c, "alert.acknowledged", "monitoring", "alert", alert.ID, map[string]any{
+		"status": alert.Status,
+	})
 	response.OK(c, toAPIAlertEvent(*alert))
 }
 
@@ -540,6 +565,9 @@ func (s *APIServer) ResolveAlert(c *gin.Context, id IdPath) {
 		response.NotFound(c, "alert not found")
 		return
 	}
+	s.recordAudit(c, "alert.resolved", "monitoring", "alert", alert.ID, map[string]any{
+		"status": alert.Status,
+	})
 	response.OK(c, toAPIAlertEvent(*alert))
 }
 
@@ -803,6 +831,9 @@ func (s *APIServer) CreateRCA(c *gin.Context) {
 		response.InternalError(c, "failed to create RCA")
 		return
 	}
+	s.recordAudit(c, "rca.created", "prediction", "rca", rca.ID, map[string]any{
+		"incident_id": rca.IncidentID,
+	})
 	response.Created(c, toAPIRCAAnalysis(*rca))
 }
 
@@ -820,6 +851,9 @@ func (s *APIServer) VerifyRCA(c *gin.Context, id IdPath) {
 		response.NotFound(c, "RCA not found")
 		return
 	}
+	s.recordAudit(c, "rca.verified", "prediction", "rca", rca.ID, map[string]any{
+		"verified_by": uuid.UUID(req.VerifiedBy),
+	})
 	response.OK(c, toAPIRCAAnalysis(*rca))
 }
 

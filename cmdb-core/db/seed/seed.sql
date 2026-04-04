@@ -26,8 +26,8 @@ ON CONFLICT (username) DO NOTHING;
 -- Roles
 INSERT INTO roles (id, tenant_id, name, description, permissions, is_system) VALUES
     ('c0000000-0000-0000-0000-000000000001', NULL, 'super-admin', 'Full system access', '{"*": ["*"]}', true),
-    ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'ops-admin', 'Operations admin', '{"assets": ["read","write"], "maintenance": ["read","write"], "monitoring": ["read","write"]}', false),
-    ('c0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'viewer', 'Read-only access', '{"assets": ["read"], "monitoring": ["read"]}', false)
+    ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'ops-admin', 'Operations admin', '{"assets":["read","write","delete"],"maintenance":["read","write"],"monitoring":["read","write"],"topology":["read"],"inventory":["read","write"],"audit":["read"],"dashboard":["read"],"prediction":["read"],"system":["read"]}', false),
+    ('c0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'viewer', 'Read-only access', '{"assets":["read"],"topology":["read"],"maintenance":["read"],"monitoring":["read"],"inventory":["read"],"audit":["read"],"dashboard":["read"]}', false)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id) VALUES
