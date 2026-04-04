@@ -655,6 +655,62 @@ func (s *APIServer) ResolveAlert(c *gin.Context, id IdPath) {
 	response.OK(c, toAPIAlertEvent(*alert))
 }
 
+// ListAlertRules returns a paginated list of alert rules.
+// (GET /monitoring/rules)
+func (s *APIServer) ListAlertRules(c *gin.Context, params ListAlertRulesParams) {
+	tenantID := tenantIDFromContext(c)
+	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
+
+	rules, total, err := s.monitoringSvc.ListRules(c.Request.Context(), tenantID, limit, offset)
+	if err != nil {
+		response.InternalError(c, "failed to list alert rules")
+		return
+	}
+	response.OKList(c, convertSlice(rules, toAPIAlertRule), page, pageSize, int(total))
+}
+
+// CreateAlertRule creates a new alert rule.
+// (POST /monitoring/rules)
+func (s *APIServer) CreateAlertRule(c *gin.Context) {
+	var req CreateAlertRuleJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+
+	var conditionJSON json.RawMessage
+	if req.Condition != nil {
+		conditionJSON, _ = json.Marshal(req.Condition)
+	}
+
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	params := dbgen.CreateAlertRuleParams{
+		TenantID:   tenantID,
+		Name:       req.Name,
+		MetricName: req.MetricName,
+		Condition:  conditionJSON,
+		Severity:   req.Severity,
+		Enabled:    enabled,
+	}
+
+	rule, err := s.monitoringSvc.CreateRule(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, "failed to create alert rule")
+		return
+	}
+	s.recordAudit(c, "alert_rule.created", "monitoring", "alert_rule", rule.ID, map[string]any{
+		"name":     rule.Name,
+		"severity": rule.Severity,
+	})
+	response.Created(c, toAPIAlertRule(*rule))
+}
+
 // QueryMetrics queries time-series metric data for an asset.
 // (GET /monitoring/metrics)
 func (s *APIServer) QueryMetrics(c *gin.Context, params QueryMetricsParams) {

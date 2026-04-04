@@ -30,6 +30,17 @@ type AlertEvent struct {
 	TriggerValue float32            `json:"trigger_value"`
 }
 
+// AlertRule defines model for AlertRule.
+type AlertRule struct {
+	Condition  map[string]interface{} `json:"condition"`
+	CreatedAt  time.Time              `json:"created_at"`
+	Enabled    bool                   `json:"enabled"`
+	Id         openapi_types.UUID     `json:"id"`
+	MetricName string                 `json:"metric_name"`
+	Name       string                 `json:"name"`
+	Severity   string                 `json:"severity"`
+}
+
 // Asset defines model for Asset.
 type Asset struct {
 	AssetTag       string                 `json:"asset_tag"`
@@ -415,6 +426,21 @@ type QueryMetricsParams struct {
 	TimeRange  string             `form:"time_range" json:"time_range"`
 }
 
+// ListAlertRulesParams defines parameters for ListAlertRules.
+type ListAlertRulesParams struct {
+	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *PageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
+// CreateAlertRuleJSONBody defines parameters for CreateAlertRule.
+type CreateAlertRuleJSONBody struct {
+	Condition  map[string]interface{} `json:"condition"`
+	Enabled    *bool                  `json:"enabled,omitempty"`
+	MetricName string                 `json:"metric_name"`
+	Name       string                 `json:"name"`
+	Severity   string                 `json:"severity"`
+}
+
 // CreateRCAJSONBody defines parameters for CreateRCA.
 type CreateRCAJSONBody struct {
 	Context    *map[string]interface{} `json:"context,omitempty"`
@@ -450,6 +476,9 @@ type CreateWorkOrderJSONRequestBody CreateWorkOrderJSONBody
 
 // TransitionWorkOrderJSONRequestBody defines body for TransitionWorkOrder for application/json ContentType.
 type TransitionWorkOrderJSONRequestBody TransitionWorkOrderJSONBody
+
+// CreateAlertRuleJSONRequestBody defines body for CreateAlertRule for application/json ContentType.
+type CreateAlertRuleJSONRequestBody CreateAlertRuleJSONBody
 
 // CreateRCAJSONRequestBody defines body for CreateRCA for application/json ContentType.
 type CreateRCAJSONRequestBody CreateRCAJSONBody
@@ -546,6 +575,12 @@ type ServerInterface interface {
 	// Query time-series metrics for an asset
 	// (GET /monitoring/metrics)
 	QueryMetrics(c *gin.Context, params QueryMetricsParams)
+	// List alert rules
+	// (GET /monitoring/rules)
+	ListAlertRules(c *gin.Context, params ListAlertRulesParams)
+	// Create an alert rule
+	// (POST /monitoring/rules)
+	CreateAlertRule(c *gin.Context)
 	// List prediction models
 	// (GET /prediction/models)
 	ListPredictionModels(c *gin.Context)
@@ -1465,6 +1500,57 @@ func (siw *ServerInterfaceWrapper) QueryMetrics(c *gin.Context) {
 	siw.Handler.QueryMetrics(c, params)
 }
 
+// ListAlertRules operation middleware
+func (siw *ServerInterfaceWrapper) ListAlertRules(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAlertRulesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_size", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page_size: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAlertRules(c, params)
+}
+
+// CreateAlertRule operation middleware
+func (siw *ServerInterfaceWrapper) CreateAlertRule(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAlertRule(c)
+}
+
 // ListPredictionModels operation middleware
 func (siw *ServerInterfaceWrapper) ListPredictionModels(c *gin.Context) {
 
@@ -1747,6 +1833,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/monitoring/alerts/:id/ack", wrapper.AcknowledgeAlert)
 	router.POST(options.BaseURL+"/monitoring/alerts/:id/resolve", wrapper.ResolveAlert)
 	router.GET(options.BaseURL+"/monitoring/metrics", wrapper.QueryMetrics)
+	router.GET(options.BaseURL+"/monitoring/rules", wrapper.ListAlertRules)
+	router.POST(options.BaseURL+"/monitoring/rules", wrapper.CreateAlertRule)
 	router.GET(options.BaseURL+"/prediction/models", wrapper.ListPredictionModels)
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)

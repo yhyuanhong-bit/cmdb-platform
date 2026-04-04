@@ -721,6 +721,73 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /monitoring/rules:
+    get:
+      operationId: listAlertRules
+      tags: [monitoring]
+      summary: List alert rules
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated alert rules list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AlertRule'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createAlertRule
+      tags: [monitoring]
+      summary: Create an alert rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, metric_name, condition, severity]
+              properties:
+                name:
+                  type: string
+                metric_name:
+                  type: string
+                condition:
+                  type: object
+                  additionalProperties: true
+                severity:
+                  type: string
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: Alert rule created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AlertRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /monitoring/metrics:
     get:
       operationId: queryMetrics
@@ -1583,6 +1650,36 @@ components:
         - message
         - trigger_value
         - fired_at
+
+    # ── AlertRule ─────────────────────────────────────────────────────
+    AlertRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        metric_name:
+          type: string
+        condition:
+          type: object
+          additionalProperties: true
+        severity:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - metric_name
+        - condition
+        - severity
+        - enabled
+        - created_at
 
     # ── InventoryTask ─────────────────────────────────────────────────────
     InventoryTask:

@@ -495,6 +495,22 @@ func toAPIAdapter(db dbgen.IntegrationAdapter) IntegrationAdapter {
 // 16. toAPIWebhook
 // ---------------------------------------------------------------------------
 
+func toAPIAlertRule(db dbgen.AlertRule) AlertRule {
+	return AlertRule{
+		Id:         db.ID,
+		Name:       db.Name,
+		MetricName: db.MetricName,
+		Condition:  rawJSONToMapVal(db.Condition),
+		Severity:   db.Severity,
+		Enabled:    db.Enabled,
+		CreatedAt:  db.CreatedAt,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 17. toAPIWebhook
+// ---------------------------------------------------------------------------
+
 func toAPIWebhook(db dbgen.WebhookSubscription) WebhookSubscription {
 	createdAt := pgtsToTime(db.CreatedAt)
 	return WebhookSubscription{

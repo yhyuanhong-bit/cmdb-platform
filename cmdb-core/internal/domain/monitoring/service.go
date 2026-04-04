@@ -56,6 +56,32 @@ func (s *Service) ListAlerts(ctx context.Context, tenantID uuid.UUID, status, se
 	return alerts, total, nil
 }
 
+// ListRules returns a paginated list of alert rules.
+func (s *Service) ListRules(ctx context.Context, tenantID uuid.UUID, limit, offset int32) ([]dbgen.AlertRule, int64, error) {
+	rules, err := s.queries.ListAlertRules(ctx, dbgen.ListAlertRulesParams{
+		TenantID: tenantID,
+		Limit:    limit,
+		Offset:   offset,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("list alert rules: %w", err)
+	}
+	total, err := s.queries.CountAlertRules(ctx, tenantID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count alert rules: %w", err)
+	}
+	return rules, total, nil
+}
+
+// CreateRule creates a new alert rule.
+func (s *Service) CreateRule(ctx context.Context, params dbgen.CreateAlertRuleParams) (*dbgen.AlertRule, error) {
+	rule, err := s.queries.CreateAlertRule(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("create alert rule: %w", err)
+	}
+	return &rule, nil
+}
+
 // Acknowledge marks a firing alert as acknowledged.
 func (s *Service) Acknowledge(ctx context.Context, id uuid.UUID) (*dbgen.AlertEvent, error) {
 	alert, err := s.queries.AcknowledgeAlert(ctx, id)
