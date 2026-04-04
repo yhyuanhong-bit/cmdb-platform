@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useRacks } from "../hooks/useTopology";
+import { useRacks, useRootLocations, useLocationChildren } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import type { Rack } from "../lib/api/topology";
 
@@ -74,8 +74,21 @@ export default function RackManagement() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const { path } = useLocationContext();
-  const locationId = path.idc?.id ?? path.campus?.id ?? "";
-  const { data: racksResponse, isLoading, error } = useRacks(locationId);
+  const contextLocationId = path.idc?.id ?? path.campus?.id ?? "";
+
+  // If no location selected in context, find the first campus as default
+  const rootQ = useRootLocations();
+  const firstCountryId = rootQ.data?.data?.[0]?.id ?? "";
+  const countryChildrenQ = useLocationChildren(contextLocationId ? "" : firstCountryId);
+  const firstRegionId = countryChildrenQ.data?.data?.[0]?.id ?? "";
+  const regionChildrenQ = useLocationChildren(contextLocationId ? "" : firstRegionId);
+  const firstCityId = regionChildrenQ.data?.data?.[0]?.id ?? "";
+  const cityChildrenQ = useLocationChildren(contextLocationId ? "" : firstCityId);
+  const firstCampusId = cityChildrenQ.data?.data?.[0]?.id ?? "";
+
+  const locationId = contextLocationId || firstCampusId;
+  const { data: racksResponse, isLoading: racksLoading, error } = useRacks(locationId);
+  const isLoading = racksLoading || (!contextLocationId && (rootQ.isLoading || countryChildrenQ.isLoading || regionChildrenQ.isLoading || cityChildrenQ.isLoading));
   const racks: Rack[] = racksResponse?.data ?? [];
 
   if (isLoading) {
@@ -191,7 +204,7 @@ export default function RackManagement() {
                 return (
                   <tr
                     key={rack.id}
-                    onClick={() => navigate('/racks/detail')}
+                    onClick={() => navigate(`/racks/${rack.id}`)}
                     className="bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer"
                   >
                     <td className="px-5 py-3.5">

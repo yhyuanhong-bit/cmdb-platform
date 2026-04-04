@@ -163,7 +163,8 @@ export default function DataCenter3D() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { path } = useLocationContext();
-  const locationId = path.idc?.id ?? path.campus?.id ?? "";
+  // Fallback to Neihu campus if no location context set
+  const locationId = path.idc?.id ?? path.campus?.id ?? "d0000000-0000-0000-0000-000000000004";
   const { data: racksResponse, isLoading } = useRacks(locationId);
   const apiRacks: Rack[] = racksResponse?.data ?? [];
   const rackGrid = useMemo(() => buildRackGrid(apiRacks), [apiRacks]);

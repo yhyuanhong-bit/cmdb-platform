@@ -101,6 +101,7 @@ export default function App() {
           {/* Assets */}
           <Route path="/assets" element={<AssetManagement />} />
           <Route path="/assets/detail" element={<AssetDetail />} />
+          <Route path="/assets/:assetId" element={<AssetDetail />} />
           <Route path="/assets/lifecycle" element={<AssetLifecycle />} />
           <Route path="/assets/lifecycle/timeline" element={<AssetLifecycleTimeline />} />
           <Route path="/assets/discovery" element={<AutoDiscovery />} />
@@ -110,6 +111,7 @@ export default function App() {
           {/* Racks / Locations */}
           <Route path="/racks" element={<RackManagement />} />
           <Route path="/racks/detail" element={<RackDetail />} />
+          <Route path="/racks/:id" element={<RackDetail />} />
           <Route path="/racks/3d" element={<DataCenter3D />} />
           <Route path="/racks/add" element={<AddNewRack />} />
           <Route path="/racks/facility-map" element={<FacilityMap />} />
