@@ -193,6 +193,17 @@ func main() {
 		zap.L().Info("NATS -> WebSocket bridge active")
 	}
 
+	// Webhook dispatcher
+	if bus != nil {
+		dispatcher := integration.NewWebhookDispatcher(queries)
+		webhookSubjects := []string{"asset.>", "maintenance.>", "alert.>", "prediction.>"}
+		for _, subj := range webhookSubjects {
+			subj := subj
+			_ = bus.Subscribe(subj, dispatcher.HandleEvent)
+		}
+		zap.L().Info("Webhook dispatcher active")
+	}
+
 	// 11. Start HTTP server with graceful shutdown
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	srv := &http.Server{

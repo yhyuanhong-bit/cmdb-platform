@@ -7,6 +7,7 @@ package dbgen
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -50,6 +51,30 @@ func (q *Queries) CreateAdapter(ctx context.Context, arg CreateAdapterParams) (I
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const createDelivery = `-- name: CreateDelivery :exec
+INSERT INTO webhook_deliveries (subscription_id, event_type, payload, status_code, response_body)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type CreateDeliveryParams struct {
+	SubscriptionID uuid.UUID       `json:"subscription_id"`
+	EventType      string          `json:"event_type"`
+	Payload        json.RawMessage `json:"payload"`
+	StatusCode     pgtype.Int4     `json:"status_code"`
+	ResponseBody   pgtype.Text     `json:"response_body"`
+}
+
+func (q *Queries) CreateDelivery(ctx context.Context, arg CreateDeliveryParams) error {
+	_, err := q.db.Exec(ctx, createDelivery,
+		arg.SubscriptionID,
+		arg.EventType,
+		arg.Payload,
+		arg.StatusCode,
+		arg.ResponseBody,
+	)
+	return err
 }
 
 const createWebhook = `-- name: CreateWebhook :one
@@ -166,6 +191,41 @@ SELECT id, tenant_id, name, url, secret, events, enabled, created_at FROM webhoo
 
 func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]WebhookSubscription, error) {
 	rows, err := q.db.Query(ctx, listWebhooks, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WebhookSubscription{}
+	for rows.Next() {
+		var i WebhookSubscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.Url,
+			&i.Secret,
+			&i.Events,
+			&i.Enabled,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWebhooksByEvent = `-- name: ListWebhooksByEvent :many
+SELECT id, tenant_id, name, url, secret, events, enabled, created_at FROM webhook_subscriptions
+WHERE enabled = true
+  AND $1::text = ANY(events)
+`
+
+func (q *Queries) ListWebhooksByEvent(ctx context.Context, dollar_1 string) ([]WebhookSubscription, error) {
+	rows, err := q.db.Query(ctx, listWebhooksByEvent, dollar_1)
 	if err != nil {
 		return nil, err
 	}
