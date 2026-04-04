@@ -94,6 +94,12 @@ func pgnumToPtr(v pgtype.Numeric) *float64 {
 	return &val
 }
 
+func float32ToNumeric(f float32) pgtype.Numeric {
+	var n pgtype.Numeric
+	_ = n.Scan(fmt.Sprintf("%f", f))
+	return n
+}
+
 func pgnumToFloat32(v pgtype.Numeric) float32 {
 	if !v.Valid {
 		return 0

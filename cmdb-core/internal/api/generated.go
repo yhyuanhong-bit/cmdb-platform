@@ -394,6 +394,29 @@ type ListLocationsParams struct {
 	Level *string `form:"level,omitempty" json:"level,omitempty"`
 }
 
+// CreateLocationJSONBody defines parameters for CreateLocation.
+type CreateLocationJSONBody struct {
+	Level     string                  `json:"level"`
+	Metadata  *map[string]interface{} `json:"metadata,omitempty"`
+	Name      string                  `json:"name"`
+	NameEn    *string                 `json:"name_en,omitempty"`
+	ParentId  *openapi_types.UUID     `json:"parent_id,omitempty"`
+	Slug      string                  `json:"slug"`
+	SortOrder *int                    `json:"sort_order,omitempty"`
+	Status    string                  `json:"status"`
+}
+
+// UpdateLocationJSONBody defines parameters for UpdateLocation.
+type UpdateLocationJSONBody struct {
+	Level     *string                 `json:"level,omitempty"`
+	Metadata  *map[string]interface{} `json:"metadata,omitempty"`
+	Name      *string                 `json:"name,omitempty"`
+	NameEn    *string                 `json:"name_en,omitempty"`
+	Slug      *string                 `json:"slug,omitempty"`
+	SortOrder *int                    `json:"sort_order,omitempty"`
+	Status    *string                 `json:"status,omitempty"`
+}
+
 // ListWorkOrdersParams defines parameters for ListWorkOrders.
 type ListWorkOrdersParams struct {
 	Page     *Page               `form:"page,omitempty" json:"page,omitempty"`
@@ -486,6 +509,27 @@ type VerifyRCAJSONBody struct {
 	VerifiedBy openapi_types.UUID `json:"verified_by"`
 }
 
+// CreateRackJSONBody defines parameters for CreateRack.
+type CreateRackJSONBody struct {
+	LocationId      openapi_types.UUID `json:"location_id"`
+	Name            string             `json:"name"`
+	PowerCapacityKw *float32           `json:"power_capacity_kw,omitempty"`
+	RowLabel        *string            `json:"row_label,omitempty"`
+	Status          string             `json:"status"`
+	Tags            *[]string          `json:"tags,omitempty"`
+	TotalU          *int               `json:"total_u,omitempty"`
+}
+
+// UpdateRackJSONBody defines parameters for UpdateRack.
+type UpdateRackJSONBody struct {
+	Name            *string   `json:"name,omitempty"`
+	PowerCapacityKw *float32  `json:"power_capacity_kw,omitempty"`
+	RowLabel        *string   `json:"row_label,omitempty"`
+	Status          *string   `json:"status,omitempty"`
+	Tags            *[]string `json:"tags,omitempty"`
+	TotalU          *int      `json:"total_u,omitempty"`
+}
+
 // ListUsersParams defines parameters for ListUsers.
 type ListUsersParams struct {
 	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
@@ -503,6 +547,12 @@ type LoginJSONRequestBody = LoginRequest
 
 // RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
 type RefreshTokenJSONRequestBody = RefreshRequest
+
+// CreateLocationJSONRequestBody defines body for CreateLocation for application/json ContentType.
+type CreateLocationJSONRequestBody CreateLocationJSONBody
+
+// UpdateLocationJSONRequestBody defines body for UpdateLocation for application/json ContentType.
+type UpdateLocationJSONRequestBody UpdateLocationJSONBody
 
 // CreateWorkOrderJSONRequestBody defines body for CreateWorkOrder for application/json ContentType.
 type CreateWorkOrderJSONRequestBody CreateWorkOrderJSONBody
@@ -524,6 +574,12 @@ type CreateRCAJSONRequestBody CreateRCAJSONBody
 
 // VerifyRCAJSONRequestBody defines body for VerifyRCA for application/json ContentType.
 type VerifyRCAJSONRequestBody VerifyRCAJSONBody
+
+// CreateRackJSONRequestBody defines body for CreateRack for application/json ContentType.
+type CreateRackJSONRequestBody CreateRackJSONBody
+
+// UpdateRackJSONRequestBody defines body for UpdateRack for application/json ContentType.
+type UpdateRackJSONRequestBody UpdateRackJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -575,15 +631,27 @@ type ServerInterface interface {
 	// List locations
 	// (GET /locations)
 	ListLocations(c *gin.Context, params ListLocationsParams)
+	// Create a new location
+	// (POST /locations)
+	CreateLocation(c *gin.Context)
+	// Delete a location
+	// (DELETE /locations/{id})
+	DeleteLocation(c *gin.Context, id IdPath)
 	// Get a location by ID
 	// (GET /locations/{id})
 	GetLocation(c *gin.Context, id IdPath)
+	// Update a location
+	// (PUT /locations/{id})
+	UpdateLocation(c *gin.Context, id IdPath)
 	// List ancestor locations
 	// (GET /locations/{id}/ancestors)
 	ListLocationAncestors(c *gin.Context, id IdPath)
 	// List child locations
 	// (GET /locations/{id}/children)
 	ListLocationChildren(c *gin.Context, id IdPath)
+	// List all descendant locations
+	// (GET /locations/{id}/descendants)
+	ListLocationDescendants(c *gin.Context, id IdPath)
 	// List racks in a location
 	// (GET /locations/{id}/racks)
 	ListLocationRacks(c *gin.Context, id IdPath)
@@ -644,9 +712,18 @@ type ServerInterface interface {
 	// List predictions for a specific asset
 	// (GET /prediction/results/ci/{ciId})
 	ListPredictionsByAsset(c *gin.Context, ciId openapi_types.UUID)
+	// Create a new rack
+	// (POST /racks)
+	CreateRack(c *gin.Context)
+	// Delete a rack
+	// (DELETE /racks/{id})
+	DeleteRack(c *gin.Context, id IdPath)
 	// Get a rack by ID
 	// (GET /racks/{id})
 	GetRack(c *gin.Context, id IdPath)
+	// Update a rack
+	// (PUT /racks/{id})
+	UpdateRack(c *gin.Context, id IdPath)
 	// List assets in a rack
 	// (GET /racks/{id}/assets)
 	ListRackAssets(c *gin.Context, id IdPath)
@@ -1125,6 +1202,47 @@ func (siw *ServerInterfaceWrapper) ListLocations(c *gin.Context) {
 	siw.Handler.ListLocations(c, params)
 }
 
+// CreateLocation operation middleware
+func (siw *ServerInterfaceWrapper) CreateLocation(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateLocation(c)
+}
+
+// DeleteLocation operation middleware
+func (siw *ServerInterfaceWrapper) DeleteLocation(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteLocation(c, id)
+}
+
 // GetLocation operation middleware
 func (siw *ServerInterfaceWrapper) GetLocation(c *gin.Context) {
 
@@ -1149,6 +1267,32 @@ func (siw *ServerInterfaceWrapper) GetLocation(c *gin.Context) {
 	}
 
 	siw.Handler.GetLocation(c, id)
+}
+
+// UpdateLocation operation middleware
+func (siw *ServerInterfaceWrapper) UpdateLocation(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateLocation(c, id)
 }
 
 // ListLocationAncestors operation middleware
@@ -1201,6 +1345,32 @@ func (siw *ServerInterfaceWrapper) ListLocationChildren(c *gin.Context) {
 	}
 
 	siw.Handler.ListLocationChildren(c, id)
+}
+
+// ListLocationDescendants operation middleware
+func (siw *ServerInterfaceWrapper) ListLocationDescendants(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListLocationDescendants(c, id)
 }
 
 // ListLocationRacks operation middleware
@@ -1803,6 +1973,47 @@ func (siw *ServerInterfaceWrapper) ListPredictionsByAsset(c *gin.Context) {
 	siw.Handler.ListPredictionsByAsset(c, ciId)
 }
 
+// CreateRack operation middleware
+func (siw *ServerInterfaceWrapper) CreateRack(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateRack(c)
+}
+
+// DeleteRack operation middleware
+func (siw *ServerInterfaceWrapper) DeleteRack(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteRack(c, id)
+}
+
 // GetRack operation middleware
 func (siw *ServerInterfaceWrapper) GetRack(c *gin.Context) {
 
@@ -1827,6 +2038,32 @@ func (siw *ServerInterfaceWrapper) GetRack(c *gin.Context) {
 	}
 
 	siw.Handler.GetRack(c, id)
+}
+
+// UpdateRack operation middleware
+func (siw *ServerInterfaceWrapper) UpdateRack(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateRack(c, id)
 }
 
 // ListRackAssets operation middleware
@@ -1990,9 +2227,13 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/inventory/tasks/:id", wrapper.GetInventoryTask)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/items", wrapper.ListInventoryItems)
 	router.GET(options.BaseURL+"/locations", wrapper.ListLocations)
+	router.POST(options.BaseURL+"/locations", wrapper.CreateLocation)
+	router.DELETE(options.BaseURL+"/locations/:id", wrapper.DeleteLocation)
 	router.GET(options.BaseURL+"/locations/:id", wrapper.GetLocation)
+	router.PUT(options.BaseURL+"/locations/:id", wrapper.UpdateLocation)
 	router.GET(options.BaseURL+"/locations/:id/ancestors", wrapper.ListLocationAncestors)
 	router.GET(options.BaseURL+"/locations/:id/children", wrapper.ListLocationChildren)
+	router.GET(options.BaseURL+"/locations/:id/descendants", wrapper.ListLocationDescendants)
 	router.GET(options.BaseURL+"/locations/:id/racks", wrapper.ListLocationRacks)
 	router.GET(options.BaseURL+"/locations/:id/stats", wrapper.GetLocationStats)
 	router.GET(options.BaseURL+"/maintenance/orders", wrapper.ListWorkOrders)
@@ -2013,7 +2254,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)
 	router.GET(options.BaseURL+"/prediction/results/ci/:ciId", wrapper.ListPredictionsByAsset)
+	router.POST(options.BaseURL+"/racks", wrapper.CreateRack)
+	router.DELETE(options.BaseURL+"/racks/:id", wrapper.DeleteRack)
 	router.GET(options.BaseURL+"/racks/:id", wrapper.GetRack)
+	router.PUT(options.BaseURL+"/racks/:id", wrapper.UpdateRack)
 	router.GET(options.BaseURL+"/racks/:id/assets", wrapper.ListRackAssets)
 	router.GET(options.BaseURL+"/roles", wrapper.ListRoles)
 	router.GET(options.BaseURL+"/system/health", wrapper.GetSystemHealth)

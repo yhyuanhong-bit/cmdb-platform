@@ -111,3 +111,57 @@ func (s *Service) GetRack(ctx context.Context, id uuid.UUID) (dbgen.Rack, error)
 func (s *Service) ListAssetsByRack(ctx context.Context, rackID uuid.UUID) ([]dbgen.Asset, error) {
 	return s.queries.ListAssetsByRack(ctx, pgtype.UUID{Bytes: rackID, Valid: true})
 }
+
+// CreateLocation inserts a new location.
+func (s *Service) CreateLocation(ctx context.Context, params dbgen.CreateLocationParams) (*dbgen.Location, error) {
+	loc, err := s.queries.CreateLocation(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &loc, nil
+}
+
+// UpdateLocation updates an existing location.
+func (s *Service) UpdateLocation(ctx context.Context, params dbgen.UpdateLocationParams) (*dbgen.Location, error) {
+	loc, err := s.queries.UpdateLocation(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &loc, nil
+}
+
+// DeleteLocation removes a location by ID.
+func (s *Service) DeleteLocation(ctx context.Context, id uuid.UUID) error {
+	return s.queries.DeleteLocation(ctx, id)
+}
+
+// ListDescendants returns all descendant locations under a path.
+func (s *Service) ListDescendants(ctx context.Context, tenantID uuid.UUID, path string) ([]dbgen.Location, error) {
+	return s.queries.ListDescendants(ctx, dbgen.ListDescendantsParams{
+		TenantID: tenantID,
+		Column2:  path,
+	})
+}
+
+// CreateRack inserts a new rack.
+func (s *Service) CreateRack(ctx context.Context, params dbgen.CreateRackParams) (*dbgen.Rack, error) {
+	rack, err := s.queries.CreateRack(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &rack, nil
+}
+
+// UpdateRack updates an existing rack.
+func (s *Service) UpdateRack(ctx context.Context, params dbgen.UpdateRackParams) (*dbgen.Rack, error) {
+	rack, err := s.queries.UpdateRack(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &rack, nil
+}
+
+// DeleteRack removes a rack by ID.
+func (s *Service) DeleteRack(ctx context.Context, id uuid.UUID) error {
+	return s.queries.DeleteRack(ctx, id)
+}

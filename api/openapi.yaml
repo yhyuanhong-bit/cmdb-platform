@@ -145,6 +145,53 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '401':
           $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createLocation
+      tags: [topology]
+      summary: Create a new location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug, level, status]
+              properties:
+                name:
+                  type: string
+                name_en:
+                  type: string
+                slug:
+                  type: string
+                level:
+                  type: string
+                parent_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                status:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+                sort_order:
+                  type: integer
+      responses:
+        '201':
+          description: Location created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Location'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /locations/{id}:
     get:
@@ -165,6 +212,65 @@ paths:
                     $ref: '#/components/schemas/Location'
                   meta:
                     $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateLocation
+      tags: [topology]
+      summary: Update a location
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                name_en:
+                  type: string
+                slug:
+                  type: string
+                level:
+                  type: string
+                status:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+                sort_order:
+                  type: integer
+      responses:
+        '200':
+          description: Location updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Location'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteLocation
+      tags: [topology]
+      summary: Delete a location
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Location deleted
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -246,6 +352,32 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /locations/{id}/descendants:
+    get:
+      operationId: listLocationDescendants
+      tags: [topology]
+      summary: List all descendant locations
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Descendant locations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Location'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /locations/{id}/racks:
     get:
       operationId: listLocationRacks
@@ -272,6 +404,53 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /racks:
+    post:
+      operationId: createRack
+      tags: [topology]
+      summary: Create a new rack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [location_id, name, status]
+              properties:
+                location_id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                row_label:
+                  type: string
+                total_u:
+                  type: integer
+                power_capacity_kw:
+                  type: number
+                status:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Rack created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Rack'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /racks/{id}:
     get:
       operationId: getRack
@@ -291,6 +470,64 @@ paths:
                     $ref: '#/components/schemas/Rack'
                   meta:
                     $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateRack
+      tags: [topology]
+      summary: Update a rack
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                row_label:
+                  type: string
+                total_u:
+                  type: integer
+                power_capacity_kw:
+                  type: number
+                status:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Rack updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Rack'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteRack
+      tags: [topology]
+      summary: Delete a rack
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Rack deleted
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':

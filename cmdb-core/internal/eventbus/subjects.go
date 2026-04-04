@@ -6,6 +6,12 @@ const (
 	SubjectAssetUpdated         = "asset.updated"
 	SubjectAssetStatusChanged   = "asset.status_changed"
 	SubjectAssetDeleted         = "asset.deleted"
+	SubjectLocationCreated      = "location.created"
+	SubjectLocationUpdated      = "location.updated"
+	SubjectLocationDeleted      = "location.deleted"
+	SubjectRackCreated          = "rack.created"
+	SubjectRackUpdated          = "rack.updated"
+	SubjectRackDeleted          = "rack.deleted"
 	SubjectRackOccupancyChanged = "rack.occupancy_changed"
 
 	SubjectOrderCreated      = "maintenance.order_created"
