@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon";
 import { useAssets } from "../hooks/useAssets";
+import { useAlertRules, useUpdateAlertRule } from "../hooks/useMonitoring";
 
 /* ──────────────────────────────────────────────
    Mock data
@@ -31,6 +32,8 @@ interface ThresholdConfig {
   min: number;
   max: number;
   step: number;
+  warningId?: string;
+  criticalId?: string;
 }
 
 const THRESHOLDS: ThresholdConfig[] = [
@@ -194,6 +197,10 @@ function SensorConfiguration() {
   const { data: assetsResp, isLoading } = useAssets();
   const allAssets = assetsResp?.data ?? [];
 
+  const { data: rulesResp, isLoading: rulesLoading } = useAlertRules();
+  const apiRules = rulesResp?.data || [];
+  const updateAlertRule = useUpdateAlertRule();
+
   const [sensors, setSensors] = useState<Sensor[]>([]);
 
   useEffect(() => {
@@ -212,7 +219,57 @@ function SensorConfiguration() {
     }
   }, [allAssets]);
   const [rules, setRules] = useState(INITIAL_RULES);
-  const [thresholds, setThresholds] = useState(THRESHOLDS);
+  const [thresholds, setThresholds] = useState<ThresholdConfig[]>(THRESHOLDS);
+
+  useEffect(() => {
+    if (apiRules.length === 0) return;
+
+    const META: Record<string, { icon: string; unit: string; min: number; max: number; step: number }> = {
+      cpu_usage:    { icon: 'memory', unit: '%', min: 0, max: 100, step: 5 },
+      temperature:  { icon: 'thermostat', unit: '\u00b0C', min: 10, max: 60, step: 1 },
+      disk_usage:   { icon: 'storage', unit: '%', min: 0, max: 100, step: 5 },
+      memory_usage: { icon: 'memory', unit: '%', min: 0, max: 100, step: 5 },
+      power_kw:     { icon: 'bolt', unit: 'kW', min: 0, max: 10, step: 0.5 },
+    };
+
+    // Group by metric_name, merge warning + critical
+    const grouped: Record<string, any> = {};
+    apiRules.forEach(rule => {
+      const key = rule.metric_name;
+      if (!grouped[key]) grouped[key] = { enabled: true };
+      const threshold = (rule.condition as any)?.threshold ?? 0;
+      if (rule.severity === 'warning') {
+        grouped[key].warning = threshold;
+        grouped[key].warningId = rule.id;
+      } else if (rule.severity === 'critical') {
+        grouped[key].critical = threshold;
+        grouped[key].criticalId = rule.id;
+      }
+      if (!rule.enabled) grouped[key].enabled = false;
+    });
+
+    setThresholds(Object.entries(grouped).map(([metric, data]) => ({
+      metric,
+      icon: META[metric]?.icon || 'sensors',
+      unit: META[metric]?.unit || '',
+      warning: data.warning ?? 0,
+      critical: data.critical ?? 100,
+      min: META[metric]?.min ?? 0,
+      max: META[metric]?.max ?? 100,
+      step: META[metric]?.step ?? 1,
+      warningId: data.warningId,
+      criticalId: data.criticalId,
+    })));
+
+    // Also update rules list from API
+    setRules(apiRules.map(r => ({
+      id: r.id,
+      name: r.name,
+      condition: `${r.metric_name} ${(r.condition as any)?.op || '>'} ${(r.condition as any)?.threshold || 0}`,
+      action: r.severity === 'critical' ? 'Page on-call + Escalate' : 'Notify Team',
+      enabled: r.enabled,
+    })));
+  }, [apiRules]);
   const [globalPolling, setGlobalPolling] = useState(30);
 
   const toggleSensor = (id: string) => {
@@ -271,7 +328,27 @@ function SensorConfiguration() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => alert('Save: Coming Soon')}
+            onClick={async () => {
+              try {
+                for (const t of thresholds) {
+                  if (t.warningId) {
+                    await updateAlertRule.mutateAsync({
+                      id: t.warningId,
+                      data: { condition: { op: '>', threshold: t.warning } }
+                    });
+                  }
+                  if (t.criticalId) {
+                    await updateAlertRule.mutateAsync({
+                      id: t.criticalId,
+                      data: { condition: { op: '>', threshold: t.critical } }
+                    });
+                  }
+                }
+                alert('Configuration saved!');
+              } catch (e) {
+                alert('Save failed: ' + (e as Error).message);
+              }
+            }}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary-container transition-colors hover:brightness-110"
           >
             <Icon name="save" className="text-base" />

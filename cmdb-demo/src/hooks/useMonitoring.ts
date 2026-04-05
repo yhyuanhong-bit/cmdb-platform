@@ -37,3 +37,12 @@ export function useResolveAlert() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alerts'] }),
   })
 }
+
+export function useUpdateAlertRule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      monitoringApi.updateAlertRule(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alertRules'] }),
+  })
+}

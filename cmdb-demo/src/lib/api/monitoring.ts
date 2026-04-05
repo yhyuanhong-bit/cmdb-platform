@@ -45,4 +45,6 @@ export const monitoringApi = {
     apiClient.get<ApiResponse<Incident>>(`/monitoring/incidents/${id}`),
   updateIncident: (id: string, data: any) =>
     apiClient.put<ApiResponse<Incident>>(`/monitoring/incidents/${id}`, data),
+  updateAlertRule: (id: string, data: any) =>
+    apiClient.put<ApiResponse<AlertRule>>(`/monitoring/rules/${id}`, data),
 }
