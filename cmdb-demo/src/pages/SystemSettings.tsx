@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { useUsers, useRoles } from '../hooks/useIdentity'
+import { useUsers, useRoles, useCreateUser } from '../hooks/useIdentity'
 import { useSystemHealth } from '../hooks/useSystemHealth'
 import { useAdapters, useWebhooks } from '../hooks/useIntegration'
 
@@ -9,6 +9,9 @@ export default function SystemSettings() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('permissions')
+  const [showUserModal, setShowUserModal] = useState(false)
+  const [newUserData, setNewUserData] = useState({ username: '', display_name: '', email: '', password: '' })
+  const createUser = useCreateUser()
 
   const { data: usersResp, isLoading: usersLoading } = useUsers()
   const { data: rolesResp } = useRoles()
@@ -62,7 +65,10 @@ export default function SystemSettings() {
           <h1 className="font-headline font-bold text-2xl text-on-surface">{t('system_settings.title_zh')}</h1>
           <p className="text-on-surface-variant text-sm mt-1">{t('system_settings.title')}</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors">
+        <button
+          onClick={() => setShowUserModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
+        >
           <span className="material-symbols-outlined text-[18px]">person_add</span>
           {t('system_settings.btn_new_user')}
         </button>
@@ -270,6 +276,33 @@ export default function SystemSettings() {
         </div>
         <span className="text-xs text-on-surface-variant">Last Sync: 2 min ago | IRONGRID V5 21.6</span>
       </div>
+
+      {showUserModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowUserModal(false)}>
+          <div className="bg-surface-container p-6 rounded-xl w-96 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-on-surface">Create User</h3>
+            <input placeholder="Username" value={newUserData.username}
+              onChange={e => setNewUserData(p => ({...p, username: e.target.value}))}
+              className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
+            <input placeholder="Display Name" value={newUserData.display_name}
+              onChange={e => setNewUserData(p => ({...p, display_name: e.target.value}))}
+              className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
+            <input placeholder="Email" value={newUserData.email}
+              onChange={e => setNewUserData(p => ({...p, email: e.target.value}))}
+              className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
+            <input type="password" placeholder="Password" value={newUserData.password}
+              onChange={e => setNewUserData(p => ({...p, password: e.target.value}))}
+              className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowUserModal(false)} className="px-4 py-2 rounded bg-surface-container-high text-on-surface-variant">Cancel</button>
+              <button onClick={() => createUser.mutate(newUserData, { onSuccess: () => { setShowUserModal(false); setNewUserData({ username: '', display_name: '', email: '', password: '' }) } })}
+                disabled={createUser.isPending} className="px-4 py-2 rounded bg-on-primary-container text-white disabled:opacity-50">
+                {createUser.isPending ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

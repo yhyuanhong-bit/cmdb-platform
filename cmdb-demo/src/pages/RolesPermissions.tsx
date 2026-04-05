@@ -1,6 +1,6 @@
 import { memo, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useUsers, useRoles } from "../hooks/useIdentity";
+import { useUsers, useRoles, useCreateRole, useDeleteRole } from "../hooks/useIdentity";
 
 /* ──────────────────────────────────────────────
    Types & constants
@@ -113,6 +113,11 @@ function RolesPermissions() {
     }));
   }, [apiRoles, apiUsers]);
 
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [newRoleData, setNewRoleData] = useState({ name: '', description: '' });
+  const createRole = useCreateRole();
+  const deleteRole = useDeleteRole();
+
   const [selectedRole, setSelectedRole] = useState<string>('');
   // Auto-select first role
   const effectiveSelectedRole = selectedRole || ROLES[0]?.id || '';
@@ -211,6 +216,7 @@ function RolesPermissions() {
             </h2>
             <button
               type="button"
+              onClick={() => setShowRoleModal(true)}
               className="flex items-center gap-1.5 rounded-md bg-surface-container-high px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-surface-container-highest"
             >
               <Icon name="add" className="text-sm" />
@@ -245,8 +251,12 @@ function RolesPermissions() {
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-on-surface">
+                  <p className="text-sm font-semibold text-on-surface flex items-center">
                     {role.name}
+                    {!(role as any).is_system && (
+                      <button onClick={(e) => { e.stopPropagation(); if(confirm('Delete this role?')) deleteRole.mutate(role.id) }}
+                        className="text-red-400 hover:text-red-300 text-xs ml-2">&#x2715;</button>
+                    )}
                   </p>
                   <p className="mt-0.5 text-[10px] uppercase tracking-wider text-on-surface-variant">
                     {role.scope}
@@ -375,6 +385,27 @@ function RolesPermissions() {
           </div>
         </div>
       </div>
+
+      {showRoleModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowRoleModal(false)}>
+          <div className="bg-surface-container p-6 rounded-xl w-96 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-on-surface">Create Role</h3>
+            <input placeholder="Role Name" value={newRoleData.name}
+              onChange={e => setNewRoleData(p => ({...p, name: e.target.value}))}
+              className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
+            <input placeholder="Description" value={newRoleData.description}
+              onChange={e => setNewRoleData(p => ({...p, description: e.target.value}))}
+              className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowRoleModal(false)} className="px-4 py-2 rounded bg-surface-container-high text-on-surface-variant">Cancel</button>
+              <button onClick={() => createRole.mutate(newRoleData, { onSuccess: () => { setShowRoleModal(false); setNewRoleData({ name: '', description: '' }) } })}
+                disabled={createRole.isPending} className="px-4 py-2 rounded bg-primary text-[#001b34] font-bold disabled:opacity-50">
+                {createRole.isPending ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

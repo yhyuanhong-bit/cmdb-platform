@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
+import { useUpdateUser } from '../hooks/useIdentity'
 
 const sessions = [
   { device: 'macOS - Chrome 121', time: '7 小時前', icon: 'laptop_mac', current: true },
@@ -12,6 +13,7 @@ export default function UserProfile() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
+  const updateUser = useUpdateUser()
 
   const [displayName, setDisplayName] = useState(user?.display_name ?? 'OPERATOR_042')
   const [employeeId, setEmployeeId] = useState(user?.id?.substring(0, 12) ?? 'IG-992-042')
@@ -102,8 +104,12 @@ export default function UserProfile() {
                 <option value="security">{t('user_profile.dept_security')}</option>
               </select>
             </div>
-            <button className="self-start mt-2 px-5 py-2.5 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors">
-              {t('user_profile.btn_update_profile')}
+            <button
+              onClick={() => { const u = useAuthStore.getState().user; if (u?.id) updateUser.mutate({ id: u.id, data: { display_name: displayName } }) }}
+              disabled={updateUser.isPending}
+              className="self-start mt-2 px-5 py-2.5 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors disabled:opacity-50"
+            >
+              {updateUser.isPending ? 'Saving...' : t('user_profile.btn_update_profile')}
             </button>
           </div>
         </div>

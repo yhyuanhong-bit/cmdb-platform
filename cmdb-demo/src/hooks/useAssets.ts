@@ -32,3 +32,11 @@ export function useUpdateAsset() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['assets'] }),
   })
 }
+
+export function useDeleteAsset() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => assetApi.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['assets'] }) },
+  })
+}

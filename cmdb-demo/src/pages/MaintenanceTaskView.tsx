@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
-import { useWorkOrder } from '../hooks/useMaintenance'
+import { useWorkOrder, useTransitionWorkOrder, useWorkOrderLogs } from '../hooks/useMaintenance'
 
 const taskSteps = [
   'Execute standard hot-swap procedure for battery modules UPS-BAT-01 and UPS-BAT-02',
@@ -62,6 +62,8 @@ export default function MaintenanceTaskView() {
   const { id: taskId } = useParams<{ id: string }>()
   const { data: woResponse, isLoading, error } = useWorkOrder(taskId ?? '')
   const workOrder = woResponse?.data
+  const transitionWO = useTransitionWorkOrder()
+  const { data: logsData } = useWorkOrderLogs(taskId ?? '')
   const [comment, setComment] = useState('')
 
   if (isLoading) {
@@ -136,9 +138,13 @@ export default function MaintenanceTaskView() {
               <Icon name="edit" className="text-[18px]" />
               {t('maintenance_task.edit_task')}
             </button>
-            <button className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2.5 text-sm font-semibold text-white rounded hover:brightness-110 transition-all">
+            <button
+              onClick={() => { if (taskId) transitionWO.mutate({ id: taskId, data: { status: 'completed', comment: 'Task completed' } }) }}
+              disabled={transitionWO.isPending}
+              className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2.5 text-sm font-semibold text-white rounded hover:brightness-110 transition-all disabled:opacity-50"
+            >
               <Icon name="check_circle" className="text-[18px]" />
-              {t('maintenance_task.complete_action')}
+              {transitionWO.isPending ? 'Completing...' : t('maintenance_task.complete_action')}
             </button>
           </div>
         </div>
@@ -238,21 +244,24 @@ export default function MaintenanceTaskView() {
               {t('maintenance_task.progress_notes')}
             </h2>
             <div className="relative flex flex-col gap-0">
-              {timeline.map((event, i) => (
+              {(logsData?.data && logsData.data.length > 0 ? logsData.data : timeline).map((event: any, i: number, arr: any[]) => (
                 <div key={i} className="flex gap-3 pb-5 last:pb-0">
                   <div className="relative flex flex-col items-center">
-                    <div className={`h-3 w-3 rounded-full ${event.color} shrink-0 mt-0.5`} />
-                    {i < timeline.length - 1 && (
+                    <div className={`h-3 w-3 rounded-full ${event.color ?? 'bg-on-primary-container'} shrink-0 mt-0.5`} />
+                    {i < arr.length - 1 && (
                       <div className="w-px flex-1 bg-surface-container-highest mt-1" />
                     )}
                   </div>
                   <div>
-                    <p className={`text-sm font-medium ${event.textColor}`}>
-                      {event.label}
+                    <p className={`text-sm font-medium ${event.textColor ?? 'text-primary'}`}>
+                      {event.label ?? `${event.action}${event.from_status ? ` (${event.from_status} → ${event.to_status})` : ''}`}
                     </p>
                     <p className="text-[0.6875rem] text-on-surface-variant mt-0.5">
-                      {event.timestamp}
+                      {event.timestamp ?? event.created_at?.slice(0, 16).replace('T', ' ')}
                     </p>
+                    {event.comment && (
+                      <p className="text-xs text-on-surface-variant mt-0.5 italic">{event.comment}</p>
+                    )}
                   </div>
                 </div>
               ))}
