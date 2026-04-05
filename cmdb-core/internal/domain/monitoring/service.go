@@ -82,6 +82,15 @@ func (s *Service) CreateRule(ctx context.Context, params dbgen.CreateAlertRulePa
 	return &rule, nil
 }
 
+// UpdateRule updates an existing alert rule.
+func (s *Service) UpdateRule(ctx context.Context, params dbgen.UpdateAlertRuleParams) (*dbgen.AlertRule, error) {
+	rule, err := s.queries.UpdateAlertRule(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("update alert rule: %w", err)
+	}
+	return &rule, nil
+}
+
 // ListIncidents returns a paginated list of incidents.
 func (s *Service) ListIncidents(ctx context.Context, tenantID uuid.UUID, status, severity *string, limit, offset int32) ([]dbgen.Incident, int64, error) {
 	listParams := dbgen.ListIncidentsParams{

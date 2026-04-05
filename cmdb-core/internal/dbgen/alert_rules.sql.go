@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countAlertRules = `-- name: CountAlertRules :one
@@ -102,4 +103,47 @@ func (q *Queries) ListAlertRules(ctx context.Context, arg ListAlertRulesParams) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateAlertRule = `-- name: UpdateAlertRule :one
+UPDATE alert_rules SET
+    name        = COALESCE($1, name),
+    metric_name = COALESCE($2, metric_name),
+    condition   = COALESCE($3, condition),
+    severity    = COALESCE($4, severity),
+    enabled     = COALESCE($5, enabled)
+WHERE id = $6
+RETURNING id, tenant_id, name, metric_name, condition, severity, enabled, created_at
+`
+
+type UpdateAlertRuleParams struct {
+	Name       pgtype.Text `json:"name"`
+	MetricName pgtype.Text `json:"metric_name"`
+	Condition  []byte      `json:"condition"`
+	Severity   pgtype.Text `json:"severity"`
+	Enabled    pgtype.Bool `json:"enabled"`
+	ID         uuid.UUID   `json:"id"`
+}
+
+func (q *Queries) UpdateAlertRule(ctx context.Context, arg UpdateAlertRuleParams) (AlertRule, error) {
+	row := q.db.QueryRow(ctx, updateAlertRule,
+		arg.Name,
+		arg.MetricName,
+		arg.Condition,
+		arg.Severity,
+		arg.Enabled,
+		arg.ID,
+	)
+	var i AlertRule
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.MetricName,
+		&i.Condition,
+		&i.Severity,
+		&i.Enabled,
+		&i.CreatedAt,
+	)
+	return i, err
 }

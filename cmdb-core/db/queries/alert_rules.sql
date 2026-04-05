@@ -12,3 +12,13 @@ WHERE tenant_id = $1;
 INSERT INTO alert_rules (tenant_id, name, metric_name, condition, severity, enabled)
 VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
+
+-- name: UpdateAlertRule :one
+UPDATE alert_rules SET
+    name        = COALESCE(sqlc.narg('name'), name),
+    metric_name = COALESCE(sqlc.narg('metric_name'), metric_name),
+    condition   = COALESCE(sqlc.narg('condition'), condition),
+    severity    = COALESCE(sqlc.narg('severity'), severity),
+    enabled     = COALESCE(sqlc.narg('enabled'), enabled)
+WHERE id = sqlc.arg('id')
+RETURNING *;

@@ -565,6 +565,15 @@ type CreateAlertRuleJSONBody struct {
 	Severity   string                 `json:"severity"`
 }
 
+// UpdateAlertRuleJSONBody defines parameters for UpdateAlertRule.
+type UpdateAlertRuleJSONBody struct {
+	Condition  *map[string]interface{} `json:"condition,omitempty"`
+	Enabled    *bool                   `json:"enabled,omitempty"`
+	MetricName *string                 `json:"metric_name,omitempty"`
+	Name       *string                 `json:"name,omitempty"`
+	Severity   *string                 `json:"severity,omitempty"`
+}
+
 // CreateRCAJSONBody defines parameters for CreateRCA.
 type CreateRCAJSONBody struct {
 	Context    *map[string]interface{} `json:"context,omitempty"`
@@ -684,6 +693,9 @@ type UpdateIncidentJSONRequestBody UpdateIncidentJSONBody
 
 // CreateAlertRuleJSONRequestBody defines body for CreateAlertRule for application/json ContentType.
 type CreateAlertRuleJSONRequestBody CreateAlertRuleJSONBody
+
+// UpdateAlertRuleJSONRequestBody defines body for UpdateAlertRule for application/json ContentType.
+type UpdateAlertRuleJSONRequestBody UpdateAlertRuleJSONBody
 
 // CreateRCAJSONRequestBody defines body for CreateRCA for application/json ContentType.
 type CreateRCAJSONRequestBody CreateRCAJSONBody
@@ -855,6 +867,9 @@ type ServerInterface interface {
 	// Create an alert rule
 	// (POST /monitoring/rules)
 	CreateAlertRule(c *gin.Context)
+	// Update an alert rule
+	// (PUT /monitoring/rules/{id})
+	UpdateAlertRule(c *gin.Context, id IdPath)
 	// List prediction models
 	// (GET /prediction/models)
 	ListPredictionModels(c *gin.Context)
@@ -2279,6 +2294,32 @@ func (siw *ServerInterfaceWrapper) CreateAlertRule(c *gin.Context) {
 	siw.Handler.CreateAlertRule(c)
 }
 
+// UpdateAlertRule operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAlertRule(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAlertRule(c, id)
+}
+
 // ListPredictionModels operation middleware
 func (siw *ServerInterfaceWrapper) ListPredictionModels(c *gin.Context) {
 
@@ -2755,6 +2796,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/monitoring/metrics", wrapper.QueryMetrics)
 	router.GET(options.BaseURL+"/monitoring/rules", wrapper.ListAlertRules)
 	router.POST(options.BaseURL+"/monitoring/rules", wrapper.CreateAlertRule)
+	router.PUT(options.BaseURL+"/monitoring/rules/:id", wrapper.UpdateAlertRule)
 	router.GET(options.BaseURL+"/prediction/models", wrapper.ListPredictionModels)
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)

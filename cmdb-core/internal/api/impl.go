@@ -1096,6 +1096,50 @@ func (s *APIServer) CreateAlertRule(c *gin.Context) {
 	response.Created(c, toAPIAlertRule(*rule))
 }
 
+// UpdateAlertRule updates an existing alert rule.
+// (PUT /monitoring/rules/{id})
+func (s *APIServer) UpdateAlertRule(c *gin.Context, id IdPath) {
+	var req UpdateAlertRuleJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	params := dbgen.UpdateAlertRuleParams{
+		ID: uuid.UUID(id),
+	}
+	if req.Name != nil {
+		params.Name = pgtype.Text{String: *req.Name, Valid: true}
+	}
+	if req.MetricName != nil {
+		params.MetricName = pgtype.Text{String: *req.MetricName, Valid: true}
+	}
+	if req.Condition != nil {
+		b, _ := json.Marshal(req.Condition)
+		params.Condition = b
+	}
+	if req.Severity != nil {
+		params.Severity = pgtype.Text{String: *req.Severity, Valid: true}
+	}
+	if req.Enabled != nil {
+		params.Enabled = pgtype.Bool{Bool: *req.Enabled, Valid: true}
+	}
+
+	updated, err := s.monitoringSvc.UpdateRule(c.Request.Context(), params)
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			response.NotFound(c, "alert rule not found")
+		} else {
+			response.InternalError(c, "failed to update alert rule")
+		}
+		return
+	}
+	s.recordAudit(c, "alert_rule.updated", "monitoring", "alert_rule", updated.ID, map[string]any{
+		"name": updated.Name,
+	})
+	response.OK(c, toAPIAlertRule(*updated))
+}
+
 // ---------------------------------------------------------------------------
 // Incidents
 // ---------------------------------------------------------------------------

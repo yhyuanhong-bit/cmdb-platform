@@ -1097,6 +1097,48 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /monitoring/rules/{id}:
+    put:
+      operationId: updateAlertRule
+      tags: [monitoring]
+      summary: Update an alert rule
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                metric_name:
+                  type: string
+                condition:
+                  type: object
+                  additionalProperties: true
+                severity:
+                  type: string
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Alert rule updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AlertRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /monitoring/incidents:
     get:
       operationId: listIncidents
