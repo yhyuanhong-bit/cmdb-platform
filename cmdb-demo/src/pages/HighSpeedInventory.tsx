@@ -158,15 +158,15 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
             <Icon name="add" className="text-lg" />
             New Task
           </button>
-          <button className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
+          <button onClick={() => alert('Scan: Coming Soon')} className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
             <Icon name="qr_code_scanner" className="text-lg" />
             {t('inventory.scan_rack_qr')}
           </button>
-          <button className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
+          <button onClick={() => alert('Manual QR: Coming Soon')} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
             <Icon name="edit" className="text-lg" />
             {t('inventory.manual_qr')}
           </button>
-          <button className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
+          <button onClick={() => alert('Report: Coming Soon')} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
             <Icon name="summarize" className="text-lg" />
             {t('inventory.generate_report')}
           </button>
@@ -390,7 +390,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
                   </div>
                   <div className="shrink-0">
                     {d.type === "status_mismatch" && !d.resolved && (
-                      <button className="bg-tertiary-container text-tertiary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
+                      <button onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }} className="bg-tertiary-container text-tertiary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
                         {t('inventory.verify_volume')}
                       </button>
                     )}
@@ -400,12 +400,12 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
                       </span>
                     )}
                     {d.type === "scan_mismatch" && !d.resolved && (
-                      <button className="bg-error-container text-error text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
+                      <button onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }} className="bg-error-container text-error text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
                         {t('inventory.add_to_findings')}
                       </button>
                     )}
                     {d.type === "unregistered" && !d.resolved && (
-                      <button className="bg-primary-container text-primary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
+                      <button onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }} className="bg-primary-container text-primary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
                         {t('inventory.register_asset')}
                       </button>
                     )}

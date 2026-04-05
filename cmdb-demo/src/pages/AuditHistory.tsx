@@ -248,6 +248,7 @@ function AuditHistory() {
         {/* Advanced */}
         <button
           type="button"
+          onClick={() => alert('Coming Soon')}
           className="flex items-center gap-1.5 rounded-md bg-surface-container-high px-3 py-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant transition-colors hover:text-on-surface"
         >
           <Icon name="tune" className="text-base" />
@@ -315,10 +316,11 @@ function AuditHistory() {
               {/* Details */}
               <button
                 type="button"
-                onClick={() =>
+                onClick={(e) => {
+                  e.stopPropagation();
                   entry.expandable &&
                   setExpandedRow(expandedRow === entry.id ? null : entry.id)
-                }
+                }}
                 className="flex items-center justify-center"
               >
                 <Icon
@@ -373,6 +375,7 @@ function AuditHistory() {
       <div className="flex justify-end">
         <button
           type="button"
+          onClick={() => alert('Coming Soon')}
           className="machined-gradient flex items-center gap-2 rounded-lg px-8 py-3 text-sm font-bold uppercase tracking-wider text-[#001b34] transition-all hover:brightness-110"
         >
           <Icon name="summarize" className="text-lg" />

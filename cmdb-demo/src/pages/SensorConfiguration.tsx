@@ -271,6 +271,7 @@ function SensorConfiguration() {
         <div className="flex items-center gap-3">
           <button
             type="button"
+            onClick={() => alert('Save: Coming Soon')}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary-container transition-colors hover:brightness-110"
           >
             <Icon name="save" className="text-base" />
@@ -278,6 +279,7 @@ function SensorConfiguration() {
           </button>
           <button
             type="button"
+            onClick={() => alert('Coming Soon')}
             className="flex items-center gap-2 rounded-lg bg-surface-container-high px-4 py-2.5 text-sm font-semibold text-on-surface-variant transition-colors hover:text-on-surface"
           >
             <Icon name="sync" className="text-base" />
@@ -386,7 +388,7 @@ function SensorConfiguration() {
                   <td className="px-4 py-3">
                     <select
                       value={sensor.pollingInterval}
-                      onChange={() => {}}
+                      onChange={() => alert('Coming Soon')}
                       className="rounded bg-surface-container-low px-2 py-1 text-xs text-on-surface outline-none"
                     >
                       {POLLING_OPTIONS.map((opt) => (
@@ -518,6 +520,7 @@ function SensorConfiguration() {
             <div className="space-y-2">
               <button
                 type="button"
+                onClick={() => alert('Reset to defaults')}
                 className="flex w-full items-center gap-2 rounded-lg bg-surface-container-low p-3 text-sm text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 <Icon name="restart_alt" className="text-lg text-primary" />
@@ -525,6 +528,7 @@ function SensorConfiguration() {
               </button>
               <button
                 type="button"
+                onClick={() => alert('Coming Soon')}
                 className="flex w-full items-center gap-2 rounded-lg bg-surface-container-low p-3 text-sm text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 <Icon name="download" className="text-lg text-primary" />
@@ -532,6 +536,7 @@ function SensorConfiguration() {
               </button>
               <button
                 type="button"
+                onClick={() => alert('Coming Soon')}
                 className="flex w-full items-center gap-2 rounded-lg bg-surface-container-low p-3 text-sm text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 <Icon name="upload" className="text-lg text-primary" />
@@ -579,6 +584,7 @@ function SensorConfiguration() {
               </div>
               <button
                 type="button"
+                onClick={() => alert('Coming Soon')}
                 className="shrink-0 rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
                 title="Edit rule"
               >
@@ -586,6 +592,7 @@ function SensorConfiguration() {
               </button>
               <button
                 type="button"
+                onClick={() => alert('Coming Soon')}
                 className="shrink-0 rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-error"
                 title="Delete rule"
               >
@@ -596,6 +603,7 @@ function SensorConfiguration() {
         </div>
         <button
           type="button"
+          onClick={() => alert('Coming Soon')}
           className="mt-4 flex items-center gap-2 rounded-lg bg-surface-container-low px-4 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-surface-container-high"
         >
           <Icon name="add" className="text-lg" />

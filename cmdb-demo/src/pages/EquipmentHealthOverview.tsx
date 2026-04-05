@@ -110,13 +110,13 @@ export default function EquipmentHealthOverview() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer">
+          <button onClick={() => alert('Coming Soon')} className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer">
             <span className="material-symbols-outlined text-base">
               download
             </span>
             {t('equipment_health_overview.btn_download_report')}
           </button>
-          <button className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer">
+          <button onClick={() => navigate('/monitoring/sensors')} className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer">
             <span className="material-symbols-outlined text-base">
               notifications
             </span>

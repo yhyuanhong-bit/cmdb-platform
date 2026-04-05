@@ -1087,7 +1087,7 @@ function ForecastTab() {
               <span className="text-xs text-on-error-container">4.2 TB at risk</span>
             </div>
           </div>
-          <button className="bg-error text-on-error text-[0.6875rem] font-bold tracking-wider uppercase px-5 py-2.5 rounded-lg hover:bg-error/80 transition-colors w-full">
+          <button onClick={() => alert('Coming Soon')} className="bg-error text-on-error text-[0.6875rem] font-bold tracking-wider uppercase px-5 py-2.5 rounded-lg hover:bg-error/80 transition-colors w-full">
             {t('failure_forecast.btn_isolate_node')}
           </button>
         </div>

@@ -263,18 +263,21 @@ export default function RackManagement() {
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
+                          onClick={(e) => { e.stopPropagation(); navigate(`/racks/${rack.id}`); }}
                           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-primary"
                           aria-label={`View ${rack.id}`}
                         >
                           <span className="material-symbols-outlined text-[18px]">visibility</span>
                         </button>
                         <button
+                          onClick={(e) => { e.stopPropagation(); navigate(`/racks/${rack.id}`); }}
                           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-primary"
                           aria-label={`Edit ${rack.id}`}
                         >
                           <span className="material-symbols-outlined text-[18px]">edit</span>
                         </button>
                         <button
+                          onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }}
                           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-primary"
                           aria-label={`More options for ${rack.id}`}
                         >

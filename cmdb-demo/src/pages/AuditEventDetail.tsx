@@ -166,7 +166,7 @@ export default function AuditEventDetail() {
             {event.subtitle}
           </p>
         </div>
-        <button className="flex items-center gap-2 rounded bg-surface-container-high px-5 py-2.5 text-xs font-bold tracking-widest text-on-surface transition-colors hover:bg-surface-container">
+        <button onClick={() => alert('Export: Coming Soon')} className="flex items-center gap-2 rounded bg-surface-container-high px-5 py-2.5 text-xs font-bold tracking-widest text-on-surface transition-colors hover:bg-surface-container">
           <span className="material-symbols-outlined text-base">download</span>
           {t('audit_event_detail.btn_export_log')}
         </button>

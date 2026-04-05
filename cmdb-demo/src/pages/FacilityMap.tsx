@@ -133,7 +133,7 @@ function FacilityMap() {
         {["FACILITY_NODE_09", "FLOOR_PLAN", "RACK_LOCATION"].map(
           (crumb, i, arr) => (
             <span key={crumb} className="flex items-center gap-1.5">
-              <span className="cursor-pointer transition-colors hover:text-primary">
+              <span className="cursor-pointer transition-colors hover:text-primary" onClick={() => navigate('/racks')}>
                 {crumb}
               </span>
               {i < arr.length - 1 && (
@@ -364,6 +364,7 @@ function FacilityMap() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => navigate('/maintenance/add')}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-surface-container-low px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant transition-colors hover:bg-surface-container-high"
                 >
                   <Icon name="build" className="text-sm" />

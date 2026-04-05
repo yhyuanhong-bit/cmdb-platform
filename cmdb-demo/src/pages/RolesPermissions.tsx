@@ -192,6 +192,7 @@ function RolesPermissions() {
         <div className="flex items-center gap-3">
           <button
             type="button"
+            onClick={() => alert('Emergency: Coming Soon')}
             className="flex items-center gap-2 rounded-lg bg-error-container px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-error transition-colors hover:brightness-125"
           >
             <Icon name="emergency" className="text-base" />
@@ -199,6 +200,7 @@ function RolesPermissions() {
           </button>
           <button
             type="button"
+            onClick={() => alert('Deploy: Coming Soon')}
             className="machined-gradient flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[#001b34] transition-all hover:brightness-110"
           >
             <Icon name="rocket_launch" className="text-base" />
@@ -299,6 +301,7 @@ function RolesPermissions() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => setPermOverrides({})}
                 className="rounded-md bg-surface-container-high px-4 py-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 {t('common.cancel')}

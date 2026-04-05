@@ -680,13 +680,13 @@ function MaintenanceTab({ t, navigate, asset }: { t: ReturnType<typeof useTransl
           {t('asset_maint_history.title')}
         </h2>
         <div className="flex gap-3">
-          <button className="bg-surface-container-high px-5 py-2.5 rounded-lg text-xs font-semibold tracking-wider text-on-surface-variant uppercase hover:bg-surface-container-highest transition-colors">
+          <button onClick={() => alert('Coming Soon')} className="bg-surface-container-high px-5 py-2.5 rounded-lg text-xs font-semibold tracking-wider text-on-surface-variant uppercase hover:bg-surface-container-highest transition-colors">
             <span className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[16px]">filter_list</span>
               {t('asset_maint_history.btn_filter_logs')}
             </span>
           </button>
-          <button className="bg-on-primary-container text-white px-5 py-2.5 rounded-lg text-xs font-semibold tracking-wider uppercase hover:brightness-110 transition-all">
+          <button onClick={() => navigate('/maintenance/add')} className="bg-on-primary-container text-white px-5 py-2.5 rounded-lg text-xs font-semibold tracking-wider uppercase hover:brightness-110 transition-all">
             <span className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[16px]">add</span>
               {t('asset_maint_history.btn_schedule_entry')}

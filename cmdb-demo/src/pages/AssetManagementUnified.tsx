@@ -249,11 +249,11 @@ export default function AssetManagementUnified() {
           <Icon name="add" className="text-[18px]" />
           {t('assets.add_asset')}
         </button>
-        <button className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
+        <button onClick={() => alert('Import: Coming Soon')} className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
           <Icon name="upload" className="text-[18px]" />
           {t('common.import')}
         </button>
-        <button className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
+        <button onClick={() => alert('Export: Coming Soon')} className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
           <Icon name="download" className="text-[18px]" />
           {t('common.export_csv')}
         </button>
@@ -323,10 +323,10 @@ export default function AssetManagementUnified() {
                 <StatusBadge status={asset.status} />
               </span>
               <span className="flex items-center justify-center gap-1">
-                <button className="p-1 rounded hover:bg-surface-container-highest transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); navigate(`/assets/${asset.id}`); }} className="p-1 rounded hover:bg-surface-container-highest transition-colors">
                   <Icon name="visibility" className="text-[18px] text-on-surface-variant" />
                 </button>
-                <button className="p-1 rounded hover:bg-surface-container-highest transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }} className="p-1 rounded hover:bg-surface-container-highest transition-colors">
                   <Icon name="more_vert" className="text-[18px] text-on-surface-variant" />
                 </button>
               </span>

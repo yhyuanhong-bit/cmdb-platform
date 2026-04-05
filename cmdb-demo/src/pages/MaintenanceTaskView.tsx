@@ -134,7 +134,7 @@ export default function MaintenanceTaskView() {
               <Icon name="group" className="text-[18px]" />
               調度人員
             </button>
-            <button className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
+            <button onClick={() => alert('Edit: Coming Soon')} className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
               <Icon name="edit" className="text-[18px]" />
               {t('maintenance_task.edit_task')}
             </button>
@@ -227,7 +227,7 @@ export default function MaintenanceTaskView() {
               className="w-full bg-surface-container-low rounded p-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/40"
             />
             <div className="mt-3 flex justify-end">
-              <button className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2 text-sm font-semibold text-white rounded hover:brightness-110 transition-all">
+              <button onClick={() => alert('Comment: Coming Soon')} className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2 text-sm font-semibold text-white rounded hover:brightness-110 transition-all">
                 <Icon name="send" className="text-[16px]" />
                 {t('maintenance_task.post_update')}
               </button>

@@ -201,7 +201,7 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
             <Icon name="flag" className="text-lg" />
             {t('inventory_detail.flag_issue')}
           </button>
-          <button className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
+          <button onClick={() => window.print()} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
             <Icon name="print" className="text-lg" />
             {t('inventory_detail.print_label')}
           </button>
@@ -466,16 +466,16 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
             </div>
             <div className="flex items-center justify-between mt-3">
               <div className="flex items-center gap-3">
-                <button className="text-xs text-on-surface-variant font-label flex items-center gap-1 hover:text-primary transition-colors">
+                <button onClick={() => alert('Upload: Coming Soon')} className="text-xs text-on-surface-variant font-label flex items-center gap-1 hover:text-primary transition-colors">
                   <Icon name="attach_file" className="text-sm" />
                   {t('inventory_detail.attach')}
                 </button>
-                <button className="text-xs text-on-surface-variant font-label flex items-center gap-1 hover:text-primary transition-colors">
+                <button onClick={() => alert('Upload: Coming Soon')} className="text-xs text-on-surface-variant font-label flex items-center gap-1 hover:text-primary transition-colors">
                   <Icon name="photo_camera" className="text-sm" />
                   {t('inventory_detail.photo')}
                 </button>
               </div>
-              <button className="bg-primary hover:opacity-90 text-on-primary px-4 py-1.5 rounded-lg text-xs font-label font-bold transition-opacity">
+              <button onClick={() => alert('Note saved')} className="bg-primary hover:opacity-90 text-on-primary px-4 py-1.5 rounded-lg text-xs font-label font-bold transition-opacity">
                 {t('inventory_detail.submit_note')}
               </button>
             </div>
@@ -490,7 +490,7 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
               <Icon name="check_circle" className="text-lg" />
               {t('inventory_detail.mark_resolved')}
             </button>
-            <button className="flex-1 bg-error-container hover:opacity-90 text-error px-4 py-2.5 rounded-xl text-xs font-label font-bold flex items-center justify-center gap-2 transition-opacity">
+            <button onClick={() => navigate('/maintenance/add')} className="flex-1 bg-error-container hover:opacity-90 text-error px-4 py-2.5 rounded-xl text-xs font-label font-bold flex items-center justify-center gap-2 transition-opacity">
               <Icon name="escalator_warning" className="text-lg" />
               {t('inventory_detail.escalate')}
             </button>

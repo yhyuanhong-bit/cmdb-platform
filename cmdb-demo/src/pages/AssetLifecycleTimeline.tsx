@@ -260,7 +260,7 @@ export default function AssetLifecycleTimeline() {
                         </div>
                       )}
                       {stage.hasDetail && (
-                        <button className="flex items-center gap-1 text-[10px] font-bold tracking-widest text-primary hover:underline cursor-pointer">
+                        <button onClick={() => setExpandedStage(stage.id === expandedStage ? null : stage.id)} className="flex items-center gap-1 text-[10px] font-bold tracking-widest text-primary hover:underline cursor-pointer">
                           {t('asset_lifecycle_timeline.btn_view_details')}
                           <span className="material-symbols-outlined text-sm">
                             arrow_forward
@@ -342,7 +342,7 @@ export default function AssetLifecycleTimeline() {
                 </div>
               ))}
             </div>
-            <button className="mt-5 w-full rounded bg-surface-container-high py-3 text-[10px] font-bold tracking-widest text-primary transition-colors hover:bg-surface-container-low">
+            <button onClick={() => alert('Coming Soon')} className="mt-5 w-full rounded bg-surface-container-high py-3 text-[10px] font-bold tracking-widest text-primary transition-colors hover:bg-surface-container-low">
               {t('asset_lifecycle_timeline.btn_generate_audit_report')}
             </button>
           </div>

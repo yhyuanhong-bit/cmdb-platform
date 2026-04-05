@@ -423,6 +423,7 @@ function SystemHealth() {
                   <td className="px-4 py-3 text-right">
                     <button
                       type="button"
+                      onClick={() => navigate('/monitoring')}
                       className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
                     >
                       <Icon name="open_in_new" className="text-lg" />

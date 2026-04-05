@@ -159,7 +159,7 @@ function WorkOrderCard({
               <Icon name="rate_review" className="text-[16px]" />
               {t('work_order.btn_review')}
             </span>
-            <span className="inline-flex items-center gap-1 text-xs text-primary cursor-pointer hover:underline">
+            <span onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }} className="inline-flex items-center gap-1 text-xs text-primary cursor-pointer hover:underline">
               <Icon name="history" className="text-[16px]" />
               {t('work_order.btn_history')}
             </span>
@@ -271,6 +271,7 @@ function AiPanel({ order }: { order: WorkOrderItem | null }) {
       {/* Action button */}
       <button
         type="button"
+        onClick={() => alert('AI Review: Coming Soon')}
         className="w-full py-3 rounded-lg machined-gradient text-on-primary text-sm font-bold flex items-center justify-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
       >
         <Icon name="auto_fix_high" className="text-[18px]" />
@@ -293,7 +294,7 @@ export default function WorkOrder() {
   const WORK_ORDERS = useMemo(() => apiOrders.map(toWorkOrderItem), [apiOrders])
   const [activeTab, setActiveTab] = useState('all')
   const [selectedOrderId, setSelectedOrderId] = useState<string>('')
-  const [currentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(1)
   const totalPages = woResponse?.pagination?.total_pages ?? 4
   const totalItems = woResponse?.pagination?.total ?? 64
 
@@ -337,6 +338,7 @@ export default function WorkOrder() {
         </div>
         <button
           type="button"
+          onClick={() => navigate('/maintenance/add')}
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg machined-gradient text-on-primary text-sm font-bold hover:opacity-90 transition-opacity shrink-0"
         >
           <Icon name="add" className="text-[18px]" />
@@ -419,6 +421,7 @@ export default function WorkOrder() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors disabled:opacity-40"
                 disabled={currentPage === 1}
               >
@@ -428,6 +431,7 @@ export default function WorkOrder() {
                 <button
                   key={page}
                   type="button"
+                  onClick={() => setCurrentPage(page)}
                   className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-semibold transition-colors ${
                     page === currentPage
                       ? 'machined-gradient text-on-primary'
@@ -439,6 +443,7 @@ export default function WorkOrder() {
               ))}
               <button
                 type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors disabled:opacity-40"
                 disabled={currentPage === totalPages}
               >

@@ -208,10 +208,10 @@ export default function SystemSettings() {
                 {user.status}
               </span>
               <div className="flex gap-1">
-                <button className="p-1.5 rounded hover:bg-surface-container-high transition-colors">
+                <button onClick={() => alert('Edit User: Coming Soon')} className="p-1.5 rounded hover:bg-surface-container-high transition-colors">
                   <span className="material-symbols-outlined text-on-surface-variant text-[18px]">edit</span>
                 </button>
-                <button className="p-1.5 rounded hover:bg-error-container transition-colors">
+                <button onClick={() => alert('Delete User: Coming Soon')} className="p-1.5 rounded hover:bg-error-container transition-colors">
                   <span className="material-symbols-outlined text-on-surface-variant text-[18px]">delete</span>
                 </button>
               </div>
@@ -274,7 +274,7 @@ export default function SystemSettings() {
           <div>
             <p className="text-sm text-on-surface mb-2">{t('system_settings.qr_scan_instruction')}</p>
             <p className="text-xs text-on-surface-variant mb-4">{t('system_settings.qr_validity')}</p>
-            <button className="px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant text-sm font-semibold hover:bg-surface-container-highest transition-colors">
+            <button onClick={() => alert('Coming Soon')} className="px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant text-sm font-semibold hover:bg-surface-container-highest transition-colors">
               {t('system_settings.btn_regenerate_qr')}
             </button>
           </div>

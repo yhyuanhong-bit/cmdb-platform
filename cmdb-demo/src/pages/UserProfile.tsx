@@ -120,7 +120,7 @@ export default function UserProfile() {
           <p className="text-on-surface-variant text-xs mb-5">{t('user_profile.section_security')}</p>
 
           {/* Change Password */}
-          <button className="w-full flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3 mb-3 hover:bg-surface-container-high transition-colors">
+          <button onClick={() => alert('Change Password: Coming Soon')} className="w-full flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3 mb-3 hover:bg-surface-container-high transition-colors">
             <div className="flex items-center gap-3">
               <span className="material-symbols-outlined text-on-surface-variant text-[20px]">lock</span>
               <span className="text-sm text-on-surface">{t('user_profile.btn_change_password')}</span>
@@ -140,7 +140,7 @@ export default function UserProfile() {
               </span>
             </div>
             <p className="text-on-surface-variant text-xs ml-8 mb-3">{t('user_profile.label_2fa_provider')}</p>
-            <button className="ml-8 px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant text-xs font-semibold hover:bg-surface-container-highest transition-colors">
+            <button onClick={() => alert('Coming Soon')} className="ml-8 px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant text-xs font-semibold hover:bg-surface-container-highest transition-colors">
               {t('user_profile.btn_reset_2fa_key')}
             </button>
           </div>
@@ -161,7 +161,7 @@ export default function UserProfile() {
                     </div>
                   </div>
                   {!s.current && (
-                    <button className="px-3 py-1.5 rounded text-[0.6875rem] font-semibold bg-error-container text-on-error-container hover:bg-error-container/80 transition-colors">
+                    <button onClick={() => alert('Coming Soon')} className="px-3 py-1.5 rounded text-[0.6875rem] font-semibold bg-error-container text-on-error-container hover:bg-error-container/80 transition-colors">
                       {t('user_profile.btn_revoke')}
                     </button>
                   )}

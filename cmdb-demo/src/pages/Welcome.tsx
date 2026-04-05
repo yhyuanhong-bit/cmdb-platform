@@ -55,7 +55,7 @@ function LightIcon({
 const Welcome = memo(function Welcome() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [activeTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(0);
 
   return (
     <div className="min-h-screen bg-[#f3f7fb] font-[Inter]">
@@ -71,6 +71,7 @@ const Welcome = memo(function Welcome() {
             {ONBOARDING_TABS.map((tab, idx) => (
               <button
                 key={tab}
+                onClick={() => setActiveTab(idx)}
                 className={`px-4 py-4 text-sm font-medium transition-colors relative ${
                   idx === activeTab
                     ? "text-[#005f98]"
@@ -88,13 +89,13 @@ const Welcome = memo(function Welcome() {
 
         {/* Right: actions */}
         <div className="flex items-center gap-3">
-          <button className="p-2 rounded-lg hover:bg-[#e8f0f8] transition-colors">
+          <button onClick={() => navigate('/help/troubleshooting')} className="p-2 rounded-lg hover:bg-[#e8f0f8] transition-colors">
             <LightIcon
               name="help_outline"
               className="text-[20px] text-[#6b7b8d]"
             />
           </button>
-          <button className="p-2 rounded-lg hover:bg-[#e8f0f8] transition-colors">
+          <button onClick={() => navigate('/system/settings')} className="p-2 rounded-lg hover:bg-[#e8f0f8] transition-colors">
             <LightIcon
               name="settings"
               className="text-[20px] text-[#6b7b8d]"

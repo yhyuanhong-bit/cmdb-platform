@@ -187,6 +187,7 @@ function TaskDispatch() {
         </div>
         <button
           type="button"
+          onClick={() => navigate('/maintenance/add')}
           className="machined-gradient flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[#001b34] transition-all hover:brightness-110"
         >
           <Icon name="add" className="text-base" />
@@ -367,6 +368,7 @@ function TaskDispatch() {
             <div className="mt-5 flex gap-3">
               <button
                 type="button"
+                onClick={() => alert('Auto-assign: Coming Soon')}
                 className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-surface-container-high py-2.5 text-xs font-semibold uppercase tracking-wider text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 <Icon name="auto_fix_high" className="text-base" />
@@ -374,6 +376,7 @@ function TaskDispatch() {
               </button>
               <button
                 type="button"
+                onClick={() => alert('Confirm: Coming Soon')}
                 className="machined-gradient flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider text-[#001b34] transition-all hover:brightness-110"
               >
                 <Icon name="check_circle" className="text-base" />

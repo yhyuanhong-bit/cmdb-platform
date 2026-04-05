@@ -129,6 +129,7 @@ export default function AutoDiscovery() {
 
           <div className="flex items-center gap-3">
             <button
+              onClick={() => alert('Discovery: Coming Soon')}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant text-sm font-medium hover:bg-surface-container-highest transition-colors"
               aria-label="Ignore Selected"
             >
@@ -136,6 +137,7 @@ export default function AutoDiscovery() {
               {t('auto_discovery.btn_ignore_selected')}
             </button>
             <button
+              onClick={() => alert('Discovery: Coming Soon')}
               className="flex items-center gap-2 px-4 py-2 rounded-lg machined-gradient text-[#001b34] text-sm font-semibold hover:opacity-90 transition-opacity"
               aria-label="Batch Approve"
             >
@@ -326,12 +328,14 @@ export default function AutoDiscovery() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
+                          onClick={() => alert('Discovery: Coming Soon')}
                           className="p-1.5 rounded-md hover:bg-[#064e3b]/40 transition-colors"
                           aria-label={`Approve ${row.name}`}
                         >
                           <Icon name="check" className="text-[18px] text-[#34d399]" />
                         </button>
                         <button
+                          onClick={() => alert('Discovery: Coming Soon')}
                           className="p-1.5 rounded-md hover:bg-error-container/40 transition-colors"
                           aria-label={`Ignore ${row.name}`}
                         >
@@ -438,7 +442,7 @@ export default function AutoDiscovery() {
               {t('auto_discovery.section_schedule_desc')}
             </p>
 
-            <button className="flex items-center gap-2 px-5 py-2.5 rounded-lg machined-gradient text-[#001b34] text-sm font-semibold hover:opacity-90 transition-opacity">
+            <button onClick={() => alert('Coming Soon')} className="flex items-center gap-2 px-5 py-2.5 rounded-lg machined-gradient text-[#001b34] text-sm font-semibold hover:opacity-90 transition-opacity">
               <Icon name="event_note" className="text-[18px]" />
               {t('auto_discovery.btn_manage_schedule')}
             </button>

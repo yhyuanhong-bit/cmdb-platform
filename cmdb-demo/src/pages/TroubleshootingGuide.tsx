@@ -253,7 +253,7 @@ const TroubleshootingGuide = memo(function TroubleshootingGuide() {
             {t('troubleshooting.subtitle')}
           </p>
         </div>
-        <button className="inline-flex items-center gap-2 bg-gradient-to-r from-[#005f98] to-[#2aa7ff] text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-[#005f98]/25 hover:shadow-xl transition-all active:scale-[0.98]">
+        <button onClick={() => navigate('/maintenance/add')} className="inline-flex items-center gap-2 bg-gradient-to-r from-[#005f98] to-[#2aa7ff] text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-[#005f98]/25 hover:shadow-xl transition-all active:scale-[0.98]">
           <Icon name="add" className="text-[18px]" />
           {t('troubleshooting.submit_new_issue')}
         </button>

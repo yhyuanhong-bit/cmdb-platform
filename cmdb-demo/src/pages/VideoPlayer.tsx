@@ -108,7 +108,7 @@ export default function VideoPlayer() {
             </div>
 
             {/* Download Button */}
-            <button className="machined-gradient text-[#001b34] font-semibold text-sm tracking-wider uppercase px-6 py-3 rounded-lg cursor-pointer hover:opacity-90 transition-opacity">
+            <button onClick={() => alert('Coming Soon')} className="machined-gradient text-[#001b34] font-semibold text-sm tracking-wider uppercase px-6 py-3 rounded-lg cursor-pointer hover:opacity-90 transition-opacity">
               <span className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[18px]">download</span>
                 {t('video_player.btn_download_sop_pdf')}

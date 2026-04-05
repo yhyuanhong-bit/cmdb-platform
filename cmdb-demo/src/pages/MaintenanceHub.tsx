@@ -178,13 +178,13 @@ function ScheduleView({
             {t('maintenance_schedule.week_of')} March 23 - 29, 2026
           </h2>
           <div className="flex items-center gap-2">
-            <button className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest transition-colors">
+            <button onClick={() => alert('Coming Soon')} className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest transition-colors">
               <Icon name="chevron_left" className="text-[18px] text-on-surface-variant" />
             </button>
-            <button className="px-3 py-1 rounded bg-surface-container-high text-xs text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+            <button onClick={() => alert('Coming Soon')} className="px-3 py-1 rounded bg-surface-container-high text-xs text-on-surface-variant hover:bg-surface-container-highest transition-colors">
               {t('common.today')}
             </button>
-            <button className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest transition-colors">
+            <button onClick={() => alert('Coming Soon')} className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest transition-colors">
               <Icon name="chevron_right" className="text-[18px] text-on-surface-variant" />
             </button>
           </div>

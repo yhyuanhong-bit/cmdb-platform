@@ -282,7 +282,7 @@ export default function ComponentUpgradeRecommendations() {
               >
                 {card.selected ? t('component_upgrades.btn_selected') : t('component_upgrades.btn_request_upgrade')}
               </button>
-              <button className="rounded bg-surface-container-high px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-low cursor-pointer">
+              <button onClick={() => alert('Coming Soon')} className="rounded bg-surface-container-high px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-low cursor-pointer">
                 {t('component_upgrades.btn_learn_more')}
               </button>
             </div>
@@ -326,6 +326,7 @@ export default function ComponentUpgradeRecommendations() {
             {t('component_upgrades.btn_schedule_maintenance')}
           </button>
           <button
+            onClick={() => alert('Coming Soon')}
             className={`rounded px-5 py-2.5 text-[10px] font-bold tracking-widest transition-colors cursor-pointer ${
               selectedCards.length > 0
                 ? 'bg-primary text-[#0a151a]'
