@@ -107,7 +107,6 @@ export default function AssetManagementUnified() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All Status')
-  const [locationFilter, setLocationFilter] = useState('All Locations')
   const [currentPage, setCurrentPage] = useState(1)
   const [showCreateAsset, setShowCreateAsset] = useState(false)
 
@@ -129,14 +128,7 @@ export default function AssetManagementUnified() {
   const pagination = apiData?.pagination
   const totalPages = pagination?.total_pages ?? 1
 
-  const filtered = assets.filter((a) => {
-    // Client-side location filter — only filter if location selected and asset has location info
-    if (locationFilter !== 'All Locations') {
-      const assetLocation = (a as any).location_name ?? ''
-      if (!assetLocation.includes(locationFilter)) return false
-    }
-    return true
-  })
+  const filtered = assets
 
   return (
     <div className="min-h-screen bg-surface p-6 font-body text-on-surface">
@@ -214,13 +206,10 @@ export default function AssetManagementUnified() {
 
         {/* Location Filter */}
         <select
-          value={locationFilter}
-          onChange={(e) => setLocationFilter(e.target.value)}
-          className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface rounded appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/40"
+          disabled
+          className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface-variant rounded appearance-none cursor-not-allowed focus:outline-none"
         >
-          <option>{t('assets.all_locations')}</option>
-          <option>DC-1</option>
-          <option>DC-2</option>
+          <option>Location (Coming Soon)</option>
         </select>
 
         {/* View Toggle */}

@@ -1,9 +1,10 @@
-import { memo, useState } from 'react'
+import { memo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import StatCard from '../components/StatCard'
 import StatusBadge from '../components/StatusBadge'
 import { usePredictionModels, usePredictionsByAsset, useCreateRCA, useVerifyRCA } from '../hooks/usePrediction'
+import { useAssets } from '../hooks/useAssets'
 import CreateRCAModal from '../components/CreateRCAModal'
 
 /* ──────────────────────────────────────────────
@@ -297,7 +298,12 @@ function OverviewTab() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [currentPage, setCurrentPage] = useState(1)
-  const [selectedAssetId] = useState('')
+  const [selectedAssetId, setSelectedAssetId] = useState('')
+  const { data: assetsData } = useAssets({ page_size: '1' })
+  const firstAssetId = assetsData?.data?.[0]?.id || ''
+  useEffect(() => {
+    if (firstAssetId && !selectedAssetId) setSelectedAssetId(firstAssetId)
+  }, [firstAssetId])
   const verifyRCA = useVerifyRCA()
 
   const { data: modelsResponse, isLoading: modelsLoading } = usePredictionModels()

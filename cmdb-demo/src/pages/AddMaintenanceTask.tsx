@@ -100,7 +100,7 @@ export default function AddMaintenanceTask() {
             </label>
             <div className="flex gap-2">
               {([
-                { key: 'low', label: 'Medium', color: 'bg-[#064e3b] text-[#34d399]', activeRing: 'ring-[#34d399]/50' },
+                { key: 'low', label: t('add_maintenance_task.priority_low') || 'Low', color: 'bg-[#064e3b] text-[#34d399]', activeRing: 'ring-[#34d399]/50' },
                 { key: 'medium', label: 'Medium', color: 'bg-[#92400e] text-[#fbbf24]', activeRing: 'ring-[#fbbf24]/50' },
                 { key: 'high', label: t('add_maintenance_task.priority_high'), color: 'bg-error-container text-on-error-container', activeRing: 'ring-error/50' },
               ] as const).map((p) => (
@@ -208,6 +208,7 @@ export default function AddMaintenanceTask() {
                   description,
                   scheduled_start: scheduled,
                   scheduled_end: scheduled,
+                  assignee_id: selectedAssignees[0] ? String(selectedAssignees[0]) : undefined,
                 },
                 { onSuccess: () => navigate('/maintenance') },
               )

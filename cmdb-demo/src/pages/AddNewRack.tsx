@@ -19,6 +19,7 @@ export default function AddNewRack() {
   const [activeTab, setActiveTab] = useState<'basic' | 'environment'>('basic')
   const [rackId, setRackId] = useState('RK-TPC01-4B-016')
   const [rackName, setRackName] = useState('Rack-A015')
+  const [rowLabel, setRowLabel] = useState('A')
   const [country] = useState('台灣 (Taiwan)')
   const [region] = useState('北部 (North)')
   const [city] = useState('台北 (Taipei)')
@@ -107,6 +108,20 @@ export default function AddNewRack() {
                   placeholder={t('add_new_rack.placeholder_rack_name')}
                   className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none focus:ring-1 focus:ring-primary/40"
                 />
+              </div>
+              <div>
+                <label className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label block mb-1.5">
+                  Row Label
+                </label>
+                <select
+                  value={rowLabel}
+                  onChange={(e) => setRowLabel(e.target.value)}
+                  className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 appearance-none"
+                >
+                  {Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)).map((letter) => (
+                    <option key={letter} value={letter}>{letter}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -211,7 +226,7 @@ export default function AddNewRack() {
                   {
                     name: rackName,
                     location_id: locationId,
-                    row_label: rackId,
+                    row_label: rowLabel,
                     total_u: parseInt(uCount, 10) || 42,
                     used_u: 0,
                     power_capacity_kw: parseFloat(maxPower) || 0,

@@ -218,7 +218,7 @@ function MonitoringAlerts() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((alert) => (
+            {filtered.slice((currentPage - 1) * 10, currentPage * 10).map((alert) => (
               <tr
                 key={alert.id}
                 onClick={() => navigate('/monitoring/topology')}
@@ -236,8 +236,8 @@ function MonitoringAlerts() {
                     <p className="mt-0.5 text-xs text-on-surface-variant">
                       Asset: <span
                         className="cursor-pointer text-primary hover:underline"
-                        onClick={(e) => { e.stopPropagation(); navigate('/assets/detail'); }}
-                      >{alert.ci_id}</span>
+                        onClick={(e) => { e.stopPropagation(); navigate(`/assets/${alert.ci_id}`); }}
+                      >{`ASSET-${alert.ci_id.slice(0, 8)}`}</span>
                     </p>
                   )}
                 </td>
@@ -278,42 +278,49 @@ function MonitoringAlerts() {
       </div>
 
       {/* ── Pagination ── */}
-      <div className="flex items-center justify-between text-xs text-on-surface-variant">
-        <p>
-          {t('monitoring.pagination_showing', { count: filtered.length, total: alerts.length })}
-        </p>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            className="rounded p-1.5 transition-colors hover:bg-surface-container-high disabled:opacity-30"
-          >
-            <Icon name="chevron_left" className="text-lg" />
-          </button>
-          {[1, 2, 3, 4, 5].map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setCurrentPage(p)}
-              className={`h-8 w-8 rounded text-sm font-semibold transition-colors ${
-                currentPage === p
-                  ? "bg-primary text-on-primary-container"
-                  : "hover:bg-surface-container-high"
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setCurrentPage((p) => Math.min(5, p + 1))}
-            className="rounded p-1.5 transition-colors hover:bg-surface-container-high"
-          >
-            <Icon name="chevron_right" className="text-lg" />
-          </button>
-        </div>
-      </div>
+      {(() => {
+        const totalPages = Math.max(1, Math.ceil(filtered.length / 10));
+        const pageNums = Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1);
+        return (
+          <div className="flex items-center justify-between text-xs text-on-surface-variant">
+            <p>
+              {t('monitoring.pagination_showing', { count: Math.min(10, filtered.length - (currentPage - 1) * 10), total: filtered.length })}
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="rounded p-1.5 transition-colors hover:bg-surface-container-high disabled:opacity-30"
+              >
+                <Icon name="chevron_left" className="text-lg" />
+              </button>
+              {pageNums.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setCurrentPage(p)}
+                  className={`h-8 w-8 rounded text-sm font-semibold transition-colors ${
+                    currentPage === p
+                      ? "bg-primary text-on-primary-container"
+                      : "hover:bg-surface-container-high"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded p-1.5 transition-colors hover:bg-surface-container-high disabled:opacity-30"
+              >
+                <Icon name="chevron_right" className="text-lg" />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── AIOps Section ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

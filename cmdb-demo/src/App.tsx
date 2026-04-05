@@ -103,7 +103,7 @@ export default function App() {
           <Route path="/assets/detail" element={<AssetDetail />} />
           <Route path="/assets/:assetId" element={<AssetDetail />} />
           <Route path="/assets/lifecycle" element={<AssetLifecycle />} />
-          <Route path="/assets/lifecycle/timeline" element={<AssetLifecycleTimeline />} />
+          <Route path="/assets/lifecycle/timeline/:assetId" element={<AssetLifecycleTimeline />} />
           <Route path="/assets/discovery" element={<AutoDiscovery />} />
           <Route path="/assets/upgrades" element={<ComponentUpgradeRecommendations />} />
           <Route path="/assets/equipment-health" element={<EquipmentHealthOverview />} />

@@ -501,7 +501,18 @@ function AlertTopologyAnalysis() {
             </svg>
 
             {/* Topology nodes */}
-            {NODES.map((node) => {
+            {NODES.filter((node) => {
+              if (biaFilter !== 'all' && String(node.biaLevel) !== biaFilter) return false
+              if (domainFilter !== 'all') {
+                const domainMap: Record<string, string[]> = {
+                  database: ['Database Server'],
+                  application: ['Web Application Server', 'Middleware Server'],
+                  network: ['CDN Edge Gateway', 'Cache Cluster'],
+                }
+                if (domainMap[domainFilter] && !domainMap[domainFilter].includes(node.type)) return false
+              }
+              return true
+            }).map((node) => {
               const isSelected = selectedNodeId === node.id;
               return (
                 <button

@@ -353,7 +353,10 @@ export default function DataCenter3D() {
                         }}
                         onMouseEnter={() => setHoveredRack(rack.id)}
                         onMouseLeave={() => setHoveredRack(null)}
-                        onClick={() => navigate("/racks/detail")}
+                        onClick={() => {
+                          const apiRack = apiRacks.find((r) => (r.name || r.id.slice(0, 6)) === rack.id);
+                          navigate('/racks/' + (apiRack?.id ?? rack.id));
+                        }}
                       >
                         <span className="text-[11px] font-medium text-white/90 font-label select-none">
                           {rack.id}

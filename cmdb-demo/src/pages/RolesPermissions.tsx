@@ -1,6 +1,6 @@
 import { memo, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useUsers, useRoles, useCreateRole, useDeleteRole } from "../hooks/useIdentity";
+import { useUsers, useRoles, useCreateRole, useDeleteRole, useUpdateRole } from "../hooks/useIdentity";
 
 /* ──────────────────────────────────────────────
    Types & constants
@@ -117,6 +117,7 @@ function RolesPermissions() {
   const [newRoleData, setNewRoleData] = useState({ name: '', description: '' });
   const createRole = useCreateRole();
   const deleteRole = useDeleteRole();
+  const updateRole = useUpdateRole();
 
   const [selectedRole, setSelectedRole] = useState<string>('');
   // Auto-select first role
@@ -253,7 +254,7 @@ function RolesPermissions() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-on-surface flex items-center">
                     {role.name}
-                    {!(role as any).is_system && (
+                    {!((role as any).is_system || role.id === 'c0000000-0000-0000-0000-000000000001') && (
                       <button onClick={(e) => { e.stopPropagation(); if(confirm('Delete this role?')) deleteRole.mutate(role.id) }}
                         className="text-red-400 hover:text-red-300 text-xs ml-2">&#x2715;</button>
                     )}
@@ -304,9 +305,25 @@ function RolesPermissions() {
               </button>
               <button
                 type="button"
-                className="rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#001b34] transition-colors hover:brightness-110"
+                onClick={() => {
+                  if (effectiveSelectedRole) {
+                    const currentPerms = permOverrides[effectiveSelectedRole] ?? buildPermsForRole(effectiveSelectedRole);
+                    const permissions: Record<string, string[]> = {};
+                    currentPerms.forEach((row) => {
+                      const actions: string[] = [];
+                      if (row.view) actions.push('read');
+                      if (row.edit) actions.push('write');
+                      if (row.delete) actions.push('delete');
+                      if (row.export) actions.push('export');
+                      if (actions.length > 0) permissions[row.key] = actions;
+                    });
+                    updateRole.mutate({ id: effectiveSelectedRole, data: { permissions } });
+                  }
+                }}
+                disabled={updateRole.isPending}
+                className="rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#001b34] transition-colors hover:brightness-110 disabled:opacity-50"
               >
-                {t('common.save_changes')}
+                {updateRole.isPending ? t('common.saving', 'Saving...') : t('common.save_changes')}
               </button>
             </div>
           </div>

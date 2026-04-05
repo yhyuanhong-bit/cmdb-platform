@@ -333,7 +333,7 @@ function VideoLibrary() {
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((video, i) => (
-            <div key={video.id} onClick={() => navigate('/help/videos/player')} className="cursor-pointer">
+            <div key={video.id} onClick={() => navigate(`/help/videos/player?v=${video.id}`)} className="cursor-pointer">
               <VideoCardGrid video={video} index={i} />
             </div>
           ))}
@@ -341,7 +341,7 @@ function VideoLibrary() {
       ) : (
         <div className="space-y-3">
           {filtered.map((video, i) => (
-            <div key={video.id} onClick={() => navigate('/help/videos/player')} className="cursor-pointer">
+            <div key={video.id} onClick={() => navigate(`/help/videos/player?v=${video.id}`)} className="cursor-pointer">
               <VideoCardList video={video} index={i} />
             </div>
           ))}

@@ -103,7 +103,7 @@ export default function AssetLifecycle() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/assets/lifecycle/timeline')}
+            onClick={() => navigate('/assets/lifecycle/timeline/' + (assets[0]?.id ?? ''))}
             className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"
           >
             <Icon name="timeline" className="text-[18px]" />

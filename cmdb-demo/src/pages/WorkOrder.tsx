@@ -391,7 +391,12 @@ export default function WorkOrder() {
       <div className="grid grid-cols-[1fr_380px] gap-5 flex-1">
         {/* Work order list */}
         <div className="flex flex-col gap-3">
-          {WORK_ORDERS.map((order) => (
+          {WORK_ORDERS.filter((order) => {
+            if (activeTab === 'all') return true
+            if (activeTab === 'review') return order.status === 'WAIT'
+            if (activeTab === 'approve') return order.status === 'APPROVE'
+            return true
+          }).map((order) => (
             <WorkOrderCard
               key={order.id}
               order={order}

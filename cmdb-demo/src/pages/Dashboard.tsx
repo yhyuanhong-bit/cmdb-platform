@@ -509,7 +509,7 @@ function Dashboard() {
                   className="grid grid-cols-[1fr_2fr_auto_auto] items-center gap-3 rounded-md bg-surface-container-low px-3 py-2.5 cursor-pointer hover:bg-surface-container-high transition-colors"
                 >
                   <span className="text-sm font-semibold text-on-surface">
-                    {evt.ci_id ?? evt.id?.slice(0, 12)}
+                    {evt.ci_id ? `ASSET-${evt.ci_id.slice(0, 8)}` : 'N/A'}
                   </span>
                   <span className="text-xs text-on-surface-variant truncate">
                     {evt.message}

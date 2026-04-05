@@ -272,7 +272,7 @@ function VisualizationTab({
             {selectedAsset ? (
               <div>
                 <div className="bg-surface-container-low rounded p-4 mb-4">
-                  <p className="font-headline font-bold text-lg text-on-surface cursor-pointer text-primary hover:underline" onClick={() => navigate('/assets/detail')}>{selectedAsset.assetTag}</p>
+                  <p className="font-headline font-bold text-lg text-on-surface cursor-pointer text-primary hover:underline" onClick={() => navigate(`/assets/${selectedAsset.assetTag}`)}>{selectedAsset.assetTag}</p>
                   <p className="text-sm text-on-surface-variant">{selectedAsset.label}</p>
                   <p className="text-xs text-on-surface-variant mt-1">
                     U{selectedAsset.startU}
@@ -296,7 +296,7 @@ function VisualizationTab({
                   ))}
                 </div>
                 <button
-                  onClick={() => navigate('/assets/detail')}
+                  onClick={() => navigate(`/assets/${selectedAsset?.assetTag ?? ''}`)}
                   className="w-full machined-gradient text-on-primary font-label font-semibold text-sm px-5 py-2.5 rounded flex items-center justify-center gap-2 hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   查看資產詳情 →

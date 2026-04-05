@@ -18,6 +18,8 @@ export const identityApi = {
     apiClient.get<ApiResponse<Role[]>>('/roles'),
   createRole: (data: any) =>
     apiClient.post<ApiResponse<Role>>('/roles', data),
+  updateRole: (id: string, data: any) =>
+    apiClient.put<ApiResponse<Role>>(`/roles/${id}`, data),
   deleteRole: (id: string) =>
     apiClient.del(`/roles/${id}`),
 }

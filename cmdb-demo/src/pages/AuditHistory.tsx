@@ -275,7 +275,7 @@ function AuditHistory() {
         {AUDIT_ENTRIES.map((entry) => (
           <div key={entry.id}>
             <div
-              onClick={() => navigate('/audit/detail')}
+              onClick={() => navigate('/audit/detail?id=' + entry.id)}
               className="grid grid-cols-[160px_180px_140px_1fr_100px_80px] items-center gap-px px-5 py-3.5 transition-colors hover:bg-surface-container-low cursor-pointer">
               {/* Timestamp */}
               <span className="font-body text-xs tabular-nums text-on-surface-variant">

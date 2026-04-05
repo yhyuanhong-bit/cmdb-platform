@@ -272,7 +272,10 @@ function FacilityMap() {
                 <div className="flex items-center justify-between">
                   <span
                     className="font-headline text-xl font-bold cursor-pointer text-primary hover:underline"
-                    onClick={() => navigate('/racks/detail')}
+                    onClick={() => {
+                      const apiRack = apiRacks.find((r) => (r.name || r.id.slice(0, 6)) === selectedRack.id);
+                      navigate('/racks/' + (apiRack?.id ?? selectedRack.id));
+                    }}
                   >
                     {selectedRack.id}
                   </span>
@@ -350,7 +353,10 @@ function FacilityMap() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => navigate('/racks/detail')}
+                  onClick={() => {
+                    const apiRack = apiRacks.find((r) => (r.name || r.id.slice(0, 6)) === selectedRack?.id);
+                    navigate('/racks/' + (apiRack?.id ?? selectedRack?.id));
+                  }}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-on-primary-container transition-colors hover:brightness-110"
                 >
                   <Icon name="visibility" className="text-sm" />

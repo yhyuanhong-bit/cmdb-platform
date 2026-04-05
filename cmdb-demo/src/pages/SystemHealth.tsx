@@ -403,9 +403,9 @@ function SystemHealth() {
                   <td className="whitespace-nowrap px-4 py-3 font-mono text-xs font-semibold text-primary">
                     <span
                       className="cursor-pointer hover:underline"
-                      onClick={() => navigate("/assets/detail")}
+                      onClick={() => navigate(`/assets/${alert.ci_id}`)}
                     >
-                      {alert.ci_id}
+                      {alert.ci_id ? `ASSET-${alert.ci_id.slice(0, 8)}` : 'N/A'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-on-surface">

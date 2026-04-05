@@ -44,6 +44,7 @@ const MAP_META: Record<string, { flag: string; mapLeft: string; mapTop: string; 
   china:     { flag: '\u{1F1E8}\u{1F1F3}', mapLeft: '70%', mapTop: '35%', markerSize: '3rem' },
   japan:     { flag: '\u{1F1EF}\u{1F1F5}', mapLeft: '80%', mapTop: '30%', markerSize: '2.25rem' },
   singapore: { flag: '\u{1F1F8}\u{1F1EC}', mapLeft: '72%', mapTop: '55%', markerSize: '1.75rem' },
+  tw:        { flag: '\u{1F1F9}\u{1F1FC}', mapLeft: '78%', mapTop: '38%', markerSize: '2rem' },
 };
 
 function locationToCountry(loc: Location): CountryData {

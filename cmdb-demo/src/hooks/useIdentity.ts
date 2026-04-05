@@ -48,6 +48,15 @@ export function useCreateRole() {
   })
 }
 
+export function useUpdateRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      identityApi.updateRole(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['roles'] }),
+  })
+}
+
 export function useDeleteRole() {
   const qc = useQueryClient()
   return useMutation({

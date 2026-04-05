@@ -12,6 +12,7 @@ import type { WorkOrder } from '../lib/api/maintenance'
 
 interface MaintenanceTask {
   id: string
+  woId: string
   description: string
   asset: string
   priority: 'Critical' | 'High' | 'Medium' | 'Low'
@@ -44,6 +45,7 @@ function mapPriority(p: string): 'Critical' | 'High' | 'Medium' | 'Low' {
 function toTask(wo: WorkOrder): MaintenanceTask {
   return {
     id: wo.code,
+    woId: wo.id,
     description: wo.title,
     asset: wo.description?.split(' ')[0] ?? '',
     priority: mapPriority(wo.priority),
@@ -140,11 +142,11 @@ function buildSummaryCards(workOrders: WorkOrder[]) {
   }).length
   const completed = workOrders.filter((wo) => wo.status === 'COMPLETED').length
   return [
-    { label: 'Scheduled', labelKey: 'maintenance_schedule.scheduled_tasks', value: String(scheduled || 18), icon: 'calendar_month', color: 'text-primary' },
-    { label: 'In Progress', labelKey: 'maintenance_schedule.in_progress', value: String(inProgress || 5), icon: 'pending_actions', color: 'text-[#fbbf24]' },
-    { label: 'Overdue', labelKey: 'maintenance_schedule.overdue', value: String(overdue || 2), icon: 'warning', color: 'text-error' },
-    { label: 'Completed', labelKey: 'maintenance_schedule.completed_this_month', value: String(completed || 34), icon: 'task_alt', color: 'text-[#34d399]' },
-    { label: 'Total Records', labelKey: 'maintenance_records.total_records', value: String(workOrders.length || '1,247'), icon: 'folder_open', color: 'text-on-surface-variant' },
+    { label: 'Scheduled', labelKey: 'maintenance_schedule.scheduled_tasks', value: String(scheduled ?? 18), icon: 'calendar_month', color: 'text-primary' },
+    { label: 'In Progress', labelKey: 'maintenance_schedule.in_progress', value: String(inProgress ?? 5), icon: 'pending_actions', color: 'text-[#fbbf24]' },
+    { label: 'Overdue', labelKey: 'maintenance_schedule.overdue', value: String(overdue ?? 2), icon: 'warning', color: 'text-error' },
+    { label: 'Completed', labelKey: 'maintenance_schedule.completed_this_month', value: String(completed ?? 34), icon: 'task_alt', color: 'text-[#34d399]' },
+    { label: 'Total Records', labelKey: 'maintenance_records.total_records', value: String(workOrders.length ?? 0), icon: 'folder_open', color: 'text-on-surface-variant' },
   ]
 }
 
@@ -241,7 +243,7 @@ function ScheduleView({
         {filteredTasks.map((task, i) => (
           <div
             key={task.id}
-            onClick={() => navigate('/maintenance/task')}
+            onClick={() => navigate('/maintenance/task/' + task.woId)}
             className={`grid grid-cols-[110px_1fr_120px_90px_120px_140px_120px] items-center gap-2 px-4 py-3 text-sm transition-colors hover:bg-surface-container-high cursor-pointer ${
               i % 2 === 1 ? 'bg-surface-container-low/40' : ''
             }`}
@@ -514,11 +516,18 @@ export default function MaintenanceHub() {
 
       {/* Content Area */}
       {viewMode === 'schedule' && (
-        <ScheduleView search={search} navigate={navigate} t={t} tasks={tasks} />
+        <ScheduleView search={search} navigate={navigate} t={t} tasks={tasks.filter(task => {
+          if (statusFilter !== 'All Status' && task.status.toLowerCase() !== statusFilter.toLowerCase()) return false
+          return true
+        })} />
       )}
 
       {viewMode === 'records' && (
-        <RecordsView search={search} t={t} records={records} />
+        <RecordsView search={search} t={t} records={records.filter(r => {
+          if (typeFilter !== 'All Types' && r.type !== typeFilter) return false
+          if (statusFilter !== 'All Status' && r.outcome.toLowerCase() !== statusFilter.toLowerCase()) return false
+          return true
+        })} />
       )}
 
       {/* Pagination */}

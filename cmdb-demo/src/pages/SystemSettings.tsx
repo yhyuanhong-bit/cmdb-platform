@@ -32,7 +32,7 @@ export default function SystemSettings() {
   // Map API users to display format
   const users = apiUsers.map(u => ({
     name: u.display_name,
-    role: apiRoles.find(r => r.name)?.name ?? 'Unknown',
+    role: u.source ?? 'local',
     region: 'TW',
     status: u.status === 'active' ? 'Active' : 'Inactive',
     avatar: u.display_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
