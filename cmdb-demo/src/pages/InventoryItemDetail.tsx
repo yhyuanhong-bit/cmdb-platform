@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useInventoryTask, useInventoryItems } from "../hooks/useInventory";
+import { useInventoryTask, useInventoryItems, useScanItem } from "../hooks/useInventory";
 
 /* ──────────────────────────────────────────────
    Static fallback data (used when API returns no detail)
@@ -116,6 +116,8 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
   const [searchParams] = useSearchParams();
   const taskId = searchParams.get('taskId') ?? '';
 
+  const scanItem = useScanItem()
+
   const { data: taskResponse, isLoading: taskLoading } = useInventoryTask(taskId);
   const { data: itemsResponse } = useInventoryItems(taskId);
   const task = taskResponse?.data;
@@ -184,11 +186,18 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
+          <button onClick={() => {
+            const item = items?.[0]
+            if (item && taskId) scanItem.mutate({ taskId, itemId: item.id, data: { actual: item.expected, status: 'scanned' } })
+          }} disabled={scanItem.isPending}
+            className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
             <Icon name="verified" className="text-lg" />
-            {t('inventory_detail.verify_asset')}
+            {scanItem.isPending ? 'Verifying...' : t('inventory_detail.verify_asset')}
           </button>
-          <button className="bg-tertiary-container hover:opacity-90 text-tertiary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
+          <button onClick={() => {
+            const item = items?.[0]
+            if (item && taskId) scanItem.mutate({ taskId, itemId: item.id, data: { actual: item.actual || {}, status: 'discrepancy' } })
+          }} className="bg-tertiary-container hover:opacity-90 text-tertiary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
             <Icon name="flag" className="text-lg" />
             {t('inventory_detail.flag_issue')}
           </button>
@@ -474,7 +483,10 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
 
           {/* Action buttons */}
           <div className="mt-4 flex items-center gap-2">
-            <button className="flex-1 bg-[#0a2e1a] hover:opacity-90 text-[#69db7c] px-4 py-2.5 rounded-xl text-xs font-label font-bold flex items-center justify-center gap-2 transition-opacity">
+            <button onClick={() => {
+              const item = items?.[0]
+              if (item && taskId) scanItem.mutate({ taskId, itemId: item.id, data: { actual: item.expected, status: 'scanned' } })
+            }} className="flex-1 bg-[#0a2e1a] hover:opacity-90 text-[#69db7c] px-4 py-2.5 rounded-xl text-xs font-label font-bold flex items-center justify-center gap-2 transition-opacity">
               <Icon name="check_circle" className="text-lg" />
               {t('inventory_detail.mark_resolved')}
             </button>

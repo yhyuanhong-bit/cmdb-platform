@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
-import { useAsset } from '../hooks/useAssets'
+import { useAsset, useUpdateAsset, useDeleteAsset } from '../hooks/useAssets'
 
 /* ================================================================== */
 /*  SHARED DATA & HELPERS                                              */
@@ -780,6 +780,10 @@ export default function AssetDetailUnified() {
   const navigate = useNavigate()
   const { assetId } = useParams<{ assetId: string }>()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
+  const [editing, setEditing] = useState(false)
+  const [editData, setEditData] = useState<Record<string, string>>({})
+  const updateAsset = useUpdateAsset()
+  const deleteAsset = useDeleteAsset()
 
   // Fetch asset from API
   const assetQ = useAsset(assetId ?? '')
@@ -863,9 +867,26 @@ export default function AssetDetailUnified() {
             <StatusBadge status={asset.status} />
           </div>
           <div className="flex items-center gap-3 shrink-0 pt-1">
-            <button className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-on-primary-container text-[#ffffff] text-[0.75rem] font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity">
+            <button onClick={() => {
+              setEditing(true)
+              setEditData({
+                name: apiAsset?.name || '',
+                status: apiAsset?.status || '',
+                vendor: apiAsset?.vendor || '',
+                model: apiAsset?.model || '',
+                bia_level: apiAsset?.bia_level || '',
+              })
+            }} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-on-primary-container text-[#ffffff] text-[0.75rem] font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity">
               <span className="material-symbols-outlined text-[18px]">edit</span>
               {t('asset_detail.btn_edit_asset')}
+            </button>
+            <button onClick={() => {
+              if (confirm('Are you sure you want to delete this asset?')) {
+                deleteAsset.mutate(assetId!, { onSuccess: () => navigate('/assets') })
+              }
+            }} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-red-500/20 text-red-400 text-[0.75rem] font-semibold uppercase tracking-wider hover:bg-red-500/30 transition-colors">
+              <span className="material-symbols-outlined text-[18px]">delete</span>
+              {deleteAsset.isPending ? 'Deleting...' : 'Delete'}
             </button>
             <button
               onClick={() => navigate('/audit')}
@@ -899,6 +920,37 @@ export default function AssetDetailUnified() {
           </button>
         ))}
       </div>
+
+      {/* Inline Edit Panel */}
+      {editing && (
+        <div className="px-8 py-4">
+          <div className="bg-surface-container rounded-lg p-5 space-y-4">
+            <h3 className="font-headline text-sm font-bold text-on-surface uppercase tracking-wider">Edit Asset</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {(['name', 'status', 'vendor', 'model', 'bia_level'] as const).map((field) => (
+                <div key={field} className="flex flex-col gap-1">
+                  <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">{field.replace('_', ' ')}</label>
+                  <input
+                    value={editData[field] ?? ''}
+                    onChange={e => setEditData(p => ({ ...p, [field]: e.target.value }))}
+                    className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => {
+                updateAsset.mutate({ id: assetId!, data: editData }, { onSuccess: () => setEditing(false) })
+              }} disabled={updateAsset.isPending}
+                className="px-4 py-2 rounded bg-blue-600 text-white text-sm">
+                {updateAsset.isPending ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button onClick={() => setEditing(false)}
+                className="px-4 py-2 rounded bg-gray-700 text-white text-sm">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab Content */}
       <div className="px-8 pb-10">

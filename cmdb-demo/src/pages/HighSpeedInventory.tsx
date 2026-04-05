@@ -1,7 +1,7 @@
 import { memo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useInventoryTasks } from "../hooks/useInventory";
+import { useInventoryTasks, useCompleteTask } from "../hooks/useInventory";
 
 /* ──────────────────────────────────────────────
    Static UI data (scan progress, QR code interactive demos)
@@ -99,6 +99,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   const navigate = useNavigate();
   const [showErrors, setShowErrors] = useState(false);
 
+  const completeTask = useCompleteTask()
   const { data: tasksResponse, isLoading } = useInventoryTasks();
   const tasks = tasksResponse?.data ?? [];
   // The current task (first active) - used for header display
@@ -160,6 +161,15 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
             <Icon name="summarize" className="text-lg" />
             {t('inventory.generate_report')}
           </button>
+          {currentTask && currentTask.status === 'in_progress' && (
+            <button onClick={() => {
+              if (confirm('Mark this task as completed?')) completeTask.mutate(currentTask.id)
+            }} disabled={completeTask.isPending}
+              className="px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 text-sm hover:bg-green-500/30 transition-colors font-label font-bold flex items-center gap-2">
+              <Icon name="check_circle" className="text-lg" />
+              {completeTask.isPending ? 'Completing...' : 'Complete Task'}
+            </button>
+          )}
         </div>
       </div>
 

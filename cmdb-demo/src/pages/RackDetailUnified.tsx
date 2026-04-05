@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { useRack, useRackAssets } from "../hooks/useTopology";
+import { useRack, useRackAssets, useUpdateRack, useDeleteRack } from "../hooks/useTopology";
 
 // ---------------------------------------------------------------------------
 // Shared types & data (equipment slots — no API for sub-rack assets yet)
@@ -832,6 +832,11 @@ export default function RackDetailUnified() {
     }));
   }, [rackAssets]);
 
+  const [editingRack, setEditingRack] = useState(false)
+  const [rackEdit, setRackEdit] = useState({ name: '', status: '', total_u: 42 })
+  const updateRack = useUpdateRack()
+  const deleteRack = useDeleteRack()
+
   const [activeTab, setActiveTab] = useState<string>("visualization");
   const [selectedAsset, setSelectedAsset] = useState<Equipment | null>(
     liveEquipment.find((e) => e.assetTag === "APP-SRV-042-PROD") ?? liveEquipment[0] ?? null,
@@ -885,7 +890,52 @@ export default function RackDetailUnified() {
               ONLINE
             </span>
           </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => {
+              setEditingRack(true)
+              setRackEdit({ name: rack?.name || '', status: rack?.status || '', total_u: rack?.total_u || 42 })
+            }} className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 text-sm hover:bg-blue-500/30 transition-colors">Edit</button>
+            <button onClick={() => {
+              if (confirm('Delete this rack?')) deleteRack.mutate(rackId!, { onSuccess: () => navigate('/racks') })
+            }} className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-sm hover:bg-red-500/30 transition-colors">
+              {deleteRack.isPending ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
         </div>
+
+        {/* Inline Rack Edit Panel */}
+        {editingRack && (
+          <div className="bg-surface-container rounded-lg p-5 mb-4 space-y-4">
+            <h3 className="font-headline text-sm font-bold text-on-surface uppercase tracking-wider">Edit Rack</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-widest text-on-surface-variant">Name</label>
+                <input value={rackEdit.name} onChange={e => setRackEdit(p => ({ ...p, name: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1 text-white text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-widest text-on-surface-variant">Status</label>
+                <input value={rackEdit.status} onChange={e => setRackEdit(p => ({ ...p, status: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1 text-white text-sm" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase tracking-widest text-on-surface-variant">Total U</label>
+                <input type="number" value={rackEdit.total_u} onChange={e => setRackEdit(p => ({ ...p, total_u: Number(e.target.value) }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1 text-white text-sm" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => {
+                updateRack.mutate({ id: rackId!, data: rackEdit }, { onSuccess: () => setEditingRack(false) })
+              }} disabled={updateRack.isPending}
+                className="px-4 py-2 rounded bg-blue-600 text-white text-sm">
+                {updateRack.isPending ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button onClick={() => setEditingRack(false)}
+                className="px-4 py-2 rounded bg-gray-700 text-white text-sm">Cancel</button>
+            </div>
+          </div>
+        )}
 
         {/* Stats bar (always visible) */}
         <div className="flex gap-4 mb-6">

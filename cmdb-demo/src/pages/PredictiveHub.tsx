@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import StatCard from '../components/StatCard'
 import StatusBadge from '../components/StatusBadge'
-import { usePredictionModels, usePredictionsByAsset } from '../hooks/usePrediction'
+import { usePredictionModels, usePredictionsByAsset, useCreateRCA, useVerifyRCA } from '../hooks/usePrediction'
 
 /* ──────────────────────────────────────────────
    Shared helpers
@@ -297,6 +297,7 @@ function OverviewTab() {
   const navigate = useNavigate()
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedAssetId] = useState('')
+  const verifyRCA = useVerifyRCA()
 
   const { data: modelsResponse, isLoading: modelsLoading } = usePredictionModels()
   const { data: predictionsResponse } = usePredictionsByAsset(selectedAssetId)
@@ -405,8 +406,12 @@ function OverviewTab() {
             <span className={`inline-flex items-center justify-center text-[10px] font-label font-bold tracking-widest px-3 py-1 rounded-lg ${a.severityBg} ${a.severityColor} w-fit`}>
               {a.severity}
             </span>
-            <div className="text-right">
-              <button className="text-xs text-primary font-label hover:underline flex items-center gap-1 ml-auto">
+            <div className="text-right flex items-center gap-2 justify-end">
+              <button onClick={() => verifyRCA.mutate({ id: a.name, data: { verified_by: 'current-user' } })}
+                className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30">
+                {verifyRCA.isPending ? '...' : 'Verify'}
+              </button>
+              <button className="text-xs text-primary font-label hover:underline flex items-center gap-1">
                 {t('predictive.view_details_zh')}
                 <Icon name="arrow_forward" className="text-sm" />
               </button>
@@ -1234,6 +1239,8 @@ const PredictiveHub = memo(function PredictiveHub() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
+  const createRCA = useCreateRCA()
+  const verifyRCA = useVerifyRCA()
   const { data: modelsResponse } = usePredictionModels()
   const models = modelsResponse?.data ?? []
 
@@ -1280,6 +1287,17 @@ const PredictiveHub = memo(function PredictiveHub() {
           </p>
         </div>
         <div className="flex items-center gap-6">
+          <button
+            onClick={() => createRCA.mutate({
+              incident_id: '50000000-0000-0000-0000-000000000001',
+              model_name: 'Dify RCA Analyzer'
+            })}
+            disabled={createRCA.isPending}
+            className="bg-primary/20 hover:bg-primary/30 px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-semibold text-primary transition-colors"
+          >
+            <Icon name="psychology" className="text-primary text-xl" />
+            {createRCA.isPending ? 'Running...' : 'Run RCA'}
+          </button>
           <button
             onClick={() => navigate('/maintenance')}
             className="bg-surface-container-high hover:bg-surface-container-highest px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-semibold text-on-surface transition-colors"
