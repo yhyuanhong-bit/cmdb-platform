@@ -90,6 +90,15 @@ func (s *Service) CreateRole(ctx context.Context, params dbgen.CreateRoleParams)
 	return &role, nil
 }
 
+// UpdateRole updates a non-system role by ID.
+func (s *Service) UpdateRole(ctx context.Context, params dbgen.UpdateRoleParams) (*dbgen.Role, error) {
+	role, err := s.queries.UpdateRole(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("update role: %w", err)
+	}
+	return &role, nil
+}
+
 // DeleteRole deletes a non-system role by ID.
 func (s *Service) DeleteRole(ctx context.Context, id uuid.UUID) error {
 	err := s.queries.DeleteRole(ctx, id)

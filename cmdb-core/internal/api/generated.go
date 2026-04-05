@@ -376,6 +376,7 @@ type ListAssetsParams struct {
 	LocationId   *openapi_types.UUID `form:"location_id,omitempty" json:"location_id,omitempty"`
 	RackId       *openapi_types.UUID `form:"rack_id,omitempty" json:"rack_id,omitempty"`
 	SerialNumber *string             `form:"serial_number,omitempty" json:"serial_number,omitempty"`
+	Search       *string             `form:"search,omitempty" json:"search,omitempty"`
 }
 
 // UpdateAssetJSONBody defines parameters for UpdateAsset.
@@ -604,6 +605,13 @@ type CreateRoleJSONBody struct {
 	Permissions *map[string][]string `json:"permissions,omitempty"`
 }
 
+// UpdateRoleJSONBody defines parameters for UpdateRole.
+type UpdateRoleJSONBody struct {
+	Description *string              `json:"description,omitempty"`
+	Name        *string              `json:"name,omitempty"`
+	Permissions *map[string][]string `json:"permissions,omitempty"`
+}
+
 // ListUsersParams defines parameters for ListUsers.
 type ListUsersParams struct {
 	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
@@ -691,6 +699,9 @@ type UpdateRackJSONRequestBody UpdateRackJSONBody
 
 // CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
 type CreateRoleJSONRequestBody CreateRoleJSONBody
+
+// UpdateRoleJSONRequestBody defines body for UpdateRole for application/json ContentType.
+type UpdateRoleJSONRequestBody UpdateRoleJSONBody
 
 // CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
 type CreateUserJSONRequestBody CreateUserJSONBody
@@ -880,6 +891,9 @@ type ServerInterface interface {
 	// Delete a role
 	// (DELETE /roles/{id})
 	DeleteRole(c *gin.Context, id IdPath)
+	// Update a role
+	// (PUT /roles/{id})
+	UpdateRole(c *gin.Context, id IdPath)
 	// Get system health status
 	// (GET /system/health)
 	GetSystemHealth(c *gin.Context)
@@ -969,6 +983,14 @@ func (siw *ServerInterfaceWrapper) ListAssets(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "serial_number", c.Request.URL.Query(), &params.SerialNumber, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter serial_number: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "search", c.Request.URL.Query(), &params.Search, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter search: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -2514,6 +2536,32 @@ func (siw *ServerInterfaceWrapper) DeleteRole(c *gin.Context) {
 	siw.Handler.DeleteRole(c, id)
 }
 
+// UpdateRole operation middleware
+func (siw *ServerInterfaceWrapper) UpdateRole(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateRole(c, id)
+}
+
 // GetSystemHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemHealth(c *gin.Context) {
 
@@ -2719,6 +2767,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/roles", wrapper.ListRoles)
 	router.POST(options.BaseURL+"/roles", wrapper.CreateRole)
 	router.DELETE(options.BaseURL+"/roles/:id", wrapper.DeleteRole)
+	router.PUT(options.BaseURL+"/roles/:id", wrapper.UpdateRole)
 	router.GET(options.BaseURL+"/system/health", wrapper.GetSystemHealth)
 	router.GET(options.BaseURL+"/users", wrapper.ListUsers)
 	router.POST(options.BaseURL+"/users", wrapper.CreateUser)

@@ -6,6 +6,7 @@ WHERE tenant_id = $1
   AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'))
   AND (sqlc.narg('rack_id')::uuid IS NULL OR rack_id = sqlc.narg('rack_id'))
   AND (sqlc.narg('serial_number')::varchar IS NULL OR serial_number = sqlc.narg('serial_number'))
+  AND (sqlc.narg('search')::varchar IS NULL OR (name ILIKE '%' || sqlc.narg('search') || '%' OR asset_tag ILIKE '%' || sqlc.narg('search') || '%'))
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
@@ -16,7 +17,8 @@ WHERE tenant_id = $1
   AND (sqlc.narg('status')::varchar IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'))
   AND (sqlc.narg('rack_id')::uuid IS NULL OR rack_id = sqlc.narg('rack_id'))
-  AND (sqlc.narg('serial_number')::varchar IS NULL OR serial_number = sqlc.narg('serial_number'));
+  AND (sqlc.narg('serial_number')::varchar IS NULL OR serial_number = sqlc.narg('serial_number'))
+  AND (sqlc.narg('search')::varchar IS NULL OR (name ILIKE '%' || sqlc.narg('search') || '%' OR asset_tag ILIKE '%' || sqlc.narg('search') || '%'));
 
 -- name: GetAsset :one
 SELECT * FROM assets WHERE id = $1;

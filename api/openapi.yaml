@@ -590,6 +590,10 @@ paths:
           in: query
           schema:
             type: string
+        - name: search
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: Paginated asset list
@@ -1739,6 +1743,43 @@ paths:
           $ref: '#/components/responses/BadRequest'
 
   /roles/{id}:
+    put:
+      operationId: updateRole
+      tags: [identity]
+      summary: Update a role
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                permissions:
+                  type: object
+                  additionalProperties:
+                    type: array
+                    items:
+                      type: string
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Role'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          $ref: '#/components/responses/NotFound'
     delete:
       operationId: deleteRole
       tags: [identity]

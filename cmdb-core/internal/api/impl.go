@@ -246,6 +246,7 @@ func (s *APIServer) ListAssets(c *gin.Context, params ListAssetsParams) {
 		LocationID:   uuidPtrFromOAPI(params.LocationId),
 		RackID:       uuidPtrFromOAPI(params.RackId),
 		SerialNumber: params.SerialNumber,
+		Search:       params.Search,
 		Limit:        limit,
 		Offset:       offset,
 	})
@@ -1630,6 +1631,40 @@ func (s *APIServer) CreateRole(c *gin.Context) {
 		"name": role.Name,
 	})
 	response.Created(c, toAPIRole(*role))
+}
+
+// UpdateRole updates a non-system role.
+// (PUT /roles/{id})
+func (s *APIServer) UpdateRole(c *gin.Context, id IdPath) {
+	var req UpdateRoleJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	params := dbgen.UpdateRoleParams{
+		ID: uuid.UUID(id),
+	}
+	if req.Name != nil {
+		params.Name = pgtype.Text{String: *req.Name, Valid: true}
+	}
+	if req.Description != nil {
+		params.Description = pgtype.Text{String: *req.Description, Valid: true}
+	}
+	if req.Permissions != nil {
+		b, _ := json.Marshal(*req.Permissions)
+		params.Permissions = b
+	}
+
+	role, err := s.identitySvc.UpdateRole(c.Request.Context(), params)
+	if err != nil {
+		response.NotFound(c, "role not found or is a system role")
+		return
+	}
+	s.recordAudit(c, "role.updated", "identity", "role", role.ID, map[string]any{
+		"name": role.Name,
+	})
+	response.OK(c, toAPIRole(*role))
 }
 
 // DeleteRole deletes a non-system role.

@@ -21,6 +21,7 @@ WHERE tenant_id = $1
   AND ($4::uuid IS NULL OR location_id = $4)
   AND ($5::uuid IS NULL OR rack_id = $5)
   AND ($6::varchar IS NULL OR serial_number = $6)
+  AND ($7::varchar IS NULL OR (name ILIKE '%' || $7 || '%' OR asset_tag ILIKE '%' || $7 || '%'))
 `
 
 type CountAssetsParams struct {
@@ -30,6 +31,7 @@ type CountAssetsParams struct {
 	LocationID   pgtype.UUID `json:"location_id"`
 	RackID       pgtype.UUID `json:"rack_id"`
 	SerialNumber pgtype.Text `json:"serial_number"`
+	Search       pgtype.Text `json:"search"`
 }
 
 func (q *Queries) CountAssets(ctx context.Context, arg CountAssetsParams) (int64, error) {
@@ -40,6 +42,7 @@ func (q *Queries) CountAssets(ctx context.Context, arg CountAssetsParams) (int64
 		arg.LocationID,
 		arg.RackID,
 		arg.SerialNumber,
+		arg.Search,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -220,6 +223,7 @@ WHERE tenant_id = $1
   AND ($6::uuid IS NULL OR location_id = $6)
   AND ($7::uuid IS NULL OR rack_id = $7)
   AND ($8::varchar IS NULL OR serial_number = $8)
+  AND ($9::varchar IS NULL OR (name ILIKE '%' || $9 || '%' OR asset_tag ILIKE '%' || $9 || '%'))
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
 `
@@ -233,6 +237,7 @@ type ListAssetsParams struct {
 	LocationID   pgtype.UUID `json:"location_id"`
 	RackID       pgtype.UUID `json:"rack_id"`
 	SerialNumber pgtype.Text `json:"serial_number"`
+	Search       pgtype.Text `json:"search"`
 }
 
 func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset, error) {
@@ -245,6 +250,7 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 		arg.LocationID,
 		arg.RackID,
 		arg.SerialNumber,
+		arg.Search,
 	)
 	if err != nil {
 		return nil, err

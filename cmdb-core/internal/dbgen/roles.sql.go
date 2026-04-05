@@ -142,3 +142,39 @@ func (q *Queries) ListUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, 
 	}
 	return items, nil
 }
+
+const updateRole = `-- name: UpdateRole :one
+UPDATE roles SET
+    name        = COALESCE($1, name),
+    description = COALESCE($2, description),
+    permissions = COALESCE($3, permissions)
+WHERE id = $4 AND is_system = false
+RETURNING id, tenant_id, name, description, permissions, is_system, created_at
+`
+
+type UpdateRoleParams struct {
+	Name        pgtype.Text `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Permissions []byte      `json:"permissions"`
+	ID          uuid.UUID   `json:"id"`
+}
+
+func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, error) {
+	row := q.db.QueryRow(ctx, updateRole,
+		arg.Name,
+		arg.Description,
+		arg.Permissions,
+		arg.ID,
+	)
+	var i Role
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Description,
+		&i.Permissions,
+		&i.IsSystem,
+		&i.CreatedAt,
+	)
+	return i, err
+}

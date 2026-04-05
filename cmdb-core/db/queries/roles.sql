@@ -10,6 +10,14 @@ INSERT INTO roles (
     $1, $2, $3, $4, $5
 ) RETURNING *;
 
+-- name: UpdateRole :one
+UPDATE roles SET
+    name        = COALESCE(sqlc.narg('name'), name),
+    description = COALESCE(sqlc.narg('description'), description),
+    permissions = COALESCE(sqlc.narg('permissions'), permissions)
+WHERE id = sqlc.arg('id') AND is_system = false
+RETURNING *;
+
 -- name: DeleteRole :exec
 DELETE FROM roles WHERE id = $1 AND is_system = false;
 
