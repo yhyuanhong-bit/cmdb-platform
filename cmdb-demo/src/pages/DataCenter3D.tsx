@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { useRacks } from "../hooks/useTopology";
+import { useRacks, useRootLocations, useLocationDescendants } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import type { Rack } from "../lib/api/topology";
 
@@ -19,39 +19,6 @@ interface RackCell {
   status: "normal" | "critical" | "selected";
 }
 
-const locationTree: TreeNode[] = [
-  {
-    id: "de",
-    label: "Germany (DE)",
-    children: [
-      {
-        id: "de-south",
-        label: "DE-South Region",
-        children: [
-          {
-            id: "frankfurt",
-            label: "Frankfurt",
-            children: [
-              {
-                id: "campus-alpha",
-                label: "Campus Alpha",
-                children: [
-                  {
-                    id: "idc-alpha",
-                    label: "IDC Alpha",
-                    children: [
-                      { id: "module-1", label: "Module 1", active: true },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-];
 
 function buildRackGrid(racks: Rack[]): RackCell[] {
   if (racks.length === 0) {
@@ -163,21 +130,69 @@ export default function DataCenter3D() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { path } = useLocationContext();
+
+  // Fetch API-driven location tree
+  const { data: rootResp } = useRootLocations();
+  const country = rootResp?.data?.[0];
+  const { data: descResp } = useLocationDescendants(country?.id || '');
+  const allLocations = descResp?.data || [];
+
+  const [selectedLocationId, setSelectedLocationId] = useState('');
+
+  // Set initial selected location to first campus
+  useEffect(() => {
+    if (!selectedLocationId && allLocations.length > 0) {
+      const firstCampus = allLocations.find(l => l.level === 'campus');
+      if (firstCampus) setSelectedLocationId(firstCampus.id);
+    }
+  }, [allLocations, selectedLocationId]);
+
+  // Build tree from flat locations
+  function buildTree(parentId: string | null): TreeNode[] {
+    return allLocations
+      .filter(loc => {
+        if (parentId === null) return false;
+        return loc.parent_id === parentId;
+      })
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(loc => {
+        const children = buildTree(loc.id);
+        return {
+          id: loc.id,
+          label: loc.name_en || loc.name,
+          children: children.length > 0 ? children : undefined,
+          active: loc.id === selectedLocationId,
+        };
+      });
+  }
+
+  const locationTree: TreeNode[] = country
+    ? [{
+        id: country.id,
+        label: country.name_en || country.name,
+        children: buildTree(country.id),
+      }]
+    : [];
+
   // Fallback to Neihu campus if no location context set
-  const locationId = path.idc?.id ?? path.campus?.id ?? "d0000000-0000-0000-0000-000000000004";
-  const { data: racksResponse, isLoading } = useRacks(locationId);
+  const contextLocationId = path.idc?.id ?? path.campus?.id ?? 'd0000000-0000-0000-0000-000000000004';
+  const effectiveLocationId = selectedLocationId || contextLocationId;
+  const { data: racksResponse, isLoading } = useRacks(effectiveLocationId);
   const apiRacks: Rack[] = racksResponse?.data ?? [];
   const rackGrid = useMemo(() => buildRackGrid(apiRacks), [apiRacks]);
   const [activeTab, setActiveTab] = useState("global");
   const [heatMode, setHeatMode] = useState(false);
   const [hoveredRack, setHoveredRack] = useState<string | null>(null);
-  const [treeExpanded, setTreeExpanded] = useState<Record<string, boolean>>({
-    de: true,
-    "de-south": true,
-    frankfurt: true,
-    "campus-alpha": true,
-    "idc-alpha": true,
-  });
+  const [treeExpanded, setTreeExpanded] = useState<Record<string, boolean>>({});
+
+  // Auto-expand all nodes when data loads
+  useEffect(() => {
+    if (country && allLocations.length > 0) {
+      const expanded: Record<string, boolean> = { [country.id]: true };
+      allLocations.forEach(loc => { expanded[loc.id] = true; });
+      setTreeExpanded(expanded);
+    }
+  }, [country, allLocations]);
 
   const tabs = [
     { id: "global", label: t('datacenter_3d.tab_global_view'), icon: "public" },
@@ -185,9 +200,18 @@ export default function DataCenter3D() {
     { id: "network", label: t('datacenter_3d.tab_network_mesh'), icon: "hub" },
   ];
 
-  const toggleTreeNode = (id: string) => {
-    setTreeExpanded((prev) => ({ ...prev, [id]: prev[id] === false }));
+  const handleTreeNodeClick = (nodeId: string) => {
+    // Toggle expand/collapse
+    setTreeExpanded(prev => ({ ...prev, [nodeId]: prev[nodeId] === false }));
+    // If it's a campus, switch rack view to that location
+    const loc = allLocations.find(l => l.id === nodeId);
+    if (loc && loc.level === 'campus') {
+      setSelectedLocationId(nodeId);
+    }
   };
+
+  const selectedLocation = allLocations.find(l => l.id === selectedLocationId) || country;
+  const subtitle = selectedLocation ? (selectedLocation.name_en || selectedLocation.name) : 'Data Center';
 
   const getRackColor = (status: RackCell["status"], isHovered: boolean) => {
     if (heatMode) {
@@ -230,7 +254,7 @@ export default function DataCenter3D() {
             </h1>
             <div className="flex items-center gap-2 mt-1 text-on-surface-variant text-sm">
               <span className="material-symbols-outlined text-base">location_on</span>
-              Frankfurt - Zone 1
+              {subtitle}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -269,7 +293,7 @@ export default function DataCenter3D() {
                 node={node}
                 depth={0}
                 expanded={treeExpanded}
-                onToggle={toggleTreeNode}
+                onToggle={handleTreeNodeClick}
               />
             ))}
           </div>
