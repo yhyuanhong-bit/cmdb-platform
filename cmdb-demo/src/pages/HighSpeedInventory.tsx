@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInventoryTasks, useCompleteTask } from "../hooks/useInventory";
+import CreateInventoryTaskModal from "../components/CreateInventoryTaskModal";
 
 /* ──────────────────────────────────────────────
    Static UI data (scan progress, QR code interactive demos)
@@ -98,6 +99,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [showErrors, setShowErrors] = useState(false);
+  const [showCreateTask, setShowCreateTask] = useState(false);
 
   const completeTask = useCompleteTask()
   const { data: tasksResponse, isLoading } = useInventoryTasks();
@@ -149,6 +151,13 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCreateTask(true)}
+            className="bg-on-primary-container hover:brightness-110 text-white px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-all"
+          >
+            <Icon name="add" className="text-lg" />
+            New Task
+          </button>
           <button className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
             <Icon name="qr_code_scanner" className="text-lg" />
             {t('inventory.scan_rack_qr')}
@@ -477,6 +486,8 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
           </div>
         </div>
       </div>
+
+      <CreateInventoryTaskModal open={showCreateTask} onClose={() => setShowCreateTask(false)} />
     </div>
   );
 });

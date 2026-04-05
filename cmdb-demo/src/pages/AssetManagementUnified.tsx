@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
+import CreateAssetModal from '../components/CreateAssetModal'
 import { useAssets } from '../hooks/useAssets'
 import type { Asset } from '../lib/api/assets'
 
@@ -108,6 +109,7 @@ export default function AssetManagementUnified() {
   const [statusFilter, setStatusFilter] = useState('All Status')
   const [locationFilter, setLocationFilter] = useState('All Locations')
   const [currentPage, setCurrentPage] = useState(1)
+  const [showCreateAsset, setShowCreateAsset] = useState(false)
 
   // Build query params from filter state
   const queryParams = useMemo(() => {
@@ -252,7 +254,7 @@ export default function AssetManagementUnified() {
 
         {/* Actions */}
         <button
-          onClick={() => navigate('/assets/new')}
+          onClick={() => setShowCreateAsset(true)}
           className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2.5 text-sm font-semibold text-white rounded hover:brightness-110 transition-all"
         >
           <Icon name="add" className="text-[18px]" />
@@ -413,6 +415,8 @@ export default function AssetManagementUnified() {
           </button>
         </div>
       </div>
+
+      <CreateAssetModal open={showCreateAsset} onClose={() => setShowCreateAsset(false)} />
     </div>
   )
 }

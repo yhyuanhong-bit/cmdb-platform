@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { useUsers, useRoles, useCreateUser } from '../hooks/useIdentity'
 import { useSystemHealth } from '../hooks/useSystemHealth'
 import { useAdapters, useWebhooks } from '../hooks/useIntegration'
+import CreateAdapterModal from '../components/CreateAdapterModal'
+import CreateWebhookModal from '../components/CreateWebhookModal'
 
 export default function SystemSettings() {
   const { t } = useTranslation()
@@ -12,6 +14,8 @@ export default function SystemSettings() {
   const [showUserModal, setShowUserModal] = useState(false)
   const [newUserData, setNewUserData] = useState({ username: '', display_name: '', email: '', password: '' })
   const createUser = useCreateUser()
+  const [showCreateAdapter, setShowCreateAdapter] = useState(false)
+  const [showCreateWebhook, setShowCreateWebhook] = useState(false)
 
   const { data: usersResp, isLoading: usersLoading } = useUsers()
   const { data: rolesResp } = useRoles()
@@ -95,7 +99,16 @@ export default function SystemSettings() {
         <div className="flex flex-col gap-6">
           {/* Adapters */}
           <div className="bg-surface-container rounded-lg p-6">
-            <h2 className="font-headline font-bold text-lg text-on-surface mb-4">Adapters</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-headline font-bold text-lg text-on-surface">Adapters</h2>
+              <button
+                onClick={() => setShowCreateAdapter(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                Add Adapter
+              </button>
+            </div>
             <div className="flex flex-col gap-2">
               {adapters.length === 0 && <p className="text-sm text-on-surface-variant">No adapters configured.</p>}
               {adapters.map(a => (
@@ -112,7 +125,16 @@ export default function SystemSettings() {
 
           {/* Webhooks */}
           <div className="bg-surface-container rounded-lg p-6">
-            <h2 className="font-headline font-bold text-lg text-on-surface mb-4">Webhooks</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-headline font-bold text-lg text-on-surface">Webhooks</h2>
+              <button
+                onClick={() => setShowCreateWebhook(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                Add Webhook
+              </button>
+            </div>
             <div className="flex flex-col gap-2">
               {webhooks.length === 0 && <p className="text-sm text-on-surface-variant">No webhooks configured.</p>}
               {webhooks.map(w => (
@@ -276,6 +298,9 @@ export default function SystemSettings() {
         </div>
         <span className="text-xs text-on-surface-variant">Last Sync: 2 min ago | IRONGRID V5 21.6</span>
       </div>
+
+      <CreateAdapterModal open={showCreateAdapter} onClose={() => setShowCreateAdapter(false)} />
+      <CreateWebhookModal open={showCreateWebhook} onClose={() => setShowCreateWebhook(false)} />
 
       {showUserModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowUserModal(false)}>

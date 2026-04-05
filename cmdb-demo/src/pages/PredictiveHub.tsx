@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import StatCard from '../components/StatCard'
 import StatusBadge from '../components/StatusBadge'
 import { usePredictionModels, usePredictionsByAsset, useCreateRCA, useVerifyRCA } from '../hooks/usePrediction'
+import CreateRCAModal from '../components/CreateRCAModal'
 
 /* ──────────────────────────────────────────────
    Shared helpers
@@ -1239,6 +1240,7 @@ const PredictiveHub = memo(function PredictiveHub() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
+  const [showCreateRCA, setShowCreateRCA] = useState(false)
   const createRCA = useCreateRCA()
   const verifyRCA = useVerifyRCA()
   const { data: modelsResponse } = usePredictionModels()
@@ -1288,15 +1290,11 @@ const PredictiveHub = memo(function PredictiveHub() {
         </div>
         <div className="flex items-center gap-6">
           <button
-            onClick={() => createRCA.mutate({
-              incident_id: '50000000-0000-0000-0000-000000000001',
-              model_name: 'Dify RCA Analyzer'
-            })}
-            disabled={createRCA.isPending}
+            onClick={() => setShowCreateRCA(true)}
             className="bg-primary/20 hover:bg-primary/30 px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-semibold text-primary transition-colors"
           >
             <Icon name="psychology" className="text-primary text-xl" />
-            {createRCA.isPending ? 'Running...' : 'Run RCA'}
+            New RCA Analysis
           </button>
           <button
             onClick={() => navigate('/maintenance')}
@@ -1376,6 +1374,8 @@ const PredictiveHub = memo(function PredictiveHub() {
 
       {/* ── Tab Content ─────────────────────────── */}
       {renderTabContent()}
+
+      <CreateRCAModal open={showCreateRCA} onClose={() => setShowCreateRCA(false)} />
     </div>
   )
 })

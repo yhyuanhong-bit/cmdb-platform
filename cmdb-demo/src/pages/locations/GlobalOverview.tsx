@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useRootLocations } from '../../hooks/useTopology';
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { useAlerts } from '../../hooks/useMonitoring';
+import CreateLocationModal from '../../components/CreateLocationModal';
 import type { Location } from '../../lib/api/topology';
 
 // ---------------------------------------------------------------------------
@@ -286,6 +287,7 @@ function AlertCard({ alert, onClick }: { alert: AlertData; onClick?: () => void 
 const GlobalOverview: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [showCreateLocation, setShowCreateLocation] = useState(false);
 
   // Fetch root locations (countries) from API
   const rootLocationsQ = useRootLocations();
@@ -349,7 +351,14 @@ const GlobalOverview: React.FC = () => {
             集團全域資料中心指揮總覽
           </p>
         </div>
-        <div className="flex items-center gap-2 mt-3 sm:mt-0">
+        <div className="flex items-center gap-3 mt-3 sm:mt-0">
+          <button
+            onClick={() => setShowCreateLocation(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">add</span>
+            Add Location
+          </button>
           <PulsingDot />
           <span className="text-xs text-on-surface-variant font-body">
             Last Sync: {syncDateStr} {syncTimeStr}
@@ -532,6 +541,8 @@ const GlobalOverview: React.FC = () => {
           </div>
         </section>
       </div>
+
+      <CreateLocationModal open={showCreateLocation} onClose={() => setShowCreateLocation(false)} />
     </div>
   );
 };
