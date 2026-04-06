@@ -63,6 +63,13 @@ const TroubleshootingGuide = lazy(() => import('./pages/TroubleshootingGuide'))
 const VideoLibrary = lazy(() => import('./pages/VideoLibrary'))
 const VideoPlayer = lazy(() => import('./pages/VideoPlayer'))
 
+// BIA (Business Impact Analysis)
+const BIAOverview = lazy(() => import('./pages/bia/BIAOverview'))
+const SystemGrading = lazy(() => import('./pages/bia/SystemGrading'))
+const RtoRpoMatrices = lazy(() => import('./pages/bia/RtoRpoMatrices'))
+const ScoringRules = lazy(() => import('./pages/bia/ScoringRules'))
+const DependencyMap = lazy(() => import('./pages/bia/DependencyMap'))
+
 // Onboarding
 const Welcome = lazy(() => import('./pages/Welcome'))
 
@@ -146,6 +153,13 @@ export default function App() {
           <Route path="/system" element={<RolesPermissions />} />
           <Route path="/system/settings" element={<SystemSettings />} />
           <Route path="/system/profile" element={<UserProfile />} />
+
+          {/* BIA */}
+          <Route path="/bia" element={<BIAOverview />} />
+          <Route path="/bia/grading" element={<SystemGrading />} />
+          <Route path="/bia/rto-rpo" element={<RtoRpoMatrices />} />
+          <Route path="/bia/rules" element={<ScoringRules />} />
+          <Route path="/bia/dependencies" element={<DependencyMap />} />
 
           {/* Help / Knowledge */}
           <Route path="/help/troubleshooting" element={<TroubleshootingGuide />} />
