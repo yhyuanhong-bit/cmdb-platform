@@ -33,14 +33,14 @@ function getBadge(tier: string) {
 
 function DependencyMap() {
   const { data: assessResp, isLoading: assessLoading } = useBIAAssessments()
-  const assessments = assessResp?.data || []
+  const assessments = (assessResp?.data as any)?.data || []
 
   const [selectedId, setSelectedId] = useState('')
   const { data: depsResp, isLoading: depsLoading } = useBIADependencies(selectedId)
-  const deps = depsResp?.data || []
+  const deps = (depsResp?.data as any)?.data || []
 
   const { data: assetsResp } = useAssets()
-  const assets = assetsResp?.data || []
+  const assets = (assetsResp?.data as any)?.data || []
 
   const createDep = useCreateBIADependency()
 

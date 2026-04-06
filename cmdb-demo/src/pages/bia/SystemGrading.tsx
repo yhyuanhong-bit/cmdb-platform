@@ -21,9 +21,9 @@ function SystemGrading() {
   const { data: statsResp, isLoading: statsLoading } = useBIAStats()
   const { data: assessResp, isLoading: assessLoading } = useBIAAssessments()
 
-  const stats = statsResp?.data
+  const stats = (statsResp?.data as any)?.data
   const assessments = useMemo(() => {
-    const list = assessResp?.data || []
+    const list = (assessResp?.data as any)?.data || []
     return [...list].sort((a, b) => b.bia_score - a.bia_score)
   }, [assessResp])
 

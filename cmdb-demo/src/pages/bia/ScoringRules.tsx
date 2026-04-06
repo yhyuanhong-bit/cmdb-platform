@@ -20,7 +20,7 @@ function getBadge(tier: string) {
 function ScoringRules() {
   const { data: rulesResp, isLoading } = useBIAScoringRules()
   const updateRule = useUpdateBIAScoringRule()
-  const rules = rulesResp?.data || []
+  const rules = (rulesResp?.data as any)?.data || []
 
   const [selectedRuleId, setSelectedRuleId] = useState<string>('')
   const [editData, setEditData] = useState<Record<string, any>>({})

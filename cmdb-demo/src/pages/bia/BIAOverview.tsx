@@ -120,9 +120,9 @@ export default function BIAOverview() {
   const assessmentsQuery = useBIAAssessments()
   const statsQuery = useBIAStats()
 
-  const rules: any[] = rulesQuery.data || SEED_RULES
-  const rawAssessments: any[] = (assessmentsQuery.data as any)?.items || (assessmentsQuery.data as any) || SEED_ASSESSMENTS
-  const stats: any = statsQuery.data || SEED_STATS
+  const rules: any[] = (rulesQuery.data as any)?.data || SEED_RULES
+  const rawAssessments: any[] = (assessmentsQuery.data as any)?.data || (assessmentsQuery.data as any)?.items || SEED_ASSESSMENTS
+  const stats: any = (statsQuery.data as any)?.data || SEED_STATS
 
   const assessments = useMemo(() => {
     if (!tierFilter) return rawAssessments
