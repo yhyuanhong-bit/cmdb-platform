@@ -75,6 +75,7 @@ const navSections: NavSection[] = [
     ],
   },
   { to: '/predictive', icon: 'psychology', key: 'nav.predictive_ai' },
+  { to: '/bia', icon: 'assessment', key: 'nav.bia_modeler' },
   {
     to: '/audit',
     icon: 'history',

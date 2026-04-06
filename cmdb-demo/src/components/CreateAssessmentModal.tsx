@@ -1,0 +1,187 @@
+import { useState } from 'react'
+import { useCreateBIAAssessment } from '../hooks/useBIA'
+
+interface Props {
+  open: boolean
+  onClose: () => void
+}
+
+const initial = {
+  system_name: '',
+  system_code: '',
+  owner: '',
+  bia_score: 50,
+  tier: 'normal',
+  rto_hours: 24,
+  rpo_minutes: 240,
+  description: '',
+}
+
+export default function CreateAssessmentModal({ open, onClose }: Props) {
+  const [formData, setFormData] = useState({ ...initial })
+  const mutation = useCreateBIAAssessment()
+
+  if (!open) return null
+
+  const inputCls =
+    'w-full p-2 bg-surface-container-lowest rounded border border-outline-variant/30 text-on-surface text-sm focus:border-primary focus:outline-none'
+  const labelCls = 'block text-sm text-on-surface-variant mb-1'
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface-container p-6 rounded-xl w-[28rem] space-y-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-headline font-bold text-on-surface">
+          Run New BIA Assessment
+        </h3>
+
+        <div>
+          <label className={labelCls}>System Name *</label>
+          <input
+            value={formData.system_name}
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, system_name: e.target.value }))
+            }
+            className={inputCls}
+            placeholder="e.g. Payment Gateway"
+          />
+        </div>
+
+        <div>
+          <label className={labelCls}>System Code *</label>
+          <input
+            value={formData.system_code}
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, system_code: e.target.value }))
+            }
+            className={inputCls}
+            placeholder="e.g. SYS-PROD-PAY-001"
+          />
+        </div>
+
+        <div>
+          <label className={labelCls}>Owner</label>
+          <input
+            value={formData.owner}
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, owner: e.target.value }))
+            }
+            className={inputCls}
+            placeholder="System owner name"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>BIA Score (0-100)</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={formData.bia_score}
+              onChange={(e) =>
+                setFormData((p) => ({
+                  ...p,
+                  bia_score: parseInt(e.target.value) || 0,
+                }))
+              }
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Tier</label>
+            <select
+              value={formData.tier}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, tier: e.target.value }))
+              }
+              className={inputCls}
+            >
+              <option value="critical">Critical</option>
+              <option value="important">Important</option>
+              <option value="normal">Normal</option>
+              <option value="minor">Minor</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>RTO (hours)</label>
+            <input
+              type="number"
+              min={0}
+              value={formData.rto_hours}
+              onChange={(e) =>
+                setFormData((p) => ({
+                  ...p,
+                  rto_hours: parseFloat(e.target.value) || 0,
+                }))
+              }
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>RPO (minutes)</label>
+            <input
+              type="number"
+              min={0}
+              value={formData.rpo_minutes}
+              onChange={(e) =>
+                setFormData((p) => ({
+                  ...p,
+                  rpo_minutes: parseFloat(e.target.value) || 0,
+                }))
+              }
+              className={inputCls}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Description</label>
+          <textarea
+            value={formData.description}
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, description: e.target.value }))
+            }
+            className={`${inputCls} h-20 resize-none`}
+            placeholder="Business system description..."
+          />
+        </div>
+
+        <div className="flex gap-2 justify-end pt-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded bg-surface-container-high text-on-surface text-sm hover:bg-surface-container-highest transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() =>
+              mutation.mutate(formData, {
+                onSuccess: () => {
+                  onClose()
+                  setFormData({ ...initial })
+                },
+              })
+            }
+            disabled={
+              mutation.isPending ||
+              !formData.system_name ||
+              !formData.system_code
+            }
+            className="px-4 py-2 rounded machined-gradient text-on-primary text-sm font-semibold disabled:opacity-50"
+          >
+            {mutation.isPending ? 'Creating...' : 'Run Assessment'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
