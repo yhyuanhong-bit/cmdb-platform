@@ -2,9 +2,11 @@
 SELECT * FROM racks WHERE id = $1;
 
 -- name: ListRacksByLocation :many
-SELECT * FROM racks
-WHERE location_id = $1
-ORDER BY name;
+-- Returns racks at this location AND all descendant locations (via ltree)
+SELECT r.* FROM racks r
+JOIN locations l ON r.location_id = l.id
+WHERE l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $1)::ltree
+ORDER BY r.name;
 
 -- name: CreateRack :one
 INSERT INTO racks (

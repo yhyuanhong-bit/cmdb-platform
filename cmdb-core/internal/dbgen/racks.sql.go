@@ -178,13 +178,15 @@ func (q *Queries) ListAssetsByRack(ctx context.Context, rackID pgtype.UUID) ([]A
 }
 
 const listRacksByLocation = `-- name: ListRacksByLocation :many
-SELECT id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at FROM racks
-WHERE location_id = $1
-ORDER BY name
+SELECT r.id, r.tenant_id, r.location_id, r.name, r.row_label, r.total_u, r.power_capacity_kw, r.status, r.tags, r.created_at FROM racks r
+JOIN locations l ON r.location_id = l.id
+WHERE l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $1)::ltree
+ORDER BY r.name
 `
 
-func (q *Queries) ListRacksByLocation(ctx context.Context, locationID uuid.UUID) ([]Rack, error) {
-	rows, err := q.db.Query(ctx, listRacksByLocation, locationID)
+// Returns racks at this location AND all descendant locations (via ltree)
+func (q *Queries) ListRacksByLocation(ctx context.Context, id uuid.UUID) ([]Rack, error) {
+	rows, err := q.db.Query(ctx, listRacksByLocation, id)
 	if err != nil {
 		return nil, err
 	}
