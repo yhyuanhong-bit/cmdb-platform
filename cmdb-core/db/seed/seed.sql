@@ -763,3 +763,67 @@ INSERT INTO metrics (asset_id, name, value, time) VALUES
   ('f0000000-0000-0000-0000-000000000003', 'memory_usage', 59.1, now() - interval '2 hours'),
   ('f0000000-0000-0000-0000-000000000003', 'memory_usage', 65.8, now())
 ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- BIA (Business Impact Analysis) Seed Data
+-- ============================================================
+
+-- BIA Scoring Rules (4 tiers)
+INSERT INTO bia_scoring_rules (id, tenant_id, tier_name, tier_level, display_name, min_score, max_score, rto_threshold, rpo_threshold, description, color, icon) VALUES
+    ('90000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001',
+     'critical', 1, 'Tier 1 - CRITICAL', 85, 100, 4, 15,
+     '核心支付系統、棟宇監控等，停機即產生重大財務或安全影響', '#ff6b6b', 'error'),
+    ('90000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001',
+     'important', 2, 'Tier 2 - IMPORTANT', 60, 84, 12, 60,
+     '核心系統群組（CRM、ERP），停機影響業務運作效率', '#ffa94d', 'warning'),
+    ('90000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001',
+     'normal', 3, 'Tier 3 - NORMAL', 30, 59, 24, 240,
+     '一般業務系統，停機可使用替代方案', '#9ecaff', 'info'),
+    ('90000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001',
+     'minor', 4, 'Tier 4 - MINOR', 0, 29, 72, null,
+     '測試、沙箱環境，停機無業務衝擊', '#8e9196', 'expand_circle_down')
+ON CONFLICT DO NOTHING;
+
+-- BIA Assessments (4 business systems matching screenshot)
+INSERT INTO bia_assessments (id, tenant_id, system_name, system_code, owner, bia_score, tier, rto_hours, rpo_minutes, mtpd_hours, data_compliance, asset_compliance, audit_compliance, description, assessed_by) VALUES
+    ('91000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001',
+     '核心支付閘道器 (Payment Gateway)', 'SYS-PROD-PAY-001', '運大文',
+     98, 'critical', 4, 15, 8,
+     true, true, true,
+     '處理所有線上支付交易，連接銀行API和清算系統',
+     'b0000000-0000-0000-0000-000000000001'),
+    ('91000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001',
+     '客戶關係中心 (CRM Core)', 'SYS-PROD-CRM-001', '林昇',
+     85, 'important', 12, 120, 24,
+     true, true, false,
+     '管理客戶資料、服務歷史和溝通記錄',
+     'b0000000-0000-0000-0000-000000000002'),
+    ('91000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001',
+     '內部管理系統 (Admin Panel)', 'SYS-CORP-ADM-001', '王志',
+     62, 'normal', 24, 240, 48,
+     true, false, false,
+     '員工入職、請假、報銷等內部流程管理',
+     'b0000000-0000-0000-0000-000000000001'),
+    ('91000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001',
+     'QA 測試環境 (QA Sandbox)', 'SYS-TEST-QA-001', null,
+     15, 'minor', 72, null, null,
+     false, false, false,
+     'QA 團隊測試用環境',
+     'b0000000-0000-0000-0000-000000000003')
+ON CONFLICT DO NOTHING;
+
+-- BIA Dependencies (link business systems to infrastructure assets)
+INSERT INTO bia_dependencies (tenant_id, assessment_id, asset_id, dependency_type, criticality) VALUES
+    -- Payment Gateway → servers + network
+    ('a0000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000001', 'runs_on', 'high'),
+    ('a0000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000002', 'runs_on', 'high'),
+    ('a0000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000005', 'depends_on', 'high'),
+    ('a0000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000003', 'depends_on', 'medium'),
+    -- CRM → servers + storage
+    ('a0000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000006', 'runs_on', 'high'),
+    ('a0000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000004', 'depends_on', 'medium'),
+    -- Admin Panel → app server
+    ('a0000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000007', 'runs_on', 'low'),
+    -- QA Sandbox → dev server
+    ('a0000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000008', 'runs_on', 'low')
+ON CONFLICT DO NOTHING;

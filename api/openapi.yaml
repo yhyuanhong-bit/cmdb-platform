@@ -33,6 +33,8 @@ tags:
     description: System health and diagnostics
   - name: integration
     description: Integration adapters and webhooks
+  - name: bia
+    description: Business Impact Analysis
 
 paths:
   # ── Auth ────────────────────────────────────────────────────────────────
@@ -2128,6 +2130,331 @@ paths:
                   meta:
                     $ref: '#/components/schemas/Meta'
 
+  # ── BIA ──────────────────────────────────────────────────────────────────
+  /bia/assessments:
+    get:
+      operationId: listBIAAssessments
+      tags: [bia]
+      summary: List BIA assessments with pagination
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated BIA assessment list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BIAAssessment'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createBIAAssessment
+      tags: [bia]
+      summary: Create a BIA assessment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [system_name, system_code, bia_score, tier]
+              properties:
+                system_name:
+                  type: string
+                system_code:
+                  type: string
+                owner:
+                  type: string
+                bia_score:
+                  type: integer
+                tier:
+                  type: string
+                rto_hours:
+                  type: number
+                rpo_minutes:
+                  type: number
+                mtpd_hours:
+                  type: number
+                data_compliance:
+                  type: boolean
+                asset_compliance:
+                  type: boolean
+                audit_compliance:
+                  type: boolean
+                description:
+                  type: string
+                assessed_by:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: BIA assessment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIAAssessment'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /bia/assessments/{id}:
+    get:
+      operationId: getBIAAssessment
+      tags: [bia]
+      summary: Get a BIA assessment by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: BIA assessment detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIAAssessment'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateBIAAssessment
+      tags: [bia]
+      summary: Update a BIA assessment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                system_name:
+                  type: string
+                owner:
+                  type: string
+                bia_score:
+                  type: integer
+                tier:
+                  type: string
+                rto_hours:
+                  type: number
+                rpo_minutes:
+                  type: number
+                mtpd_hours:
+                  type: number
+                data_compliance:
+                  type: boolean
+                asset_compliance:
+                  type: boolean
+                audit_compliance:
+                  type: boolean
+                description:
+                  type: string
+      responses:
+        '200':
+          description: BIA assessment updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIAAssessment'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteBIAAssessment
+      tags: [bia]
+      summary: Delete a BIA assessment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: BIA assessment deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /bia/rules:
+    get:
+      operationId: listBIAScoringRules
+      tags: [bia]
+      summary: List BIA scoring rules
+      responses:
+        '200':
+          description: Scoring rule list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BIAScoringRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /bia/rules/{id}:
+    put:
+      operationId: updateBIAScoringRule
+      tags: [bia]
+      summary: Update a BIA scoring rule
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                min_score:
+                  type: integer
+                max_score:
+                  type: integer
+                rto_threshold:
+                  type: number
+                rpo_threshold:
+                  type: number
+                description:
+                  type: string
+                color:
+                  type: string
+      responses:
+        '200':
+          description: Scoring rule updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIAScoringRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /bia/assessments/{id}/dependencies:
+    get:
+      operationId: listBIADependencies
+      tags: [bia]
+      summary: List dependencies for a BIA assessment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Dependency list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BIADependency'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: createBIADependency
+      tags: [bia]
+      summary: Add a dependency to a BIA assessment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asset_id, dependency_type]
+              properties:
+                asset_id:
+                  type: string
+                  format: uuid
+                dependency_type:
+                  type: string
+                criticality:
+                  type: string
+      responses:
+        '201':
+          description: Dependency created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIADependency'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /bia/stats:
+    get:
+      operationId: getBIAStats
+      tags: [bia]
+      summary: Get BIA statistics
+      responses:
+        '200':
+          description: BIA statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIAStats'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -3016,3 +3343,127 @@ components:
         delivered_at:
           type: string
           format: date-time
+
+    # ── BIAAssessment ────────────────────────────────────────────────
+    BIAAssessment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        system_name:
+          type: string
+        system_code:
+          type: string
+        owner:
+          type: string
+        bia_score:
+          type: integer
+        tier:
+          type: string
+        rto_hours:
+          type: number
+        rpo_minutes:
+          type: number
+        mtpd_hours:
+          type: number
+        data_compliance:
+          type: boolean
+        asset_compliance:
+          type: boolean
+        audit_compliance:
+          type: boolean
+        description:
+          type: string
+        last_assessed:
+          type: string
+          format: date-time
+        assessed_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - system_name
+        - system_code
+        - bia_score
+        - tier
+
+    # ── BIAScoringRule ───────────────────────────────────────────────
+    BIAScoringRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tier_name:
+          type: string
+        tier_level:
+          type: integer
+        display_name:
+          type: string
+        min_score:
+          type: integer
+        max_score:
+          type: integer
+        rto_threshold:
+          type: number
+        rpo_threshold:
+          type: number
+        description:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+      required:
+        - id
+        - tier_name
+        - tier_level
+        - display_name
+        - min_score
+        - max_score
+
+    # ── BIADependency ────────────────────────────────────────────────
+    BIADependency:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assessment_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        dependency_type:
+          type: string
+        criticality:
+          type: string
+      required:
+        - id
+        - assessment_id
+        - asset_id
+        - dependency_type
+
+    # ── BIAStats ─────────────────────────────────────────────────────
+    BIAStats:
+      type: object
+      properties:
+        total:
+          type: integer
+        by_tier:
+          type: object
+          additionalProperties:
+            type: integer
+        avg_compliance:
+          type: number
+        data_compliant:
+          type: integer
+        asset_compliant:
+          type: integer
+        audit_compliant:
+          type: integer

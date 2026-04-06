@@ -75,6 +75,60 @@ type AuditEvent struct {
 	TargetType string                 `json:"target_type"`
 }
 
+// BIAAssessment defines model for BIAAssessment.
+type BIAAssessment struct {
+	AssessedBy      *openapi_types.UUID `json:"assessed_by,omitempty"`
+	AssetCompliance *bool               `json:"asset_compliance,omitempty"`
+	AuditCompliance *bool               `json:"audit_compliance,omitempty"`
+	BiaScore        int                 `json:"bia_score"`
+	CreatedAt       *time.Time          `json:"created_at,omitempty"`
+	DataCompliance  *bool               `json:"data_compliance,omitempty"`
+	Description     *string             `json:"description,omitempty"`
+	Id              openapi_types.UUID  `json:"id"`
+	LastAssessed    *time.Time          `json:"last_assessed,omitempty"`
+	MtpdHours       *float32            `json:"mtpd_hours,omitempty"`
+	Owner           *string             `json:"owner,omitempty"`
+	RpoMinutes      *float32            `json:"rpo_minutes,omitempty"`
+	RtoHours        *float32            `json:"rto_hours,omitempty"`
+	SystemCode      string              `json:"system_code"`
+	SystemName      string              `json:"system_name"`
+	Tier            string              `json:"tier"`
+}
+
+// BIADependency defines model for BIADependency.
+type BIADependency struct {
+	AssessmentId   openapi_types.UUID `json:"assessment_id"`
+	AssetId        openapi_types.UUID `json:"asset_id"`
+	Criticality    *string            `json:"criticality,omitempty"`
+	DependencyType string             `json:"dependency_type"`
+	Id             openapi_types.UUID `json:"id"`
+}
+
+// BIAScoringRule defines model for BIAScoringRule.
+type BIAScoringRule struct {
+	Color        *string            `json:"color,omitempty"`
+	Description  *string            `json:"description,omitempty"`
+	DisplayName  string             `json:"display_name"`
+	Icon         *string            `json:"icon,omitempty"`
+	Id           openapi_types.UUID `json:"id"`
+	MaxScore     int                `json:"max_score"`
+	MinScore     int                `json:"min_score"`
+	RpoThreshold *float32           `json:"rpo_threshold,omitempty"`
+	RtoThreshold *float32           `json:"rto_threshold,omitempty"`
+	TierLevel    int                `json:"tier_level"`
+	TierName     string             `json:"tier_name"`
+}
+
+// BIAStats defines model for BIAStats.
+type BIAStats struct {
+	AssetCompliant *int            `json:"asset_compliant,omitempty"`
+	AuditCompliant *int            `json:"audit_compliant,omitempty"`
+	AvgCompliance  *float32        `json:"avg_compliance,omitempty"`
+	ByTier         *map[string]int `json:"by_tier,omitempty"`
+	DataCompliant  *int            `json:"data_compliant,omitempty"`
+	Total          *int            `json:"total,omitempty"`
+}
+
 // CurrentUser defines model for CurrentUser.
 type CurrentUser struct {
 	DisplayName string              `json:"display_name"`
@@ -401,6 +455,62 @@ type QueryAuditEventsParams struct {
 	TargetId   *openapi_types.UUID `form:"target_id,omitempty" json:"target_id,omitempty"`
 }
 
+// ListBIAAssessmentsParams defines parameters for ListBIAAssessments.
+type ListBIAAssessmentsParams struct {
+	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *PageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
+// CreateBIAAssessmentJSONBody defines parameters for CreateBIAAssessment.
+type CreateBIAAssessmentJSONBody struct {
+	AssessedBy      *openapi_types.UUID `json:"assessed_by,omitempty"`
+	AssetCompliance *bool               `json:"asset_compliance,omitempty"`
+	AuditCompliance *bool               `json:"audit_compliance,omitempty"`
+	BiaScore        int                 `json:"bia_score"`
+	DataCompliance  *bool               `json:"data_compliance,omitempty"`
+	Description     *string             `json:"description,omitempty"`
+	MtpdHours       *float32            `json:"mtpd_hours,omitempty"`
+	Owner           *string             `json:"owner,omitempty"`
+	RpoMinutes      *float32            `json:"rpo_minutes,omitempty"`
+	RtoHours        *float32            `json:"rto_hours,omitempty"`
+	SystemCode      string              `json:"system_code"`
+	SystemName      string              `json:"system_name"`
+	Tier            string              `json:"tier"`
+}
+
+// UpdateBIAAssessmentJSONBody defines parameters for UpdateBIAAssessment.
+type UpdateBIAAssessmentJSONBody struct {
+	AssetCompliance *bool    `json:"asset_compliance,omitempty"`
+	AuditCompliance *bool    `json:"audit_compliance,omitempty"`
+	BiaScore        *int     `json:"bia_score,omitempty"`
+	DataCompliance  *bool    `json:"data_compliance,omitempty"`
+	Description     *string  `json:"description,omitempty"`
+	MtpdHours       *float32 `json:"mtpd_hours,omitempty"`
+	Owner           *string  `json:"owner,omitempty"`
+	RpoMinutes      *float32 `json:"rpo_minutes,omitempty"`
+	RtoHours        *float32 `json:"rto_hours,omitempty"`
+	SystemName      *string  `json:"system_name,omitempty"`
+	Tier            *string  `json:"tier,omitempty"`
+}
+
+// CreateBIADependencyJSONBody defines parameters for CreateBIADependency.
+type CreateBIADependencyJSONBody struct {
+	AssetId        openapi_types.UUID `json:"asset_id"`
+	Criticality    *string            `json:"criticality,omitempty"`
+	DependencyType string             `json:"dependency_type"`
+}
+
+// UpdateBIAScoringRuleJSONBody defines parameters for UpdateBIAScoringRule.
+type UpdateBIAScoringRuleJSONBody struct {
+	Color        *string  `json:"color,omitempty"`
+	Description  *string  `json:"description,omitempty"`
+	DisplayName  *string  `json:"display_name,omitempty"`
+	MaxScore     *int     `json:"max_score,omitempty"`
+	MinScore     *int     `json:"min_score,omitempty"`
+	RpoThreshold *float32 `json:"rpo_threshold,omitempty"`
+	RtoThreshold *float32 `json:"rto_threshold,omitempty"`
+}
+
 // GetDashboardStatsParams defines parameters for GetDashboardStats.
 type GetDashboardStatsParams struct {
 	IdcId *openapi_types.UUID `form:"idc_id,omitempty" json:"idc_id,omitempty"`
@@ -658,6 +768,18 @@ type LoginJSONRequestBody = LoginRequest
 // RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
 type RefreshTokenJSONRequestBody = RefreshRequest
 
+// CreateBIAAssessmentJSONRequestBody defines body for CreateBIAAssessment for application/json ContentType.
+type CreateBIAAssessmentJSONRequestBody CreateBIAAssessmentJSONBody
+
+// UpdateBIAAssessmentJSONRequestBody defines body for UpdateBIAAssessment for application/json ContentType.
+type UpdateBIAAssessmentJSONRequestBody UpdateBIAAssessmentJSONBody
+
+// CreateBIADependencyJSONRequestBody defines body for CreateBIADependency for application/json ContentType.
+type CreateBIADependencyJSONRequestBody CreateBIADependencyJSONBody
+
+// UpdateBIAScoringRuleJSONRequestBody defines body for UpdateBIAScoringRule for application/json ContentType.
+type UpdateBIAScoringRuleJSONRequestBody UpdateBIAScoringRuleJSONBody
+
 // CreateAdapterJSONRequestBody defines body for CreateAdapter for application/json ContentType.
 type CreateAdapterJSONRequestBody CreateAdapterJSONBody
 
@@ -750,6 +872,36 @@ type ServerInterface interface {
 	// Refresh access token
 	// (POST /auth/refresh)
 	RefreshToken(c *gin.Context)
+	// List BIA assessments with pagination
+	// (GET /bia/assessments)
+	ListBIAAssessments(c *gin.Context, params ListBIAAssessmentsParams)
+	// Create a BIA assessment
+	// (POST /bia/assessments)
+	CreateBIAAssessment(c *gin.Context)
+	// Delete a BIA assessment
+	// (DELETE /bia/assessments/{id})
+	DeleteBIAAssessment(c *gin.Context, id IdPath)
+	// Get a BIA assessment by ID
+	// (GET /bia/assessments/{id})
+	GetBIAAssessment(c *gin.Context, id IdPath)
+	// Update a BIA assessment
+	// (PUT /bia/assessments/{id})
+	UpdateBIAAssessment(c *gin.Context, id IdPath)
+	// List dependencies for a BIA assessment
+	// (GET /bia/assessments/{id}/dependencies)
+	ListBIADependencies(c *gin.Context, id IdPath)
+	// Add a dependency to a BIA assessment
+	// (POST /bia/assessments/{id}/dependencies)
+	CreateBIADependency(c *gin.Context, id IdPath)
+	// List BIA scoring rules
+	// (GET /bia/rules)
+	ListBIAScoringRules(c *gin.Context)
+	// Update a BIA scoring rule
+	// (PUT /bia/rules/{id})
+	UpdateBIAScoringRule(c *gin.Context, id IdPath)
+	// Get BIA statistics
+	// (GET /bia/stats)
+	GetBIAStats(c *gin.Context)
 	// Get dashboard statistics
 	// (GET /dashboard/stats)
 	GetDashboardStats(c *gin.Context, params GetDashboardStatsParams)
@@ -1211,6 +1363,243 @@ func (siw *ServerInterfaceWrapper) RefreshToken(c *gin.Context) {
 	}
 
 	siw.Handler.RefreshToken(c)
+}
+
+// ListBIAAssessments operation middleware
+func (siw *ServerInterfaceWrapper) ListBIAAssessments(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListBIAAssessmentsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_size", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page_size: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListBIAAssessments(c, params)
+}
+
+// CreateBIAAssessment operation middleware
+func (siw *ServerInterfaceWrapper) CreateBIAAssessment(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateBIAAssessment(c)
+}
+
+// DeleteBIAAssessment operation middleware
+func (siw *ServerInterfaceWrapper) DeleteBIAAssessment(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteBIAAssessment(c, id)
+}
+
+// GetBIAAssessment operation middleware
+func (siw *ServerInterfaceWrapper) GetBIAAssessment(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetBIAAssessment(c, id)
+}
+
+// UpdateBIAAssessment operation middleware
+func (siw *ServerInterfaceWrapper) UpdateBIAAssessment(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateBIAAssessment(c, id)
+}
+
+// ListBIADependencies operation middleware
+func (siw *ServerInterfaceWrapper) ListBIADependencies(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListBIADependencies(c, id)
+}
+
+// CreateBIADependency operation middleware
+func (siw *ServerInterfaceWrapper) CreateBIADependency(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateBIADependency(c, id)
+}
+
+// ListBIAScoringRules operation middleware
+func (siw *ServerInterfaceWrapper) ListBIAScoringRules(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListBIAScoringRules(c)
+}
+
+// UpdateBIAScoringRule operation middleware
+func (siw *ServerInterfaceWrapper) UpdateBIAScoringRule(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateBIAScoringRule(c, id)
+}
+
+// GetBIAStats operation middleware
+func (siw *ServerInterfaceWrapper) GetBIAStats(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetBIAStats(c)
 }
 
 // GetDashboardStats operation middleware
@@ -2757,6 +3146,16 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
 	router.GET(options.BaseURL+"/auth/me", wrapper.GetCurrentUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
+	router.GET(options.BaseURL+"/bia/assessments", wrapper.ListBIAAssessments)
+	router.POST(options.BaseURL+"/bia/assessments", wrapper.CreateBIAAssessment)
+	router.DELETE(options.BaseURL+"/bia/assessments/:id", wrapper.DeleteBIAAssessment)
+	router.GET(options.BaseURL+"/bia/assessments/:id", wrapper.GetBIAAssessment)
+	router.PUT(options.BaseURL+"/bia/assessments/:id", wrapper.UpdateBIAAssessment)
+	router.GET(options.BaseURL+"/bia/assessments/:id/dependencies", wrapper.ListBIADependencies)
+	router.POST(options.BaseURL+"/bia/assessments/:id/dependencies", wrapper.CreateBIADependency)
+	router.GET(options.BaseURL+"/bia/rules", wrapper.ListBIAScoringRules)
+	router.PUT(options.BaseURL+"/bia/rules/:id", wrapper.UpdateBIAScoringRule)
+	router.GET(options.BaseURL+"/bia/stats", wrapper.GetBIAStats)
 	router.GET(options.BaseURL+"/dashboard/stats", wrapper.GetDashboardStats)
 	router.GET(options.BaseURL+"/integration/adapters", wrapper.ListAdapters)
 	router.POST(options.BaseURL+"/integration/adapters", wrapper.CreateAdapter)

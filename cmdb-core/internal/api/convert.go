@@ -543,6 +543,79 @@ func toAPIWebhookDelivery(db dbgen.WebhookDelivery) WebhookDelivery {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// 19. toAPIBIAAssessment
+// ---------------------------------------------------------------------------
+
+func toAPIBIAAssessment(db dbgen.BiaAssessment) BIAAssessment {
+	a := BIAAssessment{
+		Id:              db.ID,
+		SystemName:      db.SystemName,
+		SystemCode:      db.SystemCode,
+		Owner:           pgtextToPtr(db.Owner),
+		BiaScore:        int(db.BiaScore),
+		Tier:            db.Tier,
+		RtoHours:        pgnumToFloat32Ptr(db.RtoHours),
+		RpoMinutes:      pgnumToFloat32Ptr(db.RpoMinutes),
+		MtpdHours:       pgnumToFloat32Ptr(db.MtpdHours),
+		DataCompliance:  pgboolToPtr(db.DataCompliance),
+		AssetCompliance: pgboolToPtr(db.AssetCompliance),
+		AuditCompliance: pgboolToPtr(db.AuditCompliance),
+		Description:     pgtextToPtr(db.Description),
+		LastAssessed:    pgtsToTimePtr(db.LastAssessed),
+		AssessedBy:      pguuidToUUIDPtr(db.AssessedBy),
+		CreatedAt:       &db.CreatedAt,
+	}
+	return a
+}
+
+// ---------------------------------------------------------------------------
+// 20. toAPIBIAScoringRule
+// ---------------------------------------------------------------------------
+
+func toAPIBIAScoringRule(db dbgen.BiaScoringRule) BIAScoringRule {
+	return BIAScoringRule{
+		Id:           db.ID,
+		TierName:     db.TierName,
+		TierLevel:    int(db.TierLevel),
+		DisplayName:  db.DisplayName,
+		MinScore:     int(db.MinScore),
+		MaxScore:     int(db.MaxScore),
+		RtoThreshold: pgnumToFloat32Ptr(db.RtoThreshold),
+		RpoThreshold: pgnumToFloat32Ptr(db.RpoThreshold),
+		Description:  pgtextToPtr(db.Description),
+		Color:        pgtextToPtr(db.Color),
+		Icon:         pgtextToPtr(db.Icon),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 21. toAPIBIADependency
+// ---------------------------------------------------------------------------
+
+func toAPIBIADependency(db dbgen.BiaDependency) BIADependency {
+	return BIADependency{
+		Id:             db.ID,
+		AssessmentId:   db.AssessmentID,
+		AssetId:        db.AssetID,
+		DependencyType: db.DependencyType,
+		Criticality:    pgtextToPtr(db.Criticality),
+	}
+}
+
+// pgnumToFloat32Ptr converts a pgtype.Numeric to *float32.
+func pgnumToFloat32Ptr(v pgtype.Numeric) *float32 {
+	if !v.Valid {
+		return nil
+	}
+	f, err := v.Float64Value()
+	if err != nil || !f.Valid {
+		return nil
+	}
+	val := float32(f.Float64)
+	return &val
+}
+
 func toAPIWebhook(db dbgen.WebhookSubscription) WebhookSubscription {
 	createdAt := pgtsToTime(db.CreatedAt)
 	return WebhookSubscription{

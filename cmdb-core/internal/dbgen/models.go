@@ -72,6 +72,53 @@ type AuditEvent struct {
 	CreatedAt  time.Time   `json:"created_at"`
 }
 
+type BiaAssessment struct {
+	ID              uuid.UUID          `json:"id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	SystemName      string             `json:"system_name"`
+	SystemCode      string             `json:"system_code"`
+	Owner           pgtype.Text        `json:"owner"`
+	BiaScore        int32              `json:"bia_score"`
+	Tier            string             `json:"tier"`
+	RtoHours        pgtype.Numeric     `json:"rto_hours"`
+	RpoMinutes      pgtype.Numeric     `json:"rpo_minutes"`
+	MtpdHours       pgtype.Numeric     `json:"mtpd_hours"`
+	DataCompliance  pgtype.Bool        `json:"data_compliance"`
+	AssetCompliance pgtype.Bool        `json:"asset_compliance"`
+	AuditCompliance pgtype.Bool        `json:"audit_compliance"`
+	Description     pgtype.Text        `json:"description"`
+	LastAssessed    pgtype.Timestamptz `json:"last_assessed"`
+	AssessedBy      pgtype.UUID        `json:"assessed_by"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+type BiaDependency struct {
+	ID             uuid.UUID   `json:"id"`
+	TenantID       uuid.UUID   `json:"tenant_id"`
+	AssessmentID   uuid.UUID   `json:"assessment_id"`
+	AssetID        uuid.UUID   `json:"asset_id"`
+	DependencyType string      `json:"dependency_type"`
+	Criticality    pgtype.Text `json:"criticality"`
+	CreatedAt      time.Time   `json:"created_at"`
+}
+
+type BiaScoringRule struct {
+	ID           uuid.UUID      `json:"id"`
+	TenantID     uuid.UUID      `json:"tenant_id"`
+	TierName     string         `json:"tier_name"`
+	TierLevel    int32          `json:"tier_level"`
+	DisplayName  string         `json:"display_name"`
+	MinScore     int32          `json:"min_score"`
+	MaxScore     int32          `json:"max_score"`
+	RtoThreshold pgtype.Numeric `json:"rto_threshold"`
+	RpoThreshold pgtype.Numeric `json:"rpo_threshold"`
+	Description  pgtype.Text    `json:"description"`
+	Color        pgtype.Text    `json:"color"`
+	Icon         pgtype.Text    `json:"icon"`
+	CreatedAt    time.Time      `json:"created_at"`
+}
+
 type Department struct {
 	ID          uuid.UUID       `json:"id"`
 	TenantID    uuid.UUID       `json:"tenant_id"`
