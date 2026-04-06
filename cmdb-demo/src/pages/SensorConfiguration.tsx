@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon";
 import { useAssets } from "../hooks/useAssets";
-import { useAlertRules, useUpdateAlertRule } from "../hooks/useMonitoring";
+import { useAlertRules, useUpdateAlertRule, useCreateAlertRule } from "../hooks/useMonitoring";
 
 /* ──────────────────────────────────────────────
    Mock data
@@ -200,8 +200,12 @@ function SensorConfiguration() {
   const { data: rulesResp, isLoading: rulesLoading } = useAlertRules();
   const apiRules = rulesResp?.data || [];
   const updateAlertRule = useUpdateAlertRule();
+  const createAlertRule = useCreateAlertRule();
 
   const [sensors, setSensors] = useState<Sensor[]>([]);
+  const [showAddRule, setShowAddRule] = useState(false);
+  const [newRule, setNewRule] = useState({ name: '', metric_name: '', severity: 'warning', threshold: 80 });
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (allAssets.length > 0) {
@@ -520,9 +524,11 @@ function SensorConfiguration() {
                         max={th.max}
                         step={th.step}
                         value={th.warning}
-                        onChange={(e) =>
-                          updateThreshold(i, "warning", Number(e.target.value))
-                        }
+                        onChange={(e) => {
+                          const newVal = Number(e.target.value);
+                          if (newVal >= thresholds[i].critical) return;
+                          updateThreshold(i, "warning", newVal);
+                        }}
                         className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-surface-container accent-[#fbbf24]"
                       />
                       <span className="w-16 rounded bg-surface-container px-2 py-1 text-center text-sm font-semibold text-[#fbbf24]">
@@ -542,9 +548,11 @@ function SensorConfiguration() {
                         max={th.max}
                         step={th.step}
                         value={th.critical}
-                        onChange={(e) =>
-                          updateThreshold(i, "critical", Number(e.target.value))
-                        }
+                        onChange={(e) => {
+                          const newVal = Number(e.target.value);
+                          if (newVal <= thresholds[i].warning) return;
+                          updateThreshold(i, "critical", newVal);
+                        }}
                         className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-surface-container accent-error"
                       />
                       <span className="w-16 rounded bg-surface-container px-2 py-1 text-center text-sm font-semibold text-error">
@@ -597,7 +605,7 @@ function SensorConfiguration() {
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => alert('Reset to defaults')}
+                onClick={() => { setThresholds(THRESHOLDS); alert('Thresholds reset to defaults') }}
                 className="flex w-full items-center gap-2 rounded-lg bg-surface-container-low p-3 text-sm text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 <Icon name="restart_alt" className="text-lg text-primary" />
@@ -605,7 +613,14 @@ function SensorConfiguration() {
               </button>
               <button
                 type="button"
-                onClick={() => alert('Coming Soon')}
+                onClick={() => {
+                  const config = { thresholds, rules, globalPolling };
+                  const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = 'sensor-config.json'; a.click();
+                  URL.revokeObjectURL(url);
+                }}
                 className="flex w-full items-center gap-2 rounded-lg bg-surface-container-low p-3 text-sm text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 <Icon name="download" className="text-lg text-primary" />
@@ -613,7 +628,28 @@ function SensorConfiguration() {
               </button>
               <button
                 type="button"
-                onClick={() => alert('Coming Soon')}
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = '.json';
+                  input.onchange = (e: any) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        try {
+                          const config = JSON.parse(ev.target?.result as string);
+                          if (config.thresholds) setThresholds(config.thresholds);
+                          if (config.rules) setRules(config.rules);
+                          if (config.globalPolling) setGlobalPolling(config.globalPolling);
+                          alert('Configuration imported successfully');
+                        } catch { alert('Invalid configuration file') }
+                      };
+                      reader.readAsText(file);
+                    }
+                  };
+                  input.click();
+                }}
                 className="flex w-full items-center gap-2 rounded-lg bg-surface-container-low p-3 text-sm text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 <Icon name="upload" className="text-lg text-primary" />
@@ -661,7 +697,7 @@ function SensorConfiguration() {
               </div>
               <button
                 type="button"
-                onClick={() => alert('Coming Soon')}
+                onClick={() => alert('Use the threshold sliders above to modify rule thresholds')}
                 className="shrink-0 rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
                 title="Edit rule"
               >
@@ -669,7 +705,11 @@ function SensorConfiguration() {
               </button>
               <button
                 type="button"
-                onClick={() => alert('Coming Soon')}
+                onClick={() => {
+                  if (confirm(`Delete rule "${rule.name}"?`)) {
+                    setRules(prev => prev.filter(r => r.id !== rule.id));
+                  }
+                }}
                 className="shrink-0 rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-error"
                 title="Delete rule"
               >
@@ -680,12 +720,63 @@ function SensorConfiguration() {
         </div>
         <button
           type="button"
-          onClick={() => alert('Coming Soon')}
+          onClick={() => setShowAddRule(!showAddRule)}
           className="mt-4 flex items-center gap-2 rounded-lg bg-surface-container-low px-4 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-surface-container-high"
         >
           <Icon name="add" className="text-lg" />
           {t('sensors.add_new_rule')}
         </button>
+        {showAddRule && (
+          <div className="mt-3 rounded-lg bg-surface-container-low p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <input placeholder="Rule Name" value={newRule.name}
+                onChange={e => setNewRule(p => ({...p, name: e.target.value}))}
+                className="p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40" />
+              <select value={newRule.metric_name}
+                onChange={e => setNewRule(p => ({...p, metric_name: e.target.value}))}
+                className="p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none">
+                <option value="">Metric...</option>
+                <option value="cpu_usage">CPU Usage</option>
+                <option value="temperature">Temperature</option>
+                <option value="memory_usage">Memory Usage</option>
+                <option value="disk_usage">Disk Usage</option>
+                <option value="power_kw">Power (kW)</option>
+              </select>
+              <select value={newRule.severity}
+                onChange={e => setNewRule(p => ({...p, severity: e.target.value}))}
+                className="p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none">
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
+              </select>
+              <input type="number" placeholder="Threshold" value={newRule.threshold}
+                onChange={e => setNewRule(p => ({...p, threshold: Number(e.target.value)}))}
+                className="p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowAddRule(false)}
+                className="px-3 py-1.5 rounded-lg bg-surface-container-high text-xs text-on-surface-variant">Cancel</button>
+              <button onClick={() => {
+                if (newRule.name && newRule.metric_name) {
+                  createAlertRule.mutate({
+                    name: newRule.name,
+                    metric_name: newRule.metric_name,
+                    condition: { op: '>', threshold: newRule.threshold },
+                    severity: newRule.severity,
+                    enabled: true,
+                  }, {
+                    onSuccess: () => {
+                      setShowAddRule(false);
+                      setNewRule({ name: '', metric_name: '', severity: 'warning', threshold: 80 });
+                    }
+                  });
+                }
+              }} disabled={!newRule.name || !newRule.metric_name}
+                className="px-3 py-1.5 rounded-lg bg-primary text-on-primary-container text-xs font-semibold disabled:opacity-40">
+                Create Rule
+              </button>
+            </div>
+          </div>
+        )}
       </Section>
     </div>
   );
