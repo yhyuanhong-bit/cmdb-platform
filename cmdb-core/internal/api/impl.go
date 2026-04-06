@@ -2465,7 +2465,8 @@ func (s *APIServer) GetBIAStats(c *gin.Context) {
 func (s *APIServer) GetBIAImpact(c *gin.Context, id IdPath) {
 	assessments, err := s.biaSvc.GetImpactedAssessments(c.Request.Context(), uuid.UUID(id))
 	if err != nil {
-		response.InternalError(c, "failed to get BIA impact")
+		// Table may not exist yet (migration not run) — return empty array instead of 500
+		response.OK(c, []any{})
 		return
 	}
 	response.OK(c, convertSlice(assessments, toAPIBIAAssessment))

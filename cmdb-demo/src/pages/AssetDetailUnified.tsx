@@ -127,7 +127,7 @@ function RackIllustration() {
   )
 }
 
-function OverviewTab({ t, navigate, asset }: { t: ReturnType<typeof useTranslation>['t']; navigate: ReturnType<typeof import('react-router-dom').useNavigate>; asset: any }) {
+function OverviewTab({ t, navigate, asset, impactedSystems = [] }: { t: ReturnType<typeof useTranslation>['t']; navigate: ReturnType<typeof import('react-router-dom').useNavigate>; asset: any; impactedSystems?: any[] }) {
   const width = 480
   const height = 160
   const cpuPath = toSvgPath(telemetryPoints.map((p) => ({ t: p.t, value: p.cpu })), width, height)
@@ -1006,7 +1006,7 @@ export default function AssetDetailUnified() {
 
       {/* Tab Content */}
       <div className="px-8 pb-10">
-        {activeTab === 'overview' && <OverviewTab t={t} navigate={navigate} asset={asset} />}
+        {activeTab === 'overview' && <OverviewTab t={t} navigate={navigate} asset={asset} impactedSystems={impactedSystems} />}
         {activeTab === 'health' && <HealthTab t={t} />}
         {activeTab === 'usage' && <UsageTab t={t} />}
         {activeTab === 'maintenance' && <MaintenanceTab t={t} navigate={navigate} asset={asset} />}
