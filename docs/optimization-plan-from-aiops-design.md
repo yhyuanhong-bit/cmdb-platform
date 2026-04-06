@@ -3,6 +3,22 @@
 > 來源：`全球化 CMDB + AIOps 一體化平臺.md` 設計文檔對比分析
 > 日期：2026-04-04
 > 範圍：10 個優化項，分 3 個 Sprint 執行
+> **修訂版：v2（2026-04-04）— 修復 4 個 BLOCKING 衝突**
+
+---
+
+## 衝突修訂摘要
+
+經架構審查發現 4 個 BLOCKING 衝突，已在本版修訂：
+
+| # | 原始問題 | 修訂方案 | 涉及章節 |
+|---|---------|---------|---------|
+| **B1** | BIA 自動繼承：最後寫入覆蓋更高等級 | 改用 `MAX(tier)` 聚合 SQL，取所有關聯評估中最高等級 | §1.2 |
+| **B2** | ITSM 審批：返回 `pending_approval` 打破前端契約 | 改為「事後審計」模式：正常更新 + 額外建工單，返回標準 Asset | §3.3 |
+| **B3** | CIType 驗證：CreateAssetModal 不送 attributes 被拒 | 改為 soft validation（warning 不阻斷），先不拒絕請求 | §2.2 |
+| **B4** | Webhook deliver() 呼叫簽名不匹配（3 vs 2 參數）| 修正為 `d.deliver(sub, event)` 2 參數 + BIA 查詢移入 goroutine | §1.3 |
+
+另有 9 個 WARNING 已在相應章節加入處理邏輯（GetAsset 錯誤記錄、LEFT JOIN 建議等）。
 
 ---
 
@@ -131,15 +147,33 @@ func (s *APIServer) CreateRackSlot(c *gin.Context, rackId IdPath) {
 追加到 `db/queries/bia.sql`：
 
 ```sql
--- name: UpdateAssetsBIAByAssessment :exec
+-- name: PropagateBIALevelByAssessment :exec
+-- 使用 MAX(tier) 策略：取資產關聯的所有評估中最高等級
+-- 避免低等級評估覆蓋高等級（衝突分析 BLOCKING #1 修復）
 UPDATE assets SET
-    bia_level = $2,
+    bia_level = sub.max_tier,
     updated_at = now()
-WHERE id IN (
-    SELECT asset_id FROM bia_dependencies
-    WHERE assessment_id = $1
-);
+FROM (
+    SELECT bd.asset_id,
+        CASE
+            WHEN 'critical' = ANY(array_agg(ba.tier)) THEN 'critical'
+            WHEN 'important' = ANY(array_agg(ba.tier)) THEN 'important'
+            WHEN 'normal' = ANY(array_agg(ba.tier)) THEN 'normal'
+            ELSE 'minor'
+        END as max_tier
+    FROM bia_dependencies bd
+    JOIN bia_assessments ba ON ba.id = bd.assessment_id
+    WHERE bd.asset_id IN (
+        SELECT asset_id FROM bia_dependencies WHERE assessment_id = $1
+    )
+    GROUP BY bd.asset_id
+) sub
+WHERE assets.id = sub.asset_id;
 ```
+
+> **衝突修復說明：** 原方案直接 SET `bia_level = $2`，當資產屬於多個業務系統時，
+> 最後寫入的 tier 會覆蓋更高等級。修訂後使用 `MAX(tier)` 聚合，
+> 確保資產始終保持其關聯評估中的最高等級。
 
 #### 1.2.2 在 UpdateBIAAssessment handler 中觸發
 
@@ -149,20 +183,20 @@ WHERE id IN (
 // 原有邏輯：更新 assessment
 updated, err := s.biaSvc.UpdateAssessment(ctx, params)
 
-// 新增：如果 tier 變更，自動更新關聯資產的 bia_level
+// 新增：如果 tier 變更，重新計算所有關聯資產的 BIA 等級（取 MAX）
 if req.Tier != nil {
-    s.biaSvc.PropagateBI ALevel(ctx, updated.ID, *req.Tier)
+    if err := s.biaSvc.PropagateBIALevel(c.Request.Context(), updated.ID); err != nil {
+        fmt.Printf("BIA propagation error: %v\n", err)
+    }
 }
 ```
 
 #### 1.2.3 Service 方法
 
 ```go
-func (s *Service) PropagateBIALevel(ctx context.Context, assessmentID uuid.UUID, tier string) error {
-    return s.queries.UpdateAssetsBIAByAssessment(ctx, dbgen.UpdateAssetsBIAByAssessmentParams{
-        Column1: assessmentID,
-        Column2: tier,
-    })
+func (s *Service) PropagateBIALevel(ctx context.Context, assessmentID uuid.UUID) error {
+    // 只需傳 assessmentID，SQL 內部會計算 MAX(tier)
+    return s.queries.PropagateBIALevelByAssessment(ctx, assessmentID)
 }
 ```
 
@@ -203,25 +237,42 @@ ALTER TABLE webhook_subscriptions DROP COLUMN IF EXISTS filter_bia;
 
 #### 1.3.2 修改 webhook_dispatcher.go
 
+> **衝突修復說明：**
+> - 修正 `deliver()` 呼叫簽名：實際方法只接收 2 參數 `(sub, event)`，不接收 `ctx`（BLOCKING #4 修復）
+> - `GetAsset` 錯誤不再靜默忽略，改為記錄 warning 並放行（WARNING #6 修復）
+> - BIA 查詢移到 goroutine 內部，避免阻塞主事件處理迴圈（WARNING #7 修復）
+
 ```go
 func (d *WebhookDispatcher) HandleEvent(ctx context.Context, event eventbus.Event) error {
     subs, err := d.queries.ListWebhooksByEvent(ctx, event.Subject)
+    if err != nil {
+        zap.L().Error("failed to list webhooks", zap.Error(err))
+        return nil
+    }
     
     for _, sub := range subs {
-        // 新增：BIA 過濾
-        if len(sub.FilterBia) > 0 {
-            // 從 event payload 提取 asset_id → 查 asset → 檢查 bia_level
-            var payload map[string]string
-            json.Unmarshal(event.Payload, &payload)
-            if assetID, ok := payload["asset_id"]; ok {
-                asset, _ := d.queries.GetAsset(ctx, uuid.MustParse(assetID))
-                if asset.BiaLevel != "" && !contains(sub.FilterBia, asset.BiaLevel) {
-                    continue // 跳過不匹配的 BIA 等級
-                }
-            }
-        }
+        sub := sub // capture for goroutine
         
-        go d.deliver(ctx, sub, event)
+        if len(sub.FilterBia) > 0 {
+            // BIA 過濾在 goroutine 內執行，不阻塞主迴圈
+            go func() {
+                var payload map[string]string
+                json.Unmarshal(event.Payload, &payload)
+                if assetID, ok := payload["asset_id"]; ok {
+                    asset, err := d.queries.GetAsset(ctx, uuid.MustParse(assetID))
+                    if err != nil {
+                        // 資產查詢失敗（可能已刪除）→ 記錄 warning 但仍投遞
+                        zap.L().Warn("BIA filter: asset lookup failed, delivering anyway",
+                            zap.String("asset_id", assetID), zap.Error(err))
+                    } else if !contains(sub.FilterBia, asset.BiaLevel) {
+                        return // BIA 等級不匹配，跳過投遞
+                    }
+                }
+                d.deliver(sub, event) // 正確的 2 參數呼叫
+            }()
+        } else {
+            go d.deliver(sub, event) // 無 BIA 過濾，直接投遞
+        }
     }
     return nil
 }
@@ -470,11 +521,16 @@ INSERT INTO quality_rules (tenant_id, ci_type, dimension, field_name, rule_type,
 
 **需求：** 定義每種資產類型的 attributes 必填 schema，CreateAsset 時校驗。
 
-**方案：** 不加新表。在現有 MCP resources 的 `asset-types-schema` 基礎上，在 CreateAsset handler 加入 attributes 校驗。
+> **衝突修復說明（BLOCKING #3）：**
+> 原方案在 CreateAsset 時硬性拒絕缺少 attributes 的請求，
+> 但 `CreateAssetModal` 不送 attributes 欄位 → 所有建立都會被拒。
+>
+> **修訂方案：** 改為 **soft validation**（警告不阻斷）+ 同步更新 CreateAssetModal。
 
-**實施：**
+**方案 A：Soft Validation（推薦，先上線）**
 
-定義 schema 常量（Go map）：
+不加新表。在 CreateAsset handler 加入 attributes **警告**（不阻斷），並在 API response 的 `meta` 中附帶 warning：
+
 ```go
 var assetTypeSchemas = map[string][]string{
     "server":  {"cpu", "memory", "storage", "os"},
@@ -482,26 +538,41 @@ var assetTypeSchemas = map[string][]string{
     "storage": {"raw_capacity", "protocol"},
     "power":   {"capacity"},
 }
-```
 
-CreateAsset handler 加驗證：
-```go
-if schema, ok := assetTypeSchemas[req.Type]; ok && req.Attributes != nil {
-    attrs := *req.Attributes
-    missing := []string{}
-    for _, field := range schema {
-        if _, exists := attrs[field]; !exists {
-            missing = append(missing, field)
+// 在 CreateAsset handler 中（建立成功後、回應前）：
+warnings := []string{}
+if schema, ok := assetTypeSchemas[req.Type]; ok {
+    if req.Attributes == nil {
+        warnings = append(warnings, fmt.Sprintf("type %s recommends attributes: %v", req.Type, schema))
+    } else {
+        attrs := *req.Attributes
+        for _, field := range schema {
+            if _, exists := attrs[field]; !exists {
+                warnings = append(warnings, fmt.Sprintf("missing recommended attribute: %s", field))
+            }
         }
     }
-    if len(missing) > 0 {
-        response.BadRequest(c, fmt.Sprintf("missing required attributes for type %s: %v", req.Type, missing))
-        return
-    }
 }
+
+// 回應時附帶 warnings（不影響 201 狀態碼）
+if len(warnings) > 0 {
+    c.JSON(201, gin.H{"data": toAPIAsset(*created), "meta": gin.H{"warnings": warnings}})
+    return
+}
+response.Created(c, toAPIAsset(*created))
 ```
 
-**改動：** 僅 `impl.go` 加 ~20 行。
+**方案 B：嚴格驗證（Phase 2 上線，需先完成 Modal 更新）**
+
+1. 先更新 `CreateAssetModal.tsx` 加入依資產類型動態顯示的 attributes 欄位
+2. 再將 soft validation 改為 hard validation（400 拒絕）
+
+**改動（方案 A）：**
+
+| 檔案 | 改動 |
+|------|------|
+| `internal/api/impl.go` | CreateAsset handler 加 ~25 行 warning 邏輯 |
+| `cmdb-demo/src/components/CreateAssetModal.tsx` | （可選）加 attributes 輸入欄位 |
 
 ---
 
@@ -630,32 +701,83 @@ POST /inventory/tasks/{id}/import-excel  → multipart form-data 上傳 Excel
 
 **需求：** 關鍵資產（Critical BIA）的變更需經審批才能生效。
 
-**方案：** 利用現有 work_orders 表實現審批流。
+> **衝突修復說明（BLOCKING #2）：**
+> 原方案在 UpdateAsset 返回 `{"status": "pending_approval"}`，
+> 但前端 `updateAsset.mutate` 預期收到 Asset 物件 → 導致 runtime error。
+>
+> **修訂方案：**
+> 1. 資產仍正常更新（先執行變更）
+> 2. Critical 資產變更後**額外**自動建立審計工單（不阻斷更新）
+> 3. 返回標準 200 + Asset 物件 + 額外 `meta.change_order_id` 欄位
+> 4. 前端可選擇性顯示「已建立變更審計工單」提示
+
+**方案：** 利用現有 work_orders 表，**事後審計**而非事前阻斷。
 
 **邏輯：**
 ```
-資產變更請求 → 檢查 BIA tier
-  → Critical: 自動建立 work_order (type='change', status='pending') → 需主管審批
-  → Important: 自動建立 work_order (type='change', status='approved') → 自動放行但記錄
-  → Normal/Minor: 直接執行
+資產變更請求 → 正常執行更新
+  → Critical: 更新成功 + 自動建立 work_order (type='change_audit') → 通知主管覆核
+  → Important: 更新成功 + 記錄審計日誌（現有 recordAudit 已覆蓋）
+  → Normal/Minor: 更新成功
 ```
 
 **修改 UpdateAsset handler：**
 ```go
-if asset.BiaLevel == "critical" {
-    // 不直接更新，改為建立 pending work_order
-    wo := maintenanceSvc.Create(ctx, tenantID, userID, CreateOrderRequest{
-        Title: "Change Request: " + asset.Name,
-        Type: "change",
-        Description: fmt.Sprintf("Requested changes: %v", changes),
+// 原有邏輯：正常更新資產（不阻斷）
+updated, err := s.assetSvc.Update(c.Request.Context(), params)
+if err != nil { ... }
+
+// 記錄審計
+s.recordAudit(c, "asset.updated", "asset", "asset", updated.ID, diff)
+
+// 新增：Critical 資產自動建立變更審計工單
+var changeOrderID *uuid.UUID
+if updated.BiaLevel == "critical" {
+    order, err := s.maintenanceSvc.Create(c.Request.Context(), tenantID, userID,
+        maintenance.CreateOrderRequest{
+            Title:       fmt.Sprintf("Change Audit: %s", updated.Name),
+            Type:        "change_audit",
+            Description: fmt.Sprintf("Critical asset modified. Changes: %v", diff),
+            Priority:    "high",
+        })
+    if err == nil {
+        changeOrderID = &order.ID
+    }
+}
+
+// 回應：標準 Asset 物件 + 可選 meta（前端向後兼容）
+apiAsset := toAPIAsset(*updated)
+if changeOrderID != nil {
+    c.JSON(200, gin.H{
+        "data": apiAsset,
+        "meta": gin.H{"change_order_id": changeOrderID.String(), "request_id": c.GetString("request_id")},
     })
-    response.OK(c, map[string]any{"status": "pending_approval", "work_order_id": wo.ID})
     return
 }
-// Normal 資產直接更新
+response.OK(c, apiAsset)
 ```
 
-**改動：** 3 檔案（impl.go 邏輯 + 前端顯示審批狀態）
+**前端處理（可選增強）：**
+```tsx
+// updateAsset.mutate 的 onSuccess 回調
+onSuccess: (resp) => {
+  setEditing(false)
+  // 可選：檢查是否有變更工單
+  if (resp?.meta?.change_order_id) {
+    alert(`Critical asset change recorded. Audit order: ${resp.meta.change_order_id}`)
+  }
+}
+```
+
+**改動：**
+
+| 檔案 | 改動 |
+|------|------|
+| `internal/api/impl.go` | UpdateAsset handler 加 ~15 行（Critical 建工單邏輯）|
+| `cmdb-demo/src/pages/AssetDetailUnified.tsx` | （可選）onSuccess 加 toast 提示 |
+
+> **關鍵差異：** 原方案阻斷更新（前端壞掉），修訂後不阻斷更新（事後審計），
+> 前端完全向後兼容。
 
 ---
 
