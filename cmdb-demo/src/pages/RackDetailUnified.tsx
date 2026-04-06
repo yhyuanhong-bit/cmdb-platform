@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { useRack, useRackAssets, useUpdateRack, useDeleteRack } from "../hooks/useTopology";
+import { useRack, useRackAssets, useRackSlots, useUpdateRack, useDeleteRack } from "../hooks/useTopology";
 
 // ---------------------------------------------------------------------------
 // Shared types & data (equipment slots — no API for sub-rack assets yet)
@@ -149,32 +149,72 @@ function getSlotAccent(type: SlotType): string {
 // Tab 1: Visualization
 // ---------------------------------------------------------------------------
 
+// BIA tier colors for rack slots
+const SLOT_BIA_COLORS: Record<string, string> = {
+  critical: 'bg-error-container text-on-error-container',
+  important: 'bg-[#92400e] text-[#fbbf24]',
+  normal: 'bg-[#1e3a5f] text-on-primary-container',
+  minor: 'bg-surface-container-highest text-on-surface-variant',
+}
+
 function VisualizationTab({
   selectedAsset,
   setSelectedAsset,
   equipmentList,
+  rackSlots,
+  totalU,
 }: {
   selectedAsset: Equipment | null;
   setSelectedAsset: (eq: Equipment | null) => void;
   equipmentList?: Equipment[];
+  rackSlots?: any[];
+  totalU?: number;
 }) {
   const eqList = equipmentList ?? equipment;
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [view, setView] = useState<"FRONT" | "REAR">("FRONT");
 
+  const hasSlots = rackSlots && rackSlots.length > 0;
+  const gridU = totalU || 42;
+  const uPositions = Array.from({ length: gridU }, (_, i) => gridU - i);
+  const viewSlots = hasSlots
+    ? rackSlots.filter((s: any) => (s.side || 'front') === view.toLowerCase())
+    : [];
+
   return (
     <div>
       {/* View toggle */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          {(["compute", "network", "storage", "power"] as const).map((type) => (
-            <div key={type} className="flex items-center gap-1.5">
-              <div className={`w-3 h-3 rounded-sm ${getTypeAccent(type)}`} />
-              <span className="text-xs text-on-surface-variant capitalize">{type}</span>
+        {hasSlots ? (
+          <div className="flex flex-wrap gap-3 text-[10px] text-on-surface-variant">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-error-container" />
+              <span>Critical</span>
             </div>
-          ))}
-        </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-[#92400e]" />
+              <span>Important</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-[#1e3a5f]" />
+              <span>Normal</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-surface-container-highest" />
+              <span>Minor</span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {(["compute", "network", "storage", "power"] as const).map((type) => (
+              <div key={type} className="flex items-center gap-1.5">
+                <div className={`w-3 h-3 rounded-sm ${getTypeAccent(type)}`} />
+                <span className="text-xs text-on-surface-variant capitalize">{type}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex items-center gap-2">
           {(["FRONT", "REAR"] as const).map((v) => (
             <button
@@ -200,62 +240,98 @@ function VisualizationTab({
             <div className="flex items-center gap-2 mb-3">
               <span className="material-symbols-outlined text-primary text-[18px]">dns</span>
               <h2 className="text-xs font-headline font-bold tracking-widest uppercase text-on-surface-variant">
-                RACK-042 &mdash; {view} VIEW &mdash; 42U
+                RACK &mdash; {view} VIEW &mdash; {gridU}U
               </h2>
             </div>
-            <div className="bg-surface-container-low rounded p-3">
-              <div className="flex flex-col gap-px">
-                {Array.from({ length: 42 }, (_, i) => {
-                  const u = 42 - i;
-                  const eq = eqList.find((e) => u >= e.startU && u <= e.endU);
-                  const isStart = eq && u === eq.endU;
-                  const span = eq ? eq.endU - eq.startU + 1 : 0;
 
-                  if (eq && !isStart) return null;
-
-                  if (eq && isStart) {
-                    const isSelected = selectedAsset?.assetTag === eq.assetTag;
-                    return (
-                      <button
-                        key={u}
-                        onClick={() => setSelectedAsset(eq)}
-                        className={`flex items-center ${getTypeColor(eq.type)} rounded text-left transition-all cursor-pointer ${
-                          isSelected ? "ring-1 ring-primary" : ""
-                        }`}
-                        style={{ height: `${span * 24}px` }}
-                      >
-                        <div className={`w-1 h-full rounded-l ${getTypeAccent(eq.type)}`} />
-                        <span className="text-[10px] text-on-surface-variant w-12 text-right pr-2 shrink-0">
-                          U{eq.startU === eq.endU ? eq.startU : `${eq.startU}-${eq.endU}`}
-                        </span>
-                        <div className="flex-1 px-2 overflow-hidden">
-                          <p className="text-xs font-label font-medium text-on-surface truncate">{eq.label}</p>
-                          <p className="text-[10px] text-on-surface-variant truncate">{eq.assetTag}</p>
-                        </div>
-                      </button>
-                    );
-                  }
+            {hasSlots ? (
+              /* Real slot-based rendering with BIA colors */
+              <div className="border-2 border-outline-variant/30 rounded-lg bg-surface-container-low p-1">
+                {uPositions.map(u => {
+                  const slot = viewSlots.find((s: any) => u >= s.start_u && u <= s.end_u);
+                  const isTopU = slot && u === slot.end_u;
 
                   return (
-                    <div
-                      key={u}
-                      className="flex items-center bg-surface-container-lowest rounded"
-                      style={{ height: "24px" }}
-                    >
-                      <div className="w-1 h-full" />
-                      <span className="text-[10px] text-on-surface-variant/30 w-12 text-right pr-2 shrink-0">
-                        U{u}
-                      </span>
-                      <div className="flex-1 px-2">
-                        <span className="text-[10px] text-on-surface-variant/15 tracking-widest">
-                          {t("common.vacant")}
-                        </span>
+                    <div key={u} className="flex h-6 border-b border-outline-variant/10">
+                      <div className="w-8 text-center text-[10px] text-on-surface-variant/50 leading-6 border-r border-outline-variant/10">
+                        {u}
+                      </div>
+                      <div className="flex-1 relative">
+                        {slot ? (
+                          isTopU && (
+                            <div
+                              className={`absolute inset-x-0 z-10 m-px rounded flex items-center justify-center text-[10px] font-bold tracking-wide
+                                ${SLOT_BIA_COLORS[slot.bia_level] || SLOT_BIA_COLORS.normal}`}
+                              style={{ height: `${(slot.end_u - slot.start_u + 1) * 24 - 4}px` }}
+                              title={`${slot.asset_name} (${slot.asset_tag}) — BIA: ${slot.bia_level}`}
+                            >
+                              {slot.asset_name || slot.asset_tag}
+                            </div>
+                          )
+                        ) : (
+                          <span className="text-[9px] text-on-surface-variant/20 ml-2 leading-6">&mdash;</span>
+                        )}
                       </div>
                     </div>
                   );
-                }).filter(Boolean)}
+                })}
               </div>
-            </div>
+            ) : (
+              /* Fallback: hardcoded equipment-based rendering */
+              <div className="bg-surface-container-low rounded p-3">
+                <div className="flex flex-col gap-px">
+                  {Array.from({ length: 42 }, (_, i) => {
+                    const u = 42 - i;
+                    const eq = eqList.find((e) => u >= e.startU && u <= e.endU);
+                    const isStart = eq && u === eq.endU;
+                    const span = eq ? eq.endU - eq.startU + 1 : 0;
+
+                    if (eq && !isStart) return null;
+
+                    if (eq && isStart) {
+                      const isSelected = selectedAsset?.assetTag === eq.assetTag;
+                      return (
+                        <button
+                          key={u}
+                          onClick={() => setSelectedAsset(eq)}
+                          className={`flex items-center ${getTypeColor(eq.type)} rounded text-left transition-all cursor-pointer ${
+                            isSelected ? "ring-1 ring-primary" : ""
+                          }`}
+                          style={{ height: `${span * 24}px` }}
+                        >
+                          <div className={`w-1 h-full rounded-l ${getTypeAccent(eq.type)}`} />
+                          <span className="text-[10px] text-on-surface-variant w-12 text-right pr-2 shrink-0">
+                            U{eq.startU === eq.endU ? eq.startU : `${eq.startU}-${eq.endU}`}
+                          </span>
+                          <div className="flex-1 px-2 overflow-hidden">
+                            <p className="text-xs font-label font-medium text-on-surface truncate">{eq.label}</p>
+                            <p className="text-[10px] text-on-surface-variant truncate">{eq.assetTag}</p>
+                          </div>
+                        </button>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={u}
+                        className="flex items-center bg-surface-container-lowest rounded"
+                        style={{ height: "24px" }}
+                      >
+                        <div className="w-1 h-full" />
+                        <span className="text-[10px] text-on-surface-variant/30 w-12 text-right pr-2 shrink-0">
+                          U{u}
+                        </span>
+                        <div className="flex-1 px-2">
+                          <span className="text-[10px] text-on-surface-variant/15 tracking-widest">
+                            {t("common.vacant")}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }).filter(Boolean)}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -819,6 +895,8 @@ export default function RackDetailUnified() {
   const rack = rackResponse?.data;
   const { data: rackAssetsResponse } = useRackAssets(rackId ?? "");
   const rackAssets = rackAssetsResponse?.data;
+  const { data: slotsResp } = useRackSlots(rackId ?? "");
+  const rackSlots = slotsResp?.data || [];
 
   // Build equipment list from real rack assets if available, fallback to hardcoded
   const liveEquipment: Equipment[] = useMemo(() => {
@@ -974,7 +1052,7 @@ export default function RackDetailUnified() {
 
         {/* Tab content */}
         {activeTab === "visualization" && (
-          <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} />
+          <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} rackSlots={rackSlots} totalU={rack?.total_u} />
         )}
         {activeTab === "console" && <ConsoleTab />}
         {activeTab === "network" && <NetworkTab />}

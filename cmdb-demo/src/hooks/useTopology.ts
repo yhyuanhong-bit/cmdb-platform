@@ -113,3 +113,19 @@ export function useDeleteRack() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['racks'] }),
   })
 }
+
+export function useRackSlots(rackId: string) {
+  return useQuery({
+    queryKey: ['rackSlots', rackId],
+    queryFn: () => topologyApi.listRackSlots(rackId),
+    enabled: !!rackId,
+  })
+}
+
+export function useCreateRackSlot() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ rackId, data }: { rackId: string; data: any }) => topologyApi.createRackSlot(rackId, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['rackSlots'] }) }
+  })
+}

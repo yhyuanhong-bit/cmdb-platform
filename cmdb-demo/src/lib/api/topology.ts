@@ -36,4 +36,8 @@ export const topologyApi = {
     apiClient.del(`/racks/${id}`),
   listRackAssets: (rackId: string) =>
     apiClient.get<ApiResponse<any[]>>(`/racks/${rackId}/assets`),
+  listRackSlots: (rackId: string) =>
+    apiClient.get<ApiResponse<any[]>>(`/racks/${rackId}/slots`),
+  createRackSlot: (rackId: string, data: any) =>
+    apiClient.post<ApiResponse<any>>(`/racks/${rackId}/slots`, data),
 }
