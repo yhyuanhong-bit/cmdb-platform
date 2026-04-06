@@ -85,6 +85,11 @@ function AuditHistory() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string>("Historical");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [eventTypeFilter, setEventTypeFilter] = useState('');
+  const [userFilter, setUserFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const { data: eventsResponse, isLoading, error } = useAuditEvents();
   const auditEvents = eventsResponse?.data ?? [];
@@ -102,7 +107,16 @@ function AuditHistory() {
     sourceIcon: 'receipt_long',
     expandable: e.diff && Object.keys(e.diff).length > 0,
     expandedData: e.diff as Record<string, string> | undefined,
+    created_at: e.created_at,
   }));
+
+  // Apply client-side filters
+  let filtered = AUDIT_ENTRIES;
+  if (search) filtered = filtered.filter(e => JSON.stringify(e).toLowerCase().includes(search.toLowerCase()));
+  if (eventTypeFilter) filtered = filtered.filter(e => e.actionType?.includes(eventTypeFilter.toUpperCase()) || e.source?.toLowerCase().includes(eventTypeFilter.toLowerCase()));
+  if (userFilter) filtered = filtered.filter(e => e.operator?.includes(userFilter));
+  if (dateFrom) filtered = filtered.filter(e => e.created_at && e.created_at >= dateFrom);
+  if (dateTo) filtered = filtered.filter(e => e.created_at && e.created_at <= dateTo + 'T23:59:59');
 
   if (isLoading) {
     return (
@@ -128,13 +142,12 @@ function AuditHistory() {
         aria-label="Breadcrumb"
         className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-on-surface-variant"
       >
-        {["ASSETS", "SRV-PROD-001", "AUDIT HISTORY"].map((crumb, i, arr) => (
+        {["ASSETS", "AUDIT HISTORY"].map((crumb, i, arr) => (
           <span key={crumb} className="flex items-center gap-1.5">
             <span
               className="cursor-pointer transition-colors hover:text-primary"
               onClick={() => {
                 if (crumb === "ASSETS") navigate('/assets');
-                else if (crumb === "SRV-PROD-001") navigate('/assets/detail');
               }}
             >
               {crumb}
@@ -202,7 +215,7 @@ function AuditHistory() {
         />
         <StatCard
           label={t('audit.config_changes')}
-          value="47"
+          value={String(filtered.length)}
           sub={t('audit.last_30_days')}
           icon="settings"
         />
@@ -221,28 +234,42 @@ function AuditHistory() {
           <input
             type="text"
             placeholder={t('audit.search_placeholder')}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
             className="w-full min-w-[120px] bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/60 outline-none"
           />
         </div>
 
         {/* Event type dropdown */}
-        <select className="appearance-none rounded-md bg-surface-container-low px-3 py-2 text-xs font-medium text-on-surface-variant outline-none">
-          {EVENT_TYPES.map((t) => (
-            <option key={t}>{t}</option>
+        <select
+          value={eventTypeFilter}
+          onChange={e => setEventTypeFilter(e.target.value)}
+          className="appearance-none rounded-md bg-surface-container-low px-3 py-2 text-xs font-medium text-on-surface-variant outline-none"
+        >
+          <option value="">All Events</option>
+          {EVENT_TYPES.filter(t => t !== 'All Events').map((t) => (
+            <option key={t} value={t}>{t}</option>
           ))}
         </select>
 
         {/* User dropdown */}
-        <select className="appearance-none rounded-md bg-surface-container-low px-3 py-2 text-xs font-medium text-on-surface-variant outline-none">
-          {USERS.map((u) => (
-            <option key={u}>{u}</option>
+        <select
+          value={userFilter}
+          onChange={e => setUserFilter(e.target.value)}
+          className="appearance-none rounded-md bg-surface-container-low px-3 py-2 text-xs font-medium text-on-surface-variant outline-none"
+        >
+          <option value="">All Users</option>
+          {USERS.filter(u => u !== 'All Users').map((u) => (
+            <option key={u} value={u}>{u}</option>
           ))}
         </select>
 
         {/* Date range */}
         <div className="flex items-center gap-2 rounded-md bg-surface-container-low px-3 py-2">
           <Icon name="calendar_today" className="text-base text-on-surface-variant" />
-          <span className="text-xs text-on-surface-variant">2023-10-01 — 2023-10-31</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="bg-transparent text-xs text-on-surface-variant outline-none" />
+          <span className="text-on-surface-variant">—</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="bg-transparent text-xs text-on-surface-variant outline-none" />
         </div>
 
         {/* Advanced */}
@@ -273,7 +300,7 @@ function AuditHistory() {
         </div>
 
         {/* Table Rows */}
-        {AUDIT_ENTRIES.map((entry) => (
+        {filtered.map((entry) => (
           <div key={entry.id}>
             <div
               onClick={() => navigate('/audit/detail?id=' + entry.id)}
@@ -375,7 +402,12 @@ function AuditHistory() {
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={() => alert('Coming Soon')}
+          onClick={() => {
+            const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'audit-report.json'; a.click();
+          }}
           className="machined-gradient flex items-center gap-2 rounded-lg px-8 py-3 text-sm font-bold uppercase tracking-wider text-[#001b34] transition-all hover:brightness-110"
         >
           <Icon name="summarize" className="text-lg" />

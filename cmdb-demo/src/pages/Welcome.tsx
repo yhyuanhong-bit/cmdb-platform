@@ -6,31 +6,39 @@ import { useTranslation } from "react-i18next";
    Types & mock data
    ────────────────────────────────────────────── */
 
-interface FeatureCard {
-  icon: string;
-  title: string;
-  description: string;
-}
-
-const ONBOARDING_TABS = ["Welcome", "Connect", "Analyze", "Secure", "Finish"];
-
-const FEATURE_CARDS: FeatureCard[] = [
-  {
-    icon: "view_in_ar",
-    title: "3D Visuals",
-    description: "Deep dive into spatial data clusters.",
-  },
-  {
-    icon: "psychology",
-    title: "Predictive AI",
-    description: "Solve incidents before they impact users.",
-  },
-  {
-    icon: "sync",
-    title: "CMDB Sync",
-    description: "Real-time inventory orchestration.",
-  },
+const ONBOARDING_TABS = [
+  { id: "welcome", label: "Welcome" },
+  { id: "connect", label: "Connect" },
+  { id: "analyze", label: "Analyze" },
+  { id: "secure", label: "Secure" },
+  { id: "finish", label: "Finish" },
 ];
+
+const TAB_CONTENT: Record<string, { title: string; desc: string; icon: string }[]> = {
+  welcome: [
+    { title: 'Enterprise CMDB', desc: 'Unified asset management across all data centers', icon: 'dns' },
+    { title: 'AIOps Intelligence', desc: 'AI-driven root cause analysis and predictive maintenance', icon: 'psychology' },
+    { title: 'Real-time Monitoring', desc: 'WebSocket-powered live dashboards and alerts', icon: 'monitoring' },
+  ],
+  connect: [
+    { title: 'Auto-Discovery', desc: 'VMware, SNMP, and manual import support', icon: 'cable' },
+    { title: 'API Integration', desc: 'REST API + Webhook for external system connections', icon: 'api' },
+    { title: 'MCP Server', desc: 'AI tool integration via Model Context Protocol', icon: 'smart_toy' },
+  ],
+  analyze: [
+    { title: 'BIA Impact Analysis', desc: 'Business system tier scoring with RTO/RPO tracking', icon: 'assessment' },
+    { title: 'Data Quality', desc: 'Four-dimension automated quality scoring engine', icon: 'verified' },
+    { title: 'Predictive AI', desc: 'Failure prediction and root cause analysis models', icon: 'analytics' },
+  ],
+  secure: [
+    { title: 'RBAC Access Control', desc: 'Role-based permission management for all operations', icon: 'admin_panel_settings' },
+    { title: 'Audit Trail', desc: 'Automatic logging of every write operation', icon: 'history' },
+    { title: 'Change Audit', desc: 'Critical asset changes auto-create review work orders', icon: 'fact_check' },
+  ],
+  finish: [
+    { title: 'Ready to Go', desc: 'Your CMDB platform is fully configured', icon: 'rocket_launch' },
+  ],
+};
 
 /* ──────────────────────────────────────────────
    Small reusable pieces (light‑theme scoped)
@@ -55,7 +63,7 @@ function LightIcon({
 const Welcome = memo(function Welcome() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState("welcome");
 
   return (
     <div className="min-h-screen bg-[#f3f7fb] font-[Inter]">
@@ -68,18 +76,18 @@ const Welcome = memo(function Welcome() {
           </span>
 
           <nav className="flex items-center gap-1">
-            {ONBOARDING_TABS.map((tab, idx) => (
+            {ONBOARDING_TABS.map((tab) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(idx)}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-4 text-sm font-medium transition-colors relative ${
-                  idx === activeTab
+                  tab.id === activeTab
                     ? "text-[#005f98]"
                     : "text-[#6b7b8d] hover:text-[#2a2f32]"
                 }`}
               >
-                {tab}
-                {idx === activeTab && (
+                {tab.label}
+                {tab.id === activeTab && (
                   <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-[#005f98] rounded-full" />
                 )}
               </button>
@@ -134,9 +142,9 @@ const Welcome = memo(function Welcome() {
 
           {/* Feature cards */}
           <div className="grid grid-cols-3 gap-4">
-            {FEATURE_CARDS.map((card) => (
+            {(TAB_CONTENT[activeTab] || TAB_CONTENT.welcome).map((card, i) => (
               <div
-                key={card.title}
+                key={i}
                 className="bg-white rounded-xl shadow-sm border border-[#e8edf2] p-5 flex flex-col gap-3 hover:shadow-md transition-shadow"
               >
                 <div className="w-10 h-10 rounded-lg bg-[#005f98]/10 flex items-center justify-center">
@@ -149,7 +157,7 @@ const Welcome = memo(function Welcome() {
                   {card.title}
                 </h3>
                 <p className="text-xs text-[#6b7b8d] leading-relaxed">
-                  {card.description}
+                  {card.desc}
                 </p>
               </div>
             ))}

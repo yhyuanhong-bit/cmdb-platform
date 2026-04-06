@@ -5,16 +5,13 @@ import Icon from "../components/Icon";
 import StatusBadge from "../components/StatusBadge";
 import { useAlerts } from "../hooks/useMonitoring";
 import { useSystemHealth } from "../hooks/useSystemHealth";
+import { useAssets } from "../hooks/useAssets";
 
 /* ──────────────────────────────────────────────
    Static data (needs dedicated metrics endpoint)
    ────────────────────────────────────────────── */
 
-const HEALTH_SEGMENTS = [
-  { label: "Healthy", pct: 82, color: "#9ecaff" },
-  { label: "Warning", pct: 12, color: "#fbbf24" },
-  { label: "Critical", pct: 6, color: "#ff6b6b" },
-];
+/* healthSegments computed dynamically inside component */
 
 const TREND_BARS = [
   { hour: "00", critical: 2, warning: 5, info: 8 },
@@ -120,6 +117,17 @@ function SystemHealth() {
   const health = healthResponse?.data;
   const dbStatus = health?.database?.status ?? 'unknown';
   const dbLatency = health?.database?.latency_ms;
+  const { data: assetsResp } = useAssets({ page_size: 1 });
+  const totalAssets = (assetsResp as any)?.pagination?.total || 0;
+
+  const criticalCount = criticalAlerts.length;
+  const healthSegments = [
+    { label: 'Healthy', pct: totalAssets > 0 ? Math.round(((totalAssets - criticalCount * 2) / totalAssets) * 100) : 82, color: '#34d399' },
+    { label: 'Warning', pct: totalAssets > 0 ? Math.min(Math.round((criticalCount / totalAssets) * 100), 30) : 12, color: '#fbbf24' },
+    { label: 'Critical', pct: totalAssets > 0 ? Math.min(Math.round((criticalCount / totalAssets) * 100 * 0.5), 20) : 6, color: '#ff6b6b' },
+  ];
+
+  const uptime = dbStatus === 'ok' ? '99.99%' : 'Degraded';
   const trendMax = Math.max(
     ...TREND_BARS.map((b) => b.critical + b.warning + b.info),
   );
@@ -154,7 +162,7 @@ function SystemHealth() {
         <div className="flex items-center gap-4">
           <div className="text-right">
             <p className="font-headline text-4xl font-bold text-on-surface">
-              99.992<span className="text-lg text-on-surface-variant">%</span>
+              {uptime}
             </p>
             <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">
               {t('system_health.uptime_30_day_sla')}
@@ -192,9 +200,9 @@ function SystemHealth() {
             {t('system_health.syncing_cloud_nodes')}
           </p>
           <div className="mt-2 flex items-center gap-2">
-            <ProgressBar pct={76} color="bg-primary" />
+            <ProgressBar pct={0} color="bg-primary" />
             <span className="shrink-0 text-xs font-semibold text-primary">
-              76%
+              N/A
             </span>
           </div>
         </div>
@@ -222,7 +230,7 @@ function SystemHealth() {
             </span>
           </div>
           <p className="font-headline text-3xl font-bold text-on-surface">
-            2,847
+            {totalAssets.toLocaleString()}
           </p>
           <span className="mt-1 text-xs text-on-surface-variant">
             {t('system_health.across_regions')}
@@ -234,12 +242,12 @@ function SystemHealth() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Section title={t('system_health.overall_health_distribution')} icon="donut_large">
           <DonutChart
-            segments={HEALTH_SEGMENTS}
-            centerLabel="82%"
+            segments={healthSegments}
+            centerLabel={`${healthSegments[0].pct}%`}
             centerSublabel={t('system_health.healthy')}
           />
           <div className="mt-5 flex items-center justify-center gap-6">
-            {HEALTH_SEGMENTS.map((s) => (
+            {healthSegments.map((s) => (
               <div key={s.label} className="flex items-center gap-2">
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
