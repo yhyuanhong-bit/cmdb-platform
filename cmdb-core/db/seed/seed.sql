@@ -827,3 +827,12 @@ INSERT INTO bia_dependencies (tenant_id, assessment_id, asset_id, dependency_typ
     -- QA Sandbox → dev server
     ('a0000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000008', 'runs_on', 'low')
 ON CONFLICT DO NOTHING;
+
+-- Quality Rules
+INSERT INTO quality_rules (tenant_id, ci_type, dimension, field_name, rule_type, rule_config, weight) VALUES
+    ('a0000000-0000-0000-0000-000000000001', 'server', 'completeness', 'serial_number', 'required', '{}', 15),
+    ('a0000000-0000-0000-0000-000000000001', 'server', 'completeness', 'vendor', 'required', '{}', 10),
+    ('a0000000-0000-0000-0000-000000000001', NULL, 'accuracy', 'serial_number', 'regex', '{"regex": "^[A-Z0-9\\-]{5,30}$"}', 20),
+    ('a0000000-0000-0000-0000-000000000001', 'network', 'completeness', 'serial_number', 'required', '{}', 15),
+    ('a0000000-0000-0000-0000-000000000001', NULL, 'consistency', 'rack_id', 'required', '{}', 25)
+ON CONFLICT DO NOTHING;

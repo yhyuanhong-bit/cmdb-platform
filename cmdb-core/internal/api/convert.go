@@ -640,6 +640,138 @@ func toAPIRackSlot(db dbgen.ListRackSlotsRow) RackSlot {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// 23. toAPIQualityRule
+// ---------------------------------------------------------------------------
+
+func toAPIQualityRule(db dbgen.QualityRule) QualityRule {
+	r := QualityRule{
+		Id:        db.ID,
+		Dimension: db.Dimension,
+		FieldName: db.FieldName,
+		RuleType:  db.RuleType,
+		CreatedAt: &db.CreatedAt,
+	}
+	if db.CiType.Valid {
+		r.CiType = &db.CiType.String
+	}
+	if db.Weight.Valid {
+		w := int(db.Weight.Int32)
+		r.Weight = &w
+	}
+	if db.Enabled.Valid {
+		r.Enabled = &db.Enabled.Bool
+	}
+	r.RuleConfig = bytesToJSON(db.RuleConfig)
+	return r
+}
+
+// ---------------------------------------------------------------------------
+// 24. toAPIQualityScoreFromWorst
+// ---------------------------------------------------------------------------
+
+func toAPIQualityScoreFromWorst(db dbgen.GetWorstAssetsRow) QualityScore {
+	id := db.ID
+	assetID := db.AssetID
+	completeness := pgnumToFloat32(db.Completeness)
+	accuracy := pgnumToFloat32(db.Accuracy)
+	timeliness := pgnumToFloat32(db.Timeliness)
+	consistency := pgnumToFloat32(db.Consistency)
+	totalScore := pgnumToFloat32(db.TotalScore)
+	return QualityScore{
+		Id:           &id,
+		AssetId:      &assetID,
+		Completeness: &completeness,
+		Accuracy:     &accuracy,
+		Timeliness:   &timeliness,
+		Consistency:  &consistency,
+		TotalScore:   &totalScore,
+		IssueDetails: bytesToIssueDetails(db.IssueDetails),
+		ScanDate:     &db.ScanDate,
+		AssetName:    &db.AssetName,
+		AssetTag:     &db.AssetTag,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 25. toAPIQualityScoreFromHistory
+// ---------------------------------------------------------------------------
+
+func toAPIQualityScoreFromHistory(db dbgen.QualityScore) QualityScore {
+	id := db.ID
+	assetID := db.AssetID
+	completeness := pgnumToFloat32(db.Completeness)
+	accuracy := pgnumToFloat32(db.Accuracy)
+	timeliness := pgnumToFloat32(db.Timeliness)
+	consistency := pgnumToFloat32(db.Consistency)
+	totalScore := pgnumToFloat32(db.TotalScore)
+	return QualityScore{
+		Id:           &id,
+		AssetId:      &assetID,
+		Completeness: &completeness,
+		Accuracy:     &accuracy,
+		Timeliness:   &timeliness,
+		Consistency:  &consistency,
+		TotalScore:   &totalScore,
+		IssueDetails: bytesToIssueDetails(db.IssueDetails),
+		ScanDate:     &db.ScanDate,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 26. toAPIQualityDashboard
+// ---------------------------------------------------------------------------
+
+func toAPIQualityDashboard(db dbgen.GetQualityDashboardRow) QualityDashboard {
+	avgTotal := interfaceToFloat32(db.AvgTotal)
+	avgCompleteness := interfaceToFloat32(db.AvgCompleteness)
+	avgAccuracy := interfaceToFloat32(db.AvgAccuracy)
+	avgTimeliness := interfaceToFloat32(db.AvgTimeliness)
+	avgConsistency := interfaceToFloat32(db.AvgConsistency)
+	totalScanned := int(db.TotalScanned)
+	return QualityDashboard{
+		AvgTotal:        &avgTotal,
+		AvgCompleteness: &avgCompleteness,
+		AvgAccuracy:     &avgAccuracy,
+		AvgTimeliness:   &avgTimeliness,
+		AvgConsistency:  &avgConsistency,
+		TotalScanned:    &totalScanned,
+	}
+}
+
+func bytesToIssueDetails(b []byte) *[]map[string]interface{} {
+	if len(b) == 0 {
+		return nil
+	}
+	var issues []map[string]interface{}
+	if err := json.Unmarshal(b, &issues); err != nil {
+		return nil
+	}
+	return &issues
+}
+
+func interfaceToFloat32(v interface{}) float32 {
+	switch val := v.(type) {
+	case float64:
+		return float32(val)
+	case float32:
+		return val
+	case int64:
+		return float32(val)
+	case string:
+		// pgtype.Numeric may serialize as string
+		var f float64
+		fmt.Sscanf(val, "%f", &f)
+		return float32(f)
+	default:
+		// Try numeric decode via pgtype
+		if n, ok := v.(pgtype.Numeric); ok {
+			return pgnumToFloat32(n)
+		}
+		return 0
+	}
+}
+
 func toAPIWebhook(db dbgen.WebhookSubscription) WebhookSubscription {
 	createdAt := pgtsToTime(db.CreatedAt)
 	return WebhookSubscription{

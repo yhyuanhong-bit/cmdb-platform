@@ -35,6 +35,8 @@ tags:
     description: Integration adapters and webhooks
   - name: bia
     description: Business Impact Analysis
+  - name: quality
+    description: Data Quality Governance
 
 paths:
   # ── Auth ────────────────────────────────────────────────────────────────
@@ -2532,6 +2534,169 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  # ── BIA Impact ─────────────────────────────────────────────────────────
+  /bia/impact/{id}:
+    get:
+      operationId: getBIAImpact
+      tags: [bia]
+      summary: Get business systems impacted by an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Impacted BIA assessments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BIAAssessment'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Quality ────────────────────────────────────────────────────────────
+  /quality/rules:
+    get:
+      operationId: listQualityRules
+      tags: [quality]
+      summary: List data quality rules
+      responses:
+        '200':
+          description: Quality rules
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QualityRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createQualityRule
+      tags: [quality]
+      summary: Create a data quality rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQualityRuleRequest'
+      responses:
+        '201':
+          description: Quality rule created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /quality/scan:
+    post:
+      operationId: triggerQualityScan
+      tags: [quality]
+      summary: Trigger a quality scan for all assets
+      responses:
+        '200':
+          description: Scan completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      scanned:
+                        type: integer
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /quality/dashboard:
+    get:
+      operationId: getQualityDashboard
+      tags: [quality]
+      summary: Get quality dashboard with aggregate scores
+      responses:
+        '200':
+          description: Quality dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityDashboard'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /quality/worst:
+    get:
+      operationId: getWorstAssets
+      tags: [quality]
+      summary: Get worst quality assets (bottom 10)
+      responses:
+        '200':
+          description: Worst quality assets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QualityScore'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /quality/history/{id}:
+    get:
+      operationId: getAssetQualityHistory
+      tags: [quality]
+      summary: Get quality score history for an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Quality score history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QualityScore'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -3571,4 +3736,108 @@ components:
         asset_compliant:
           type: integer
         audit_compliant:
+          type: integer
+
+    # ── QualityRule ──────────────────────────────────────────────────
+    QualityRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ci_type:
+          type: string
+        dimension:
+          type: string
+        field_name:
+          type: string
+        rule_type:
+          type: string
+        rule_config:
+          type: object
+          additionalProperties: true
+        weight:
+          type: integer
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - dimension
+        - field_name
+        - rule_type
+
+    CreateQualityRuleRequest:
+      type: object
+      properties:
+        ci_type:
+          type: string
+        dimension:
+          type: string
+        field_name:
+          type: string
+        rule_type:
+          type: string
+        rule_config:
+          type: object
+          additionalProperties: true
+        weight:
+          type: integer
+        enabled:
+          type: boolean
+      required:
+        - dimension
+        - field_name
+        - rule_type
+
+    # ── QualityScore ─────────────────────────────────────────────────
+    QualityScore:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        completeness:
+          type: number
+        accuracy:
+          type: number
+        timeliness:
+          type: number
+        consistency:
+          type: number
+        total_score:
+          type: number
+        issue_details:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        scan_date:
+          type: string
+          format: date-time
+        asset_name:
+          type: string
+        asset_tag:
+          type: string
+
+    # ── QualityDashboard ─────────────────────────────────────────────
+    QualityDashboard:
+      type: object
+      properties:
+        avg_total:
+          type: number
+        avg_completeness:
+          type: number
+        avg_accuracy:
+          type: number
+        avg_timeliness:
+          type: number
+        avg_consistency:
+          type: number
+        total_scanned:
           type: integer

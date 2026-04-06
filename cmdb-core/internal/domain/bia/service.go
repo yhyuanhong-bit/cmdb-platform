@@ -134,6 +134,11 @@ func (s *Service) PropagateBIALevel(ctx context.Context, assessmentID uuid.UUID)
 	return nil
 }
 
+// GetImpactedAssessments returns BIA assessments that depend on a given asset.
+func (s *Service) GetImpactedAssessments(ctx context.Context, assetID uuid.UUID) ([]dbgen.BiaAssessment, error) {
+	return s.queries.GetImpactedAssessments(ctx, assetID)
+}
+
 // GetStats returns aggregated BIA statistics for a tenant.
 func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*BIAStats, error) {
 	tierCounts, err := s.queries.CountBIAByTier(ctx, tenantID)

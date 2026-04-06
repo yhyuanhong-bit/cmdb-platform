@@ -23,6 +23,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	cmdbmcp "github.com/cmdb-platform/cmdb-core/internal/mcp"
@@ -101,6 +102,7 @@ func main() {
 
 	integrationSvc := integration.NewService(queries)
 	biaSvc := bia.NewService(queries)
+	qualitySvc := quality.NewService(queries)
 
 	// AI Registry
 	aiRegistry := ai.NewRegistry()
@@ -115,7 +117,7 @@ func main() {
 	apiServer := api.NewAPIServer(
 		pool, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
-		integrationSvc, biaSvc,
+		integrationSvc, biaSvc, qualitySvc,
 	)
 
 	// 10. Set up Gin router

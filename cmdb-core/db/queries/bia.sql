@@ -108,3 +108,8 @@ FROM (
     GROUP BY bd.asset_id
 ) sub
 WHERE assets.id = sub.asset_id;
+
+-- name: GetImpactedAssessments :many
+SELECT ba.* FROM bia_assessments ba
+JOIN bia_dependencies bd ON bd.assessment_id = ba.id
+WHERE bd.asset_id = $1;

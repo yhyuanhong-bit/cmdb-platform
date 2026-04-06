@@ -287,6 +287,51 @@ func (q *Queries) GetBIAComplianceStats(ctx context.Context, tenantID uuid.UUID)
 	return i, err
 }
 
+const getImpactedAssessments = `-- name: GetImpactedAssessments :many
+SELECT ba.id, ba.tenant_id, ba.system_name, ba.system_code, ba.owner, ba.bia_score, ba.tier, ba.rto_hours, ba.rpo_minutes, ba.mtpd_hours, ba.data_compliance, ba.asset_compliance, ba.audit_compliance, ba.description, ba.last_assessed, ba.assessed_by, ba.created_at, ba.updated_at FROM bia_assessments ba
+JOIN bia_dependencies bd ON bd.assessment_id = ba.id
+WHERE bd.asset_id = $1
+`
+
+func (q *Queries) GetImpactedAssessments(ctx context.Context, assetID uuid.UUID) ([]BiaAssessment, error) {
+	rows, err := q.db.Query(ctx, getImpactedAssessments, assetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BiaAssessment{}
+	for rows.Next() {
+		var i BiaAssessment
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.SystemName,
+			&i.SystemCode,
+			&i.Owner,
+			&i.BiaScore,
+			&i.Tier,
+			&i.RtoHours,
+			&i.RpoMinutes,
+			&i.MtpdHours,
+			&i.DataCompliance,
+			&i.AssetCompliance,
+			&i.AuditCompliance,
+			&i.Description,
+			&i.LastAssessed,
+			&i.AssessedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBIAAssessments = `-- name: ListBIAAssessments :many
 SELECT id, tenant_id, system_name, system_code, owner, bia_score, tier, rto_hours, rpo_minutes, mtpd_hours, data_compliance, asset_compliance, audit_compliance, description, last_assessed, assessed_by, created_at, updated_at FROM bia_assessments
 WHERE tenant_id = $1

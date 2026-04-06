@@ -244,6 +244,32 @@ type PredictionResult struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 }
 
+type QualityRule struct {
+	ID         uuid.UUID   `json:"id"`
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	CiType     pgtype.Text `json:"ci_type"`
+	Dimension  string      `json:"dimension"`
+	FieldName  string      `json:"field_name"`
+	RuleType   string      `json:"rule_type"`
+	RuleConfig []byte      `json:"rule_config"`
+	Weight     pgtype.Int4 `json:"weight"`
+	Enabled    pgtype.Bool `json:"enabled"`
+	CreatedAt  time.Time   `json:"created_at"`
+}
+
+type QualityScore struct {
+	ID           uuid.UUID      `json:"id"`
+	TenantID     uuid.UUID      `json:"tenant_id"`
+	AssetID      uuid.UUID      `json:"asset_id"`
+	Completeness pgtype.Numeric `json:"completeness"`
+	Accuracy     pgtype.Numeric `json:"accuracy"`
+	Timeliness   pgtype.Numeric `json:"timeliness"`
+	Consistency  pgtype.Numeric `json:"consistency"`
+	TotalScore   pgtype.Numeric `json:"total_score"`
+	IssueDetails []byte         `json:"issue_details"`
+	ScanDate     time.Time      `json:"scan_date"`
+}
+
 type Rack struct {
 	ID              uuid.UUID      `json:"id"`
 	TenantID        uuid.UUID      `json:"tenant_id"`

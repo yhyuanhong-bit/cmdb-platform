@@ -129,6 +129,17 @@ type BIAStats struct {
 	Total          *int            `json:"total,omitempty"`
 }
 
+// CreateQualityRuleRequest defines model for CreateQualityRuleRequest.
+type CreateQualityRuleRequest struct {
+	CiType     *string                 `json:"ci_type,omitempty"`
+	Dimension  string                  `json:"dimension"`
+	Enabled    *bool                   `json:"enabled,omitempty"`
+	FieldName  string                  `json:"field_name"`
+	RuleConfig *map[string]interface{} `json:"rule_config,omitempty"`
+	RuleType   string                  `json:"rule_type"`
+	Weight     *int                    `json:"weight,omitempty"`
+}
+
 // CurrentUser defines model for CurrentUser.
 type CurrentUser struct {
 	DisplayName string              `json:"display_name"`
@@ -276,6 +287,44 @@ type PredictionResult struct {
 	RecommendedAction string                 `json:"recommended_action"`
 	Result            map[string]interface{} `json:"result"`
 	Severity          string                 `json:"severity"`
+}
+
+// QualityDashboard defines model for QualityDashboard.
+type QualityDashboard struct {
+	AvgAccuracy     *float32 `json:"avg_accuracy,omitempty"`
+	AvgCompleteness *float32 `json:"avg_completeness,omitempty"`
+	AvgConsistency  *float32 `json:"avg_consistency,omitempty"`
+	AvgTimeliness   *float32 `json:"avg_timeliness,omitempty"`
+	AvgTotal        *float32 `json:"avg_total,omitempty"`
+	TotalScanned    *int     `json:"total_scanned,omitempty"`
+}
+
+// QualityRule defines model for QualityRule.
+type QualityRule struct {
+	CiType     *string                 `json:"ci_type,omitempty"`
+	CreatedAt  *time.Time              `json:"created_at,omitempty"`
+	Dimension  string                  `json:"dimension"`
+	Enabled    *bool                   `json:"enabled,omitempty"`
+	FieldName  string                  `json:"field_name"`
+	Id         openapi_types.UUID      `json:"id"`
+	RuleConfig *map[string]interface{} `json:"rule_config,omitempty"`
+	RuleType   string                  `json:"rule_type"`
+	Weight     *int                    `json:"weight,omitempty"`
+}
+
+// QualityScore defines model for QualityScore.
+type QualityScore struct {
+	Accuracy     *float32                  `json:"accuracy,omitempty"`
+	AssetId      *openapi_types.UUID       `json:"asset_id,omitempty"`
+	AssetName    *string                   `json:"asset_name,omitempty"`
+	AssetTag     *string                   `json:"asset_tag,omitempty"`
+	Completeness *float32                  `json:"completeness,omitempty"`
+	Consistency  *float32                  `json:"consistency,omitempty"`
+	Id           *openapi_types.UUID       `json:"id,omitempty"`
+	IssueDetails *[]map[string]interface{} `json:"issue_details,omitempty"`
+	ScanDate     *time.Time                `json:"scan_date,omitempty"`
+	Timeliness   *float32                  `json:"timeliness,omitempty"`
+	TotalScore   *float32                  `json:"total_score,omitempty"`
 }
 
 // RCAAnalysis defines model for RCAAnalysis.
@@ -847,6 +896,9 @@ type CreateRCAJSONRequestBody CreateRCAJSONBody
 // VerifyRCAJSONRequestBody defines body for VerifyRCA for application/json ContentType.
 type VerifyRCAJSONRequestBody VerifyRCAJSONBody
 
+// CreateQualityRuleJSONRequestBody defines body for CreateQualityRule for application/json ContentType.
+type CreateQualityRuleJSONRequestBody = CreateQualityRuleRequest
+
 // CreateRackJSONRequestBody defines body for CreateRack for application/json ContentType.
 type CreateRackJSONRequestBody CreateRackJSONBody
 
@@ -918,6 +970,9 @@ type ServerInterface interface {
 	// Add a dependency to a BIA assessment
 	// (POST /bia/assessments/{id}/dependencies)
 	CreateBIADependency(c *gin.Context, id IdPath)
+	// Get business systems impacted by an asset
+	// (GET /bia/impact/{id})
+	GetBIAImpact(c *gin.Context, id IdPath)
 	// List BIA scoring rules
 	// (GET /bia/rules)
 	ListBIAScoringRules(c *gin.Context)
@@ -1059,6 +1114,24 @@ type ServerInterface interface {
 	// List predictions for a specific asset
 	// (GET /prediction/results/ci/{ciId})
 	ListPredictionsByAsset(c *gin.Context, ciId openapi_types.UUID)
+	// Get quality dashboard with aggregate scores
+	// (GET /quality/dashboard)
+	GetQualityDashboard(c *gin.Context)
+	// Get quality score history for an asset
+	// (GET /quality/history/{id})
+	GetAssetQualityHistory(c *gin.Context, id IdPath)
+	// List data quality rules
+	// (GET /quality/rules)
+	ListQualityRules(c *gin.Context)
+	// Create a data quality rule
+	// (POST /quality/rules)
+	CreateQualityRule(c *gin.Context)
+	// Trigger a quality scan for all assets
+	// (POST /quality/scan)
+	TriggerQualityScan(c *gin.Context)
+	// Get worst quality assets (bottom 10)
+	// (GET /quality/worst)
+	GetWorstAssets(c *gin.Context)
 	// Create a new rack
 	// (POST /racks)
 	CreateRack(c *gin.Context)
@@ -1578,6 +1651,32 @@ func (siw *ServerInterfaceWrapper) CreateBIADependency(c *gin.Context) {
 	}
 
 	siw.Handler.CreateBIADependency(c, id)
+}
+
+// GetBIAImpact operation middleware
+func (siw *ServerInterfaceWrapper) GetBIAImpact(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetBIAImpact(c, id)
 }
 
 // ListBIAScoringRules operation middleware
@@ -2825,6 +2924,107 @@ func (siw *ServerInterfaceWrapper) ListPredictionsByAsset(c *gin.Context) {
 	siw.Handler.ListPredictionsByAsset(c, ciId)
 }
 
+// GetQualityDashboard operation middleware
+func (siw *ServerInterfaceWrapper) GetQualityDashboard(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetQualityDashboard(c)
+}
+
+// GetAssetQualityHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetQualityHistory(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAssetQualityHistory(c, id)
+}
+
+// ListQualityRules operation middleware
+func (siw *ServerInterfaceWrapper) ListQualityRules(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListQualityRules(c)
+}
+
+// CreateQualityRule operation middleware
+func (siw *ServerInterfaceWrapper) CreateQualityRule(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateQualityRule(c)
+}
+
+// TriggerQualityScan operation middleware
+func (siw *ServerInterfaceWrapper) TriggerQualityScan(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.TriggerQualityScan(c)
+}
+
+// GetWorstAssets operation middleware
+func (siw *ServerInterfaceWrapper) GetWorstAssets(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetWorstAssets(c)
+}
+
 // CreateRack operation middleware
 func (siw *ServerInterfaceWrapper) CreateRack(c *gin.Context) {
 
@@ -3274,6 +3474,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/bia/assessments/:id", wrapper.UpdateBIAAssessment)
 	router.GET(options.BaseURL+"/bia/assessments/:id/dependencies", wrapper.ListBIADependencies)
 	router.POST(options.BaseURL+"/bia/assessments/:id/dependencies", wrapper.CreateBIADependency)
+	router.GET(options.BaseURL+"/bia/impact/:id", wrapper.GetBIAImpact)
 	router.GET(options.BaseURL+"/bia/rules", wrapper.ListBIAScoringRules)
 	router.PUT(options.BaseURL+"/bia/rules/:id", wrapper.UpdateBIAScoringRule)
 	router.GET(options.BaseURL+"/bia/stats", wrapper.GetBIAStats)
@@ -3321,6 +3522,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)
 	router.GET(options.BaseURL+"/prediction/results/ci/:ciId", wrapper.ListPredictionsByAsset)
+	router.GET(options.BaseURL+"/quality/dashboard", wrapper.GetQualityDashboard)
+	router.GET(options.BaseURL+"/quality/history/:id", wrapper.GetAssetQualityHistory)
+	router.GET(options.BaseURL+"/quality/rules", wrapper.ListQualityRules)
+	router.POST(options.BaseURL+"/quality/rules", wrapper.CreateQualityRule)
+	router.POST(options.BaseURL+"/quality/scan", wrapper.TriggerQualityScan)
+	router.GET(options.BaseURL+"/quality/worst", wrapper.GetWorstAssets)
 	router.POST(options.BaseURL+"/racks", wrapper.CreateRack)
 	router.DELETE(options.BaseURL+"/racks/:id", wrapper.DeleteRack)
 	router.GET(options.BaseURL+"/racks/:id", wrapper.GetRack)

@@ -21,6 +21,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
@@ -50,6 +51,7 @@ type APIServer struct {
 	predictionSvc  *prediction.Service
 	integrationSvc *integration.Service
 	biaSvc         *bia.Service
+	qualitySvc     *quality.Service
 }
 
 // NewAPIServer constructs an APIServer with all required domain services.
@@ -68,6 +70,7 @@ func NewAPIServer(
 	predictionSvc *prediction.Service,
 	integrationSvc *integration.Service,
 	biaSvc *bia.Service,
+	qualitySvc *quality.Service,
 ) *APIServer {
 	return &APIServer{
 		pool:           pool,
@@ -84,6 +87,7 @@ func NewAPIServer(
 		predictionSvc:  predictionSvc,
 		integrationSvc: integrationSvc,
 		biaSvc:         biaSvc,
+		qualitySvc:     qualitySvc,
 	}
 }
 
@@ -308,6 +312,16 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 	s.publishEvent(c.Request.Context(), eventbus.SubjectAssetCreated, tenantID.String(), map[string]any{
 		"asset_id": created.ID.String(), "tenant_id": tenantID.String(), "asset_tag": created.AssetTag, "type": created.Type,
 	})
+
+	// CIType soft validation: warn about missing recommended attributes.
+	warnings := ciTypeSoftValidation(req.Type, req.Attributes)
+	if len(warnings) > 0 {
+		c.JSON(201, gin.H{
+			"data": toAPIAsset(*created),
+			"meta": gin.H{"warnings": warnings, "request_id": c.GetString("request_id")},
+		})
+		return
+	}
 	response.Created(c, toAPIAsset(*created))
 }
 
@@ -2358,4 +2372,154 @@ func (s *APIServer) GetBIAStats(c *gin.Context) {
 		AuditCompliant: &auditCompliant,
 		ByTier:         &byTier,
 	})
+}
+
+// ---------------------------------------------------------------------------
+// BIA Impact
+// ---------------------------------------------------------------------------
+
+// GetBIAImpact returns the BIA assessments impacted by a given asset.
+// (GET /bia/impact/{id})
+func (s *APIServer) GetBIAImpact(c *gin.Context, id IdPath) {
+	assessments, err := s.biaSvc.GetImpactedAssessments(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.InternalError(c, "failed to get BIA impact")
+		return
+	}
+	response.OK(c, convertSlice(assessments, toAPIBIAAssessment))
+}
+
+// ---------------------------------------------------------------------------
+// Quality — Data Quality Governance Engine
+// ---------------------------------------------------------------------------
+
+// ListQualityRules returns all quality rules for the tenant.
+// (GET /quality/rules)
+func (s *APIServer) ListQualityRules(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+	rules, err := s.qualitySvc.ListRules(c.Request.Context(), tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to list quality rules")
+		return
+	}
+	response.OK(c, convertSlice(rules, toAPIQualityRule))
+}
+
+// CreateQualityRule creates a new quality rule.
+// (POST /quality/rules)
+func (s *APIServer) CreateQualityRule(c *gin.Context) {
+	var req CreateQualityRuleJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+
+	var ruleConfig []byte
+	if req.RuleConfig != nil {
+		ruleConfig, _ = json.Marshal(req.RuleConfig)
+	} else {
+		ruleConfig = []byte("{}")
+	}
+
+	params := dbgen.CreateQualityRuleParams{
+		TenantID:   tenantID,
+		CiType:     textFromPtr(req.CiType),
+		Dimension:  req.Dimension,
+		FieldName:  req.FieldName,
+		RuleType:   req.RuleType,
+		RuleConfig: ruleConfig,
+	}
+	if req.Weight != nil {
+		params.Weight = pgtype.Int4{Int32: int32(*req.Weight), Valid: true}
+	}
+	if req.Enabled != nil {
+		params.Enabled = pgtype.Bool{Bool: *req.Enabled, Valid: true}
+	} else {
+		params.Enabled = pgtype.Bool{Bool: true, Valid: true}
+	}
+
+	rule, err := s.qualitySvc.CreateRule(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, "failed to create quality rule")
+		return
+	}
+	response.Created(c, toAPIQualityRule(*rule))
+}
+
+// TriggerQualityScan runs the quality engine across all tenant assets.
+// (POST /quality/scan)
+func (s *APIServer) TriggerQualityScan(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+	scanned, err := s.qualitySvc.ScanAllAssets(c.Request.Context(), tenantID)
+	if err != nil {
+		response.InternalError(c, "quality scan failed")
+		return
+	}
+	response.OK(c, gin.H{"scanned": scanned})
+}
+
+// GetQualityDashboard returns aggregate quality metrics.
+// (GET /quality/dashboard)
+func (s *APIServer) GetQualityDashboard(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+	dash, err := s.qualitySvc.GetDashboard(c.Request.Context(), tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to get quality dashboard")
+		return
+	}
+	response.OK(c, toAPIQualityDashboard(*dash))
+}
+
+// GetWorstAssets returns the bottom-10 quality assets.
+// (GET /quality/worst)
+func (s *APIServer) GetWorstAssets(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+	rows, err := s.qualitySvc.GetWorstAssets(c.Request.Context(), tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to get worst assets")
+		return
+	}
+	response.OK(c, convertSlice(rows, toAPIQualityScoreFromWorst))
+}
+
+// GetAssetQualityHistory returns quality score history for an asset.
+// (GET /quality/history/{id})
+func (s *APIServer) GetAssetQualityHistory(c *gin.Context, id IdPath) {
+	scores, err := s.qualitySvc.GetAssetHistory(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.InternalError(c, "failed to get asset quality history")
+		return
+	}
+	response.OK(c, convertSlice(scores, toAPIQualityScoreFromHistory))
+}
+
+// ---------------------------------------------------------------------------
+// CIType soft validation helper
+// ---------------------------------------------------------------------------
+
+var assetTypeSchemas = map[string][]string{
+	"server":  {"cpu", "memory", "storage", "os"},
+	"network": {"ports", "firmware"},
+	"storage": {"raw_capacity", "protocol"},
+	"power":   {"capacity"},
+}
+
+func ciTypeSoftValidation(assetType string, attrs map[string]interface{}) []string {
+	schema, ok := assetTypeSchemas[assetType]
+	if !ok {
+		return nil
+	}
+	var warnings []string
+	if attrs == nil {
+		warnings = append(warnings, fmt.Sprintf("type %s recommends attributes: %v", assetType, schema))
+	} else {
+		for _, field := range schema {
+			if _, exists := attrs[field]; !exists {
+				warnings = append(warnings, fmt.Sprintf("missing recommended attribute: %s", field))
+			}
+		}
+	}
+	return warnings
 }
