@@ -173,6 +173,14 @@ function MonitoringAlerts() {
           </button>
           <button
             type="button"
+            onClick={() => navigate('/bia')}
+            className="flex items-center gap-1 rounded-lg bg-surface-container-high px-4 py-2.5 text-sm text-on-surface-variant hover:text-on-surface transition-colors"
+          >
+            <span className="material-symbols-outlined text-lg">assessment</span>
+            BIA Analysis
+          </button>
+          <button
+            type="button"
             onClick={() => alert('Export: Coming Soon')}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary-container transition-colors hover:brightness-110"
           >

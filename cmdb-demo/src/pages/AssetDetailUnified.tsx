@@ -149,7 +149,16 @@ function OverviewTab({ t, navigate, asset }: { t: ReturnType<typeof useTranslati
                 </span>
               }
             />
-            <DataRow label={t('asset_detail.label_bia_level')} value={asset.biaLevel} />
+            <DataRow label={t('asset_detail.label_bia_level')} value={
+              <span className={`px-2.5 py-1 rounded text-[0.6875rem] font-semibold uppercase tracking-wider ${
+                asset.biaLevel === 'critical' ? 'bg-error-container text-on-error-container' :
+                asset.biaLevel === 'important' ? 'bg-[#92400e] text-[#fbbf24]' :
+                asset.biaLevel === 'normal' ? 'bg-[#1e3a5f] text-on-primary-container' :
+                'bg-surface-container-highest text-on-surface-variant'
+              }`}>
+                {asset.biaLevel}
+              </span>
+            } />
             <DataRow
               label={t('asset_detail.label_warranty_status')}
               value={

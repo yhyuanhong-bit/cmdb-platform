@@ -6,6 +6,7 @@ import LocationBreadcrumb from '../components/LocationBreadcrumb';
 import { useDashboardStats } from '../hooks/useDashboard';
 import { useAlerts } from '../hooks/useMonitoring';
 import { useAssets } from '../hooks/useAssets';
+import { useBIAStats } from '../hooks/useBIA';
 
 /* ──────────────────────────────────────────────
    Mock data
@@ -174,6 +175,10 @@ function Dashboard() {
   // Fetch assets to derive BIA distribution
   const { data: assetsResponse } = useAssets();
   const allAssets = assetsResponse?.data ?? [];
+
+  // Fetch BIA stats for compliance card
+  const { data: biaResp } = useBIAStats();
+  const biaStats = biaResp?.data;
 
   const biaDerived = useMemo(() => {
     if (allAssets.length === 0) return BIA_SEGMENTS;
@@ -380,6 +385,33 @@ function Dashboard() {
             ))}
           </div>
         </Section>
+      </div>
+
+      {/* ── BIA Compliance Card ── */}
+      <div className="rounded-lg bg-surface-container p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary text-xl">assessment</span>
+          <h3 className="font-headline text-sm font-semibold uppercase tracking-wider text-on-surface-variant">
+            BIA Compliance
+          </h3>
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div>
+            <p className="font-headline text-2xl font-bold text-on-surface">{biaStats?.total ?? 0}</p>
+            <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">Systems</p>
+          </div>
+          <div>
+            <p className="font-headline text-2xl font-bold text-[#34d399]">{biaStats?.avg_compliance?.toFixed(1) ?? 0}%</p>
+            <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">Compliance</p>
+          </div>
+          <div>
+            <p className="font-headline text-2xl font-bold text-error">{biaStats?.by_tier?.critical ?? 0}</p>
+            <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">Critical</p>
+          </div>
+        </div>
+        <button onClick={() => navigate('/bia')} className="mt-3 w-full rounded-lg bg-surface-container-high py-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant hover:text-on-surface transition-colors">
+          View BIA Modeler →
+        </button>
       </div>
 
       {/* ── Third row: (Lifecycle + Task) left | Critical Events right ── */}

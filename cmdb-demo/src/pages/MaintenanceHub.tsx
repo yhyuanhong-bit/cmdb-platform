@@ -377,6 +377,13 @@ export default function MaintenanceHub() {
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={() => navigate('/bia')}
+            className="flex items-center gap-1 rounded-lg bg-surface-container-high px-4 py-2.5 text-sm text-on-surface-variant hover:text-on-surface transition-colors"
+          >
+            <span className="material-symbols-outlined text-lg">assessment</span>
+            Impact Analysis
+          </button>
+          <button
             onClick={() => navigate('/maintenance/dispatch')}
             className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"
           >
