@@ -98,6 +98,7 @@
     "predictive_ai": "Predictive AI",
     "bia_modeler": "BIA Modeler",
     "audit": "Audit",
+    "data_quality": "Data Quality",
     "system": "System",
     "brand_line1": "Industrial",
     "brand_line2": "Intelligence",
@@ -1539,5 +1540,22 @@
     "ai_info_similar_detail": "近 6 個月同類型變更成功率 97.3%",
     "ai_risk_score": "Risk Score",
     "btn_execute_auto_review": "執行自動審核預測方案"
+  },
+  "quality": {
+    "title": "Data Quality Governance",
+    "subtitle": "Monitor and enforce data quality across all configuration items",
+    "run_scan": "Run Scan",
+    "scanning": "Scanning...",
+    "total_score": "Total Quality Score",
+    "worst_assets": "Worst Scoring Assets (Top 10)",
+    "rules_title": "Quality Rules",
+    "add_rule": "Add Rule",
+    "no_rules": "No quality rules defined yet. Add a rule to get started.",
+    "no_data_title": "No Quality Data",
+    "no_data_desc": "Run a quality scan to evaluate your configuration items.",
+    "col_asset_name": "Asset Name",
+    "col_asset_tag": "Asset Tag",
+    "col_score": "Score",
+    "col_issues": "Issues"
   }
 }

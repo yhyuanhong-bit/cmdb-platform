@@ -98,6 +98,7 @@
     "predictive_ai": "预测性 AI",
     "bia_modeler": "BIA 建模器",
     "audit": "审计",
+    "data_quality": "数据质量",
     "system": "系统",
     "brand_line1": "工业",
     "brand_line2": "智能",
@@ -1539,5 +1540,22 @@
     "ai_info_similar_detail": "近 6 个月同类型变更成功率 97.3%",
     "ai_risk_score": "风险评分",
     "btn_execute_auto_review": "执行自动审核预测方案"
+  },
+  "quality": {
+    "title": "数据质量治理",
+    "subtitle": "监控并强化所有配置项的数据质量",
+    "run_scan": "执行扫描",
+    "scanning": "扫描中...",
+    "total_score": "总质量分数",
+    "worst_assets": "最低分资产 (前 10)",
+    "rules_title": "质量规则",
+    "add_rule": "新增规则",
+    "no_rules": "尚未定义质量规则。新增规则以开始。",
+    "no_data_title": "无质量数据",
+    "no_data_desc": "执行质量扫描以评估您的配置项。",
+    "col_asset_name": "资产名称",
+    "col_asset_tag": "资产标签",
+    "col_score": "分数",
+    "col_issues": "问题"
   }
 }

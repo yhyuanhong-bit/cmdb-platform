@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
 import { useAsset, useUpdateAsset, useDeleteAsset } from '../hooks/useAssets'
+import { useBIAImpact } from '../hooks/useBIA'
 
 /* ================================================================== */
 /*  SHARED DATA & HELPERS                                              */
@@ -232,6 +233,37 @@ function OverviewTab({ t, navigate, asset }: { t: ReturnType<typeof useTranslati
             </button>
           </div>
         </div>
+
+        {/* BIA Impact — Dependent Business Systems */}
+        {impactedSystems.length > 0 && (
+          <div className="mt-5 rounded-lg bg-surface-container p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-xl">device_hub</span>
+              <h3 className="font-headline text-sm font-semibold uppercase tracking-wider text-on-surface-variant">
+                BIA Impact — Dependent Business Systems
+              </h3>
+            </div>
+            <div className="space-y-2">
+              {impactedSystems.map((sys: any) => (
+                <div key={sys.id} className="flex items-center justify-between rounded-lg bg-surface-container-low p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-on-surface">{sys.system_name}</p>
+                    <p className="text-xs text-on-surface-variant">{sys.system_code}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`px-2.5 py-1 rounded text-[0.6875rem] font-semibold uppercase tracking-wider
+                      ${sys.tier === 'critical' ? 'bg-error-container text-on-error-container' :
+                        sys.tier === 'important' ? 'bg-[#92400e] text-[#fbbf24]' :
+                        'bg-[#1e3a5f] text-on-primary-container'}`}>
+                      {sys.tier}
+                    </span>
+                    <span className="text-sm font-bold text-on-surface">{sys.bia_score}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* RIGHT COLUMN */}
@@ -797,6 +829,10 @@ export default function AssetDetailUnified() {
   // Fetch asset from API
   const assetQ = useAsset(assetId ?? '')
   const apiAsset = assetQ.data?.data
+
+  // Fetch BIA impact (dependent business systems)
+  const { data: impactResp } = useBIAImpact(assetId || '')
+  const impactedSystems: any[] = (impactResp as any)?.data || []
 
   // Merge API asset data with defaults for fields not in the API schema
   const asset = {

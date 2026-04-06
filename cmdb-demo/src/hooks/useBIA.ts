@@ -97,3 +97,11 @@ export function useBIAStats() {
     queryFn: () => biaApi.getStats(),
   })
 }
+
+export function useBIAImpact(assetId: string) {
+  return useQuery({
+    queryKey: ['biaImpact', assetId],
+    queryFn: () => biaApi.getImpact(assetId),
+    enabled: !!assetId,
+  })
+}

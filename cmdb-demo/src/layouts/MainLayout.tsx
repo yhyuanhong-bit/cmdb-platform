@@ -85,6 +85,7 @@ const navSections: NavSection[] = [
       { labelKey: 'nav.sub.event_detail', to: '/audit/detail' },
     ],
   },
+  { to: '/quality', icon: 'verified', key: 'nav.data_quality' },
   {
     to: '/system',
     icon: 'settings',

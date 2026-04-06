@@ -52,6 +52,9 @@ const PredictiveHub = lazy(() => import('./pages/PredictiveHub'))
 const AuditHistory = lazy(() => import('./pages/AuditHistory'))
 const AuditEventDetail = lazy(() => import('./pages/AuditEventDetail'))
 
+// Quality
+const QualityDashboard = lazy(() => import('./pages/QualityDashboard'))
+
 // System
 const RolesPermissions = lazy(() => import('./pages/RolesPermissions'))
 const SystemSettings = lazy(() => import('./pages/SystemSettings'))
@@ -148,6 +151,9 @@ export default function App() {
           {/* Audit */}
           <Route path="/audit" element={<AuditHistory />} />
           <Route path="/audit/detail" element={<AuditEventDetail />} />
+
+          {/* Quality */}
+          <Route path="/quality" element={<QualityDashboard />} />
 
           {/* System */}
           <Route path="/system" element={<RolesPermissions />} />

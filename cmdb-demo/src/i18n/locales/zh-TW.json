@@ -98,6 +98,7 @@
     "predictive_ai": "預測性 AI",
     "bia_modeler": "BIA 建模器",
     "audit": "稽核",
+    "data_quality": "數據質量",
     "system": "系統",
     "brand_line1": "工業",
     "brand_line2": "智慧",
@@ -1539,5 +1540,22 @@
     "ai_info_similar_detail": "近 6 個月同類型變更成功率 97.3%",
     "ai_risk_score": "風險評分",
     "btn_execute_auto_review": "執行自動審核預測方案"
+  },
+  "quality": {
+    "title": "數據質量治理",
+    "subtitle": "監控並強化所有配置項的數據質量",
+    "run_scan": "執行掃描",
+    "scanning": "掃描中...",
+    "total_score": "總質量分數",
+    "worst_assets": "最低分資產 (前 10)",
+    "rules_title": "質量規則",
+    "add_rule": "新增規則",
+    "no_rules": "尚未定義質量規則。新增規則以開始。",
+    "no_data_title": "無質量數據",
+    "no_data_desc": "執行質量掃描以評估您的配置項。",
+    "col_asset_name": "資產名稱",
+    "col_asset_tag": "資產標籤",
+    "col_score": "分數",
+    "col_issues": "問題"
   }
 }

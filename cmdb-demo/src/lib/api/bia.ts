@@ -21,4 +21,6 @@ export const biaApi = {
     apiClient.post(`/bia/assessments/${assessmentId}/dependencies`, data),
   getStats: () =>
     apiClient.get('/bia/stats'),
+  getImpact: (assetId: string) =>
+    apiClient.get(`/bia/impact/${assetId}`),
 }
