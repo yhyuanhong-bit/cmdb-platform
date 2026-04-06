@@ -139,11 +139,14 @@ export default function DataCenter3D() {
 
   const [selectedLocationId, setSelectedLocationId] = useState('');
 
-  // Set initial selected location to first campus
+  // Set initial selected location to deepest level with racks (room > module > idc > campus)
   useEffect(() => {
     if (!selectedLocationId && allLocations.length > 0) {
-      const firstCampus = allLocations.find(l => l.level === 'campus');
-      if (firstCampus) setSelectedLocationId(firstCampus.id);
+      const firstRoom = allLocations.find(l => l.level === 'room')
+        || allLocations.find(l => l.level === 'module')
+        || allLocations.find(l => l.level === 'idc')
+        || allLocations.find(l => l.level === 'campus');
+      if (firstRoom) setSelectedLocationId(firstRoom.id);
     }
   }, [allLocations, selectedLocationId]);
 
@@ -203,9 +206,9 @@ export default function DataCenter3D() {
   const handleTreeNodeClick = (nodeId: string) => {
     // Toggle expand/collapse
     setTreeExpanded(prev => ({ ...prev, [nodeId]: prev[nodeId] === false }));
-    // If it's a campus, switch rack view to that location
+    // Select any leaf-level location that can contain racks (room > module > idc > campus)
     const loc = allLocations.find(l => l.id === nodeId);
-    if (loc && loc.level === 'campus') {
+    if (loc && ['room', 'module', 'idc', 'campus'].includes(loc.level)) {
       setSelectedLocationId(nodeId);
     }
   };
