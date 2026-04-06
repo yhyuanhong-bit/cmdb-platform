@@ -61,6 +61,12 @@ RETURNING *;
 -- name: DeleteAsset :exec
 DELETE FROM assets WHERE id = $1;
 
+-- name: FindAssetBySerialOrTag :one
+SELECT * FROM assets
+WHERE tenant_id = $1
+  AND (serial_number = $2 OR asset_tag = $3)
+LIMIT 1;
+
 -- name: CountAssetsUnderLocation :one
 -- Count all assets under a location and all its descendants (using ltree)
 SELECT count(*) FROM assets a

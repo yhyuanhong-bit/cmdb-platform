@@ -836,3 +836,24 @@ INSERT INTO quality_rules (tenant_id, ci_type, dimension, field_name, rule_type,
     ('a0000000-0000-0000-0000-000000000001', 'network', 'completeness', 'serial_number', 'required', '{}', 15),
     ('a0000000-0000-0000-0000-000000000001', NULL, 'consistency', 'rack_id', 'required', '{}', 25)
 ON CONFLICT DO NOTHING;
+
+-- Discovered Assets (staging area samples)
+INSERT INTO discovered_assets (tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details) VALUES
+    ('a0000000-0000-0000-0000-000000000001', 'VMware', 'vm-501', 'NEW-APP-SERVER-01', '10.134.143.201',
+     '{"cpu": 8, "memory_gb": 32, "os": "Ubuntu 22.04", "cluster": "prod-cluster-1"}',
+     'pending', NULL, NULL),
+    ('a0000000-0000-0000-0000-000000000001', 'SNMP', 'snmp-sw-301', 'NEW-SWITCH-01', '10.134.143.50',
+     '{"ports": 48, "firmware": "IOS-XE 17.9", "model": "Catalyst 9200"}',
+     'pending', NULL, NULL),
+    ('a0000000-0000-0000-0000-000000000001', 'VMware', 'vm-102', 'SRV-PROD-001', '10.134.143.101',
+     '{"cpu": 64, "memory_gb": 512, "os": "Rocky Linux 9.4"}',
+     'conflict', 'f0000000-0000-0000-0000-000000000001',
+     '{"os": {"old": "Rocky Linux 9.3", "new": "Rocky Linux 9.4"}, "cpu": {"old": 56, "new": 64}}'),
+    ('a0000000-0000-0000-0000-000000000001', 'manual', 'csv-row-42', 'TEMP-TEST-VM', '10.134.200.42',
+     '{"cpu": 2, "memory_gb": 4, "os": "CentOS 7", "note": "test env"}',
+     'ignored', NULL, NULL),
+    ('a0000000-0000-0000-0000-000000000001', 'VMware', 'vm-205', 'DB-REPLICA-02', '10.134.143.108',
+     '{"cpu": 32, "memory_gb": 256, "os": "Rocky Linux 9.3", "storage_tb": 4}',
+     'approved', 'f0000000-0000-0000-0000-000000000005',
+     NULL)
+ON CONFLICT DO NOTHING;

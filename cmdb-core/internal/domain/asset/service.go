@@ -110,6 +110,19 @@ func (s *Service) Update(ctx context.Context, params dbgen.UpdateAssetParams) (*
 	return &a, nil
 }
 
+// FindBySerialOrTag finds an asset by serial number or asset tag.
+func (s *Service) FindBySerialOrTag(ctx context.Context, tenantID uuid.UUID, serial, tag string) (*dbgen.Asset, error) {
+	asset, err := s.queries.FindAssetBySerialOrTag(ctx, dbgen.FindAssetBySerialOrTagParams{
+		TenantID:     tenantID,
+		SerialNumber: pgtype.Text{String: serial, Valid: serial != ""},
+		AssetTag:     tag,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("find asset by serial or tag: %w", err)
+	}
+	return &asset, nil
+}
+
 // Delete removes an asset by ID.
 func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	if err := s.queries.DeleteAsset(ctx, id); err != nil {

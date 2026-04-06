@@ -19,4 +19,6 @@ export const inventoryApi = {
     apiClient.post<ApiResponse<any>>(`/inventory/tasks/${taskID}/items/${itemID}/scan`, data),
   getSummary: (taskID: string) =>
     apiClient.get<ApiResponse<any>>(`/inventory/tasks/${taskID}/summary`),
+  importItems: (taskId: string, items: any[]) =>
+    apiClient.post<ApiResponse<any>>(`/inventory/tasks/${taskId}/import`, { items }),
 }

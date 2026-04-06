@@ -50,6 +50,15 @@ export function useScanItem() {
   })
 }
 
+export function useImportInventoryItems() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, items }: { taskId: string; items: any[] }) =>
+      inventoryApi.importItems(taskId, items),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['inventoryTasks'] }) }
+  })
+}
+
 export function useTaskSummary(taskId: string) {
   return useQuery({
     queryKey: ['inventoryTasks', taskId, 'summary'],

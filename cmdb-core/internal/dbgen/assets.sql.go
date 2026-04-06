@@ -153,6 +153,46 @@ func (q *Queries) DeleteAsset(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const findAssetBySerialOrTag = `-- name: FindAssetBySerialOrTag :one
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at FROM assets
+WHERE tenant_id = $1
+  AND (serial_number = $2 OR asset_tag = $3)
+LIMIT 1
+`
+
+type FindAssetBySerialOrTagParams struct {
+	TenantID     uuid.UUID   `json:"tenant_id"`
+	SerialNumber pgtype.Text `json:"serial_number"`
+	AssetTag     string      `json:"asset_tag"`
+}
+
+func (q *Queries) FindAssetBySerialOrTag(ctx context.Context, arg FindAssetBySerialOrTagParams) (Asset, error) {
+	row := q.db.QueryRow(ctx, findAssetBySerialOrTag, arg.TenantID, arg.SerialNumber, arg.AssetTag)
+	var i Asset
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AssetTag,
+		&i.PropertyNumber,
+		&i.ControlNumber,
+		&i.Name,
+		&i.Type,
+		&i.SubType,
+		&i.Status,
+		&i.BiaLevel,
+		&i.LocationID,
+		&i.RackID,
+		&i.Vendor,
+		&i.Model,
+		&i.SerialNumber,
+		&i.Attributes,
+		&i.Tags,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAsset = `-- name: GetAsset :one
 SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at FROM assets WHERE id = $1
 `

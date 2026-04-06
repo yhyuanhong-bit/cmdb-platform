@@ -8,6 +8,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ---------------------------------------------------------------------------
@@ -770,6 +771,52 @@ func interfaceToFloat32(v interface{}) float32 {
 		}
 		return 0
 	}
+}
+
+// ---------------------------------------------------------------------------
+// 27. toAPIDiscoveredAsset
+// ---------------------------------------------------------------------------
+
+func toAPIDiscoveredAsset(db dbgen.DiscoveredAsset) DiscoveredAsset {
+	src := db.Source
+	status := db.Status
+	hostname := pgtextToPtr(db.Hostname)
+	externalID := pgtextToPtr(db.ExternalID)
+	ipAddr := pgtextToPtr(db.IpAddress)
+	rawData := rawJSONToMap(db.RawData)
+	matchedAssetID := pguuidToOAPIUUIDPtr(db.MatchedAssetID)
+	diffDetails := bytesToJSON(db.DiffDetails)
+	discoveredAt := db.DiscoveredAt
+	reviewedBy := pguuidToOAPIUUIDPtr(db.ReviewedBy)
+	var reviewedAt *time.Time
+	if db.ReviewedAt.Valid {
+		t := db.ReviewedAt.Time
+		reviewedAt = &t
+	}
+	id := openapi_types.UUID(db.ID)
+	return DiscoveredAsset{
+		Id:             &id,
+		Source:         &src,
+		ExternalId:     externalID,
+		Hostname:       hostname,
+		IpAddress:      ipAddr,
+		RawData:        rawData,
+		Status:         &status,
+		MatchedAssetId: matchedAssetID,
+		DiffDetails:    diffDetails,
+		DiscoveredAt:   &discoveredAt,
+		ReviewedBy:     reviewedBy,
+		ReviewedAt:     reviewedAt,
+	}
+}
+
+// pguuidToOAPIUUIDPtr converts pgtype.UUID to *openapi_types.UUID.
+func pguuidToOAPIUUIDPtr(v pgtype.UUID) *openapi_types.UUID {
+	if !v.Valid {
+		return nil
+	}
+	u := openapi_types.UUID(v.Bytes)
+	return &u
 }
 
 func toAPIWebhook(db dbgen.WebhookSubscription) WebhookSubscription {

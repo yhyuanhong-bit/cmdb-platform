@@ -1,7 +1,7 @@
 import { memo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useInventoryTasks, useCompleteTask } from "../hooks/useInventory";
+import { useInventoryTasks, useCompleteTask, useImportInventoryItems } from "../hooks/useInventory";
 import CreateInventoryTaskModal from "../components/CreateInventoryTaskModal";
 
 /* ──────────────────────────────────────────────
@@ -102,6 +102,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   const [showCreateTask, setShowCreateTask] = useState(false);
 
   const completeTask = useCompleteTask()
+  const importItems = useImportInventoryItems()
   const { data: tasksResponse, isLoading } = useInventoryTasks();
   const tasks = tasksResponse?.data ?? [];
   // The current task (first active) - used for header display
@@ -250,11 +251,34 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
             </div>
           )}
 
-          <div className="mt-auto pt-4">
+          <div className="mt-auto pt-4 flex flex-col gap-2">
             <div className="flex items-center gap-2 text-xs text-on-surface-variant">
               <Icon name="upload_file" className="text-lg text-primary" />
               <span className="font-label">IDC01_Q3_assets.xlsx</span>
             </div>
+            <button
+              onClick={() => {
+                const demo = [
+                  { asset_tag: 'SRV-PROD-001', serial_number: 'SN-DELL-001', expected_location: 'RACK-A01' },
+                  { asset_tag: 'SRV-PROD-002', serial_number: 'SN-DELL-002', expected_location: 'RACK-A01' },
+                  { asset_tag: 'UNKNOWN-001', serial_number: 'SN-MYSTERY', expected_location: 'RACK-X01' },
+                ]
+                if (currentTask) {
+                  importItems.mutate({ taskId: currentTask.id, items: demo }, {
+                    onSuccess: (resp: any) => {
+                      alert(`Import complete: ${resp?.data?.matched || 0} matched, ${resp?.data?.not_found || 0} not found, ${resp?.data?.total || 0} total`)
+                    }
+                  })
+                } else {
+                  alert('No active inventory task. Create a task first.')
+                }
+              }}
+              disabled={importItems.isPending}
+              className="bg-primary hover:opacity-90 text-on-primary px-3 py-1.5 rounded-lg text-xs font-label font-bold flex items-center gap-2 transition-opacity w-fit"
+            >
+              <Icon name="cloud_upload" className="text-sm" />
+              {importItems.isPending ? 'Importing...' : 'Run Demo Import'}
+            </button>
           </div>
         </div>
 

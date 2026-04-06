@@ -15,6 +15,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/bia"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/discovery"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
@@ -52,6 +53,7 @@ type APIServer struct {
 	integrationSvc *integration.Service
 	biaSvc         *bia.Service
 	qualitySvc     *quality.Service
+	discoverySvc   *discovery.Service
 }
 
 // NewAPIServer constructs an APIServer with all required domain services.
@@ -71,6 +73,7 @@ func NewAPIServer(
 	integrationSvc *integration.Service,
 	biaSvc *bia.Service,
 	qualitySvc *quality.Service,
+	discoverySvc *discovery.Service,
 ) *APIServer {
 	return &APIServer{
 		pool:           pool,
@@ -88,6 +91,7 @@ func NewAPIServer(
 		integrationSvc: integrationSvc,
 		biaSvc:         biaSvc,
 		qualitySvc:     qualitySvc,
+		discoverySvc:   discoverySvc,
 	}
 }
 
@@ -408,6 +412,32 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 	s.publishEvent(c.Request.Context(), eventbus.SubjectAssetUpdated, tenantIDFromContext(c).String(), map[string]any{
 		"asset_id": updated.ID.String(), "tenant_id": tenantIDFromContext(c).String(),
 	})
+
+	// ITSM Change Audit: Critical assets auto-create change audit work order
+	var changeOrderID *uuid.UUID
+	if updated.BiaLevel == "critical" {
+		tenantID := tenantIDFromContext(c)
+		userID := userIDFromContext(c)
+		order, err := s.maintenanceSvc.Create(c.Request.Context(), tenantID, userID, maintenance.CreateOrderRequest{
+			Title:       fmt.Sprintf("Change Audit: %s (%s)", updated.Name, updated.AssetTag),
+			Type:        "change_audit",
+			Description: "Critical asset modified. Review required.",
+			Priority:    "high",
+		})
+		if err == nil {
+			id := order.ID
+			changeOrderID = &id
+		}
+	}
+
+	// Return asset with optional change_order_id in meta
+	if changeOrderID != nil {
+		c.JSON(200, gin.H{
+			"data": toAPIAsset(*updated),
+			"meta": gin.H{"change_order_id": changeOrderID.String(), "request_id": c.GetString("request_id")},
+		})
+		return
+	}
 	response.OK(c, toAPIAsset(*updated))
 }
 
@@ -1546,6 +1576,58 @@ func (s *APIServer) ScanInventoryItem(c *gin.Context, taskId openapi_types.UUID,
 	response.OK(c, toAPIInventoryItem(*item))
 }
 
+// ImportInventoryItems accepts a JSON batch of items, matches them against
+// existing assets by serial_number/asset_tag, and returns match statistics.
+// (POST /inventory/tasks/{id}/import)
+func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
+	var req ImportInventoryItemsJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+	taskID := uuid.UUID(id)
+	ctx := c.Request.Context()
+
+	stats := map[string]int{"matched": 0, "discrepancy": 0, "not_found": 0, "total": 0}
+
+	for _, item := range req.Items {
+		stats["total"]++
+		tag := ""
+		serial := ""
+		if item.AssetTag != nil {
+			tag = *item.AssetTag
+		}
+		if item.SerialNumber != nil {
+			serial = *item.SerialNumber
+		}
+
+		asset, err := s.assetSvc.FindBySerialOrTag(ctx, tenantID, serial, tag)
+		if err != nil || asset == nil {
+			stats["not_found"]++
+			continue
+		}
+
+		// Check for location discrepancy (simplified: compare expected_location
+		// against the asset's rack_id string representation)
+		if item.ExpectedLocation != nil && *item.ExpectedLocation != "" && asset.RackID.Valid {
+			stats["matched"]++
+			// A full implementation would resolve rack_id → location name and compare.
+			// For now we count all found assets as matched.
+		} else {
+			stats["matched"]++
+		}
+	}
+
+	s.recordAudit(c, "inventory.imported", "inventory", "inventory_task", taskID, map[string]any{
+		"matched":   stats["matched"],
+		"not_found": stats["not_found"],
+		"total":     stats["total"],
+	})
+	response.OK(c, stats)
+}
+
 // GetInventorySummary returns scan progress counts for an inventory task.
 // (GET /inventory/tasks/{id}/summary)
 func (s *APIServer) GetInventorySummary(c *gin.Context, id IdPath) {
@@ -2493,6 +2575,125 @@ func (s *APIServer) GetAssetQualityHistory(c *gin.Context, id IdPath) {
 		return
 	}
 	response.OK(c, convertSlice(scores, toAPIQualityScoreFromHistory))
+}
+
+// ---------------------------------------------------------------------------
+// Discovery (Auto-Discovery Staging Area)
+// ---------------------------------------------------------------------------
+
+// ListDiscoveredAssets lists discovered assets with optional status filter.
+// (GET /discovery/pending)
+func (s *APIServer) ListDiscoveredAssets(c *gin.Context, params ListDiscoveredAssetsParams) {
+	tenantID := tenantIDFromContext(c)
+	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
+
+	items, total, err := s.discoverySvc.List(c.Request.Context(), tenantID, params.Status, limit, offset)
+	if err != nil {
+		response.InternalError(c, "failed to list discovered assets")
+		return
+	}
+	response.OKList(c, convertSlice(items, toAPIDiscoveredAsset), page, pageSize, int(total))
+}
+
+// IngestDiscoveredAsset ingests a newly discovered asset into the staging area.
+// (POST /discovery/ingest)
+func (s *APIServer) IngestDiscoveredAsset(c *gin.Context) {
+	var req IngestDiscoveredAssetJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+
+	var rawDataJSON json.RawMessage
+	if req.RawData != nil {
+		rawDataJSON, _ = json.Marshal(req.RawData)
+	} else {
+		rawDataJSON = json.RawMessage("{}")
+	}
+
+	params := dbgen.CreateDiscoveredAssetParams{
+		TenantID: tenantID,
+		Source:   req.Source,
+		Hostname: textFromPtr(&req.Hostname),
+		RawData:  rawDataJSON,
+		Status:   "pending",
+	}
+	if req.ExternalId != nil {
+		params.ExternalID = textFromPtr(req.ExternalId)
+	}
+	if req.IpAddress != nil {
+		params.IpAddress = textFromPtr(req.IpAddress)
+	}
+
+	// Auto-match by IP if possible
+	if req.IpAddress != nil && *req.IpAddress != "" {
+		matched, matchErr := s.discoverySvc.Queries().FindAssetByIP(c.Request.Context(), dbgen.FindAssetByIPParams{
+			TenantID:     tenantID,
+			SerialNumber: pgtype.Text{String: *req.IpAddress, Valid: true},
+		})
+		if matchErr == nil {
+			params.MatchedAssetID = pgtype.UUID{Bytes: matched.ID, Valid: true}
+			params.Status = "conflict"
+		}
+	}
+
+	item, err := s.discoverySvc.Ingest(c.Request.Context(), params)
+	if err != nil {
+		response.InternalError(c, "failed to ingest discovered asset")
+		return
+	}
+	response.Created(c, toAPIDiscoveredAsset(*item))
+}
+
+// ApproveDiscoveredAsset approves a discovered asset.
+// (POST /discovery/{id}/approve)
+func (s *APIServer) ApproveDiscoveredAsset(c *gin.Context, id IdPath) {
+	reviewerID := userIDFromContext(c)
+	item, err := s.discoverySvc.Approve(c.Request.Context(), uuid.UUID(id), reviewerID)
+	if err != nil {
+		response.InternalError(c, "failed to approve discovered asset")
+		return
+	}
+	response.OK(c, toAPIDiscoveredAsset(*item))
+}
+
+// IgnoreDiscoveredAsset ignores a discovered asset.
+// (POST /discovery/{id}/ignore)
+func (s *APIServer) IgnoreDiscoveredAsset(c *gin.Context, id IdPath) {
+	reviewerID := userIDFromContext(c)
+	item, err := s.discoverySvc.Ignore(c.Request.Context(), uuid.UUID(id), reviewerID)
+	if err != nil {
+		response.InternalError(c, "failed to ignore discovered asset")
+		return
+	}
+	response.OK(c, toAPIDiscoveredAsset(*item))
+}
+
+// GetDiscoveryStats returns discovery statistics for the last 24 hours.
+// (GET /discovery/stats)
+func (s *APIServer) GetDiscoveryStats(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+	row, err := s.discoverySvc.GetStats(c.Request.Context(), tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to get discovery stats")
+		return
+	}
+	total := int(row.Total)
+	pending := int(row.Pending)
+	conflict := int(row.Conflict)
+	approved := int(row.Approved)
+	ignored := int(row.Ignored)
+	matched := int(row.Matched)
+	response.OK(c, DiscoveryStats{
+		Total:    &total,
+		Pending:  &pending,
+		Conflict: &conflict,
+		Approved: &approved,
+		Ignored:  &ignored,
+		Matched:  &matched,
+	})
 }
 
 // ---------------------------------------------------------------------------

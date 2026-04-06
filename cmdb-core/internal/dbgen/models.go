@@ -128,6 +128,22 @@ type Department struct {
 	CreatedAt   time.Time       `json:"created_at"`
 }
 
+type DiscoveredAsset struct {
+	ID             uuid.UUID          `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Source         string             `json:"source"`
+	ExternalID     pgtype.Text        `json:"external_id"`
+	Hostname       pgtype.Text        `json:"hostname"`
+	IpAddress      pgtype.Text        `json:"ip_address"`
+	RawData        json.RawMessage    `json:"raw_data"`
+	Status         string             `json:"status"`
+	MatchedAssetID pgtype.UUID        `json:"matched_asset_id"`
+	DiffDetails    []byte             `json:"diff_details"`
+	DiscoveredAt   time.Time          `json:"discovered_at"`
+	ReviewedBy     pgtype.UUID        `json:"reviewed_by"`
+	ReviewedAt     pgtype.Timestamptz `json:"reviewed_at"`
+}
+
 type Incident struct {
 	ID         uuid.UUID          `json:"id"`
 	TenantID   uuid.UUID          `json:"tenant_id"`

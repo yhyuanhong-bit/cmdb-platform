@@ -157,6 +157,32 @@ type DashboardStats struct {
 	TotalRacks     int `json:"total_racks"`
 }
 
+// DiscoveredAsset defines model for DiscoveredAsset.
+type DiscoveredAsset struct {
+	DiffDetails    *map[string]interface{} `json:"diff_details,omitempty"`
+	DiscoveredAt   *time.Time              `json:"discovered_at,omitempty"`
+	ExternalId     *string                 `json:"external_id,omitempty"`
+	Hostname       *string                 `json:"hostname,omitempty"`
+	Id             *openapi_types.UUID     `json:"id,omitempty"`
+	IpAddress      *string                 `json:"ip_address,omitempty"`
+	MatchedAssetId *openapi_types.UUID     `json:"matched_asset_id,omitempty"`
+	RawData        *map[string]interface{} `json:"raw_data,omitempty"`
+	ReviewedAt     *time.Time              `json:"reviewed_at,omitempty"`
+	ReviewedBy     *openapi_types.UUID     `json:"reviewed_by,omitempty"`
+	Source         *string                 `json:"source,omitempty"`
+	Status         *string                 `json:"status,omitempty"`
+}
+
+// DiscoveryStats defines model for DiscoveryStats.
+type DiscoveryStats struct {
+	Approved *int `json:"approved,omitempty"`
+	Conflict *int `json:"conflict,omitempty"`
+	Ignored  *int `json:"ignored,omitempty"`
+	Matched  *int `json:"matched,omitempty"`
+	Pending  *int `json:"pending,omitempty"`
+	Total    *int `json:"total,omitempty"`
+}
+
 // ErrorBody defines model for ErrorBody.
 type ErrorBody struct {
 	Code    string `json:"code"`
@@ -579,6 +605,22 @@ type GetDashboardStatsParams struct {
 	IdcId *openapi_types.UUID `form:"idc_id,omitempty" json:"idc_id,omitempty"`
 }
 
+// IngestDiscoveredAssetJSONBody defines parameters for IngestDiscoveredAsset.
+type IngestDiscoveredAssetJSONBody struct {
+	ExternalId *string                 `json:"external_id,omitempty"`
+	Hostname   string                  `json:"hostname"`
+	IpAddress  *string                 `json:"ip_address,omitempty"`
+	RawData    *map[string]interface{} `json:"raw_data,omitempty"`
+	Source     string                  `json:"source"`
+}
+
+// ListDiscoveredAssetsParams defines parameters for ListDiscoveredAssets.
+type ListDiscoveredAssetsParams struct {
+	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *PageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
+	Status   *string   `form:"status,omitempty" json:"status,omitempty"`
+}
+
 // CreateAdapterJSONBody defines parameters for CreateAdapter.
 type CreateAdapterJSONBody struct {
 	Config    *map[string]interface{} `json:"config,omitempty"`
@@ -611,6 +653,15 @@ type CreateInventoryTaskJSONBody struct {
 	Name            string              `json:"name"`
 	PlannedDate     string              `json:"planned_date"`
 	ScopeLocationId *openapi_types.UUID `json:"scope_location_id,omitempty"`
+}
+
+// ImportInventoryItemsJSONBody defines parameters for ImportInventoryItems.
+type ImportInventoryItemsJSONBody struct {
+	Items []struct {
+		AssetTag         *string `json:"asset_tag,omitempty"`
+		ExpectedLocation *string `json:"expected_location,omitempty"`
+		SerialNumber     *string `json:"serial_number,omitempty"`
+	} `json:"items"`
 }
 
 // ScanInventoryItemJSONBody defines parameters for ScanInventoryItem.
@@ -851,6 +902,9 @@ type CreateBIADependencyJSONRequestBody CreateBIADependencyJSONBody
 // UpdateBIAScoringRuleJSONRequestBody defines body for UpdateBIAScoringRule for application/json ContentType.
 type UpdateBIAScoringRuleJSONRequestBody UpdateBIAScoringRuleJSONBody
 
+// IngestDiscoveredAssetJSONRequestBody defines body for IngestDiscoveredAsset for application/json ContentType.
+type IngestDiscoveredAssetJSONRequestBody IngestDiscoveredAssetJSONBody
+
 // CreateAdapterJSONRequestBody defines body for CreateAdapter for application/json ContentType.
 type CreateAdapterJSONRequestBody CreateAdapterJSONBody
 
@@ -859,6 +913,9 @@ type CreateWebhookJSONRequestBody CreateWebhookJSONBody
 
 // CreateInventoryTaskJSONRequestBody defines body for CreateInventoryTask for application/json ContentType.
 type CreateInventoryTaskJSONRequestBody CreateInventoryTaskJSONBody
+
+// ImportInventoryItemsJSONRequestBody defines body for ImportInventoryItems for application/json ContentType.
+type ImportInventoryItemsJSONRequestBody ImportInventoryItemsJSONBody
 
 // ScanInventoryItemJSONRequestBody defines body for ScanInventoryItem for application/json ContentType.
 type ScanInventoryItemJSONRequestBody ScanInventoryItemJSONBody
@@ -985,6 +1042,21 @@ type ServerInterface interface {
 	// Get dashboard statistics
 	// (GET /dashboard/stats)
 	GetDashboardStats(c *gin.Context, params GetDashboardStatsParams)
+
+	// (POST /discovery/ingest)
+	IngestDiscoveredAsset(c *gin.Context)
+
+	// (GET /discovery/pending)
+	ListDiscoveredAssets(c *gin.Context, params ListDiscoveredAssetsParams)
+
+	// (GET /discovery/stats)
+	GetDiscoveryStats(c *gin.Context)
+
+	// (POST /discovery/{id}/approve)
+	ApproveDiscoveredAsset(c *gin.Context, id IdPath)
+
+	// (POST /discovery/{id}/ignore)
+	IgnoreDiscoveredAsset(c *gin.Context, id IdPath)
 	// List integration adapters
 	// (GET /integration/adapters)
 	ListAdapters(c *gin.Context)
@@ -1012,6 +1084,9 @@ type ServerInterface interface {
 	// Complete an inventory task
 	// (POST /inventory/tasks/{id}/complete)
 	CompleteInventoryTask(c *gin.Context, id IdPath)
+	// Import inventory items from external source
+	// (POST /inventory/tasks/{id}/import)
+	ImportInventoryItems(c *gin.Context, id IdPath)
 	// List items in an inventory task
 	// (GET /inventory/tasks/{id}/items)
 	ListInventoryItems(c *gin.Context, id IdPath)
@@ -1763,6 +1838,132 @@ func (siw *ServerInterfaceWrapper) GetDashboardStats(c *gin.Context) {
 	siw.Handler.GetDashboardStats(c, params)
 }
 
+// IngestDiscoveredAsset operation middleware
+func (siw *ServerInterfaceWrapper) IngestDiscoveredAsset(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.IngestDiscoveredAsset(c)
+}
+
+// ListDiscoveredAssets operation middleware
+func (siw *ServerInterfaceWrapper) ListDiscoveredAssets(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListDiscoveredAssetsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_size", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page_size: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListDiscoveredAssets(c, params)
+}
+
+// GetDiscoveryStats operation middleware
+func (siw *ServerInterfaceWrapper) GetDiscoveryStats(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetDiscoveryStats(c)
+}
+
+// ApproveDiscoveredAsset operation middleware
+func (siw *ServerInterfaceWrapper) ApproveDiscoveredAsset(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ApproveDiscoveredAsset(c, id)
+}
+
+// IgnoreDiscoveredAsset operation middleware
+func (siw *ServerInterfaceWrapper) IgnoreDiscoveredAsset(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.IgnoreDiscoveredAsset(c, id)
+}
+
 // ListAdapters operation middleware
 func (siw *ServerInterfaceWrapper) ListAdapters(c *gin.Context) {
 
@@ -1950,6 +2151,32 @@ func (siw *ServerInterfaceWrapper) CompleteInventoryTask(c *gin.Context) {
 	}
 
 	siw.Handler.CompleteInventoryTask(c, id)
+}
+
+// ImportInventoryItems operation middleware
+func (siw *ServerInterfaceWrapper) ImportInventoryItems(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ImportInventoryItems(c, id)
 }
 
 // ListInventoryItems operation middleware
@@ -3479,6 +3706,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/bia/rules/:id", wrapper.UpdateBIAScoringRule)
 	router.GET(options.BaseURL+"/bia/stats", wrapper.GetBIAStats)
 	router.GET(options.BaseURL+"/dashboard/stats", wrapper.GetDashboardStats)
+	router.POST(options.BaseURL+"/discovery/ingest", wrapper.IngestDiscoveredAsset)
+	router.GET(options.BaseURL+"/discovery/pending", wrapper.ListDiscoveredAssets)
+	router.GET(options.BaseURL+"/discovery/stats", wrapper.GetDiscoveryStats)
+	router.POST(options.BaseURL+"/discovery/:id/approve", wrapper.ApproveDiscoveredAsset)
+	router.POST(options.BaseURL+"/discovery/:id/ignore", wrapper.IgnoreDiscoveredAsset)
 	router.GET(options.BaseURL+"/integration/adapters", wrapper.ListAdapters)
 	router.POST(options.BaseURL+"/integration/adapters", wrapper.CreateAdapter)
 	router.GET(options.BaseURL+"/integration/webhooks", wrapper.ListWebhooks)
@@ -3488,6 +3720,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/inventory/tasks", wrapper.CreateInventoryTask)
 	router.GET(options.BaseURL+"/inventory/tasks/:id", wrapper.GetInventoryTask)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/complete", wrapper.CompleteInventoryTask)
+	router.POST(options.BaseURL+"/inventory/tasks/:id/import", wrapper.ImportInventoryItems)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/items", wrapper.ListInventoryItems)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/summary", wrapper.GetInventorySummary)
 	router.POST(options.BaseURL+"/inventory/tasks/:taskId/items/:itemId/scan", wrapper.ScanInventoryItem)

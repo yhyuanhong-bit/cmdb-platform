@@ -37,6 +37,8 @@ tags:
     description: Business Impact Analysis
   - name: quality
     description: Data Quality Governance
+  - name: discovery
+    description: Auto-Discovery staging area
 
 paths:
   # ── Auth ────────────────────────────────────────────────────────────────
@@ -1581,6 +1583,47 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /inventory/tasks/{id}/import:
+    post:
+      operationId: importInventoryItems
+      tags: [inventory]
+      summary: Import inventory items from external source
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      asset_tag: { type: string }
+                      serial_number: { type: string }
+                      expected_location: { type: string }
+      responses:
+        '200':
+          description: Import results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      matched: { type: integer }
+                      discrepancy: { type: integer }
+                      not_found: { type: integer }
+                      total: { type: integer }
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
   /inventory/tasks/{id}/summary:
     get:
       operationId: getInventorySummary
@@ -2696,6 +2739,112 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  # -- Discovery (Auto-Discovery Staging Area) --------------------------------
+  /discovery/pending:
+    get:
+      operationId: listDiscoveredAssets
+      tags: [discovery]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Discovered assets list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DiscoveredAsset'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /discovery/ingest:
+    post:
+      operationId: ingestDiscoveredAsset
+      tags: [discovery]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, hostname]
+              properties:
+                source: { type: string }
+                external_id: { type: string }
+                hostname: { type: string }
+                ip_address: { type: string }
+                raw_data: { type: object, additionalProperties: true }
+      responses:
+        '201':
+          description: Asset ingested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DiscoveredAsset' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /discovery/{id}/approve:
+    post:
+      operationId: approveDiscoveredAsset
+      tags: [discovery]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DiscoveredAsset' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /discovery/{id}/ignore:
+    post:
+      operationId: ignoreDiscoveredAsset
+      tags: [discovery]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Ignored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DiscoveredAsset' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /discovery/stats:
+    get:
+      operationId: getDiscoveryStats
+      tags: [discovery]
+      responses:
+        '200':
+          description: Discovery statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DiscoveryStats' }
+                  meta: { $ref: '#/components/schemas/Meta' }
 
 components:
   securitySchemes:
@@ -3841,3 +3990,31 @@ components:
           type: number
         total_scanned:
           type: integer
+
+    # ── DiscoveredAsset ──────────────────────────────────────────────
+    DiscoveredAsset:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        source: { type: string }
+        external_id: { type: string }
+        hostname: { type: string }
+        ip_address: { type: string }
+        raw_data: { type: object, additionalProperties: true }
+        status: { type: string }
+        matched_asset_id: { type: string, format: uuid, nullable: true }
+        diff_details: { type: object, additionalProperties: true, nullable: true }
+        discovered_at: { type: string, format: date-time }
+        reviewed_by: { type: string, format: uuid, nullable: true }
+        reviewed_at: { type: string, format: date-time, nullable: true }
+
+    # ── DiscoveryStats ──────────────────────────────────���────────────
+    DiscoveryStats:
+      type: object
+      properties:
+        total: { type: integer }
+        pending: { type: integer }
+        conflict: { type: integer }
+        approved: { type: integer }
+        ignored: { type: integer }
+        matched: { type: integer }

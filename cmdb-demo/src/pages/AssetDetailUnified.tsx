@@ -985,7 +985,14 @@ export default function AssetDetailUnified() {
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => {
-                updateAsset.mutate({ id: assetId!, data: editData }, { onSuccess: () => setEditing(false) })
+                updateAsset.mutate({ id: assetId!, data: editData }, {
+                  onSuccess: (resp: any) => {
+                    setEditing(false)
+                    if (resp?.meta?.change_order_id) {
+                      alert(`Critical asset change recorded. Audit order: ${resp.meta.change_order_id}`)
+                    }
+                  }
+                })
               }} disabled={updateAsset.isPending}
                 className="px-4 py-2 rounded bg-blue-600 text-white text-sm">
                 {updateAsset.isPending ? 'Saving...' : 'Save Changes'}
