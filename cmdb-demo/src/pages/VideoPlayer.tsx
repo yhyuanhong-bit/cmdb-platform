@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const tabs = [
   { key: 'Inventory SOPs', i18n: 'video_player.tab_inventory_sops' },
@@ -8,19 +8,23 @@ const tabs = [
   { key: 'Navigation', i18n: 'video_player.tab_navigation' },
 ];
 
-const chapters = [
-  { id: 1, label: 'Module 01', title: 'Safety Protocols & Gear', duration: '08:45', current: false },
-  { id: 4, label: 'Module 04', title: 'Physical Asset Positioning', duration: '12:15', current: true },
-  { id: 5, label: 'Module 05', title: 'High-Density Cabling', duration: '15:30', current: false },
-  { id: 6, label: 'Module 06', title: 'Thermal Zone Optimization', duration: '22:15', current: false },
-  { id: 7, label: 'Module 07', title: 'Power Distribution Units (PDU)', duration: '12:50', current: false },
-];
+const VIDEO_DATA: Record<string, { title: string; chapters: { title: string; duration: string }[] }> = {
+  '1': { title: 'Asset Management & Tracking', chapters: [{ title: 'Introduction', duration: '3:20' }, { title: 'Creating Assets', duration: '5:10' }, { title: 'Asset Lifecycle', duration: '8:45' }] },
+  '2': { title: 'Rack Inventory Operations', chapters: [{ title: 'Scanning Basics', duration: '4:00' }, { title: 'QR Code Scanning', duration: '6:30' }, { title: 'Discrepancy Handling', duration: '7:15' }] },
+  '3': { title: 'Network Topology Mapping', chapters: [{ title: 'Overview', duration: '3:45' }, { title: 'Connection Mapping', duration: '5:20' }] },
+  '4': { title: 'Predictive Maintenance', chapters: [{ title: 'AI Models', duration: '4:30' }, { title: 'RCA Analysis', duration: '6:00' }] },
+  '5': { title: 'BIA Impact Analysis', chapters: [{ title: 'Scoring Rules', duration: '5:15' }, { title: 'Dependencies', duration: '7:00' }] },
+  '6': { title: 'System Administration', chapters: [{ title: 'User Management', duration: '4:45' }, { title: 'Role Permissions', duration: '6:20' }] },
+};
 
 const tags = ['HARDWARE MAINTENANCE', 'SOP COMPLIANCE', 'TIER 3 TRAINING'];
 
 export default function VideoPlayer() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const videoId = searchParams.get('v') || '';
+  const currentVideo = VIDEO_DATA[videoId] || VIDEO_DATA['1'];
   const [activeTab, setActiveTab] = useState('Inventory SOPs');
 
   return (
@@ -67,7 +71,7 @@ export default function VideoPlayer() {
             </button>
             <div className="absolute bottom-4 left-4 right-4 z-10">
               <div className="h-1 bg-surface-container-highest rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full" style={{ width: '31%' }} />
+                <div className="h-full bg-primary rounded-full" style={{ width: '0%' }} />
               </div>
             </div>
           </div>
@@ -78,7 +82,7 @@ export default function VideoPlayer() {
               {t('video_player.section_rack_operations')} <span className="text-primary">&bull;</span> Module 04
             </p>
             <h2 className="font-headline font-bold text-3xl text-on-surface leading-tight mb-4">
-              {t('video_player.video_title')}
+              {currentVideo.title}
             </h2>
             <p className="text-on-surface-variant text-sm leading-relaxed max-w-2xl mb-6">
               {t('video_player.video_description')}
@@ -126,46 +130,27 @@ export default function VideoPlayer() {
             </div>
 
             <div className="flex flex-col gap-2">
-              {chapters.map((ch) => (
+              {currentVideo.chapters.map((ch, idx) => (
                 <button
-                  key={ch.id}
-                  className={`w-full text-left rounded-xl p-4 cursor-pointer transition-colors ${
-                    ch.current
-                      ? 'bg-primary/10'
-                      : 'bg-surface-container-low hover:bg-surface-container-high'
-                  }`}
+                  key={idx}
+                  className="w-full text-left rounded-xl p-4 cursor-pointer transition-colors bg-surface-container-low hover:bg-surface-container-high"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center mt-0.5 ${
-                        ch.current ? 'bg-primary/20' : 'bg-surface-container-high'
-                      }`}>
-                        {ch.current ? (
-                          <span className="material-symbols-outlined text-primary text-[16px]">play_arrow</span>
-                        ) : (
-                          <span className="text-on-surface-variant text-xs font-semibold">{String(ch.id).padStart(2, '0')}</span>
-                        )}
+                      <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center mt-0.5 bg-surface-container-high">
+                        <span className="text-on-surface-variant text-xs font-semibold">{String(idx + 1).padStart(2, '0')}</span>
                       </div>
                       <div className="min-w-0">
                         <p className="text-[0.625rem] text-on-surface-variant tracking-widest uppercase mb-0.5">
-                          {ch.label}
+                          Chapter {String(idx + 1).padStart(2, '0')}
                         </p>
-                        <p className={`text-sm font-medium truncate ${
-                          ch.current ? 'text-primary' : 'text-on-surface'
-                        }`}>
+                        <p className="text-sm font-medium truncate text-on-surface">
                           {ch.title}
                         </p>
                       </div>
                     </div>
                     <span className="text-on-surface-variant text-xs font-mono flex-shrink-0 mt-1">{ch.duration}</span>
                   </div>
-                  {ch.current && (
-                    <div className="flex items-center gap-2 mt-2 ml-11">
-                      <span className="text-[0.625rem] text-primary tracking-wider font-semibold uppercase">
-                        {t('video_player.label_current_module')}
-                      </span>
-                    </div>
-                  )}
                 </button>
               ))}
             </div>
@@ -175,10 +160,10 @@ export default function VideoPlayer() {
           <div className="bg-surface-container rounded-2xl p-6">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-on-surface-variant tracking-wider uppercase font-semibold">{t('video_player.section_course_completion')}</p>
-              <span className="text-primary text-sm font-bold">31%</span>
+              <span className="text-on-surface-variant text-sm font-bold">Not Started</span>
             </div>
             <div className="h-2 bg-surface-container-low rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full transition-all" style={{ width: '31%' }} />
+              <div className="h-full bg-primary rounded-full transition-all" style={{ width: '0%' }} />
             </div>
           </div>
         </div>

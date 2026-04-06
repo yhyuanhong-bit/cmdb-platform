@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useUpdateUser } from '../hooks/useIdentity'
+import { useSystemHealth } from '../hooks/useSystemHealth'
 
 const sessions = [
-  { device: 'macOS - Chrome 121', time: '7 小時前', icon: 'laptop_mac', current: true },
-  { device: 'iPhone 15 Pro - Safari', time: '3 天前', icon: 'phone_iphone', current: false },
+  { device: 'Current Session', browser: navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Firefox') ? 'Firefox' : 'Browser', time: 'Active Now', icon: 'laptop_mac', current: true },
 ]
 
 export default function UserProfile() {
@@ -14,6 +14,10 @@ export default function UserProfile() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const updateUser = useUpdateUser()
+
+  const { data: healthResp } = useSystemHealth()
+  const dbLatency = (healthResp as any)?.data?.database?.latency_ms
+  const connectivity = dbLatency ? (dbLatency < 50 ? 'Good' : dbLatency < 200 ? 'Normal' : 'Degraded') : '—'
 
   const [displayName, setDisplayName] = useState(user?.display_name ?? 'OPERATOR_042')
   const [employeeId, setEmployeeId] = useState(user?.id?.substring(0, 12) ?? 'IG-992-042')
@@ -48,7 +52,7 @@ export default function UserProfile() {
             </div>
             <div>
               <h1 className="font-headline font-bold text-2xl text-on-surface">{user?.display_name ?? user?.username ?? 'OPERATOR_042'}</h1>
-              <p className="text-on-surface-variant text-sm mt-1">{user?.email ?? 'op042@irongrid.corp'}</p>
+              <p className="text-on-surface-variant text-sm mt-1">{user?.email || '—'}</p>
               <span className="inline-block mt-2 px-2.5 py-1 rounded text-[0.6875rem] font-semibold uppercase tracking-wider bg-on-primary-container/20 text-on-primary-container">
                 {t('user_profile.role_badge')}
               </span>
@@ -56,7 +60,7 @@ export default function UserProfile() {
           </div>
           <div className="text-right">
             <span className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">{t('user_profile.label_last_login_ip')}</span>
-            <p className="font-headline font-semibold text-on-surface mt-1">192.168.1.194</p>
+            <p className="font-headline font-semibold text-on-surface mt-1">—</p>
           </div>
         </div>
       </div>
@@ -213,11 +217,11 @@ export default function UserProfile() {
           <p className="text-on-surface-variant text-xs mb-5">{t('user_profile.label_api_responsiveness')}</p>
 
           <div className="flex items-end gap-4">
-            <span className="font-headline font-bold text-4xl text-primary">84.3%</span>
+            <span className="font-headline font-bold text-4xl text-primary">{connectivity}</span>
             <span className="text-on-surface-variant text-sm mb-1">{t('user_profile.label_api_responsiveness')}</span>
           </div>
           <div className="mt-4 w-full bg-surface-container-low rounded-full h-2">
-            <div className="bg-on-primary-container h-2 rounded-full" style={{ width: '84.3%' }} />
+            <div className="bg-on-primary-container h-2 rounded-full" style={{ width: connectivity === 'Good' ? '100%' : connectivity === 'Normal' ? '70%' : '40%' }} />
           </div>
           <div className="flex items-center gap-2 mt-3">
             <span className="material-symbols-outlined text-[#34d399] text-[16px]">check_circle</span>

@@ -87,7 +87,7 @@ export default function AuditEventDetail() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const eventId = searchParams.get('id') ?? ''
-  const [diffMode] = useState<'side-by-side' | 'inline'>('side-by-side')
+  const [diffMode, setDiffMode] = useState<'side-by-side' | 'inline'>('side-by-side')
 
   const params: Record<string, string> = {}
   if (eventId) params.target_id = eventId
@@ -166,7 +166,16 @@ export default function AuditEventDetail() {
             {event.subtitle}
           </p>
         </div>
-        <button onClick={() => alert('Export: Coming Soon')} className="flex items-center gap-2 rounded bg-surface-container-high px-5 py-2.5 text-xs font-bold tracking-widest text-on-surface transition-colors hover:bg-surface-container">
+        <button onClick={() => {
+          const data = JSON.stringify(event || {}, null, 2)
+          const blob = new Blob([data], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `audit-event-${event?.id || 'unknown'}.json`
+          a.click()
+          URL.revokeObjectURL(url)
+        }} className="flex items-center gap-2 rounded bg-surface-container-high px-5 py-2.5 text-xs font-bold tracking-widest text-on-surface transition-colors hover:bg-surface-container">
           <span className="material-symbols-outlined text-base">download</span>
           {t('audit_event_detail.btn_export_log')}
         </button>
@@ -318,7 +327,7 @@ export default function AuditEventDetail() {
             <div className="mb-5 flex items-center justify-between">
               <div className="flex gap-4 text-[10px] tracking-widest text-on-surface-variant">
                 <span>
-                  {t('audit_event_detail.label_lines')}: <span className="text-on-surface font-bold">12</span>
+                  {t('audit_event_detail.label_lines')}: <span className="text-on-surface font-bold">{diffLines.length}</span>
                 </span>
                 <span>
                   {t('audit_event_detail.label_mode')}:{' '}
@@ -327,6 +336,10 @@ export default function AuditEventDetail() {
                   </span>
                 </span>
               </div>
+              <button onClick={() => setDiffMode(m => m === 'side-by-side' ? 'inline' : 'side-by-side')}
+                className="px-3 py-1.5 rounded-lg bg-surface-container-high text-xs text-on-surface-variant hover:text-on-surface transition-colors">
+                {diffMode === 'side-by-side' ? 'Inline View' : 'Side-by-Side'}
+              </button>
             </div>
 
             {/* Diff table */}
