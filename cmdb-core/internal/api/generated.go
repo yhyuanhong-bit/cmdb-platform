@@ -303,6 +303,20 @@ type Rack struct {
 	UsedU           int                `json:"used_u"`
 }
 
+// RackSlot defines model for RackSlot.
+type RackSlot struct {
+	AssetId   *openapi_types.UUID `json:"asset_id,omitempty"`
+	AssetName *string             `json:"asset_name,omitempty"`
+	AssetTag  *string             `json:"asset_tag,omitempty"`
+	AssetType *string             `json:"asset_type,omitempty"`
+	BiaLevel  *string             `json:"bia_level,omitempty"`
+	EndU      *int                `json:"end_u,omitempty"`
+	Id        *openapi_types.UUID `json:"id,omitempty"`
+	RackId    *openapi_types.UUID `json:"rack_id,omitempty"`
+	Side      *string             `json:"side,omitempty"`
+	StartU    *int                `json:"start_u,omitempty"`
+}
+
 // RefreshRequest defines model for RefreshRequest.
 type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
@@ -717,6 +731,14 @@ type UpdateRackJSONBody struct {
 	TotalU          *int      `json:"total_u,omitempty"`
 }
 
+// CreateRackSlotJSONBody defines parameters for CreateRackSlot.
+type CreateRackSlotJSONBody struct {
+	AssetId openapi_types.UUID `json:"asset_id"`
+	EndU    int                `json:"end_u"`
+	Side    *string            `json:"side,omitempty"`
+	StartU  int                `json:"start_u"`
+}
+
 // CreateRoleJSONBody defines parameters for CreateRole.
 type CreateRoleJSONBody struct {
 	Description *string              `json:"description,omitempty"`
@@ -830,6 +852,9 @@ type CreateRackJSONRequestBody CreateRackJSONBody
 
 // UpdateRackJSONRequestBody defines body for UpdateRack for application/json ContentType.
 type UpdateRackJSONRequestBody UpdateRackJSONBody
+
+// CreateRackSlotJSONRequestBody defines body for CreateRackSlot for application/json ContentType.
+type CreateRackSlotJSONRequestBody CreateRackSlotJSONBody
 
 // CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
 type CreateRoleJSONRequestBody CreateRoleJSONBody
@@ -1049,6 +1074,15 @@ type ServerInterface interface {
 	// List assets in a rack
 	// (GET /racks/{id}/assets)
 	ListRackAssets(c *gin.Context, id IdPath)
+	// List rack slot assignments
+	// (GET /racks/{id}/slots)
+	ListRackSlots(c *gin.Context, id IdPath)
+	// Assign asset to rack slot (with conflict detection)
+	// (POST /racks/{id}/slots)
+	CreateRackSlot(c *gin.Context, id IdPath)
+	// Remove asset from rack slot
+	// (DELETE /racks/{id}/slots/{slotId})
+	DeleteRackSlot(c *gin.Context, id IdPath, slotId openapi_types.UUID)
 	// List roles
 	// (GET /roles)
 	ListRoles(c *gin.Context)
@@ -2910,6 +2944,93 @@ func (siw *ServerInterfaceWrapper) ListRackAssets(c *gin.Context) {
 	siw.Handler.ListRackAssets(c, id)
 }
 
+// ListRackSlots operation middleware
+func (siw *ServerInterfaceWrapper) ListRackSlots(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListRackSlots(c, id)
+}
+
+// CreateRackSlot operation middleware
+func (siw *ServerInterfaceWrapper) CreateRackSlot(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateRackSlot(c, id)
+}
+
+// DeleteRackSlot operation middleware
+func (siw *ServerInterfaceWrapper) DeleteRackSlot(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "slotId" -------------
+	var slotId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slotId", c.Param("slotId"), &slotId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter slotId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteRackSlot(c, id, slotId)
+}
+
 // ListRoles operation middleware
 func (siw *ServerInterfaceWrapper) ListRoles(c *gin.Context) {
 
@@ -3205,6 +3326,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/racks/:id", wrapper.GetRack)
 	router.PUT(options.BaseURL+"/racks/:id", wrapper.UpdateRack)
 	router.GET(options.BaseURL+"/racks/:id/assets", wrapper.ListRackAssets)
+	router.GET(options.BaseURL+"/racks/:id/slots", wrapper.ListRackSlots)
+	router.POST(options.BaseURL+"/racks/:id/slots", wrapper.CreateRackSlot)
+	router.DELETE(options.BaseURL+"/racks/:id/slots/:slotId", wrapper.DeleteRackSlot)
 	router.GET(options.BaseURL+"/roles", wrapper.ListRoles)
 	router.POST(options.BaseURL+"/roles", wrapper.CreateRole)
 	router.DELETE(options.BaseURL+"/roles/:id", wrapper.DeleteRole)

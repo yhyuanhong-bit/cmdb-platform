@@ -561,6 +561,83 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /racks/{id}/slots:
+    get:
+      operationId: listRackSlots
+      tags: [topology]
+      summary: List rack slot assignments
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Rack slots with asset info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RackSlot'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+    post:
+      operationId: createRackSlot
+      tags: [topology]
+      summary: Assign asset to rack slot (with conflict detection)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asset_id, start_u, end_u]
+              properties:
+                asset_id:
+                  type: string
+                  format: uuid
+                start_u:
+                  type: integer
+                end_u:
+                  type: integer
+                side:
+                  type: string
+                  default: front
+      responses:
+        '201':
+          description: Slot created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RackSlot'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /racks/{id}/slots/{slotId}:
+    delete:
+      operationId: deleteRackSlot
+      tags: [topology]
+      summary: Remove asset from rack slot
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Slot removed
+
   # ── Assets ──────────────────────────────────────────────────────────────
   /assets:
     get:
@@ -3343,6 +3420,34 @@ components:
         delivered_at:
           type: string
           format: date-time
+
+    # ── RackSlot ──────────────────────────────────────────────────────
+    RackSlot:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        rack_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        start_u:
+          type: integer
+        end_u:
+          type: integer
+        side:
+          type: string
+        asset_name:
+          type: string
+        asset_tag:
+          type: string
+        asset_type:
+          type: string
+        bia_level:
+          type: string
 
     # ── BIAAssessment ────────────────────────────────────────────────
     BIAAssessment:

@@ -79,7 +79,7 @@ func (q *Queries) CreateDelivery(ctx context.Context, arg CreateDeliveryParams) 
 
 const createWebhook = `-- name: CreateWebhook :one
 INSERT INTO webhook_subscriptions (tenant_id, name, url, secret, events, enabled)
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, tenant_id, name, url, secret, events, enabled, created_at
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia
 `
 
 type CreateWebhookParams struct {
@@ -110,6 +110,7 @@ func (q *Queries) CreateWebhook(ctx context.Context, arg CreateWebhookParams) (W
 		&i.Events,
 		&i.Enabled,
 		&i.CreatedAt,
+		&i.FilterBia,
 	)
 	return i, err
 }
@@ -186,7 +187,7 @@ func (q *Queries) ListDeliveries(ctx context.Context, arg ListDeliveriesParams) 
 }
 
 const listWebhooks = `-- name: ListWebhooks :many
-SELECT id, tenant_id, name, url, secret, events, enabled, created_at FROM webhook_subscriptions WHERE tenant_id = $1 ORDER BY name
+SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia FROM webhook_subscriptions WHERE tenant_id = $1 ORDER BY name
 `
 
 func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]WebhookSubscription, error) {
@@ -207,6 +208,7 @@ func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]Webho
 			&i.Events,
 			&i.Enabled,
 			&i.CreatedAt,
+			&i.FilterBia,
 		); err != nil {
 			return nil, err
 		}
@@ -219,7 +221,7 @@ func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]Webho
 }
 
 const listWebhooksByEvent = `-- name: ListWebhooksByEvent :many
-SELECT id, tenant_id, name, url, secret, events, enabled, created_at FROM webhook_subscriptions
+SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia FROM webhook_subscriptions
 WHERE enabled = true
   AND $1::text = ANY(events)
 `
@@ -242,6 +244,7 @@ func (q *Queries) ListWebhooksByEvent(ctx context.Context, dollar_1 string) ([]W
 			&i.Events,
 			&i.Enabled,
 			&i.CreatedAt,
+			&i.FilterBia,
 		); err != nil {
 			return nil, err
 		}

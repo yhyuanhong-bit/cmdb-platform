@@ -165,3 +165,32 @@ func (s *Service) UpdateRack(ctx context.Context, params dbgen.UpdateRackParams)
 func (s *Service) DeleteRack(ctx context.Context, id uuid.UUID) error {
 	return s.queries.DeleteRack(ctx, id)
 }
+
+// ListRackSlots returns all slot assignments for a rack.
+func (s *Service) ListRackSlots(ctx context.Context, rackID uuid.UUID) ([]dbgen.ListRackSlotsRow, error) {
+	return s.queries.ListRackSlots(ctx, rackID)
+}
+
+// CheckSlotConflict checks if a U-position range conflicts with existing slots.
+func (s *Service) CheckSlotConflict(ctx context.Context, rackID uuid.UUID, side string, startU, endU int32) (int64, error) {
+	return s.queries.CheckSlotConflict(ctx, dbgen.CheckSlotConflictParams{
+		RackID: rackID,
+		Side:   side,
+		EndU:   startU,
+		StartU: endU,
+	})
+}
+
+// CreateRackSlot inserts a new rack slot assignment.
+func (s *Service) CreateRackSlot(ctx context.Context, params dbgen.CreateRackSlotParams) (*dbgen.RackSlot, error) {
+	slot, err := s.queries.CreateRackSlot(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &slot, nil
+}
+
+// DeleteRackSlot removes a rack slot assignment by ID.
+func (s *Service) DeleteRackSlot(ctx context.Context, id uuid.UUID) error {
+	return s.queries.DeleteRackSlot(ctx, id)
+}

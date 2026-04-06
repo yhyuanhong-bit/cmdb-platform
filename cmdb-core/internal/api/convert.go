@@ -616,6 +616,30 @@ func pgnumToFloat32Ptr(v pgtype.Numeric) *float32 {
 	return &val
 }
 
+// ---------------------------------------------------------------------------
+// 22. toAPIRackSlot
+// ---------------------------------------------------------------------------
+
+func toAPIRackSlot(db dbgen.ListRackSlotsRow) RackSlot {
+	id := uuid.UUID(db.ID)
+	rackID := uuid.UUID(db.RackID)
+	assetID := uuid.UUID(db.AssetID)
+	startU := int(db.StartU)
+	endU := int(db.EndU)
+	return RackSlot{
+		Id:        &id,
+		RackId:    &rackID,
+		AssetId:   &assetID,
+		StartU:    &startU,
+		EndU:      &endU,
+		Side:      &db.Side,
+		AssetName: pgtextToPtr(db.AssetName),
+		AssetTag:  pgtextToPtr(db.AssetTag),
+		AssetType: pgtextToPtr(db.AssetType),
+		BiaLevel:  pgtextToPtr(db.BiaLevel),
+	}
+}
+
 func toAPIWebhook(db dbgen.WebhookSubscription) WebhookSubscription {
 	createdAt := pgtsToTime(db.CreatedAt)
 	return WebhookSubscription{

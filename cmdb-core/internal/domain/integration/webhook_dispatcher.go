@@ -13,6 +13,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
@@ -43,7 +44,41 @@ func (d *WebhookDispatcher) HandleEvent(ctx context.Context, event eventbus.Even
 	}
 
 	for _, sub := range subs {
-		go d.deliver(sub, event)
+		sub := sub
+
+		// Check if BIA filtering is needed
+		if len(sub.FilterBia) > 0 && sub.FilterBia[0] != "" {
+			go func() {
+				// Extract asset_id from event payload
+				var payload map[string]string
+				json.Unmarshal(event.Payload, &payload)
+				if assetID, ok := payload["asset_id"]; ok {
+					parsed, err := uuid.Parse(assetID)
+					if err == nil {
+						asset, err := d.queries.GetAsset(ctx, parsed)
+						if err != nil {
+							zap.L().Warn("webhook BIA filter: asset lookup failed",
+								zap.String("asset_id", assetID), zap.Error(err))
+						} else {
+							// Check if asset BIA level matches filter
+							matched := false
+							for _, bia := range sub.FilterBia {
+								if bia == asset.BiaLevel {
+									matched = true
+									break
+								}
+							}
+							if !matched {
+								return
+							}
+						}
+					}
+				}
+				d.deliver(sub, event)
+			}()
+		} else {
+			go d.deliver(sub, event)
+		}
 	}
 	return nil
 }

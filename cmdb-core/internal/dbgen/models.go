@@ -338,6 +338,7 @@ type WebhookSubscription struct {
 	Events    []string           `json:"events"`
 	Enabled   pgtype.Bool        `json:"enabled"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	FilterBia []string           `json:"filter_bia"`
 }
 
 type WorkOrder struct {

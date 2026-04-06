@@ -126,6 +126,14 @@ func (s *Service) DeleteDependency(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// PropagateBIALevel propagates the MAX(tier) from BIA assessments to linked assets.
+func (s *Service) PropagateBIALevel(ctx context.Context, assessmentID uuid.UUID) error {
+	if err := s.queries.PropagateBIALevelByAssessment(ctx, assessmentID); err != nil {
+		return fmt.Errorf("propagate BIA level: %w", err)
+	}
+	return nil
+}
+
 // GetStats returns aggregated BIA statistics for a tenant.
 func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*BIAStats, error) {
 	tierCounts, err := s.queries.CountBIAByTier(ctx, tenantID)

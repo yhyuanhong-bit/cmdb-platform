@@ -87,3 +87,24 @@ SELECT
     count(*) FILTER (WHERE audit_compliance = true) as audit_compliant
 FROM bia_assessments
 WHERE tenant_id = $1;
+
+-- name: PropagateBIALevelByAssessment :exec
+UPDATE assets SET
+    bia_level = sub.max_tier,
+    updated_at = now()
+FROM (
+    SELECT bd.asset_id,
+        CASE
+            WHEN 'critical' = ANY(array_agg(ba.tier)) THEN 'critical'
+            WHEN 'important' = ANY(array_agg(ba.tier)) THEN 'important'
+            WHEN 'normal' = ANY(array_agg(ba.tier)) THEN 'normal'
+            ELSE 'minor'
+        END as max_tier
+    FROM bia_dependencies bd
+    JOIN bia_assessments ba ON ba.id = bd.assessment_id
+    WHERE bd.asset_id IN (
+        SELECT bd2.asset_id FROM bia_dependencies bd2 WHERE bd2.assessment_id = $1
+    )
+    GROUP BY bd.asset_id
+) sub
+WHERE assets.id = sub.asset_id;

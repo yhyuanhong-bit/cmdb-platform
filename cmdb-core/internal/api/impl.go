@@ -813,6 +813,81 @@ func (s *APIServer) DeleteRack(c *gin.Context, id IdPath) {
 }
 
 // ---------------------------------------------------------------------------
+// Rack Slot endpoints
+// ---------------------------------------------------------------------------
+
+// ListRackSlots returns all slot assignments for a rack.
+// (GET /racks/{id}/slots)
+func (s *APIServer) ListRackSlots(c *gin.Context, id IdPath) {
+	slots, err := s.topologySvc.ListRackSlots(c.Request.Context(), uuid.UUID(id))
+	if err != nil {
+		response.InternalError(c, "failed to list rack slots")
+		return
+	}
+	response.OK(c, convertSlice(slots, toAPIRackSlot))
+}
+
+// CreateRackSlot assigns an asset to a rack slot with conflict detection.
+// (POST /racks/{id}/slots)
+func (s *APIServer) CreateRackSlot(c *gin.Context, id IdPath) {
+	var req CreateRackSlotJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	side := "front"
+	if req.Side != nil {
+		side = *req.Side
+	}
+
+	// Check for U-position conflict
+	conflictCount, err := s.topologySvc.CheckSlotConflict(c.Request.Context(), uuid.UUID(id), side, int32(req.StartU), int32(req.EndU))
+	if err != nil {
+		response.InternalError(c, "failed to check slot conflict")
+		return
+	}
+	if conflictCount > 0 {
+		response.BadRequest(c, fmt.Sprintf("U position conflict: U%d-U%d on %s is occupied", req.StartU, req.EndU, side))
+		return
+	}
+
+	slot, err := s.topologySvc.CreateRackSlot(c.Request.Context(), dbgen.CreateRackSlotParams{
+		RackID:  uuid.UUID(id),
+		AssetID: uuid.UUID(req.AssetId),
+		StartU:  int32(req.StartU),
+		EndU:    int32(req.EndU),
+		Side:    side,
+	})
+	if err != nil {
+		response.InternalError(c, "failed to create rack slot")
+		return
+	}
+
+	// Convert the created slot to API format
+	apiSlot := RackSlot{
+		Id:     &slot.ID,
+		RackId: &slot.RackID,
+		AssetId: &slot.AssetID,
+		StartU: func() *int { v := int(slot.StartU); return &v }(),
+		EndU:   func() *int { v := int(slot.EndU); return &v }(),
+		Side:   &slot.Side,
+	}
+	response.Created(c, apiSlot)
+}
+
+// DeleteRackSlot removes an asset from a rack slot.
+// (DELETE /racks/{id}/slots/{slotId})
+func (s *APIServer) DeleteRackSlot(c *gin.Context, id IdPath, slotId openapi_types.UUID) {
+	err := s.topologySvc.DeleteRackSlot(c.Request.Context(), uuid.UUID(slotId))
+	if err != nil {
+		response.NotFound(c, "rack slot not found")
+		return
+	}
+	c.Status(204)
+}
+
+// ---------------------------------------------------------------------------
 // Maintenance endpoints
 // ---------------------------------------------------------------------------
 
@@ -2120,6 +2195,14 @@ func (s *APIServer) UpdateBIAAssessment(c *gin.Context, id IdPath) {
 		return
 	}
 	s.recordAudit(c, "bia.assessment.updated", "bia", "bia_assessment", updated.ID, diff)
+
+	// Propagate BIA level to linked assets if tier changed
+	if req.Tier != nil {
+		if err := s.biaSvc.PropagateBIALevel(c.Request.Context(), updated.ID); err != nil {
+			fmt.Printf("BIA propagation error: %v\n", err)
+		}
+	}
+
 	response.OK(c, toAPIBIAAssessment(*updated))
 }
 
