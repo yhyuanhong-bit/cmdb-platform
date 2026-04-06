@@ -1090,12 +1090,12 @@ type ServerInterface interface {
 	// List items in an inventory task
 	// (GET /inventory/tasks/{id}/items)
 	ListInventoryItems(c *gin.Context, id IdPath)
+	// Scan an inventory item
+	// (POST /inventory/tasks/{id}/items/{itemId}/scan)
+	ScanInventoryItem(c *gin.Context, id IdPath, itemId openapi_types.UUID)
 	// Get inventory task summary
 	// (GET /inventory/tasks/{id}/summary)
 	GetInventorySummary(c *gin.Context, id IdPath)
-	// Scan an inventory item
-	// (POST /inventory/tasks/{taskId}/items/{itemId}/scan)
-	ScanInventoryItem(c *gin.Context, taskId openapi_types.UUID, itemId openapi_types.UUID)
 	// List locations
 	// (GET /locations)
 	ListLocations(c *gin.Context, params ListLocationsParams)
@@ -2205,6 +2205,41 @@ func (siw *ServerInterfaceWrapper) ListInventoryItems(c *gin.Context) {
 	siw.Handler.ListInventoryItems(c, id)
 }
 
+// ScanInventoryItem operation middleware
+func (siw *ServerInterfaceWrapper) ScanInventoryItem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "itemId" -------------
+	var itemId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "itemId", c.Param("itemId"), &itemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter itemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ScanInventoryItem(c, id, itemId)
+}
+
 // GetInventorySummary operation middleware
 func (siw *ServerInterfaceWrapper) GetInventorySummary(c *gin.Context) {
 
@@ -2229,41 +2264,6 @@ func (siw *ServerInterfaceWrapper) GetInventorySummary(c *gin.Context) {
 	}
 
 	siw.Handler.GetInventorySummary(c, id)
-}
-
-// ScanInventoryItem operation middleware
-func (siw *ServerInterfaceWrapper) ScanInventoryItem(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "taskId" -------------
-	var taskId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "taskId", c.Param("taskId"), &taskId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter taskId: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	// ------------- Path parameter "itemId" -------------
-	var itemId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "itemId", c.Param("itemId"), &itemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter itemId: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ScanInventoryItem(c, taskId, itemId)
 }
 
 // ListLocations operation middleware
@@ -3722,8 +3722,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/inventory/tasks/:id/complete", wrapper.CompleteInventoryTask)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/import", wrapper.ImportInventoryItems)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/items", wrapper.ListInventoryItems)
+	router.POST(options.BaseURL+"/inventory/tasks/:id/items/:itemId/scan", wrapper.ScanInventoryItem)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/summary", wrapper.GetInventorySummary)
-	router.POST(options.BaseURL+"/inventory/tasks/:taskId/items/:itemId/scan", wrapper.ScanInventoryItem)
 	router.GET(options.BaseURL+"/locations", wrapper.ListLocations)
 	router.POST(options.BaseURL+"/locations", wrapper.CreateLocation)
 	router.DELETE(options.BaseURL+"/locations/:id", wrapper.DeleteLocation)

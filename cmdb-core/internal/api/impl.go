@@ -1547,8 +1547,8 @@ func (s *APIServer) CompleteInventoryTask(c *gin.Context, id IdPath) {
 }
 
 // ScanInventoryItem records a scan result for an inventory item.
-// (POST /inventory/tasks/{taskId}/items/{itemId}/scan)
-func (s *APIServer) ScanInventoryItem(c *gin.Context, taskId openapi_types.UUID, itemId openapi_types.UUID) {
+// (POST /inventory/tasks/{id}/items/{itemId}/scan)
+func (s *APIServer) ScanInventoryItem(c *gin.Context, id IdPath, itemId openapi_types.UUID) {
 	var req ScanInventoryItemJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request body")

@@ -1537,18 +1537,13 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /inventory/tasks/{taskId}/items/{itemId}/scan:
+  /inventory/tasks/{id}/items/{itemId}/scan:
     post:
       operationId: scanInventoryItem
       tags: [inventory]
       summary: Scan an inventory item
       parameters:
-        - name: taskId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - $ref: '#/components/parameters/IdPath'
         - name: itemId
           in: path
           required: true
