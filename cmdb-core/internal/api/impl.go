@@ -2632,7 +2632,7 @@ func (s *APIServer) IngestDiscoveredAsset(c *gin.Context) {
 	if req.IpAddress != nil && *req.IpAddress != "" {
 		matched, matchErr := s.discoverySvc.Queries().FindAssetByIP(c.Request.Context(), dbgen.FindAssetByIPParams{
 			TenantID:     tenantID,
-			SerialNumber: pgtype.Text{String: *req.IpAddress, Valid: true},
+			IpAddress: pgtype.Text{String: *req.IpAddress, Valid: true},
 		})
 		if matchErr == nil {
 			params.MatchedAssetID = pgtype.UUID{Bytes: matched.ID, Valid: true}

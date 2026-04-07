@@ -53,6 +53,7 @@ type Asset struct {
 	Vendor         pgtype.Text     `json:"vendor"`
 	Model          pgtype.Text     `json:"model"`
 	SerialNumber   pgtype.Text     `json:"serial_number"`
+	IpAddress      pgtype.Text     `json:"ip_address"`
 	Attributes     json.RawMessage `json:"attributes"`
 	Tags           []string        `json:"tags"`
 	CreatedAt      time.Time       `json:"created_at"`
