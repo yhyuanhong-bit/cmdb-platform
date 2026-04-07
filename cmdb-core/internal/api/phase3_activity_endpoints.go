@@ -48,8 +48,8 @@ func (s *APIServer) GetActivityFeed(c *gin.Context) {
 			SELECT
 				'alert'                                    AS event_type,
 				COALESCE(ale.status, '')                   AS action,
-				COALESCE(ale.name, '')                     AS description,
-				COALESCE(ale.fired_at, ale.updated_at, now()) AS timestamp,
+				COALESCE(ale.message, '')                  AS description,
+				COALESCE(ale.fired_at, now())              AS timestamp,
 				COALESCE(ale.severity, '')                 AS severity,
 				''                                         AS operator
 			FROM alert_events ale
@@ -67,12 +67,12 @@ func (s *APIServer) GetActivityFeed(c *gin.Context) {
 			SELECT
 				'work_order'                               AS event_type,
 				COALESCE(wol.action, wo.status, '')        AS action,
-				COALESCE(wol.note, wo.title, '')           AS description,
+				COALESCE(wol.comment, wo.title, '')        AS description,
 				COALESCE(wol.created_at, wo.created_at)    AS timestamp,
 				''                                         AS severity,
 				COALESCE(u2.display_name, '')              AS operator
 			FROM work_order_logs wol
-			JOIN work_orders wo ON wol.work_order_id = wo.id
+			JOIN work_orders wo ON wol.order_id = wo.id
 			JOIN assets a2      ON wo.asset_id = a2.id
 			LEFT JOIN users u2  ON wol.operator_id = u2.id
 			WHERE wo.tenant_id = $3
