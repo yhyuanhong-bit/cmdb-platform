@@ -42,6 +42,13 @@ export const topologyApi = {
     apiClient.post<ApiResponse<any>>(`/racks/${rackId}/slots`, data),
   getRackStats: () =>
     apiClient.get<RackStats>('/racks/stats'),
+  listDependencies: (params: Record<string, string>) => apiClient.get('/topology/dependencies', params),
+  createDependency: (data: any) => apiClient.post('/topology/dependencies', data),
+  deleteDependency: (id: string) => apiClient.del(`/topology/dependencies/${id}`),
+  getTopologyGraph: (params: Record<string, string>) => apiClient.get('/topology/graph', params),
+  listNetworkConnections: (rackId: string) => apiClient.get(`/racks/${rackId}/network-connections`),
+  createNetworkConnection: (rackId: string, data: any) => apiClient.post(`/racks/${rackId}/network-connections`, data),
+  deleteNetworkConnection: (rackId: string, connId: string) => apiClient.del(`/racks/${rackId}/network-connections/${connId}`),
 }
 
 export interface RackStats {

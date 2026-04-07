@@ -49,3 +49,20 @@ export function useWorkOrderLogs(id: string) {
     enabled: !!id,
   })
 }
+
+export function useWorkOrderComments(orderId: string) {
+  return useQuery({
+    queryKey: ['workOrderComments', orderId],
+    queryFn: () => maintenanceApi.listComments(orderId),
+    enabled: !!orderId,
+  })
+}
+
+export function useCreateWorkOrderComment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orderId, data }: { orderId: string; data: any }) =>
+      maintenanceApi.createComment(orderId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrderComments'] }),
+  })
+}

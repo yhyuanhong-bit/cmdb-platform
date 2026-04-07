@@ -129,3 +129,67 @@ export function useCreateRackSlot() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['rackSlots'] }) }
   })
 }
+
+export function useTopologyGraph(locationId: string) {
+  return useQuery({
+    queryKey: ['topologyGraph', locationId],
+    queryFn: () => topologyApi.getTopologyGraph({ location_id: locationId }),
+    enabled: !!locationId,
+  })
+}
+
+export function useAssetDependencies(assetId: string) {
+  return useQuery({
+    queryKey: ['assetDependencies', assetId],
+    queryFn: () => topologyApi.listDependencies({ asset_id: assetId }),
+    enabled: !!assetId,
+  })
+}
+
+export function useCreateDependency() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: any) => topologyApi.createDependency(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assetDependencies'] })
+      qc.invalidateQueries({ queryKey: ['topologyGraph'] })
+    },
+  })
+}
+
+export function useDeleteDependency() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => topologyApi.deleteDependency(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assetDependencies'] })
+      qc.invalidateQueries({ queryKey: ['topologyGraph'] })
+    },
+  })
+}
+
+export function useRackNetworkConnections(rackId: string) {
+  return useQuery({
+    queryKey: ['rackNetworkConnections', rackId],
+    queryFn: () => topologyApi.listNetworkConnections(rackId),
+    enabled: !!rackId,
+  })
+}
+
+export function useCreateNetworkConnection() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ rackId, data }: { rackId: string; data: any }) =>
+      topologyApi.createNetworkConnection(rackId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rackNetworkConnections'] }),
+  })
+}
+
+export function useDeleteNetworkConnection() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ rackId, connId }: { rackId: string; connId: string }) =>
+      topologyApi.deleteNetworkConnection(rackId, connId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['rackNetworkConnections'] }),
+  })
+}

@@ -66,3 +66,37 @@ export function useTaskSummary(taskId: string) {
     enabled: !!taskId,
   })
 }
+
+export function useItemScanHistory(taskId: string, itemId: string) {
+  return useQuery({
+    queryKey: ['itemScanHistory', taskId, itemId],
+    queryFn: () => inventoryApi.listScanHistory(taskId, itemId),
+    enabled: !!taskId && !!itemId,
+  })
+}
+
+export function useItemNotes(taskId: string, itemId: string) {
+  return useQuery({
+    queryKey: ['itemNotes', taskId, itemId],
+    queryFn: () => inventoryApi.listItemNotes(taskId, itemId),
+    enabled: !!taskId && !!itemId,
+  })
+}
+
+export function useCreateItemScanRecord() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, itemId, data }: { taskId: string; itemId: string; data: any }) =>
+      inventoryApi.createScanRecord(taskId, itemId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['itemScanHistory'] }),
+  })
+}
+
+export function useCreateItemNote() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, itemId, data }: { taskId: string; itemId: string; data: any }) =>
+      inventoryApi.createItemNote(taskId, itemId, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['itemNotes'] }),
+  })
+}

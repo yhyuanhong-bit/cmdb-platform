@@ -21,4 +21,8 @@ export const inventoryApi = {
     apiClient.get<ApiResponse<any>>(`/inventory/tasks/${taskID}/summary`),
   importItems: (taskId: string, items: any[]) =>
     apiClient.post<ApiResponse<any>>(`/inventory/tasks/${taskId}/import`, { items }),
+  listScanHistory: (taskId: string, itemId: string) => apiClient.get(`/inventory/tasks/${taskId}/items/${itemId}/scan-history`),
+  createScanRecord: (taskId: string, itemId: string, data: any) => apiClient.post(`/inventory/tasks/${taskId}/items/${itemId}/scan-history`, data),
+  listItemNotes: (taskId: string, itemId: string) => apiClient.get(`/inventory/tasks/${taskId}/items/${itemId}/notes`),
+  createItemNote: (taskId: string, itemId: string, data: any) => apiClient.post(`/inventory/tasks/${taskId}/items/${itemId}/notes`, data),
 }
