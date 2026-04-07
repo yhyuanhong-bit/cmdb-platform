@@ -146,9 +146,8 @@ All nested under existing inventory task/item path to match Gin param naming (`:
   "scan_history": [
     {
       "id": "uuid",
-      "scanned_at": "2026-04-07T10:32:00Z",
-      "scanned_by": "uuid",
-      "operator_name": "admin",
+      "timestamp": "2026-04-07T10:32:00Z",
+      "operator": "admin",
       "method": "qr",
       "result": "match",
       "note": "Verified in rack position"
@@ -170,10 +169,10 @@ All nested under existing inventory task/item path to match Gin param naming (`:
   "notes": [
     {
       "id": "uuid",
-      "author_name": "admin",
+      "timestamp": "2026-04-07T10:35:00Z",
+      "author": "admin",
       "severity": "warning",
-      "text": "Serial number mismatch needs investigation",
-      "created_at": "2026-04-07T10:35:00Z"
+      "text": "Serial number mismatch needs investigation"
     }
   ]
 }
@@ -186,7 +185,7 @@ All nested under existing inventory task/item path to match Gin param naming (`:
 // Response: created note record
 ```
 
-Implementation: JOIN `users` to get `operator_name` / `author_name` in GET responses. Use `c.GetString("user_id")` for `scanned_by` / `author_id` in POST.
+Implementation: JOIN `users` to get `operator` (aliased from `display_name`) / `author` in GET responses. Alias `scanned_at` as `timestamp` and `created_at` as `timestamp` in responses to match frontend field names. Use `c.GetString("user_id")` for `scanned_by` / `author_id` in POST.
 
 ### 3.2 Work Order Comments (2 endpoints)
 
@@ -258,27 +257,35 @@ Returns 204 on success.
       "status": "operational",
       "bia_level": "critical",
       "ip_address": "192.168.1.10",
+      "model": "PowerEdge R740",
       "rack_name": "RACK-A01",
-      "metrics": null
+      "tags": ["production", "tier-1"],
+      "has_active_alert": true,
+      "metrics": { "cpu": 42, "memory": 68, "disk_io": 15 }
     }
   ],
   "edges": [
     {
       "id": "dep-uuid",
-      "source": "asset-uuid-1",
-      "target": "asset-uuid-2",
+      "from": "asset-uuid-1",
+      "to": "asset-uuid-2",
       "type": "network",
-      "description": "Core uplink"
+      "description": "Core uplink",
+      "isFaultPath": true
     }
   ]
 }
 ```
 
 Query logic:
-1. Get all assets in location (via `assets.location_id` or descendants)
+1. Get all assets in location (via `assets.location_id` or descendants), SELECT including `model`, `tags`
 2. Get all `asset_dependencies` where `source_asset_id` or `target_asset_id` is in the asset set
-3. `metrics` field is optional — query latest from `metrics` table if available, otherwise `null`
-4. No `x, y` coordinates — frontend calculates layout via force-directed algorithm
+3. For each node: `has_active_alert` = EXISTS in `alert_events` WHERE `asset_id` = node AND `status` = 'firing'
+4. For each edge: `isFaultPath` = true if either source or target node has `has_active_alert = true`
+5. `metrics` field: query latest from `metrics` table (`cpu_usage`, `memory_usage`, `disk_io`) per asset, `null` if no data
+6. `icon` is NOT returned — frontend derives from `type` (server->dns, network->router, storage->storage, power->bolt)
+7. No `x, y` coordinates — frontend calculates layout via force-directed algorithm
+8. Performance note: graph endpoint limited to assets in one location; for large locations, add `?limit=50` param
 
 ### 3.4 Rack Network Connections (3 endpoints)
 
@@ -288,19 +295,19 @@ Query logic:
   "connections": [
     {
       "id": "uuid",
-      "source_port": "Eth1/1",
+      "port": "Eth1/1",
+      "device": "Core-SW-01",
       "connected_asset_id": "uuid",
-      "connected_asset_name": "Core-SW-01",
       "external_device": null,
       "speed": "100GbE",
       "status": "UP",
-      "vlans": [100, 200, 300],
+      "vlan": "100,200,300",
       "connection_type": "network"
     }
   ]
 }
 ```
-Query: JOIN assets for `connected_asset_name` when `connected_asset_id` is not null.
+Query: JOIN assets to get `device` (aliased from `COALESCE(a.name, rnc.external_device)`), alias `source_port` as `port`, format `vlans` array as comma-separated `vlan` string.
 
 **POST `/racks/:id/network-connections`**
 ```json
@@ -457,6 +464,19 @@ Query: `SELECT ae.*, u.display_name, u.email FROM audit_events ae LEFT JOIN user
 - `useCreateNetworkConnection()`
 - `useDeleteNetworkConnection()`
 
+**`src/lib/api/inventory.ts`** (or existing inventory API file) — add:
+- `listScanHistory(taskId, itemId)` -> `GET /inventory/tasks/:id/items/:itemId/scan-history`
+- `createScanRecord(taskId, itemId, data)` -> `POST /inventory/tasks/:id/items/:itemId/scan-history`
+- `listNotes(taskId, itemId)` -> `GET /inventory/tasks/:id/items/:itemId/notes`
+- `createNote(taskId, itemId, data)` -> `POST /inventory/tasks/:id/items/:itemId/notes`
+
+**`src/lib/api/maintenance.ts`** — add:
+- `listComments(orderId)` -> `GET /maintenance/orders/:id/comments`
+- `createComment(orderId, data)` -> `POST /maintenance/orders/:id/comments`
+
+**`src/lib/api/audit.ts`** — add:
+- `getEventById(id)` -> `GET /audit/events/:id`
+
 **`src/hooks/useInventory.ts`** — add:
 - `useItemScanHistory(taskId, itemId)`
 - `useItemNotes(taskId, itemId)`
@@ -468,7 +488,7 @@ Query: `SELECT ae.*, u.display_name, u.email FROM audit_events ae LEFT JOIN user
 - `useCreateWorkOrderComment()`
 
 **`src/hooks/useAudit.ts`** — add:
-- `useAuditEvent(eventId)` — single event fetch
+- `useAuditEventDetail(eventId)` — single event fetch
 
 ### 4.3 Page Changes
 
@@ -501,7 +521,7 @@ Query: `SELECT ae.*, u.display_name, u.email FROM audit_events ae LEFT JOIN user
 - Add "Delete Dependency" on edges → `useDeleteDependency().mutate()`
 
 **AuditEventDetail** (`src/pages/AuditEventDetail.tsx`)
-- Replace `useAuditEvents(params)[0]` workaround → `useAuditEvent(eventId)`
+- Replace `useAuditEventDetails(params)[0]` workaround → `useAuditEventDetail(eventId)`
 - Remove `FALLBACK_EVENT` and `FALLBACK_DIFF` constants
 - Use enriched response (operator_name, operator_email) directly
 
@@ -547,10 +567,14 @@ function useForceLayout(
         }
       }
 
-      // Attraction along edges
+      // Attraction along edges (use index map for O(1) lookup)
+      const idxMap = new Map(positioned.map((n, i) => [n.id, i]))
       for (const edge of edges) {
-        const s = positioned.find(n => n.id === edge.source)
-        const t = positioned.find(n => n.id === edge.target)
+        const si = idxMap.get(edge.source)
+        const ti = idxMap.get(edge.target)
+        if (si == null || ti == null) continue
+        const s = positioned[si]
+        const t = positioned[ti]
         if (!s || !t) continue
         const dx = t.x - s.x
         const dy = t.y - s.y
@@ -579,6 +603,8 @@ function useForceLayout(
   }, [nodes, edges, width, height])
 }
 ```
+
+**Performance note:** O(N^2 * 100 iterations) runs synchronously in `useMemo`. Suitable for up to ~50 nodes. For larger graphs, consider moving to a Web Worker. The API endpoint has a `?limit=50` param to cap node count.
 
 ---
 
@@ -643,7 +669,7 @@ v1.GET("/audit/events/:id", apiServer.GetAuditEventDetail)
 | `src/hooks/useTopology.ts` | Add 7 new hooks |
 | `src/hooks/useInventory.ts` | Add 4 new hooks (scan-history, notes) |
 | `src/hooks/useMaintenance.ts` | Add 2 new hooks (comments) |
-| `src/hooks/useAudit.ts` | Add `useAuditEvent(id)` hook |
+| `src/hooks/useAudit.ts` | Add `useAuditEventDetail(id)` hook |
 | `src/pages/InventoryItemDetail.tsx` | Replace SCAN_HISTORY + DISCREPANCY_NOTES with API |
 | `src/pages/MaintenanceTaskView.tsx` | Wire comment submit + list |
 | `src/pages/RackDetailUnified.tsx` | Replace networkConnections + recentActivity |
