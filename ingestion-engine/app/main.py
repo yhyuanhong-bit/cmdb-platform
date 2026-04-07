@@ -8,6 +8,7 @@ from app.database import close_pool, create_pool
 from app.events import close_nats, connect_nats
 from app.routes.collectors import router as collectors_router
 from app.routes.conflicts import router as conflicts_router
+from app.routes.credentials import router as credentials_router
 from app.routes.imports import router as imports_router
 
 logging.basicConfig(level=logging.INFO)
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     application.include_router(imports_router)
     application.include_router(conflicts_router)
     application.include_router(collectors_router)
+    application.include_router(credentials_router)
 
     @application.get("/healthz")
     async def healthz():
