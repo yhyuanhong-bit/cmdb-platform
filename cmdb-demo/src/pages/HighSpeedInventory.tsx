@@ -1,56 +1,10 @@
 import { memo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import { useInventoryTasks, useCompleteTask, useImportInventoryItems } from "../hooks/useInventory";
 import CreateInventoryTaskModal from "../components/CreateInventoryTaskModal";
-
-/* ──────────────────────────────────────────────
-   Static UI data (scan progress, QR code interactive demos)
-   ────────────────────────────────────────────── */
-
-const STATIC_RACKS = [
-  { id: "RACK-A1", status: "scanned" },
-  { id: "RACK-A2", status: "scanned" },
-  { id: "RACK-A3", status: "pending" },
-  { id: "RACK-A4", status: "scanned" },
-  { id: "RACK-A5", status: "pending" },
-  { id: "RACK-B1", status: "scanned" },
-  { id: "RACK-B2", status: "not_started" },
-  { id: "RACK-B3", status: "scanned" },
-  { id: "RACK-B4", status: "not_started" },
-  { id: "RACK-B5", status: "pending" },
-];
-
-const DISCREPANCIES = [
-  {
-    id: "NODE-4483-B3",
-    location: "Rack B3 / Slot 04",
-    issue: "Status mismatch — Excel: Active, Scan: Powered Off",
-    type: "status_mismatch",
-    resolved: false,
-  },
-  {
-    id: "NODE-4483-B3",
-    location: "Rack B3 / Slot 08 / Pos 2",
-    issue: "Asset physically removed — confirmed by operator",
-    type: "cleared",
-    resolved: true,
-  },
-  {
-    id: "SWITCH-CORE-02",
-    location: "Rack A3 / Slot 01",
-    issue: "Scan mismatch — SN does not match import record",
-    type: "scan_mismatch",
-    resolved: false,
-  },
-  {
-    id: "SRV-WEB-18",
-    location: "Rack A1 / Slot 12",
-    issue: "Asset not in import file — unregistered device detected",
-    type: "unregistered",
-    resolved: false,
-  },
-];
+import { apiClient } from "../lib/api/client";
 
 const IMPORT_ERRORS = [
   { row: 23, field: "Serial Number", error: "Duplicate entry" },
@@ -107,11 +61,44 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   const tasks = tasksResponse?.data ?? [];
   // The current task (first active) - used for header display
   const currentTask = tasks.find((t) => t.status === 'in_progress') ?? tasks[0];
+  const currentTaskId = currentTask?.id;
 
-  // Use static rack data for scan visualization (interactive demo)
-  const RACKS = STATIC_RACKS;
-  const scannedCount = RACKS.filter((r) => r.status === "scanned").length;
-  const pendingCount = RACKS.filter((r) => r.status === "pending").length;
+  const { data: racksSummaryData } = useQuery({
+    queryKey: ['inventoryRacks', currentTaskId],
+    queryFn: () => apiClient.get(`/inventory/tasks/${currentTaskId}/racks-summary`),
+    enabled: !!currentTaskId,
+  });
+  const racksRaw = (racksSummaryData as any)?.racks ?? [];
+  // Map API rack data to tile format: derive status from API fields
+  const RACKS = racksRaw.map((r: any) => ({
+    id: r.rack_name,
+    rack_id: r.rack_id,
+    status: r.status === "completed"
+      ? "scanned"
+      : r.status === "in_progress" || r.discrepancy > 0
+      ? "pending"
+      : "not_started",
+    scanned: r.scanned ?? 0,
+    total: r.total ?? 0,
+  }));
+
+  const { data: discrepancyData } = useQuery({
+    queryKey: ['inventoryDiscrepancies', currentTaskId],
+    queryFn: () => apiClient.get(`/inventory/tasks/${currentTaskId}/discrepancies`),
+    enabled: !!currentTaskId,
+  });
+  const discrepanciesRaw = (discrepancyData as any)?.discrepancies ?? [];
+  // Map API discrepancy data to display format
+  const DISCREPANCIES = discrepanciesRaw.map((d: any) => ({
+    id: d.asset_name ?? d.asset_tag ?? d.id,
+    location: [d.rack_name, d.location_name].filter(Boolean).join(" / "),
+    issue: `Serial: ${d.serial_number ?? "—"} · Tag: ${d.asset_tag ?? "—"}`,
+    type: d.status === "discrepancy" ? "scan_mismatch" : "status_mismatch",
+    resolved: false,
+  }));
+
+  const scannedCount = RACKS.filter((r: any) => r.status === "scanned").length;
+  const pendingCount = RACKS.filter((r: any) => r.status === "pending").length;
 
   if (isLoading) {
     return (
@@ -296,53 +283,64 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
           </div>
 
           <div className="grid grid-cols-5 gap-2 mb-4">
-            {RACKS.map((rack) => {
-              const bg =
-                rack.status === "scanned"
-                  ? "bg-[#0a2e1a]"
-                  : rack.status === "pending"
-                  ? "bg-primary-container"
-                  : "bg-surface-container-high";
-              const iconColor =
-                rack.status === "scanned"
-                  ? "text-[#69db7c]"
-                  : rack.status === "pending"
-                  ? "text-primary"
-                  : "text-on-surface-variant/40";
-              const textColor =
-                rack.status === "scanned"
-                  ? "text-[#69db7c]"
-                  : rack.status === "pending"
-                  ? "text-primary"
-                  : "text-on-surface-variant/40";
+            {RACKS.length === 0 ? (
+              <div className="col-span-5 text-center py-6 text-on-surface-variant text-xs font-label">
+                {currentTaskId ? "No racks found for this task." : "Select a task to view racks."}
+              </div>
+            ) : (
+              RACKS.map((rack: any) => {
+                const bg =
+                  rack.status === "scanned"
+                    ? "bg-[#0a2e1a]"
+                    : rack.status === "pending"
+                    ? "bg-primary-container"
+                    : "bg-surface-container-high";
+                const iconColor =
+                  rack.status === "scanned"
+                    ? "text-[#69db7c]"
+                    : rack.status === "pending"
+                    ? "text-primary"
+                    : "text-on-surface-variant/40";
+                const textColor =
+                  rack.status === "scanned"
+                    ? "text-[#69db7c]"
+                    : rack.status === "pending"
+                    ? "text-primary"
+                    : "text-on-surface-variant/40";
 
-              return (
-                <div
-                  key={rack.id}
-                  onClick={() => navigate('/inventory/detail')}
-                  className={`${bg} rounded-xl p-3 flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity`}
-                >
-                  <Icon name="dns" className={`text-2xl ${iconColor}`} />
-                  <span
-                    className={`text-[10px] font-label font-bold tracking-wider ${textColor}`}
+                return (
+                  <div
+                    key={rack.id}
+                    onClick={() => navigate('/inventory/detail')}
+                    className={`${bg} rounded-xl p-3 flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity`}
                   >
-                    {rack.id}
-                  </span>
-                  {rack.status === "scanned" && (
-                    <Icon name="check_circle" className="text-sm text-[#69db7c]" />
-                  )}
-                  {rack.status === "pending" && (
-                    <Icon name="pending" className="text-sm text-primary" />
-                  )}
-                  {rack.status === "not_started" && (
-                    <Icon
-                      name="radio_button_unchecked"
-                      className="text-sm text-on-surface-variant/30"
-                    />
-                  )}
-                </div>
-              );
-            })}
+                    <Icon name="dns" className={`text-2xl ${iconColor}`} />
+                    <span
+                      className={`text-[10px] font-label font-bold tracking-wider ${textColor}`}
+                    >
+                      {rack.id}
+                    </span>
+                    {rack.total > 0 && (
+                      <span className={`text-[9px] font-label tabular-nums ${textColor}`}>
+                        {rack.scanned}/{rack.total}
+                      </span>
+                    )}
+                    {rack.status === "scanned" && (
+                      <Icon name="check_circle" className="text-sm text-[#69db7c]" />
+                    )}
+                    {rack.status === "pending" && (
+                      <Icon name="pending" className="text-sm text-primary" />
+                    )}
+                    {rack.status === "not_started" && (
+                      <Icon
+                        name="radio_button_unchecked"
+                        className="text-sm text-on-surface-variant/30"
+                      />
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
 
           <div className="flex items-center gap-4 mt-auto">
@@ -382,7 +380,12 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
           </div>
 
           <div className="flex flex-col gap-2 flex-1">
-            {DISCREPANCIES.map((d, i) => (
+            {DISCREPANCIES.length === 0 && (
+              <div className="text-center py-6 text-on-surface-variant text-xs font-label">
+                {currentTaskId ? "No discrepancies found." : "Select a task to view discrepancies."}
+              </div>
+            )}
+            {DISCREPANCIES.map((d: any, i: number) => (
               <div
                 key={`${d.id}-${i}`}
                 onClick={() => navigate('/inventory/detail')}

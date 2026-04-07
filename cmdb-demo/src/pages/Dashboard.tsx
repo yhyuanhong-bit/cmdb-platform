@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import { useLocationContext } from '../contexts/LocationContext';
 import LocationBreadcrumb from '../components/LocationBreadcrumb';
-import { useDashboardStats } from '../hooks/useDashboard';
+import { useDashboardStats, useRackStats, useLifecycleStats } from '../hooks/useDashboard';
 import { useAlerts } from '../hooks/useMonitoring';
 import { useAssets } from '../hooks/useAssets';
 import { useBIAStats } from '../hooks/useBIA';
@@ -168,6 +168,12 @@ function Dashboard() {
   const statsQuery = useDashboardStats();
   const stats = statsQuery.data?.data;
 
+  // Fetch rack stats (occupancy_pct, total_u, used_u)
+  const { data: rackStatsData } = useRackStats();
+
+  // Fetch asset lifecycle stats (by_status breakdown)
+  const { data: lifecycleData } = useLifecycleStats();
+
   // Fetch real critical alerts for the events table
   const { data: alertsResponse } = useAlerts({ severity: 'critical' });
   const criticalAlerts = alertsResponse?.data ?? [];
@@ -197,15 +203,30 @@ function Dashboard() {
     ];
   }, [allAssets]);
 
+  // Compute lifecycle financial breakdown from real API data
+  const lifecycleBreakdown = useMemo(() => {
+    const byStatus = lifecycleData?.by_status;
+    if (!byStatus) return null;
+    const operational = byStatus.operational ?? 0;
+    const maintenance = byStatus.maintenance ?? 0;
+    const retired = byStatus.retired ?? 0;
+    const disposed = byStatus.disposed ?? 0;
+    const total = operational + maintenance + retired + disposed || 1;
+    return {
+      inUse: Math.round((operational / total) * 100),
+      broken: Math.round((maintenance / total) * 100),
+      disposed: Math.round(((retired + disposed) / total) * 100),
+    };
+  }, [lifecycleData]);
+
   // Display data derived from API stats (or fallback zeros while loading)
   const displayData = useMemo(() => ({
     assets: stats?.total_assets ?? 0,
     racks: stats?.total_racks ?? 0,
     criticalAlerts: stats?.critical_alerts ?? 0,
     activeOrders: stats?.active_orders ?? 0,
-    // TODO: needs backend endpoint for occupancy
-    occupancy: 76,
-  }), [stats]);
+    occupancy: rackStatsData?.occupancy_pct ?? 0,
+  }), [stats, rackStatsData]);
 
   return (
     <div className="min-h-screen space-y-6 bg-surface px-6 py-5">
@@ -422,13 +443,13 @@ function Dashboard() {
           <Section title={t('dashboard.asset_lifecycle_financial')} icon="account_balance">
             <div className="space-y-4">
               {[
-                { label: t('dashboard.in_use_assets'), pct: 82, color: "bg-[#9ecaff]" },
+                { label: t('dashboard.in_use_assets'), pct: lifecycleBreakdown?.inUse ?? 82, color: "bg-[#9ecaff]" },
                 {
                   label: t('dashboard.broken_pending_repair'),
-                  pct: 13,
+                  pct: lifecycleBreakdown?.broken ?? 13,
                   color: "bg-[#ffa94d]",
                 },
-                { label: t('dashboard.disposed_eol'), pct: 5, color: "bg-[#ff6b6b]" },
+                { label: t('dashboard.disposed_eol'), pct: lifecycleBreakdown?.disposed ?? 5, color: "bg-[#ff6b6b]" },
               ].map((item) => (
                 <div key={item.label}>
                   <div className="mb-1.5 flex items-center justify-between">

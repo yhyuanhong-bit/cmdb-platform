@@ -40,4 +40,13 @@ export const topologyApi = {
     apiClient.get<ApiResponse<any[]>>(`/racks/${rackId}/slots`),
   createRackSlot: (rackId: string, data: any) =>
     apiClient.post<ApiResponse<any>>(`/racks/${rackId}/slots`, data),
+  getRackStats: () =>
+    apiClient.get<RackStats>('/racks/stats'),
+}
+
+export interface RackStats {
+  total_racks: number
+  total_u: number
+  used_u: number
+  occupancy_pct: number
 }

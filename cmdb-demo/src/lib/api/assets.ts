@@ -15,4 +15,16 @@ export const assetApi = {
     apiClient.put<ApiResponse<Asset>>(`/assets/${id}`, data),
   delete: (id: string) =>
     apiClient.del(`/assets/${id}`),
+  getLifecycleStats: () =>
+    apiClient.get<LifecycleStats>('/assets/lifecycle-stats'),
+}
+
+export interface LifecycleStats {
+  by_status: {
+    operational?: number
+    maintenance?: number
+    retired?: number
+    disposed?: number
+    [key: string]: number | undefined
+  }
 }
