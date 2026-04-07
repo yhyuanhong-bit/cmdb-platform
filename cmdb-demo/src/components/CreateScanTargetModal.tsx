@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useCreateScanTarget, useUpdateScanTarget } from '../hooks/useScanTargets'
 import { useCredentials } from '../hooks/useCredentials'
-import { useAuthStore } from '../stores/authStore'
 
 interface ScanTarget {
   id: string
@@ -34,7 +33,7 @@ const initial = {
 }
 
 export default function CreateScanTargetModal({ open, onClose, editing }: Props) {
-  const tenantId = useAuthStore((s) => s.tenantId) ?? 'a0000000-0000-0000-0000-000000000001'
+  const tenantId = 'a0000000-0000-0000-0000-000000000001'
   const [formData, setFormData] = useState({ ...initial })
 
   const createMutation = useCreateScanTarget()

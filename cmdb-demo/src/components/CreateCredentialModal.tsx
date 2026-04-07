@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useCreateCredential, useUpdateCredential } from '../hooks/useCredentials'
-import { useAuthStore } from '../stores/authStore'
 
 interface Props {
   open: boolean
@@ -32,7 +31,7 @@ const initial = {
 }
 
 export default function CreateCredentialModal({ open, onClose, editing }: Props) {
-  const tenantId = useAuthStore((s) => s.tenantId) ?? 'a0000000-0000-0000-0000-000000000001'
+  const tenantId = 'a0000000-0000-0000-0000-000000000001'
   const [formData, setFormData] = useState({ ...initial })
   const createCredential = useCreateCredential()
   const updateCredential = useUpdateCredential()

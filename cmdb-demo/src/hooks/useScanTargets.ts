@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ingestionApi } from '../lib/api/ingestion'
-import { useAuthStore } from '../stores/authStore'
+const DEFAULT_TENANT = 'a0000000-0000-0000-0000-000000000001'
 
 function useTenantId() {
-  return useAuthStore((s) => s.tenantId) ?? 'a0000000-0000-0000-0000-000000000001'
+  return DEFAULT_TENANT
 }
 
 export function useScanTargets() {
