@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import { useDiscoveredAssets, useDiscoveryStats, useApproveAsset, useIgnoreAsset } from '../hooks/useDiscovery'
+import ScanManagementTab from '../components/ScanManagementTab'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -40,6 +41,7 @@ const sourceIcon: Record<string, { icon: string; bg: string }> = {
   VMware:  { icon: 'cloud',           bg: 'bg-[#1e3a5f]' },
   SNMP:    { icon: 'router',          bg: 'bg-[#064e3b]' },
   IPMI:    { icon: 'developer_board', bg: 'bg-[#92400e]' },
+  SSH:     { icon: 'terminal',        bg: 'bg-[#1a365d]' },
   manual:  { icon: 'upload_file',     bg: 'bg-[#4a1d6e]' },
 }
 
@@ -91,6 +93,7 @@ export default function AutoDiscovery() {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
+  const [activeTab, setActiveTab] = useState<'review' | 'scan'>('review')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sourceFilter, setSourceFilter] = useState<string>('all')
 
@@ -144,6 +147,22 @@ export default function AutoDiscovery() {
       </header>
 
       {/* ============================================================ */}
+      {/*  Tab switcher                                                 */}
+      {/* ============================================================ */}
+      <div className="px-8 pb-2 flex gap-1">
+        {(['review', 'scan'] as const).map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              activeTab === tab ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'
+            }`}>
+            {tab === 'review' ? 'Discovery Review' : 'Scan Management'}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'review' && (<>
+
+      {/* ============================================================ */}
       {/*  Stats row                                                    */}
       {/* ============================================================ */}
       <section className="px-8 pb-4">
@@ -171,6 +190,7 @@ export default function AutoDiscovery() {
             <option value="all">{t('auto_discovery.filter_all_sources')}</option>
             <option value="VMware">VMware</option>
             <option value="SNMP">SNMP</option>
+            <option value="SSH">SSH</option>
             <option value="IPMI">IPMI</option>
             <option value="manual">Manual</option>
           </select>
@@ -290,67 +310,9 @@ export default function AutoDiscovery() {
         </div>
       </section>
 
-      {/* ============================================================ */}
-      {/*  Bottom panels                                                */}
-      {/* ============================================================ */}
-      <section className="px-8 pb-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Left: Smart Insights */}
-          <div className="bg-surface-container rounded-lg p-6">
-            <h2 className="font-headline font-bold text-lg text-on-surface mb-4 flex items-center gap-2">
-              <Icon name="tips_and_updates" className="text-[20px] text-primary" />
-              {t('auto_discovery.section_smart_insights')}
-            </h2>
+      </>)}
 
-            <div className="flex flex-col gap-3">
-              <div className="bg-surface-container-high rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex items-center justify-center w-8 h-8 rounded-md bg-[#92400e]/30">
-                    <Icon name="merge_type" className="text-[18px] text-[#fbbf24]" />
-                  </span>
-                  <div>
-                    <h3 className="text-sm font-semibold text-on-surface">{t('auto_discovery.insight_duplicates_title')}</h3>
-                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                      {t('auto_discovery.insight_duplicates_desc')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-surface-container-high rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex items-center justify-center w-8 h-8 rounded-md bg-[#1e3a5f]/60">
-                    <Icon name="help_outline" className="text-[18px] text-primary" />
-                  </span>
-                  <div>
-                    <h3 className="text-sm font-semibold text-on-surface">{t('auto_discovery.insight_unknown_model_title')}</h3>
-                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                      {t('auto_discovery.insight_unknown_model_desc')}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Schedule */}
-          <div className="bg-surface-container rounded-lg p-6">
-            <h2 className="font-headline font-bold text-lg text-on-surface mb-4 flex items-center gap-2">
-              <Icon name="schedule" className="text-[20px] text-primary" />
-              {t('auto_discovery.section_schedule_title')}
-            </h2>
-
-            <p className="text-sm text-on-surface-variant leading-relaxed mb-5">
-              {t('auto_discovery.section_schedule_desc')}
-            </p>
-
-            <button onClick={() => alert('Coming Soon')} className="flex items-center gap-2 px-5 py-2.5 rounded-lg machined-gradient text-[#001b34] text-sm font-semibold hover:opacity-90 transition-opacity">
-              <Icon name="event_note" className="text-[18px]" />
-              {t('auto_discovery.btn_manage_schedule')}
-            </button>
-          </div>
-        </div>
-      </section>
+      {activeTab === 'scan' && <ScanManagementTab />}
     </div>
   )
 }
