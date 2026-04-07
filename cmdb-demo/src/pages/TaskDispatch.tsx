@@ -1,8 +1,10 @@
 import { memo, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useWorkOrders } from "../hooks/useMaintenance";
+import { useWorkOrders, useUpdateWorkOrder } from "../hooks/useMaintenance";
+import { useUsers } from "../hooks/useIdentity";
 import type { WorkOrder } from "../lib/api/maintenance";
+import type { User } from "../lib/api/identity";
 
 /* ──────────────────────────────────────────────
    Types & mapping
@@ -10,6 +12,7 @@ import type { WorkOrder } from "../lib/api/maintenance";
 
 interface Task {
   id: string;
+  rawId: string;
   title: string;
   location: string;
   priority: string;
@@ -48,6 +51,7 @@ function statusToColor(s: string): string {
 function toTask(wo: WorkOrder): Task {
   return {
     id: wo.code || wo.id.slice(0, 8),
+    rawId: wo.id,
     title: wo.title,
     location: wo.description?.split(' ')[0] ?? '',
     priority: wo.priority?.toUpperCase() ?? 'MEDIUM',
@@ -63,20 +67,65 @@ interface Technician {
   name: string;
   role: string;
   load: number;
+  avatar: string;
 }
 
-const TECHNICIANS: Technician[] = [
-  { id: "a", name: "技術員 A", role: "Senior Hardware", load: 90 },
-  { id: "b", name: "網路工程師 B", role: "Systems Engineer", load: 95 },
-  { id: "c", name: "技術員 C", role: "Junior Technician", load: 5 },
-];
+const MAX_CONCURRENT = 5;
 
-const ZONE_DATA = [
-  { label: "Zone A", pct: 82, color: "bg-error" },
-  { label: "Zone B", pct: 34, color: "bg-[#ffa94d]" },
-  { label: "Zone C", pct: 12, color: "bg-[#69db7c]" },
-  { label: "Zone D", pct: 58, color: "bg-primary" },
-];
+function buildTechnicians(users: User[], workOrders: WorkOrder[]): Technician[] {
+  return users.map((user) => {
+    const activeCount = workOrders.filter(
+      (wo) =>
+        wo.assignee_id === user.id &&
+        !['completed', 'closed', 'rejected'].includes(wo.status?.toLowerCase()),
+    ).length;
+    const load = Math.min(Math.round((activeCount / MAX_CONCURRENT) * 100), 100);
+    const avatar = user.display_name.slice(0, 2).toUpperCase();
+    return {
+      id: user.id,
+      name: user.display_name,
+      role: user.source || "Technician",
+      load,
+      avatar,
+    };
+  });
+}
+
+interface ZoneData {
+  label: string;
+  pct: number;
+  color: string;
+}
+
+const ZONE_COLORS = ["bg-error", "bg-[#ffa94d]", "bg-[#69db7c]", "bg-primary"];
+
+function buildZoneData(workOrders: WorkOrder[]): ZoneData[] {
+  // Group active work orders by first segment of location_id or fallback labels
+  const locationCounts: Record<string, number> = {};
+  for (const wo of workOrders) {
+    if (['completed', 'closed', 'rejected'].includes(wo.status?.toLowerCase())) continue;
+    const zone = wo.location_id ? wo.location_id.slice(0, 8) : 'Unknown';
+    locationCounts[zone] = (locationCounts[zone] ?? 0) + 1;
+  }
+
+  const entries = Object.entries(locationCounts);
+  if (entries.length === 0) {
+    // fallback static zones when no data
+    return [
+      { label: "Zone A", pct: 0, color: ZONE_COLORS[0] },
+      { label: "Zone B", pct: 0, color: ZONE_COLORS[1] },
+      { label: "Zone C", pct: 0, color: ZONE_COLORS[2] },
+      { label: "Zone D", pct: 0, color: ZONE_COLORS[3] },
+    ];
+  }
+
+  const maxCount = Math.max(...entries.map(([, c]) => c), 1);
+  return entries.slice(0, 8).map(([zoneKey, count], i) => ({
+    label: `Zone ${zoneKey.slice(0, 4).toUpperCase()}`,
+    pct: Math.round((count / maxCount) * 100),
+    color: ZONE_COLORS[i % ZONE_COLORS.length],
+  }));
+}
 
 /* ──────────────────────────────────────────────
    Small reusable pieces
@@ -114,13 +163,26 @@ function ProgressBar({
 function TaskDispatch() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data: woResponse, isLoading, error } = useWorkOrders();
+  const { data: woResponse, isLoading: woLoading, error: woError } = useWorkOrders();
+  const { data: usersResponse, isLoading: usersLoading } = useUsers();
+  const updateWorkOrder = useUpdateWorkOrder();
+
   const apiOrders: WorkOrder[] = woResponse?.data ?? [];
+  const apiUsers: User[] = usersResponse?.data ?? [];
+
   const TASKS = useMemo(
     () => apiOrders.filter((wo) => !['completed', 'closed', 'rejected'].includes(wo.status?.toLowerCase())).map(toTask),
     [apiOrders],
   );
+
+  const TECHNICIANS = useMemo(() => buildTechnicians(apiUsers, apiOrders), [apiUsers, apiOrders]);
+
+  const ZONE_DATA = useMemo(() => buildZoneData(apiOrders), [apiOrders]);
+
   const [selectedTask, setSelectedTask] = useState<string>("");
+  const [selectedTech, setSelectedTech] = useState<string>("");
+
+  const isLoading = woLoading || usersLoading;
 
   if (isLoading) {
     return (
@@ -130,7 +192,7 @@ function TaskDispatch() {
     );
   }
 
-  if (error) {
+  if (woError) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <span className="material-symbols-outlined text-error text-4xl">error</span>
@@ -152,6 +214,40 @@ function TaskDispatch() {
     if (load >= 60) return "text-[#ffa94d]";
     return "text-[#69db7c]";
   }
+
+  function handleAssign(taskDisplayId: string) {
+    if (!selectedTech) {
+      alert(t('task_dispatch.select_technician_first') || 'Please select a technician first');
+      return;
+    }
+    const task = TASKS.find((t) => t.id === taskDisplayId);
+    if (!task) return;
+    updateWorkOrder.mutate(
+      { id: task.rawId, data: { assignee_id: selectedTech } },
+      {
+        onSuccess: () => {
+          setSelectedTech("");
+        },
+        onError: () => {
+          alert('Failed to assign technician');
+        },
+      },
+    );
+  }
+
+  function handleConfirmAssign() {
+    if (!effectiveSelectedTask) {
+      alert('No task selected');
+      return;
+    }
+    handleAssign(effectiveSelectedTask);
+  }
+
+  const highPriorityCount = TASKS.filter((t) =>
+    ['CRITICAL', 'HIGH'].includes(t.priority),
+  ).length;
+
+  const availableTechCount = TECHNICIANS.filter((t) => t.load < 90).length;
 
   return (
     <div className="min-h-screen space-y-6 bg-surface px-6 py-5">
@@ -182,7 +278,7 @@ function TaskDispatch() {
             {t('task_dispatch.title')}
           </h1>
           <p className="mt-1 text-sm text-on-surface-variant">
-            {t('task_dispatch.description_prefix')}<span className="font-semibold text-on-surface">12</span>{t('task_dispatch.description_tasks_suffix')}<span className="font-semibold text-error">3</span>{t('task_dispatch.description_high_priority_suffix')}
+            {t('task_dispatch.description_prefix')}<span className="font-semibold text-on-surface">{TASKS.length}</span>{t('task_dispatch.description_tasks_suffix')}<span className="font-semibold text-error">{highPriorityCount}</span>{t('task_dispatch.description_high_priority_suffix')}
           </p>
         </div>
         <button
@@ -204,7 +300,7 @@ function TaskDispatch() {
               {t('task_dispatch.high_priority_tasks')}
             </span>
           </div>
-          <p className="font-headline text-3xl font-bold text-error">3</p>
+          <p className="font-headline text-3xl font-bold text-error">{highPriorityCount}</p>
           <span className="mt-1 text-xs text-on-surface-variant">{t('common.tasks')}</span>
         </div>
         <div className="rounded-lg bg-surface-container p-5">
@@ -214,7 +310,7 @@ function TaskDispatch() {
               {t('task_dispatch.pending_engineers')}
             </span>
           </div>
-          <p className="font-headline text-3xl font-bold text-on-surface">8</p>
+          <p className="font-headline text-3xl font-bold text-on-surface">{availableTechCount}</p>
           <span className="mt-1 text-xs text-on-surface-variant">{t('common.available')}</span>
         </div>
         <div className="rounded-lg bg-surface-container p-5">
@@ -307,7 +403,14 @@ function TaskDispatch() {
 
               {/* Assign Button */}
               <div className="flex items-center gap-2">
-                <span className="rounded-md bg-surface-container-high px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-surface-container-highest">
+                <span
+                  className="rounded-md bg-surface-container-high px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-surface-container-highest"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedTask(task.id);
+                    handleAssign(task.id);
+                  }}
+                >
                   {t('task_dispatch.assign')}
                 </span>
                 <Icon name="chevron_right" className="text-lg text-on-surface-variant" />
@@ -327,41 +430,53 @@ function TaskDispatch() {
             </div>
 
             <div className="space-y-3">
-              {TECHNICIANS.map((tech) => (
-                <div
-                  key={tech.id}
-                  className="rounded-lg bg-surface-container-low p-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-high">
-                        <Icon name="person" className="text-lg text-on-surface-variant" />
+              {TECHNICIANS.length === 0 ? (
+                <p className="text-sm text-on-surface-variant py-4 text-center">
+                  No technicians available
+                </p>
+              ) : (
+                TECHNICIANS.map((tech) => (
+                  <button
+                    key={tech.id}
+                    type="button"
+                    onClick={() => setSelectedTech(tech.id === selectedTech ? "" : tech.id)}
+                    className={`w-full rounded-lg p-4 text-left transition-colors ${
+                      selectedTech === tech.id
+                        ? "bg-primary/10 ring-1 ring-primary"
+                        : "bg-surface-container-low hover:bg-surface-container"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-container-high text-xs font-bold text-on-surface-variant">
+                          {tech.avatar}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-on-surface">
+                            {tech.name}
+                          </p>
+                          <p className="text-[10px] uppercase tracking-wider text-on-surface-variant">
+                            {tech.role}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-on-surface">
-                          {tech.name}
-                        </p>
-                        <p className="text-[10px] uppercase tracking-wider text-on-surface-variant">
-                          {tech.role}
-                        </p>
-                      </div>
+                      <span className={`text-xs font-bold tabular-nums ${getLoadTextColor(tech.load)}`}>
+                        {tech.load}%
+                      </span>
                     </div>
-                    <span className={`text-xs font-bold tabular-nums ${getLoadTextColor(tech.load)}`}>
-                      {tech.load}%
-                    </span>
-                  </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <ProgressBar
-                      pct={tech.load}
-                      color={getLoadColor(tech.load)}
-                      height="h-1.5"
-                    />
-                    <span className="shrink-0 text-[10px] uppercase tracking-wider text-on-surface-variant">
-                      {t('task_dispatch.loaded')}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                    <div className="mt-3 flex items-center gap-2">
+                      <ProgressBar
+                        pct={tech.load}
+                        color={getLoadColor(tech.load)}
+                        height="h-1.5"
+                      />
+                      <span className="shrink-0 text-[10px] uppercase tracking-wider text-on-surface-variant">
+                        {t('task_dispatch.loaded')}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -376,10 +491,15 @@ function TaskDispatch() {
               </button>
               <button
                 type="button"
-                onClick={() => alert('Confirm: Coming Soon')}
-                className="machined-gradient flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider text-[#001b34] transition-all hover:brightness-110"
+                onClick={handleConfirmAssign}
+                disabled={updateWorkOrder.isPending}
+                className="machined-gradient flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider text-[#001b34] transition-all hover:brightness-110 disabled:opacity-60"
               >
-                <Icon name="check_circle" className="text-base" />
+                {updateWorkOrder.isPending ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#001b34] border-t-transparent" />
+                ) : (
+                  <Icon name="check_circle" className="text-base" />
+                )}
                 {t('task_dispatch.confirm_assign')}
               </button>
             </div>
