@@ -375,7 +375,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
               {t('inventory.discrepancy_closing')}
             </h3>
             <span className="ml-auto text-[10px] font-label text-error">
-              {DISCREPANCIES.filter((d) => !d.resolved).length} {t('inventory.open')}
+              {DISCREPANCIES.filter((d: any) => !d.resolved).length} {t('inventory.open')}
             </span>
           </div>
 
@@ -507,7 +507,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
             <span className="text-xs font-label text-on-surface-variant">
               {t('inventory.discrepancies')}:{" "}
               <span className="text-on-surface font-bold tabular-nums">
-                {DISCREPANCIES.filter((d) => !d.resolved).length}
+                {DISCREPANCIES.filter((d: any) => !d.resolved).length}
               </span>
             </span>
           </div>
