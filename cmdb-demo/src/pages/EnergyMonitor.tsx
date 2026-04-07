@@ -1,8 +1,10 @@
 import { memo, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { useMetrics } from '../hooks/useMetrics'
 import { useLocationContext } from '../contexts/LocationContext'
+import { apiClient } from '../lib/api/client'
 
 /* ------------------------------------------------------------------ */
 /*  Shared helpers                                                     */
@@ -40,19 +42,23 @@ function Section({
 /*  Facility View Data                                                 */
 /* ------------------------------------------------------------------ */
 
-/* BAR_DATASETS computed from API data inside FacilityView */
-const BOTTOM_STATS = [
-  { label: 'IT Equipment', value: '842.1 kW', icon: 'memory', pct: 67.5 },
-  { label: 'Cooling', value: '312.4 kW', icon: 'ac_unit', pct: 25.0 },
-  { label: 'UPS', value: '42.8 kW', icon: 'battery_charging_full', pct: 3.4 },
-  { label: 'Misc', value: '51.1 kW', icon: 'more_horiz', pct: 4.1 },
-]
+/* BOTTOM_STATS icons map — keyed by category name (case-insensitive prefix match) */
+const CATEGORY_ICON: Record<string, string> = {
+  'IT Equipment': 'memory',
+  'Cooling': 'ac_unit',
+  'UPS/Power': 'battery_charging_full',
+  'UPS': 'battery_charging_full',
+  'Other': 'more_horiz',
+  'Misc': 'more_horiz',
+  'Lighting': 'lightbulb',
+}
 
 /* ------------------------------------------------------------------ */
 /*  Power Load View Data                                               */
 /* ------------------------------------------------------------------ */
 
-const powerTrendData = [
+/* Fallback power trend used when API data is unavailable */
+const FALLBACK_POWER_TREND = [
   { time: '00:00', process: 820, lighting: 180 },
   { time: '02:00', process: 780, lighting: 160 },
   { time: '04:00', process: 810, lighting: 150 },
@@ -98,7 +104,7 @@ const donutSegments = [
 /* ------------------------------------------------------------------ */
 
 function buildAreaPath(
-  data: typeof powerTrendData,
+  data: { time: string; process: number; lighting: number }[],
   key: 'process' | 'lighting',
   maxY: number,
   w: number,
@@ -182,7 +188,37 @@ function BarChart({ data }: { data: { day: string; value: number }[] }) {
 /*  Facility View                                                      */
 /* ------------------------------------------------------------------ */
 
-function FacilityView({ t, powerData, latestPUE, isLoading }: { t: ReturnType<typeof useTranslation>['t']; powerData: { time: string; value: number }[]; latestPUE: number; isLoading: boolean }) {
+interface BreakdownCategory {
+  name: string
+  avg_kw: number
+  pct: number
+}
+interface BreakdownData {
+  categories: BreakdownCategory[]
+  total_kw: number
+}
+interface SummaryData {
+  pue: number
+  total_kw: number
+  peak_kw: number
+  carbon_mt_monthly: number
+}
+
+function FacilityView({
+  t,
+  powerData,
+  latestPUE,
+  isLoading,
+  breakdownData,
+  summaryData,
+}: {
+  t: ReturnType<typeof useTranslation>['t']
+  powerData: { time: string; value: number }[]
+  latestPUE: number
+  isLoading: boolean
+  breakdownData: BreakdownData | undefined
+  summaryData: SummaryData | undefined
+}) {
   const [barTab, setBarTab] = useState<string>('Daily')
 
   const DAILY_BARS = useMemo(() => {
@@ -243,13 +279,39 @@ function FacilityView({ t, powerData, latestPUE, isLoading }: { t: ReturnType<ty
     Monthly: MONTHLY_BARS,
   }
 
-  // Derive facility load from latest power data
-  const currentLoad = powerData.length > 0
-    ? (powerData[powerData.length - 1].value * 1000).toFixed(1)
-    : '1,248.4'
-  const capacityPct = powerData.length > 0
-    ? Math.round((powerData[powerData.length - 1].value / 1.68) * 100)
-    : 74
+  // Derive facility load — prefer summary API, then fall back to metrics
+  const totalKw = summaryData?.total_kw ?? breakdownData?.total_kw
+  const currentLoad = totalKw != null
+    ? totalKw.toLocaleString(undefined, { maximumFractionDigits: 1 })
+    : powerData.length > 0
+      ? (powerData[powerData.length - 1].value * 1000).toFixed(1)
+      : '1,248.4'
+  const capacityPct = totalKw != null
+    ? Math.round((totalKw / 1680) * 100)
+    : powerData.length > 0
+      ? Math.round((powerData[powerData.length - 1].value / 1.68) * 100)
+      : 74
+
+  // Summary stats
+  const displayPUE = summaryData?.pue ?? latestPUE
+  const carbonMT = summaryData?.carbon_mt_monthly ?? 2.4
+  const peakMW = summaryData?.peak_kw != null ? (summaryData.peak_kw / 1000).toFixed(2) : '1.52'
+
+  // Bottom stats: from API breakdown categories, or fallback defaults
+  const bottomStats: { label: string; value: string; icon: string; pct: number }[] =
+    breakdownData?.categories && breakdownData.categories.length > 0
+      ? breakdownData.categories.map((cat) => ({
+          label: cat.name,
+          value: `${cat.avg_kw.toFixed(1)} kW`,
+          icon: CATEGORY_ICON[cat.name] ?? 'electric_bolt',
+          pct: cat.pct,
+        }))
+      : [
+          { label: 'IT Equipment', value: '842.1 kW', icon: 'memory', pct: 67.5 },
+          { label: 'Cooling', value: '312.4 kW', icon: 'ac_unit', pct: 25.0 },
+          { label: 'UPS/Power', value: '42.8 kW', icon: 'battery_charging_full', pct: 3.4 },
+          { label: 'Other', value: '51.1 kW', icon: 'more_horiz', pct: 4.1 },
+        ]
 
   return (
     <>
@@ -298,7 +360,7 @@ function FacilityView({ t, powerData, latestPUE, isLoading }: { t: ReturnType<ty
                 {t('facility_energy.pue_efficiency')}
               </span>
             </div>
-            <p className="mt-2 font-headline text-3xl font-bold text-primary">{latestPUE.toFixed(2)}</p>
+            <p className="mt-2 font-headline text-3xl font-bold text-primary">{displayPUE.toFixed(2)}</p>
             <span className="text-[10px] text-on-surface-variant">{t('facility_energy.industry_avg')}: 1.58</span>
           </div>
           <div className="rounded-lg bg-surface-container p-5">
@@ -309,7 +371,7 @@ function FacilityView({ t, powerData, latestPUE, isLoading }: { t: ReturnType<ty
               </span>
             </div>
             <p className="mt-2 font-headline text-3xl font-bold text-on-surface">
-              2.4 <span className="text-lg text-on-surface-variant">MT</span>
+              {carbonMT} <span className="text-lg text-on-surface-variant">MT</span>
             </p>
             <span className="text-[10px] text-on-surface-variant">{t('facility_energy.monthly_co2_equivalent')}</span>
           </div>
@@ -321,7 +383,7 @@ function FacilityView({ t, powerData, latestPUE, isLoading }: { t: ReturnType<ty
               </span>
             </div>
             <p className="mt-2 font-headline text-3xl font-bold text-on-surface">
-              1.52 <span className="text-lg text-on-surface-variant">MW</span>
+              {peakMW} <span className="text-lg text-on-surface-variant">MW</span>
             </p>
             <span className="text-[10px] text-on-surface-variant">Recorded 2026-01-14</span>
           </div>
@@ -351,7 +413,7 @@ function FacilityView({ t, powerData, latestPUE, isLoading }: { t: ReturnType<ty
 
       {/* Bottom stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {BOTTOM_STATS.map((stat) => (
+        {bottomStats.map((stat) => (
           <div key={stat.label} className="rounded-lg bg-surface-container p-5">
             <div className="mb-1 flex items-center gap-2 text-on-surface-variant">
               <IconSpan name={stat.icon} className="text-lg" />
@@ -378,7 +440,20 @@ function FacilityView({ t, powerData, latestPUE, isLoading }: { t: ReturnType<ty
 /*  Power Load View                                                    */
 /* ------------------------------------------------------------------ */
 
-function PowerLoadView({ t }: { t: ReturnType<typeof useTranslation>['t'] }) {
+interface TrendPoint {
+  hour: string
+  total_kw: number
+}
+
+function PowerLoadView({
+  t,
+  trendPoints,
+  summaryData,
+}: {
+  t: ReturnType<typeof useTranslation>['t']
+  trendPoints: TrendPoint[]
+  summaryData: SummaryData | undefined
+}) {
   const chartW = 560
   const chartH = 260
   const padX = 50
@@ -386,6 +461,21 @@ function PowerLoadView({ t }: { t: ReturnType<typeof useTranslation>['t'] }) {
   const maxY = 1500
   const drawW = chartW - padX * 2
   const drawH = chartH - padY * 2
+
+  // Map API trend points to the chart data shape expected by buildAreaPath.
+  // The API returns total_kw per hour; we treat it as "process" and derive a
+  // lighting estimate (~15% of total) so the dual-series chart remains useful.
+  const powerTrendData = useMemo(() => {
+    if (trendPoints.length > 0) {
+      return trendPoints.map((p) => {
+        const label = new Date(p.hour).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+        const lighting = Math.round(p.total_kw * 0.15)
+        const process = Math.round(p.total_kw - lighting)
+        return { time: label, process, lighting }
+      })
+    }
+    return FALLBACK_POWER_TREND
+  }, [trendPoints])
 
   const processPath = buildAreaPath(powerTrendData, 'process', maxY, chartW, chartH, padX, padY)
   const lightingPath = buildAreaPath(powerTrendData, 'lighting', maxY, chartW, chartH, padX, padY)
@@ -399,17 +489,27 @@ function PowerLoadView({ t }: { t: ReturnType<typeof useTranslation>['t'] }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-lg bg-surface-container p-5">
           <p className="text-xs uppercase tracking-wider text-on-surface-variant">{t('power_load.stat_equipment_load')}</p>
-          <p className="mt-2 font-headline text-3xl font-bold text-on-surface">1,248.5</p>
+          <p className="mt-2 font-headline text-3xl font-bold text-on-surface">
+            {summaryData?.total_kw != null
+              ? summaryData.total_kw.toLocaleString(undefined, { maximumFractionDigits: 1 })
+              : '1,248.5'}
+          </p>
           <p className="mt-1 text-xs text-on-surface-variant">&#177;0.45 \u77ac\u9593\u4e00\u81f4\u5cf0</p>
         </div>
         <div className="rounded-lg bg-surface-container p-5">
           <p className="text-xs uppercase tracking-wider text-on-surface-variant">{t('power_load.stat_pue_index')}</p>
-          <p className="mt-2 font-headline text-3xl font-bold text-[#34d399]">1.24</p>
+          <p className="mt-2 font-headline text-3xl font-bold text-[#34d399]">
+            {summaryData?.pue != null ? summaryData.pue.toFixed(2) : '1.24'}
+          </p>
           <p className="mt-1 text-xs text-on-surface-variant">\u9ad8\u6548\u4f9b\u8017\u6bd4 12.21 kW</p>
         </div>
         <div className="rounded-lg bg-surface-container p-5">
           <p className="text-xs uppercase tracking-wider text-on-surface-variant">{t('power_load.stat_grid_input')}</p>
-          <p className="mt-2 font-headline text-3xl font-bold text-on-surface">1,412.0</p>
+          <p className="mt-2 font-headline text-3xl font-bold text-on-surface">
+            {summaryData?.peak_kw != null
+              ? summaryData.peak_kw.toLocaleString(undefined, { maximumFractionDigits: 1 })
+              : '1,412.0'}
+          </p>
           <p className="mt-1 text-xs text-on-surface-variant">kW</p>
         </div>
         <div className="rounded-lg bg-surface-container p-5">
@@ -580,13 +680,32 @@ function EnergyMonitor() {
   })
   const powerData = powerQ.data?.data ?? []
 
-  // Fetch PUE metric
+  // Fetch PUE metric (kept as fallback)
   const pueQ = useMetrics({
     asset_id: 'f0000000-0000-0000-0000-000000000001',
     metric_name: 'pue',
     time_range: '24h',
   })
   const latestPUE = pueQ.data?.data?.[0]?.value ?? 1.35
+
+  // Energy API queries
+  const { data: breakdownRaw } = useQuery({
+    queryKey: ['energyBreakdown'],
+    queryFn: () => apiClient.get<BreakdownData>('/energy/breakdown'),
+  })
+  const { data: summaryRaw } = useQuery({
+    queryKey: ['energySummary'],
+    queryFn: () => apiClient.get<SummaryData>('/energy/summary'),
+  })
+  const { data: trendRaw } = useQuery({
+    queryKey: ['energyTrend'],
+    queryFn: () => apiClient.get<{ trend: TrendPoint[] }>('/energy/trend', { hours: '24' }),
+  })
+
+  // Unwrap — energy endpoints return payload directly (no ApiResponse wrapper)
+  const breakdownData = (breakdownRaw as any)?.categories ? (breakdownRaw as BreakdownData) : undefined
+  const summaryData = (summaryRaw as any)?.pue != null ? (summaryRaw as SummaryData) : undefined
+  const trendPoints: TrendPoint[] = (trendRaw as any)?.trend ?? []
 
   // locationId used for future location-scoped queries
   void locationId
@@ -645,8 +764,23 @@ function EnergyMonitor() {
       </div>
 
       {/* Content */}
-      {viewMode === 'facility' && <FacilityView t={t} powerData={powerData} latestPUE={latestPUE} isLoading={powerQ.isLoading} />}
-      {viewMode === 'powerload' && <PowerLoadView t={t} />}
+      {viewMode === 'facility' && (
+        <FacilityView
+          t={t}
+          powerData={powerData}
+          latestPUE={latestPUE}
+          isLoading={powerQ.isLoading}
+          breakdownData={breakdownData}
+          summaryData={summaryData}
+        />
+      )}
+      {viewMode === 'powerload' && (
+        <PowerLoadView
+          t={t}
+          trendPoints={trendPoints}
+          summaryData={summaryData}
+        />
+      )}
     </div>
   )
 }
