@@ -1,25 +1,11 @@
 import { memo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import Icon from "../components/Icon";
 import StatusBadge from "../components/StatusBadge";
 import { useAlerts, useAcknowledgeAlert, useResolveAlert } from "../hooks/useMonitoring";
-
-// Keep TREND_DATA as static (needs dedicated metrics endpoint)
-const TREND_DATA = [
-  { hour: "00", value: 8 },
-  { hour: "02", value: 5 },
-  { hour: "04", value: 3 },
-  { hour: "06", value: 12 },
-  { hour: "08", value: 22 },
-  { hour: "10", value: 18 },
-  { hour: "12", value: 31 },
-  { hour: "14", value: 42 },
-  { hour: "16", value: 28 },
-  { hour: "18", value: 15 },
-  { hour: "20", value: 9 },
-  { hour: "22", value: 6 },
-];
+import { apiClient } from "../lib/api/client";
 
 const SEVERITY_COLORS: Record<string, string> = {
   CRITICAL: "bg-red-900/50 text-error",
@@ -83,14 +69,22 @@ function MonitoringAlerts() {
   const resolveAlert = useResolveAlert();
   const alerts = alertsResponse?.data ?? [];
 
+  const { data: trendData } = useQuery({
+    queryKey: ['alertsTrend'],
+    queryFn: () => apiClient.get('/monitoring/alerts/trend', { hours: '24' }),
+  });
+  const trendBars = ((trendData as any)?.trend ?? []).map((b: any) => ({
+    hour: new Date(b.hour).toISOString().slice(11, 16),
+    value: (b.critical ?? 0) + (b.warning ?? 0) + (b.info ?? 0),
+  }));
+  const maxBar = trendBars.length > 0 ? Math.max(...trendBars.map((d: { value: number }) => d.value)) : 1;
+
   const filtered = alerts.filter((a) => {
     const matchSearch =
       search === "" ||
       a.message.toLowerCase().includes(search.toLowerCase());
     return matchSearch;
   });
-
-  const maxBar = Math.max(...TREND_DATA.map((d) => d.value));
 
   if (isLoading) {
     return (
@@ -398,7 +392,11 @@ function MonitoringAlerts() {
             </h3>
           </div>
           <div className="flex items-end gap-2" style={{ height: 180 }}>
-            {TREND_DATA.map((d) => (
+            {trendBars.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center text-xs text-on-surface-variant">
+                No data
+              </div>
+            ) : trendBars.map((d: { hour: string; value: number }) => (
               <div key={d.hour} className="flex flex-1 flex-col items-center gap-1">
                 <span className="text-[10px] font-semibold text-on-surface-variant">
                   {d.value}

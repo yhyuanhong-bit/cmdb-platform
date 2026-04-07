@@ -1,28 +1,17 @@
 import { memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import Icon from "../components/Icon";
 import StatusBadge from "../components/StatusBadge";
 import { useAlerts } from "../hooks/useMonitoring";
 import { useSystemHealth } from "../hooks/useSystemHealth";
 import { useAssets } from "../hooks/useAssets";
+import { apiClient } from "../lib/api/client";
 
 /* ──────────────────────────────────────────────
-   Static data (needs dedicated metrics endpoint)
+   healthSegments computed dynamically inside component
    ────────────────────────────────────────────── */
-
-/* healthSegments computed dynamically inside component */
-
-const TREND_BARS = [
-  { hour: "00", critical: 2, warning: 5, info: 8 },
-  { hour: "03", critical: 1, warning: 3, info: 6 },
-  { hour: "06", critical: 3, warning: 8, info: 12 },
-  { hour: "09", critical: 5, warning: 10, info: 18 },
-  { hour: "12", critical: 7, warning: 14, info: 22 },
-  { hour: "15", critical: 4, warning: 9, info: 15 },
-  { hour: "18", critical: 6, warning: 11, info: 19 },
-  { hour: "21", critical: 3, warning: 6, info: 10 },
-];
 
 /* ──────────────────────────────────────────────
    Reusable pieces
@@ -127,10 +116,21 @@ function SystemHealth() {
     { label: 'Critical', pct: totalAssets > 0 ? Math.min(Math.round((criticalCount / totalAssets) * 100 * 0.5), 20) : 6, color: '#ff6b6b' },
   ];
 
+  const { data: trendData } = useQuery({
+    queryKey: ['alertsTrend'],
+    queryFn: () => apiClient.get('/monitoring/alerts/trend', { hours: '24' }),
+  });
+  const trendBars = ((trendData as any)?.trend ?? []).map((b: any) => ({
+    hour: new Date(b.hour).toISOString().slice(11, 16),
+    critical: b.critical ?? 0,
+    warning: b.warning ?? 0,
+    info: b.info ?? 0,
+  }));
+
   const uptime = dbStatus === 'ok' ? '99.99%' : 'Degraded';
-  const trendMax = Math.max(
-    ...TREND_BARS.map((b) => b.critical + b.warning + b.info),
-  );
+  const trendMax = trendBars.length > 0
+    ? Math.max(...trendBars.map((b: { critical: number; warning: number; info: number }) => b.critical + b.warning + b.info))
+    : 1;
 
   return (
     <div className="min-h-screen space-y-6 bg-surface px-6 py-5 font-body text-on-surface">
@@ -266,7 +266,11 @@ function SystemHealth() {
 
         <Section title={t('system_health.fault_trend_24h')} icon="bar_chart">
           <div className="flex items-end gap-3" style={{ height: 200 }}>
-            {TREND_BARS.map((bar) => {
+            {trendBars.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center text-xs text-on-surface-variant">
+                No data
+              </div>
+            ) : trendBars.map((bar: { hour: string; critical: number; warning: number; info: number }) => {
               const total = bar.critical + bar.warning + bar.info;
               return (
                 <div
@@ -283,19 +287,19 @@ function SystemHealth() {
                     <div
                       className="w-full bg-[#ff6b6b]"
                       style={{
-                        height: `${(bar.critical / total) * 100}%`,
+                        height: `${total > 0 ? (bar.critical / total) * 100 : 0}%`,
                       }}
                     />
                     <div
                       className="w-full bg-[#fbbf24]"
                       style={{
-                        height: `${(bar.warning / total) * 100}%`,
+                        height: `${total > 0 ? (bar.warning / total) * 100 : 0}%`,
                       }}
                     />
                     <div
                       className="w-full bg-primary/60"
                       style={{
-                        height: `${(bar.info / total) * 100}%`,
+                        height: `${total > 0 ? (bar.info / total) * 100 : 0}%`,
                       }}
                     />
                   </div>
