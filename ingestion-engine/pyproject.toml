@@ -18,13 +18,17 @@ dependencies = [
     "celery[redis]>=5.4.0",
     "redis>=5.2.0",
     "python-multipart>=0.0.18",
+    "httpx>=0.28.0",
+    "pysnmp>=7.0",
+    "asyncssh>=2.14",
+    "pyghmi>=1.5",
+    "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
-    "httpx>=0.28.0",
 ]
 
 [tool.pytest.ini_options]
