@@ -9,6 +9,7 @@ from app.events import close_nats, connect_nats
 from app.routes.collectors import router as collectors_router
 from app.routes.conflicts import router as conflicts_router
 from app.routes.credentials import router as credentials_router
+from app.routes.discovery import router as discovery_router
 from app.routes.imports import router as imports_router
 from app.routes.scan_targets import router as scan_targets_router
 
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     application.include_router(collectors_router)
     application.include_router(credentials_router)
     application.include_router(scan_targets_router)
+    application.include_router(discovery_router)
 
     @application.get("/healthz")
     async def healthz():
