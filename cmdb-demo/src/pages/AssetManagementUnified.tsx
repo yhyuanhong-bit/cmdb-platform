@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
@@ -109,6 +109,8 @@ export default function AssetManagementUnified() {
   const [statusFilter, setStatusFilter] = useState('All Status')
   const [currentPage, setCurrentPage] = useState(1)
   const [showCreateAsset, setShowCreateAsset] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Build query params from filter state
   const queryParams = useMemo(() => {
@@ -129,6 +131,60 @@ export default function AssetManagementUnified() {
   const totalPages = pagination?.total_pages ?? 1
 
   const filtered = assets
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Reset input so the same file can be re-selected if needed
+    e.target.value = ''
+
+    setImporting(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('tenant_id', 'a0000000-0000-0000-0000-000000000001')
+
+      const resp = await fetch('/api/v1/ingestion/import/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await resp.json()
+
+      if (!resp.ok) {
+        alert(`Import failed: ${data.detail ?? resp.statusText}`)
+        return
+      }
+
+      if (data.job_id) {
+        await fetch(`/api/v1/ingestion/import/${data.job_id}/confirm`, { method: 'POST' })
+        alert(`Import started!\nJob ID: ${data.job_id}\nTotal rows: ${data.stats?.total_rows ?? 'N/A'}`)
+        refetch()
+      }
+    } catch (err) {
+      alert(`Import error: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleExport = () => {
+    if (!assets?.length) {
+      alert('No assets to export.')
+      return
+    }
+    const headers: (keyof Asset)[] = ['asset_tag', 'name', 'type', 'status', 'vendor', 'model', 'serial_number']
+    const csv = [
+      headers.join(','),
+      ...assets.map((a) => headers.map((h) => a[h] ?? '').join(',')),
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'assets.csv'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="min-h-screen bg-surface p-6 font-body text-on-surface">
@@ -249,11 +305,25 @@ export default function AssetManagementUnified() {
           <Icon name="add" className="text-[18px]" />
           {t('assets.add_asset')}
         </button>
-        <button onClick={() => alert('Import: Coming Soon')} className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing}
+          className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Icon name="upload" className="text-[18px]" />
-          {t('common.import')}
+          {importing ? 'Uploading…' : t('common.import')}
         </button>
-        <button onClick={() => alert('Export: Coming Soon')} className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
+        <input
+          ref={fileInputRef}
+          type="file"
+          hidden
+          accept=".xlsx,.csv"
+          onChange={handleImport}
+        />
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"
+        >
           <Icon name="download" className="text-[18px]" />
           {t('common.export_csv')}
         </button>

@@ -32,4 +32,10 @@ export const ingestionApi = {
   // Collector test
   testCollector: (name: string, data: { credential_id: string; endpoint: string }) =>
     apiClient.post(`/ingestion/collectors/${name}/test`, data),
+
+  // Import
+  confirmImport: (jobId: string) =>
+    apiClient.post(`/ingestion/import/${jobId}/confirm`, {}),
+  getImportProgress: (jobId: string) =>
+    apiClient.get(`/ingestion/import/${jobId}/progress`),
 }
