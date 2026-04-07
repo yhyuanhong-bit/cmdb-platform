@@ -209,17 +209,37 @@ function SensorConfiguration() {
 
   useEffect(() => {
     if (allAssets.length > 0) {
-      setSensors(allAssets.slice(0, 10).map(a => ({
-        id: a.asset_tag,
-        name: `${a.name} Sensor`,
-        type: a.type === 'server' ? 'Temperature' : a.type === 'power' ? 'Power' : a.type === 'network' ? 'Network' : 'Humidity',
-        icon: a.type === 'server' ? 'thermostat' : a.type === 'power' ? 'bolt' : a.type === 'network' ? 'lan' : 'humidity_percentage',
-        location: `IDC / ${a.rack_id ? 'Rack ' + a.asset_tag.split('-')[0] : 'Floor'}`,
-        enabled: a.status === 'operational',
-        pollingInterval: 30,
-        lastSeen: a.status === 'operational' ? 'live' : 'offline',
-        status: a.status === 'operational' ? 'Online' as const : a.status === 'maintenance' ? 'Degraded' as const : 'Offline' as const,
-      })));
+      setSensors(allAssets.map(a => {
+        const subType = (a as any).sub_type as string | undefined;
+        const sensorType =
+          subType ? subType :
+          a.type === 'server' ? 'Temperature' :
+          a.type === 'power' ? 'Power' :
+          a.type === 'network' ? 'Network' :
+          'Humidity';
+        const sensorIcon =
+          a.type === 'server' ? 'thermostat' :
+          a.type === 'power' ? 'bolt' :
+          a.type === 'network' ? 'lan' :
+          'humidity_percentage';
+        const lastSeen =
+          a.status === 'operational'
+            ? 'live'
+            : (a as any).updated_at
+              ? new Date((a as any).updated_at).toLocaleString()
+              : 'offline';
+        return {
+          id: a.asset_tag,
+          name: `${a.name} Sensor`,
+          type: sensorType,
+          icon: sensorIcon,
+          location: `IDC / ${a.rack_id ? 'Rack ' + a.asset_tag.split('-')[0] : 'Floor'}`,
+          enabled: a.status === 'operational',
+          pollingInterval: 30,
+          lastSeen,
+          status: a.status === 'operational' ? 'Online' as const : a.status === 'maintenance' ? 'Degraded' as const : 'Offline' as const,
+        };
+      }));
     }
   }, [allAssets]);
   const [rules, setRules] = useState(INITIAL_RULES);
