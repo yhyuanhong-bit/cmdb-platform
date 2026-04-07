@@ -7,6 +7,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Stats holds the aggregated dashboard statistics.
@@ -20,11 +21,12 @@ type Stats struct {
 // Service provides dashboard aggregation operations.
 type Service struct {
 	queries *dbgen.Queries
+	pool    *pgxpool.Pool
 }
 
 // NewService creates a new dashboard Service.
-func NewService(queries *dbgen.Queries) *Service {
-	return &Service{queries: queries}
+func NewService(queries *dbgen.Queries, pool *pgxpool.Pool) *Service {
+	return &Service{queries: queries, pool: pool}
 }
 
 // GetStats aggregates key metrics for the dashboard.
@@ -52,9 +54,14 @@ func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*Stats, err
 		return nil, fmt.Errorf("count work orders: %w", err)
 	}
 
+	var totalRacks int64
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM racks WHERE tenant_id = $1`, tenantID).Scan(&totalRacks); err != nil {
+		return nil, fmt.Errorf("count racks: %w", err)
+	}
+
 	return &Stats{
 		TotalAssets:    totalAssets,
-		TotalRacks:     0, // No CountRacks query available yet
+		TotalRacks:     totalRacks,
 		CriticalAlerts: criticalAlerts,
 		ActiveOrders:   activeOrders,
 	}, nil
