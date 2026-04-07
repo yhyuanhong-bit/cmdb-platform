@@ -106,26 +106,30 @@ ALTER TABLE users DROP COLUMN IF EXISTS last_login_ip;
     {
       "id": "uuid",
       "ip_address": "10.134.143.218",
-      "device_type": "desktop",
+      "device": "desktop",
       "browser": "Chrome",
-      "created_at": "2026-04-08T09:00:00Z",
-      "last_active_at": "2026-04-08T10:30:00Z",
-      "is_current": true
+      "time": "2026-04-08T09:00:00Z",
+      "icon": "laptop_mac",
+      "current": true
     },
     {
       "id": "uuid",
       "ip_address": "192.168.1.50",
-      "device_type": "mobile",
+      "device": "mobile",
       "browser": "Safari",
-      "created_at": "2026-04-07T14:00:00Z",
-      "last_active_at": "2026-04-07T18:00:00Z",
-      "is_current": false
+      "time": "2026-04-07T14:00:00Z",
+      "icon": "phone_iphone",
+      "current": false
     }
   ]
 }
 ```
 
 Query: `SELECT * FROM user_sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`
+
+Response field mapping (Go handler aliases DB columns to match frontend):
+- `device_type` → `device`, `created_at` → `time`, `is_current` → `current`
+- `icon` derived from device_type: desktop→laptop_mac, mobile→phone_iphone, tablet→tablet_mac, unknown→devices
 
 **POST `/auth/change-password`** — Change password
 
@@ -149,11 +153,19 @@ Logic:
 **Login session recording** — Modify existing login handler (no new endpoint)
 
 On successful login (`POST /auth/login`), add:
-1. Parse User-Agent header for device_type + browser
-2. Get IP from `c.ClientIP()`
-3. INSERT into user_sessions (user_id, ip_address, user_agent, device_type, browser, is_current=true)
-4. UPDATE users SET last_login_at = now(), last_login_ip = clientIP WHERE id = $1
-5. Set previous sessions' is_current = false for this user
+1. In API handler (`impl.go`): pass `c.ClientIP()` and `c.GetHeader("User-Agent")` to auth service
+2. Extend `LoginRequest` struct with `ClientIP string` and `UserAgent string` fields
+3. In `auth_service.go` Login method, after `issueTokens()` succeeds:
+   - Parse User-Agent for device_type + browser using `parseUserAgent()` helper
+   - `UPDATE user_sessions SET is_current = false WHERE user_id = $1` (clear previous current)
+   - `INSERT INTO user_sessions (user_id, ip_address, user_agent, device_type, browser, is_current) VALUES (...)`
+   - `UPDATE users SET last_login_at = now(), last_login_ip = $1 WHERE id = $2`
+   - Use raw `s.pool.Exec()` for these queries (not sqlc, to avoid regeneration)
+   - If session recording fails, log error but don't fail the login
+
+**Note:** AuthService needs access to `*pgxpool.Pool` for raw session queries. Currently it only has `*dbgen.Queries`. Either pass pool to AuthService constructor, or use `s.queries.DBTX()` to access the underlying pool.
+
+**Heartbeat auth limitation:** POST `/sensors/:id/heartbeat` requires JWT auth (same as all `/api/v1` routes). For Phase 1 this is acceptable — sensors are manually registered and heartbeats are sent via frontend or human-operated tools. Future: add API key auth mechanism for M2M collector usage.
 
 ### 3.2 Sensor Registration (5 endpoints)
 
@@ -168,17 +180,22 @@ On successful login (`POST /auth/login`), add:
       "asset_name": "SRV-PROD-001",
       "name": "Rack A01 Temperature",
       "type": "temperature",
+      "icon": "thermostat",
       "location": "IDC-A / Room 4A / Rack A01",
-      "polling_interval": 30,
+      "pollingInterval": 30,
       "enabled": true,
-      "status": "online",
-      "last_heartbeat": "2026-04-08T10:29:50Z"
+      "status": "Online",
+      "lastSeen": "2026-04-08T10:29:50Z"
     }
   ]
 }
 ```
 
 Query: JOIN assets for asset_name when asset_id is not null.
+
+Response field mapping (Go handler aliases DB columns to match frontend Sensor interface):
+- `polling_interval` → `pollingInterval`, `last_heartbeat` → `lastSeen`, `status` capitalized (online→Online)
+- `icon` derived from type: temperature→thermostat, humidity→water_drop, power→bolt, network→lan, cpu→memory, memory→memory, disk→storage
 
 **POST `/sensors`** — Create sensor
 
