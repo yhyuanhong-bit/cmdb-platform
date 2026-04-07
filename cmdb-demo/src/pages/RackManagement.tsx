@@ -3,40 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useRacks, useRootLocations, useLocationChildren } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
+import { useActivityFeed } from "../hooks/useActivityFeed";
 import type { Rack } from "../lib/api/topology";
 
-const recentEvents = [
-  {
-    time: "14:32",
-    icon: "warning",
-    text: "RACK-B01 temperature exceeds threshold (38.2°C)",
-    severity: "error",
-  },
-  {
-    time: "13:18",
-    icon: "swap_vert",
-    text: "Asset moved from RACK-A01 U12 to RACK-A02 U30",
-    severity: "info",
-  },
-  {
-    time: "11:45",
-    icon: "check_circle",
-    text: "RACK-C01 maintenance completed successfully",
-    severity: "success",
-  },
-  {
-    time: "09:02",
-    icon: "add_circle",
-    text: "New asset provisioned in RACK-A01 U35-U38",
-    severity: "info",
-  },
-  {
-    time: "08:15",
-    icon: "power",
-    text: "PDU firmware updated on RACK-A02",
-    severity: "info",
-  },
-];
 
 const rackA01Layout: Array<{
   startU: number;
@@ -87,6 +56,13 @@ export default function RackManagement() {
   const firstCampusId = cityChildrenQ.data?.data?.[0]?.id ?? "";
 
   const locationId = contextLocationId || firstCampusId;
+  const { data: feedData } = useActivityFeed('location', locationId || '');
+  const recentEvents = ((feedData as any)?.events ?? []).map((e: any) => ({
+    time: new Date(e.timestamp).toLocaleTimeString(),
+    icon: e.event_type === 'alert' ? 'warning' : e.event_type === 'maintenance' ? 'build' : 'update',
+    text: e.description || e.action,
+    severity: e.severity || 'info',
+  }));
   const { data: racksResponse, isLoading: racksLoading, error } = useRacks(locationId);
   const isLoading = racksLoading || (!contextLocationId && (rootQ.isLoading || countryChildrenQ.isLoading || regionChildrenQ.isLoading || cityChildrenQ.isLoading));
   const racks: Rack[] = racksResponse?.data ?? [];

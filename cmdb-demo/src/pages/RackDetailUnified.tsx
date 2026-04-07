@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { useRack, useRackAssets, useRackSlots, useUpdateRack, useDeleteRack } from "../hooks/useTopology";
+import { useRack, useRackAssets, useRackSlots, useUpdateRack, useDeleteRack, useRackNetworkConnections } from "../hooks/useTopology";
 import { useAlerts } from "../hooks/useMonitoring";
+import { useActivityFeed } from "../hooks/useActivityFeed";
 
 // ---------------------------------------------------------------------------
 // Shared types & data (equipment slots — no API for sub-rack assets yet)
@@ -18,14 +19,6 @@ interface Equipment {
 
 // Equipment list is now derived from API data only (no hardcoded fallback)
 
-const networkConnections = [
-  { port: "Eth1/1", device: "Core-SW-01", speed: "100GbE", status: "UP", vlan: "100,200,300" },
-  { port: "Eth1/2", device: "Core-SW-02", speed: "100GbE", status: "UP", vlan: "100,200,300" },
-  { port: "Eth2/1", device: "Dist-SW-M1-01", speed: "25GbE", status: "UP", vlan: "400-410" },
-  { port: "Eth2/2", device: "Dist-SW-M1-02", speed: "25GbE", status: "DOWN", vlan: "400-410" },
-  { port: "Eth3/1", device: "Storage-SW-01", speed: "25GbE", status: "UP", vlan: "500" },
-  { port: "MGMT", device: "OOB-SW-01", speed: "1GbE", status: "UP", vlan: "999" },
-];
 
 const maintenanceHistory = [
   { date: "2026-03-25", type: "Preventive", description: "Scheduled quarterly PM - cleaned filters, checked cable management", engineer: "Chen, Wei-Lin", status: "COMPLETED" },
@@ -41,13 +34,6 @@ const environmentMetrics = {
   airflow: { current: 1250, min: 1100, max: 1400, unit: "CFM", threshold: 1500 },
 };
 
-const recentActivity = [
-  { action: "Firmware updated on NEXUS-C93180YC", time: "2 hours ago", icon: "system_update" },
-  { action: "COMPUTE-NODE-03 thermal alert triggered", time: "4 hours ago", icon: "warning" },
-  { action: "Inventory scan completed", time: "1 day ago", icon: "inventory_2" },
-  { action: "PDU-A power cycling event", time: "2 days ago", icon: "power" },
-  { action: "New asset BACKUP-APPLIANCE registered", time: "5 days ago", icon: "add_circle" },
-];
 
 // Console U-slot data
 type SlotType = "pdu" | "compute" | "network" | "storage" | "ups" | "empty" | "warning";
@@ -910,6 +896,18 @@ export default function RackDetailUnified() {
       type: (a.type?.toLowerCase() ?? 'compute') as Equipment['type'],
     }));
   }, [rackAssets]);
+
+  // Network connections from API
+  const { data: netData } = useRackNetworkConnections(rackId ?? "");
+  const networkConnections = (netData as any)?.connections ?? [];
+
+  // Activity feed from API
+  const { data: activityData } = useActivityFeed('rack', rackId ?? "");
+  const recentActivity = ((activityData as any)?.events ?? []).map((e: any) => ({
+    action: e.description || e.action,
+    time: new Date(e.timestamp).toLocaleString(),
+    icon: e.event_type === 'alert' ? 'warning' : e.event_type === 'maintenance' ? 'build' : 'history',
+  }));
 
   // Fetch all alerts and filter to those belonging to assets in this rack
   const { data: alertsResponse } = useAlerts();
