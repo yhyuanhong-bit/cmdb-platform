@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { useRack, useRackAssets, useRackSlots, useUpdateRack, useDeleteRack } from "../hooks/useTopology";
+import { useAlerts } from "../hooks/useMonitoring";
 
 // ---------------------------------------------------------------------------
 // Shared types & data (equipment slots — no API for sub-rack assets yet)
@@ -15,31 +16,7 @@ interface Equipment {
   type: "compute" | "network" | "storage" | "power" | "empty";
 }
 
-const equipment: Equipment[] = [
-  { startU: 1, endU: 2, label: "APC PDU 9000", assetTag: "PWR-042-01", type: "power" },
-  { startU: 3, endU: 4, label: "Cisco Nexus 9336C", assetTag: "NET-042-01", type: "network" },
-  { startU: 5, endU: 5, label: "Patch Panel 48-Port", assetTag: "NET-042-PP1", type: "network" },
-  { startU: 7, endU: 8, label: "DELL PowerEdge R650", assetTag: "SRV-042-01", type: "compute" },
-  { startU: 9, endU: 10, label: "DELL PowerEdge R650", assetTag: "SRV-042-02", type: "compute" },
-  { startU: 11, endU: 12, label: "DELL PowerEdge R650", assetTag: "SRV-042-03", type: "compute" },
-  { startU: 14, endU: 17, label: "NetApp AFF A250", assetTag: "STR-042-01", type: "storage" },
-  { startU: 18, endU: 19, label: "HP DL380 Gen10+", assetTag: "SRV-042-04", type: "compute" },
-  { startU: 20, endU: 22, label: "HP DL380 Gen10+", assetTag: "SRV-042-05", type: "compute" },
-  { startU: 24, endU: 25, label: "DELL PowerEdge R750", assetTag: "SRV-042-06", type: "compute" },
-  { startU: 26, endU: 27, label: "DELL PowerEdge R750", assetTag: "SRV-042-07", type: "compute" },
-  { startU: 28, endU: 29, label: "DELL PowerEdge R750", assetTag: "SRV-042-08", type: "compute" },
-  { startU: 31, endU: 32, label: "Cisco Nexus 9300", assetTag: "NET-042-02", type: "network" },
-  { startU: 33, endU: 34, label: "DELL PowerEdge R750", assetTag: "SRV-042-09", type: "compute" },
-  { startU: 35, endU: 38, label: "DELL PowerEdge R750", assetTag: "APP-SRV-042-PROD", type: "compute" },
-  { startU: 39, endU: 40, label: "Juniper EX4300", assetTag: "NET-042-03", type: "network" },
-  { startU: 41, endU: 42, label: "APC SmartUPS 3000", assetTag: "PWR-042-02", type: "power" },
-];
-
-const alerts = [
-  { severity: "warning", text: "CPU temperature above 75\u00b0C threshold", time: "2 min ago" },
-  { severity: "info", text: "Firmware update available (v4.2.1)", time: "1 hour ago" },
-  { severity: "warning", text: "Memory utilization at 89%", time: "3 hours ago" },
-];
+// Equipment list is now derived from API data only (no hardcoded fallback)
 
 const networkConnections = [
   { port: "Eth1/1", device: "Core-SW-01", speed: "100GbE", status: "UP", vlan: "100,200,300" },
@@ -157,20 +134,28 @@ const SLOT_BIA_COLORS: Record<string, string> = {
   minor: 'bg-surface-container-highest text-on-surface-variant',
 }
 
+interface LiveAlert {
+  severity: string;
+  text: string;
+  time: string;
+}
+
 function VisualizationTab({
   selectedAsset,
   setSelectedAsset,
   equipmentList,
   rackSlots,
   totalU,
+  liveAlerts,
 }: {
   selectedAsset: Equipment | null;
   setSelectedAsset: (eq: Equipment | null) => void;
   equipmentList?: Equipment[];
   rackSlots?: any[];
   totalU?: number;
+  liveAlerts?: LiveAlert[];
 }) {
-  const eqList = equipmentList ?? equipment;
+  const eqList = equipmentList ?? [];
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [view, setView] = useState<"FRONT" | "REAR">("FRONT");
@@ -276,8 +261,8 @@ function VisualizationTab({
                   );
                 })}
               </div>
-            ) : (
-              /* Fallback: hardcoded equipment-based rendering */
+            ) : eqList.length > 0 ? (
+              /* Asset-based rendering from rack assets API */
               <div className="bg-surface-container-low rounded p-3">
                 <div className="flex flex-col gap-px">
                   {Array.from({ length: 42 }, (_, i) => {
@@ -330,6 +315,13 @@ function VisualizationTab({
                     );
                   }).filter(Boolean)}
                 </div>
+              </div>
+            ) : (
+              /* No equipment data available */
+              <div className="bg-surface-container-low rounded p-8 text-center text-on-surface-variant">
+                <span className="material-symbols-outlined text-[36px] mb-2 block opacity-30">inventory_2</span>
+                <p className="text-sm">No equipment</p>
+                <p className="text-[10px] mt-1 opacity-60">No assets have been assigned to this rack yet</p>
               </div>
             )}
           </div>
@@ -394,23 +386,32 @@ function VisualizationTab({
                 Active Alerts
               </h2>
             </div>
-            <div className="flex flex-col gap-1">
-              {alerts.map((alert, i) => (
-                <div key={i} className="bg-surface-container-low rounded p-3 flex items-start gap-3">
-                  <span
-                    className={`material-symbols-outlined text-[16px] mt-0.5 ${
-                      alert.severity === "warning" ? "text-tertiary" : "text-on-surface-variant"
-                    }`}
-                  >
-                    {alert.severity === "warning" ? "warning" : "info"}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-xs text-on-surface">{alert.text}</p>
-                    <p className="text-[10px] text-on-surface-variant mt-0.5">{alert.time}</p>
+            {liveAlerts && liveAlerts.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                {liveAlerts.map((alert, i) => (
+                  <div key={i} className="bg-surface-container-low rounded p-3 flex items-start gap-3">
+                    <span
+                      className={`material-symbols-outlined text-[16px] mt-0.5 ${
+                        alert.severity === "warning" || alert.severity === "critical"
+                          ? "text-tertiary"
+                          : "text-on-surface-variant"
+                      }`}
+                    >
+                      {alert.severity === "warning" || alert.severity === "critical" ? "warning" : "info"}
+                    </span>
+                    <div className="flex-1">
+                      <p className="text-xs text-on-surface">{alert.text}</p>
+                      <p className="text-[10px] text-on-surface-variant mt-0.5">{alert.time}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-on-surface-variant">
+                <span className="material-symbols-outlined text-[28px] mb-1 block opacity-30">check_circle</span>
+                <p className="text-xs">No active alerts</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -898,9 +899,9 @@ export default function RackDetailUnified() {
   const { data: slotsResp } = useRackSlots(rackId ?? "");
   const rackSlots = slotsResp?.data || [];
 
-  // Build equipment list from real rack assets if available, fallback to hardcoded
+  // Build equipment list from real rack assets API (empty array if no data yet)
   const liveEquipment: Equipment[] = useMemo(() => {
-    if (!rackAssets || rackAssets.length === 0) return equipment;
+    if (!rackAssets || rackAssets.length === 0) return [];
     return rackAssets.map((a: any) => ({
       startU: a.attributes?.start_u ?? a.start_u ?? 1,
       endU: a.attributes?.end_u ?? a.end_u ?? 1,
@@ -909,6 +910,28 @@ export default function RackDetailUnified() {
       type: (a.type?.toLowerCase() ?? 'compute') as Equipment['type'],
     }));
   }, [rackAssets]);
+
+  // Fetch all alerts and filter to those belonging to assets in this rack
+  const { data: alertsResponse } = useAlerts();
+  const allAlerts = alertsResponse?.data ?? [];
+
+  const rackAssetIds = useMemo(() => {
+    if (!rackAssets) return new Set<string>();
+    return new Set(rackAssets.map((a: any) => a.id as string));
+  }, [rackAssets]);
+
+  const filteredAlerts: LiveAlert[] = useMemo(() => {
+    if (allAlerts.length === 0 || rackAssetIds.size === 0) return [];
+    return allAlerts
+      .filter((alert: any) => rackAssetIds.has(alert.ci_id))
+      .map((alert: any) => ({
+        severity: alert.severity ?? 'info',
+        text: alert.message ?? '',
+        time: alert.fired_at
+          ? new Date(alert.fired_at).toLocaleString()
+          : '',
+      }));
+  }, [allAlerts, rackAssetIds]);
 
   const [editingRack, setEditingRack] = useState(false)
   const [rackEdit, setRackEdit] = useState({ name: '', status: '', total_u: 42 })
@@ -1052,7 +1075,7 @@ export default function RackDetailUnified() {
 
         {/* Tab content */}
         {activeTab === "visualization" && (
-          <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} rackSlots={rackSlots} totalU={rack?.total_u} />
+          <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} rackSlots={rackSlots} totalU={rack?.total_u} liveAlerts={filteredAlerts} />
         )}
         {activeTab === "console" && <ConsoleTab />}
         {activeTab === "network" && <NetworkTab />}
