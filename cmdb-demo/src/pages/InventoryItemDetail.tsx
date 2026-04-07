@@ -1,7 +1,7 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useInventoryTask, useInventoryItems, useScanItem } from "../hooks/useInventory";
+import { useInventoryTask, useInventoryItems, useScanItem, useItemScanHistory, useItemNotes, useCreateItemNote } from "../hooks/useInventory";
 
 /* ──────────────────────────────────────────────
    Static fallback data (used when API returns no detail)
@@ -24,60 +24,6 @@ const FALLBACK_ASSET = {
   macAddress: "A4:BF:01:23:45:67",
 };
 
-const SCAN_HISTORY = [
-  {
-    timestamp: "2026-03-28 14:18:32",
-    operator: "Chen, Wei-Lin",
-    method: "QR Scan",
-    result: "status_mismatch",
-    note: "Device powered off, expected active state",
-  },
-  {
-    timestamp: "2025-12-10 09:45:00",
-    operator: "Lin, Mei-Hua",
-    method: "QR Scan",
-    result: "match",
-    note: "Routine quarterly audit - all fields match",
-  },
-  {
-    timestamp: "2025-09-15 11:22:17",
-    operator: "Wang, Jun",
-    method: "Manual Entry",
-    result: "match",
-    note: "Q3 2025 inventory check passed",
-  },
-  {
-    timestamp: "2025-06-20 16:05:44",
-    operator: "Chen, Wei-Lin",
-    method: "QR Scan",
-    result: "location_update",
-    note: "Moved from Rack A2/Slot 12 to Rack B3/Slot 04",
-  },
-  {
-    timestamp: "2025-03-08 10:30:00",
-    operator: "Huang, Xiao-Ming",
-    method: "QR Scan",
-    result: "match",
-    note: "Initial deployment verification",
-  },
-];
-
-const DISCREPANCY_NOTES = [
-  {
-    id: "DISC-2026-0328-001",
-    timestamp: "2026-03-28 14:20:05",
-    author: "Chen, Wei-Lin",
-    severity: "HIGH",
-    text: "Asset scanned as powered off but CMDB record shows Active status. Physical inspection confirms power LED is off. No network connectivity on assigned IP 10.128.3.44. Requires investigation by infrastructure team.",
-  },
-  {
-    id: "DISC-2026-0328-002",
-    timestamp: "2026-03-28 14:22:30",
-    author: "System (Auto)",
-    severity: "INFO",
-    text: "Cross-reference check: Last known active ping was 2026-03-26 03:14 UTC. Monitoring system shows host unreachable since 2026-03-26 03:15 UTC. Potential unplanned shutdown.",
-  },
-];
 
 /* ──────────────────────────────────────────────
    Small reusable pieces
@@ -123,6 +69,14 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
   const task = taskResponse?.data;
   const items = itemsResponse?.data ?? [];
   const firstItem = items[0];
+  const itemId = firstItem?.id ?? '';
+
+  const { data: scanData } = useItemScanHistory(taskId, itemId)
+  const scanHistory = (scanData as any)?.scan_history ?? []
+  const { data: notesData } = useItemNotes(taskId, itemId)
+  const notes = (notesData as any)?.notes ?? []
+  const createNote = useCreateItemNote()
+  const [noteText, setNoteText] = useState('')
 
   // Build ASSET from API data or fall back to static
   const ASSET = task ? {
@@ -335,13 +289,13 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
               {t('inventory_detail.scan_history')}
             </h2>
             <span className="ml-auto text-[10px] text-on-surface-variant font-label">
-              {SCAN_HISTORY.length} {t('common.records')}
+              {scanHistory.length} {t('common.records')}
             </span>
           </div>
 
           <div className="flex flex-col">
-            {SCAN_HISTORY.map((scan, i) => {
-              const isLast = i === SCAN_HISTORY.length - 1;
+            {scanHistory.map((scan: any, i: number) => {
+              const isLast = i === scanHistory.length - 1;
               let dotColor = "bg-[#69db7c]";
               let icon = "check_circle";
               if (scan.result === "status_mismatch") {
@@ -412,12 +366,12 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
               {t('inventory_detail.discrepancy_notes')}
             </h2>
             <span className="ml-auto text-[10px] text-error font-label font-bold">
-              {DISCREPANCY_NOTES.length} entries
+              {notes.length} entries
             </span>
           </div>
 
           <div className="flex flex-col gap-3">
-            {DISCREPANCY_NOTES.map((note) => (
+            {notes.map((note: any) => (
               <div
                 key={note.id}
                 className="bg-surface-container-low rounded-xl p-4"
@@ -459,11 +413,13 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
                 {t('inventory_detail.add_discrepancy_note')}
               </span>
             </div>
-            <div className="bg-surface-container rounded-xl p-3 min-h-[60px] flex items-start">
-              <span className="text-sm text-on-surface-variant/50">
-                {t('inventory_detail.enter_observation_details')}
-              </span>
-            </div>
+            <textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder={t('inventory_detail.enter_observation_details')}
+              rows={3}
+              className="w-full bg-surface-container rounded-xl p-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/40"
+            />
             <div className="flex items-center justify-between mt-3">
               <div className="flex items-center gap-3">
                 <button onClick={() => alert('Upload: Coming Soon')} className="text-xs text-on-surface-variant font-label flex items-center gap-1 hover:text-primary transition-colors">
@@ -475,8 +431,17 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
                   {t('inventory_detail.photo')}
                 </button>
               </div>
-              <button onClick={() => alert('Note saved')} className="bg-primary hover:opacity-90 text-on-primary px-4 py-1.5 rounded-lg text-xs font-label font-bold transition-opacity">
-                {t('inventory_detail.submit_note')}
+              <button
+                onClick={() => {
+                  if (!noteText.trim()) return
+                  createNote.mutate({ taskId, itemId, data: { severity: 'info', text: noteText } }, {
+                    onSuccess: () => setNoteText('')
+                  })
+                }}
+                disabled={createNote.isPending}
+                className="bg-primary hover:opacity-90 text-on-primary px-4 py-1.5 rounded-lg text-xs font-label font-bold transition-opacity disabled:opacity-50"
+              >
+                {createNote.isPending ? t('common.saving') : t('inventory_detail.submit_note')}
               </button>
             </div>
           </div>

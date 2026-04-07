@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
-import { useWorkOrder, useTransitionWorkOrder, useWorkOrderLogs } from '../hooks/useMaintenance'
+import { useWorkOrder, useTransitionWorkOrder, useWorkOrderLogs, useWorkOrderComments, useCreateWorkOrderComment } from '../hooks/useMaintenance'
 
 const taskSteps = [
   'Execute standard hot-swap procedure for battery modules UPS-BAT-01 and UPS-BAT-02',
@@ -62,9 +62,20 @@ export default function MaintenanceTaskView() {
   const { id: taskId } = useParams<{ id: string }>()
   const { data: woResponse, isLoading, error } = useWorkOrder(taskId ?? '')
   const workOrder = woResponse?.data
+  const orderId = workOrder?.id ?? taskId ?? ''
   const transitionWO = useTransitionWorkOrder()
   const { data: logsData } = useWorkOrderLogs(taskId ?? '')
+  const { data: commentsData } = useWorkOrderComments(orderId)
+  const comments = (commentsData as any)?.comments ?? []
+  const createComment = useCreateWorkOrderComment()
   const [comment, setComment] = useState('')
+
+  const handleCommentSubmit = () => {
+    if (!comment.trim()) return
+    createComment.mutate({ orderId, data: { text: comment } }, {
+      onSuccess: () => setComment('')
+    })
+  }
 
   if (isLoading) {
     return (
@@ -227,11 +238,24 @@ export default function MaintenanceTaskView() {
               className="w-full bg-surface-container-low rounded p-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/40"
             />
             <div className="mt-3 flex justify-end">
-              <button onClick={() => alert('Comment: Coming Soon')} className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2 text-sm font-semibold text-white rounded hover:brightness-110 transition-all">
+              <button onClick={handleCommentSubmit} disabled={createComment.isPending} className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2 text-sm font-semibold text-white rounded hover:brightness-110 transition-all disabled:opacity-50">
                 <Icon name="send" className="text-[16px]" />
-                {t('maintenance_task.post_update')}
+                {createComment.isPending ? '...' : t('maintenance_task.post_update')}
               </button>
             </div>
+            {comments.length > 0 && (
+              <div className="mt-4">
+                {comments.map((c: any) => (
+                  <div key={c.id} className="border-t border-surface-container-high py-3">
+                    <div className="flex justify-between text-xs text-on-surface-variant">
+                      <span className="font-semibold">{c.author_name ?? 'System'}</span>
+                      <span>{new Date(c.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-sm text-on-surface mt-1">{c.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
