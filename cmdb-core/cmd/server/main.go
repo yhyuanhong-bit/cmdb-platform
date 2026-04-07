@@ -99,7 +99,7 @@ func main() {
 	monitoringSvc := monitoring.NewService(queries)
 	inventorySvc := inventory.NewService(queries)
 	auditSvc := audit.NewService(queries)
-	dashboardSvc := dashboard.NewService(queries)
+	dashboardSvc := dashboard.NewService(queries, pool)
 
 	integrationSvc := integration.NewService(queries)
 	biaSvc := bia.NewService(queries)
@@ -154,6 +154,21 @@ func main() {
 
 	// Register all API routes via generated handler
 	api.RegisterHandlers(v1, apiServer)
+
+	// Energy monitoring endpoints
+	v1.GET("/energy/breakdown", apiServer.GetEnergyBreakdown)
+	v1.GET("/energy/summary", apiServer.GetEnergySummary)
+	v1.GET("/energy/trend", apiServer.GetEnergyTrend)
+
+	// Custom endpoints (Phase 2)
+	v1.GET("/racks/stats", apiServer.GetRackStats)
+	v1.GET("/assets/lifecycle-stats", apiServer.GetAssetLifecycleStats)
+	v1.GET("/monitoring/alerts/trend", apiServer.GetAlertsTrend)
+	v1.GET("/racks/:id/maintenance", apiServer.GetRackMaintenance)
+
+	// Custom inventory endpoints (not in generated spec)
+	v1.GET("/inventory/tasks/:id/racks-summary", apiServer.GetInventoryRacksSummary)
+	v1.GET("/inventory/tasks/:id/discrepancies", apiServer.GetInventoryDiscrepancies)
 
 	// Protected sub-group for non-API routes that need auth (e.g. WebSocket)
 	protected := v1.Group("", authMW)
