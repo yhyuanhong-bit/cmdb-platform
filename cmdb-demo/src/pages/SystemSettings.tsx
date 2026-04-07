@@ -4,8 +4,10 @@ import { useNavigate } from 'react-router-dom'
 import { useUsers, useRoles, useCreateUser } from '../hooks/useIdentity'
 import { useSystemHealth } from '../hooks/useSystemHealth'
 import { useAdapters, useWebhooks } from '../hooks/useIntegration'
+import { useCredentials, useDeleteCredential } from '../hooks/useCredentials'
 import CreateAdapterModal from '../components/CreateAdapterModal'
 import CreateWebhookModal from '../components/CreateWebhookModal'
+import CreateCredentialModal from '../components/CreateCredentialModal'
 
 export default function SystemSettings() {
   const { t } = useTranslation()
@@ -16,18 +18,23 @@ export default function SystemSettings() {
   const createUser = useCreateUser()
   const [showCreateAdapter, setShowCreateAdapter] = useState(false)
   const [showCreateWebhook, setShowCreateWebhook] = useState(false)
+  const [showCreateCredential, setShowCreateCredential] = useState(false)
+  const [editingCredential, setEditingCredential] = useState<any>(null)
 
   const { data: usersResp, isLoading: usersLoading } = useUsers()
   const { data: rolesResp } = useRoles()
   const { data: healthResp } = useSystemHealth()
   const { data: adaptersResp } = useAdapters()
   const { data: webhooksResp } = useWebhooks()
+  const { data: credentialsResp } = useCredentials()
+  const deleteCredential = useDeleteCredential()
 
   const apiUsers = usersResp?.data ?? []
   const apiRoles = rolesResp?.data ?? []
   const health = healthResp?.data
   const adapters = adaptersResp?.data ?? []
   const webhooks = webhooksResp?.data ?? []
+  const credentials = credentialsResp?.data ?? []
 
   // Map API users to display format
   const users = apiUsers.map(u => ({
@@ -80,7 +87,7 @@ export default function SystemSettings() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6">
-        {['permissions', 'security', 'integrations'].map((tab) => (
+        {['permissions', 'security', 'integrations', 'credentials'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -90,12 +97,76 @@ export default function SystemSettings() {
                 : 'text-on-surface-variant hover:bg-surface-container'
             }`}
           >
-            {tab === 'permissions' ? t('system_settings.tab_permissions_matrix') : tab === 'security' ? t('system_settings.tab_security') : t('system_settings.tab_integrations')}
+            {tab === 'permissions'
+              ? t('system_settings.tab_permissions_matrix')
+              : tab === 'security'
+              ? t('system_settings.tab_security')
+              : tab === 'integrations'
+              ? t('system_settings.tab_integrations')
+              : 'Credentials'}
           </button>
         ))}
       </div>
 
-      {activeTab === 'integrations' ? (
+      {activeTab === 'credentials' ? (
+        <div className="bg-surface-container rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-headline font-bold text-lg text-on-surface">Credentials</h2>
+            <button
+              onClick={() => { setEditingCredential(null); setShowCreateCredential(true) }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">add</span>
+              Add Credential
+            </button>
+          </div>
+
+          {/* Table header */}
+          <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-3 px-3 py-2 mb-1">
+            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">Name</span>
+            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">Type</span>
+            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">Created</span>
+            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">Actions</span>
+          </div>
+
+          {credentials.length === 0 && (
+            <p className="text-sm text-on-surface-variant px-3 py-4">No credentials configured.</p>
+          )}
+
+          {credentials.map((cred: any, i: number) => (
+            <div
+              key={cred.id}
+              className={`grid grid-cols-[2fr_1fr_1fr_auto] gap-3 items-center px-3 py-3 rounded-lg ${
+                i % 2 === 0 ? 'bg-surface-container-low' : ''
+              }`}
+            >
+              <span className="text-sm text-on-surface font-semibold">{cred.name}</span>
+              <span className="text-xs text-on-surface-variant">{cred.type}</span>
+              <span className="text-xs text-on-surface-variant">
+                {cred.created_at ? new Date(cred.created_at).toLocaleDateString() : '-'}
+              </span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => { setEditingCredential(cred); setShowCreateCredential(true) }}
+                  className="p-1.5 rounded hover:bg-surface-container-high transition-colors"
+                >
+                  <span className="material-symbols-outlined text-on-surface-variant text-[18px]">edit</span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete credential "${cred.name}"?`)) {
+                      deleteCredential.mutate(cred.id)
+                    }
+                  }}
+                  className="p-1.5 rounded hover:bg-error-container transition-colors"
+                >
+                  <span className="material-symbols-outlined text-on-surface-variant text-[18px]">delete</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : activeTab === 'integrations' ? (
         <div className="flex flex-col gap-6">
           {/* Adapters */}
           <div className="bg-surface-container rounded-lg p-6">
@@ -301,6 +372,11 @@ export default function SystemSettings() {
 
       <CreateAdapterModal open={showCreateAdapter} onClose={() => setShowCreateAdapter(false)} />
       <CreateWebhookModal open={showCreateWebhook} onClose={() => setShowCreateWebhook(false)} />
+      <CreateCredentialModal
+        open={showCreateCredential}
+        onClose={() => { setShowCreateCredential(false); setEditingCredential(null) }}
+        editing={editingCredential}
+      />
 
       {showUserModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowUserModal(false)}>
