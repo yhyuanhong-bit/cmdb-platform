@@ -30,7 +30,7 @@ New (this phase):
   ├── GET /prediction/rul/{id}    → RUL calculation
   ├── GET /prediction/failure-distribution → failure type breakdown
   ├── GET /assets/{id}/upgrade-recommendations → per-asset recommendations
-  ├── POST /assets/{id}/upgrade-recommendations/{recId}/accept → create work order
+  ├── POST /assets/{id}/upgrade-recommendations/{category}/accept → create work order
   └── Frontend: PredictiveHub + ComponentUpgrade pages connected
 ```
 
@@ -53,7 +53,8 @@ CREATE TABLE upgrade_rules (
     priority    VARCHAR(20) NOT NULL DEFAULT 'medium', -- low / medium / high / critical
     recommendation TEXT NOT NULL,                  -- "Upgrade to next-gen CPU"
     enabled     BOOLEAN NOT NULL DEFAULT true,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_upgrade_rules_tenant ON upgrade_rules(tenant_id);
 
@@ -124,15 +125,18 @@ DROP TABLE IF EXISTS upgrade_rules;
 ```
 
 **Calculation logic:**
-1. Query `alert_events` JOIN `alert_rules` for last 90 days:
-   - metric_name containing 'temperature' or 'temp' → Thermal
-   - metric_name containing 'power' or 'voltage' → Electrical
-   - metric_name containing 'disk' or 'fan' or 'vibration' → Mechanical
-   - metric_name containing 'cpu' or 'memory' or 'software' → Software
-2. Query `work_orders` for last 90 days:
-   - type 'repair' → count by title keywords (same classification)
+1. Query `alert_events` for last 90 days, classify by `message` keyword matching (NOT rule_id JOIN, because seed data has NULL rule_ids):
+   - message containing 'temperature' or 'temp' or 'thermal' → Thermal
+   - message containing 'power' or 'voltage' or 'electrical' or 'pdu' or 'ups' → Electrical
+   - message containing 'disk' or 'fan' or 'vibration' or 'hardware' → Mechanical
+   - message containing 'cpu' or 'memory' or 'software' or 'firmware' → Software
+   - unmatched → Other
+2. Query `work_orders` for last 90 days, classify by `type` + `title` keywords:
    - type 'replacement' → Mechanical
-3. Merge counts, calculate percentages
+   - type 'repair' → classify by title keywords (same mapping as above)
+   - type 'upgrade' → Software
+3. Merge counts from both sources, calculate percentages
+4. If rule_id is NOT NULL, prefer `alert_rules.metric_name` classification over message keyword (future-proof)
 
 ### 3.3 GET `/assets/{assetId}/upgrade-recommendations` — Per-Asset Recommendations
 
@@ -175,9 +179,10 @@ DROP TABLE IF EXISTS upgrade_rules;
 ```
 
 **Logic:**
-1. Create a work_order with type="upgrade", asset_id, title from recommendation text
-2. Status: "draft"
-3. Return the created work order ID
+1. Generate work order code: `SELECT code FROM work_orders WHERE code LIKE 'WO-' || extract(year from now())::text || '-%' ORDER BY code DESC LIMIT 1`, then increment. Fallback to `WO-{year}-0001` if none exist.
+2. Get tenant_id from JWT auth context (`tenantIDFromContext(c)`)
+3. Create work_order: type="upgrade", status="draft", asset_id from URL, title from recommendation text, requestor_id from auth context
+4. Return the created work order ID + code
 
 ### 3.5 GET/POST `/upgrade-rules` — CRUD for Upgrade Rules
 
