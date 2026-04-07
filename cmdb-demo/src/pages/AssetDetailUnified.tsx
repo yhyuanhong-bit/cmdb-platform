@@ -5,6 +5,7 @@ import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
 import { useAsset, useUpdateAsset, useDeleteAsset } from '../hooks/useAssets'
 import { useBIAImpact } from '../hooks/useBIA'
+import { useMetrics } from '../hooks/useMetrics'
 
 /* ================================================================== */
 /*  SHARED DATA & HELPERS                                              */
@@ -98,19 +99,6 @@ function toSvgPath(
 /*  TAB 1: OVERVIEW                                                    */
 /* ================================================================== */
 
-const telemetryPoints = [
-  { t: 0, cpu: 38, mem: 52 },
-  { t: 1, cpu: 42, mem: 55 },
-  { t: 2, cpu: 35, mem: 54 },
-  { t: 3, cpu: 50, mem: 58 },
-  { t: 4, cpu: 44, mem: 60 },
-  { t: 5, cpu: 39, mem: 57 },
-  { t: 6, cpu: 46, mem: 62 },
-  { t: 7, cpu: 41, mem: 59 },
-  { t: 8, cpu: 48, mem: 61 },
-  { t: 9, cpu: 42, mem: 59 },
-]
-
 function RackIllustration() {
   return (
     <div className="bg-surface-container-low rounded-lg p-4 flex items-center justify-center min-h-[140px]">
@@ -127,11 +115,22 @@ function RackIllustration() {
   )
 }
 
-function OverviewTab({ t, navigate, asset, impactedSystems = [] }: { t: ReturnType<typeof useTranslation>['t']; navigate: ReturnType<typeof import('react-router-dom').useNavigate>; asset: any; impactedSystems?: any[] }) {
+function OverviewTab({ t, navigate, asset, assetId, impactedSystems = [] }: { t: ReturnType<typeof useTranslation>['t']; navigate: ReturnType<typeof import('react-router-dom').useNavigate>; asset: any; assetId?: string; impactedSystems?: any[] }) {
   const width = 480
   const height = 160
-  const cpuPath = toSvgPath(telemetryPoints.map((p) => ({ t: p.t, value: p.cpu })), width, height)
-  const memPath = toSvgPath(telemetryPoints.map((p) => ({ t: p.t, value: p.mem })), width, height)
+
+  const cpuMetrics = useMetrics({ asset_id: assetId, metric_name: 'cpu_usage', time_range: '1h' })
+  const memMetrics = useMetrics({ asset_id: assetId, metric_name: 'memory_usage', time_range: '1h' })
+
+  const cpuPoints = (cpuMetrics.data?.data ?? []).map((p, i) => ({ t: i, value: p.value }))
+  const memPoints = (memMetrics.data?.data ?? []).map((p, i) => ({ t: i, value: p.value }))
+
+  const hasData = cpuPoints.length > 0 || memPoints.length > 0
+  const cpuPath = cpuPoints.length > 0 ? toSvgPath(cpuPoints, width, height) : null
+  const memPath = memPoints.length > 0 ? toSvgPath(memPoints, width, height) : null
+
+  const latestCpu = cpuPoints.length > 0 ? cpuPoints[cpuPoints.length - 1].value.toFixed(0) : null
+  const latestMem = memPoints.length > 0 ? memPoints[memPoints.length - 1].value.toFixed(0) : null
 
   return (
     <div className="grid grid-cols-12 gap-4">
@@ -286,29 +285,45 @@ function OverviewTab({ t, navigate, asset, impactedSystems = [] }: { t: ReturnTy
         {/* Live Telemetry */}
         <div className="bg-surface-container rounded-lg p-5">
           <SectionLabel>{t('asset_detail.section_live_telemetry')}</SectionLabel>
-          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto" role="img" aria-label="CPU and memory telemetry chart">
-            {[0, 25, 50, 75, 100].map((v) => {
-              const y = height - 16 - (v / 100) * (height - 32)
-              return (
-                <g key={v}>
-                  <line x1={16} y1={y} x2={width - 16} y2={y} stroke="#202b32" strokeWidth="1" />
-                  <text x={8} y={y + 3} fill="#8e9196" fontSize="8" fontFamily="Inter">{v}</text>
-                </g>
-              )
-            })}
-            <path d={cpuPath} stroke="#9ecaff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <path d={memPath} stroke="#ffb5a0" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <div className="flex items-center gap-5 mt-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" />
-              <span className="text-xs text-on-surface-variant font-label">CPU 42%</span>
+          {(cpuMetrics.isLoading || memMetrics.isLoading) ? (
+            <div className="flex items-center justify-center h-[160px]">
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-sky-400 border-t-transparent" />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-tertiary inline-block" />
-              <span className="text-xs text-on-surface-variant font-label">MEM 59%</span>
+          ) : !hasData ? (
+            <div className="flex items-center justify-center h-[160px] text-on-surface-variant text-sm">
+              No data
             </div>
-          </div>
+          ) : (
+            <>
+              <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto" role="img" aria-label="CPU and memory telemetry chart">
+                {[0, 25, 50, 75, 100].map((v) => {
+                  const y = height - 16 - (v / 100) * (height - 32)
+                  return (
+                    <g key={v}>
+                      <line x1={16} y1={y} x2={width - 16} y2={y} stroke="#202b32" strokeWidth="1" />
+                      <text x={8} y={y + 3} fill="#8e9196" fontSize="8" fontFamily="Inter">{v}</text>
+                    </g>
+                  )
+                })}
+                {cpuPath && <path d={cpuPath} stroke="#9ecaff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />}
+                {memPath && <path d={memPath} stroke="#ffb5a0" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />}
+              </svg>
+              <div className="flex items-center gap-5 mt-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" />
+                  <span className="text-xs text-on-surface-variant font-label">
+                    CPU {latestCpu != null ? `${latestCpu}%` : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-tertiary inline-block" />
+                  <span className="text-xs text-on-surface-variant font-label">
+                    MEM {latestMem != null ? `${latestMem}%` : '—'}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Network Info */}
@@ -354,8 +369,35 @@ function usageColor(percent: number): string {
   return 'bg-primary'
 }
 
-function HealthTab({ t }: { t: ReturnType<typeof useTranslation>['t'] }) {
+function HealthTab({ t, assetId }: { t: ReturnType<typeof useTranslation>['t']; assetId?: string }) {
   const [activeRange, setActiveRange] = useState<string>('24H')
+
+  const timeRangeMap: Record<string, string> = { '1H': '1h', '6H': '6h', '24H': '24h', '7D': '7d' }
+  const timeRange = timeRangeMap[activeRange] ?? '24h'
+
+  const tempMetrics = useMetrics({ asset_id: assetId, metric_name: 'temperature', time_range: timeRange })
+  const powerMetrics = useMetrics({ asset_id: assetId, metric_name: 'power_kw', time_range: timeRange })
+
+  const tempPoints = tempMetrics.data?.data ?? []
+  const powerPoints = powerMetrics.data?.data ?? []
+
+  const latestTemp = tempPoints.length > 0 ? tempPoints[tempPoints.length - 1].value.toFixed(1) : null
+  const latestPowerW = powerPoints.length > 0 ? (powerPoints[powerPoints.length - 1].value * 1000).toFixed(0) : null
+
+  // Build SVG paths for temperature (viewBox 600x120) and power (viewBox 300x60)
+  function buildPath(pts: { value: number }[], w: number, h: number, padX = 0, padY = 10, maxVal?: number): string {
+    if (pts.length < 2) return ''
+    const vMax = maxVal ?? Math.max(...pts.map((p) => p.value), 1)
+    const vMin = Math.min(...pts.map((p) => p.value), 0)
+    const range = vMax - vMin || 1
+    return pts
+      .map((p, i) => {
+        const x = padX + (i / (pts.length - 1)) * (w - padX * 2)
+        const y = padY + (1 - (p.value - vMin) / range) * (h - padY * 2)
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
+      })
+      .join(' ')
+  }
 
   return (
     <div className="space-y-4">
@@ -390,7 +432,9 @@ function HealthTab({ t }: { t: ReturnType<typeof useTranslation>['t'] }) {
               </h2>
             </div>
             <div className="text-right">
-              <span className="font-headline text-3xl font-bold text-on-surface">38.2</span>
+              <span className="font-headline text-3xl font-bold text-on-surface">
+                {latestTemp ?? (tempMetrics.isLoading ? '…' : '—')}
+              </span>
               <span className="ml-1 text-sm text-on-surface-variant">{'\u00b0'}C</span>
             </div>
           </div>
@@ -401,14 +445,16 @@ function HealthTab({ t }: { t: ReturnType<typeof useTranslation>['t'] }) {
                 <stop offset="100%" stopColor="#9ecaff" stopOpacity="0" />
               </linearGradient>
             </defs>
-            <path
-              d="M0,80 C30,75 60,70 90,65 C120,60 150,55 180,50 C210,45 240,55 270,60 C300,65 330,50 360,45 C390,40 420,35 450,38 C480,41 510,36 540,40 C570,44 585,42 600,40"
-              fill="none" stroke="#9ecaff" strokeWidth="2"
-            />
-            <path
-              d="M0,80 C30,75 60,70 90,65 C120,60 150,55 180,50 C210,45 240,55 270,60 C300,65 330,50 360,45 C390,40 420,35 450,38 C480,41 510,36 540,40 C570,44 585,42 600,40 L600,120 L0,120 Z"
-              fill="url(#tempGradUnified)"
-            />
+            {tempPoints.length >= 2 ? (
+              <>
+                <path d={buildPath(tempPoints, 600, 120)} fill="none" stroke="#9ecaff" strokeWidth="2" />
+                <path d={`${buildPath(tempPoints, 600, 120)} L600,120 L0,120 Z`} fill="url(#tempGradUnified)" />
+              </>
+            ) : (
+              <text x="300" y="65" textAnchor="middle" fill="#8e9196" fontSize="12">
+                {tempMetrics.isLoading ? 'Loading…' : 'No data'}
+              </text>
+            )}
             <line x1="0" y1="25" x2="600" y2="25" stroke="#ff6b6b" strokeWidth="1" strokeDasharray="6,4" opacity="0.5" />
             <text x="560" y="20" fill="#ff6b6b" fontSize="10" opacity="0.7">72{'\u00b0'}C</text>
           </svg>
@@ -472,7 +518,9 @@ function HealthTab({ t }: { t: ReturnType<typeof useTranslation>['t'] }) {
               </h2>
             </div>
             <div className="text-right">
-              <span className="font-headline text-2xl font-bold text-on-surface">412</span>
+              <span className="font-headline text-2xl font-bold text-on-surface">
+                {latestPowerW ?? (powerMetrics.isLoading ? '…' : '—')}
+              </span>
               <span className="ml-1 text-xs text-on-surface-variant">{t('asset_health.w_avg')}</span>
             </div>
           </div>
@@ -483,8 +531,16 @@ function HealthTab({ t }: { t: ReturnType<typeof useTranslation>['t'] }) {
                 <stop offset="100%" stopColor="#fbbf24" stopOpacity="0" />
               </linearGradient>
             </defs>
-            <path d="M0,35 C20,32 40,30 60,28 C80,26 100,30 120,32 C140,34 160,28 180,25 C200,22 220,28 240,30 C260,32 280,28 300,30" fill="none" stroke="#fbbf24" strokeWidth="2" />
-            <path d="M0,35 C20,32 40,30 60,28 C80,26 100,30 120,32 C140,34 160,28 180,25 C200,22 220,28 240,30 C260,32 280,28 300,30 L300,60 L0,60 Z" fill="url(#powerGradUnified)" />
+            {powerPoints.length >= 2 ? (
+              <>
+                <path d={buildPath(powerPoints, 300, 60, 0, 5)} fill="none" stroke="#fbbf24" strokeWidth="2" />
+                <path d={`${buildPath(powerPoints, 300, 60, 0, 5)} L300,60 L0,60 Z`} fill="url(#powerGradUnified)" />
+              </>
+            ) : (
+              <text x="150" y="35" textAnchor="middle" fill="#8e9196" fontSize="10">
+                {powerMetrics.isLoading ? 'Loading…' : 'No data'}
+              </text>
+            )}
           </svg>
         </div>
 
@@ -835,6 +891,45 @@ export default function AssetDetailUnified() {
   const impactedSystems: any[] = (impactResp as any)?.data || []
 
   // Merge API asset data with defaults for fields not in the API schema
+  // Helper to read an attribute with a string fallback
+  const attr = (key: string): string | undefined => {
+    const v = apiAsset?.attributes?.[key]
+    return v != null ? String(v) : undefined
+  }
+
+  // Derive OS string: prefer attributes.os, then combine os_type + os_version
+  const osValue = (() => {
+    if (attr('os')) return attr('os') as string
+    const osType = attr('os_type')
+    const osVer = attr('os_version')
+    if (osType && osVer) return `${osType} ${osVer}`
+    return osType ?? osVer ?? assetDefaults.os
+  })()
+
+  // Primary IP: prefer direct field, fall back to attributes
+  const primaryIpValue =
+    (apiAsset as any)?.ip_address as string | undefined ??
+    attr('ip_address') ??
+    attr('primary_ip') ??
+    assetDefaults.primaryIp
+
+  // CPU: prefer attributes.cpu_arch, then attributes.cpu
+  const cpuValue = attr('cpu_arch') ?? attr('cpu') ?? assetDefaults.cpu
+
+  // Memory: prefer attributes.memory_gb (numeric → append GB), then attributes.memory
+  const memoryValue = (() => {
+    const gb = attr('memory_gb')
+    if (gb) return `${gb} GB`
+    return attr('memory') ?? assetDefaults.memory
+  })()
+
+  // Storage: prefer attributes.storage_tb (numeric → append TB), then attributes.storage
+  const storageValue = (() => {
+    const tb = attr('storage_tb')
+    if (tb) return `${tb} TB`
+    return attr('storage') ?? assetDefaults.storage
+  })()
+
   const asset = {
     ...assetDefaults,
     id: apiAsset?.asset_tag ?? assetId ?? '-',
@@ -843,18 +938,17 @@ export default function AssetDetailUnified() {
     model: apiAsset ? `${apiAsset.vendor} ${apiAsset.model}` : '-',
     serial: apiAsset?.serial_number ?? '-',
     tags: apiAsset?.tags ?? [],
-    description: (apiAsset?.attributes?.description as string) ?? assetDefaults.description,
-    // Map additional fields from attributes if backend provides them
-    cpu: (apiAsset?.attributes?.cpu as string) ?? assetDefaults.cpu,
-    memory: (apiAsset?.attributes?.memory as string) ?? assetDefaults.memory,
-    formFactor: (apiAsset?.attributes?.form_factor as string) ?? assetDefaults.formFactor,
-    storage: (apiAsset?.attributes?.storage as string) ?? assetDefaults.storage,
-    network: (apiAsset?.attributes?.network as string) ?? assetDefaults.network,
-    os: (apiAsset?.attributes?.os as string) ?? assetDefaults.os,
-    primaryIp: (apiAsset?.attributes?.primary_ip as string) ?? assetDefaults.primaryIp,
-    mgmtIp: (apiAsset?.attributes?.mgmt_ip as string) ?? assetDefaults.mgmtIp,
-    domain: (apiAsset?.attributes?.domain as string) ?? assetDefaults.domain,
-    vlan: (apiAsset?.attributes?.vlan as string) ?? assetDefaults.vlan,
+    description: attr('description') ?? assetDefaults.description,
+    cpu: cpuValue,
+    memory: memoryValue,
+    formFactor: attr('form_factor') ?? assetDefaults.formFactor,
+    storage: storageValue,
+    network: attr('network') ?? assetDefaults.network,
+    os: osValue,
+    primaryIp: primaryIpValue,
+    mgmtIp: attr('mgmt_ip') ?? assetDefaults.mgmtIp,
+    domain: attr('domain') ?? assetDefaults.domain,
+    vlan: attr('vlan') ?? assetDefaults.vlan,
   }
 
   if (assetQ.isLoading) {
@@ -1006,8 +1100,8 @@ export default function AssetDetailUnified() {
 
       {/* Tab Content */}
       <div className="px-8 pb-10">
-        {activeTab === 'overview' && <OverviewTab t={t} navigate={navigate} asset={asset} impactedSystems={impactedSystems} />}
-        {activeTab === 'health' && <HealthTab t={t} />}
+        {activeTab === 'overview' && <OverviewTab t={t} navigate={navigate} asset={asset} assetId={assetId} impactedSystems={impactedSystems} />}
+        {activeTab === 'health' && <HealthTab t={t} assetId={assetId} />}
         {activeTab === 'usage' && <UsageTab t={t} />}
         {activeTab === 'maintenance' && <MaintenanceTab t={t} navigate={navigate} asset={asset} />}
       </div>
