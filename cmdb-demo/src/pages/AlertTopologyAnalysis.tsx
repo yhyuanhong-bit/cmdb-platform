@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon";
 import StatusBadge from "../components/StatusBadge";
 import { useAlerts } from "../hooks/useMonitoring";
+import { useTopologyGraph } from "../hooks/useTopology";
+import { useForceLayout } from "../hooks/useForceLayout";
 
 /* ──────────────────────────────────────────────
    Types
@@ -41,106 +43,6 @@ interface AlertItem {
   timestamp: string;
   nodeId: string;
 }
-
-/* ──────────────────────────────────────────────
-   Mock data
-   ────────────────────────────────────────────── */
-
-const NODES: TopologyNode[] = [
-  {
-    id: "node-1",
-    name: "DB-PROD-SQL-01",
-    type: "Database Server",
-    icon: "database",
-    status: "critical",
-    ip: "10.32.1.101",
-    model: "Dell PowerEdge R750",
-    rack: "DC2-A04-U12",
-    biaLevel: 1,
-    cpu: 94,
-    memory: 87,
-    diskIO: 76,
-    tags: ["production", "tier-1", "sql-cluster"],
-    x: 140,
-    y: 180,
-  },
-  {
-    id: "node-2",
-    name: "APP-PORTAL-WEB-04",
-    type: "Web Application Server",
-    icon: "language",
-    status: "warning",
-    ip: "10.32.2.44",
-    model: "HPE ProLiant DL380",
-    rack: "DC2-B02-U08",
-    biaLevel: 2,
-    cpu: 72,
-    memory: 68,
-    diskIO: 45,
-    tags: ["production", "tier-2", "web-frontend"],
-    x: 420,
-    y: 60,
-  },
-  {
-    id: "node-3",
-    name: "CDN-GATEWAY",
-    type: "CDN Edge Gateway",
-    icon: "cloud",
-    status: "normal",
-    ip: "10.32.5.10",
-    model: "F5 BIG-IP i4800",
-    rack: "DC1-A01-U02",
-    biaLevel: 3,
-    cpu: 31,
-    memory: 42,
-    diskIO: 18,
-    tags: ["production", "edge", "cdn"],
-    x: 680,
-    y: 60,
-  },
-  {
-    id: "node-4",
-    name: "APP-MIDDLEWARE-01",
-    type: "Middleware Server",
-    icon: "hub",
-    status: "warning",
-    ip: "10.32.2.81",
-    model: "Dell PowerEdge R650",
-    rack: "DC2-A04-U18",
-    biaLevel: 2,
-    cpu: 68,
-    memory: 73,
-    diskIO: 52,
-    tags: ["production", "tier-2", "message-queue"],
-    x: 420,
-    y: 300,
-  },
-  {
-    id: "node-5",
-    name: "AUTH-CACHE-CLUSTER",
-    type: "Cache Cluster",
-    icon: "memory",
-    status: "normal",
-    ip: "10.32.3.20",
-    model: "Lenovo ThinkSystem SR650",
-    rack: "DC2-C01-U04",
-    biaLevel: 3,
-    cpu: 22,
-    memory: 55,
-    diskIO: 12,
-    tags: ["production", "tier-3", "redis"],
-    x: 680,
-    y: 300,
-  },
-];
-
-const EDGES: TopologyEdge[] = [
-  { from: "node-1", to: "node-2", isFaultPath: true },
-  { from: "node-1", to: "node-4", isFaultPath: true },
-  { from: "node-2", to: "node-3", isFaultPath: false },
-  { from: "node-4", to: "node-5", isFaultPath: false },
-  { from: "node-2", to: "node-4", isFaultPath: false },
-];
 
 // ALERTS mock removed - data now comes from useAlerts() hook
 
@@ -255,9 +157,42 @@ function getEdgePoints(
 function AlertTopologyAnalysis() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [selectedNodeId, setSelectedNodeId] = useState<string>("node-1");
+  const [selectedNodeId, setSelectedNodeId] = useState<string>("");
   const [biaFilter, setBiaFilter] = useState<string>("all");
   const [domainFilter, setDomainFilter] = useState<string>("all");
+
+  // Use a default seed location (Neihu Campus — first populated IDC in seed data)
+  const locationId = "d0000000-0000-0000-0000-000000000004";
+
+  const { data: graphData, isLoading: graphLoading } = useTopologyGraph(locationId);
+  const apiNodes = (graphData as any)?.nodes ?? [];
+  const apiEdges = (graphData as any)?.edges ?? [];
+
+  const layoutNodes = useForceLayout(apiNodes, apiEdges, 800, 380);
+
+  const mappedNodes: TopologyNode[] = layoutNodes.map((n: any) => ({
+    id: n.id,
+    name: n.name,
+    type: n.type,
+    icon: n.type === 'server' ? 'dns' : n.type === 'network' ? 'router' : n.type === 'storage' ? 'storage' : 'bolt',
+    status: n.has_active_alert ? 'critical' : n.status === 'operational' ? 'normal' : 'warning',
+    ip: n.ip_address || '',
+    model: n.model || '',
+    rack: n.rack_name || '',
+    biaLevel: n.bia_level || 3,
+    cpu: n.metrics?.cpu ?? 0,
+    memory: n.metrics?.memory ?? 0,
+    diskIO: n.metrics?.disk_io ?? 0,
+    tags: n.tags || [],
+    x: n.x,
+    y: n.y,
+  }));
+
+  const mappedEdges = apiEdges.map((e: any) => ({
+    from: e.from,
+    to: e.to,
+    isFaultPath: e.isFaultPath || e.is_fault_path || false,
+  }));
 
   const { data: alertsResponse, isLoading: alertsLoading } = useAlerts();
   const apiAlerts = alertsResponse?.data ?? [];
@@ -279,15 +214,15 @@ function AlertTopologyAnalysis() {
       ];
 
   const selectedNode = useMemo(
-    () => NODES.find((n) => n.id === selectedNodeId) ?? NODES[0],
-    [selectedNodeId]
+    () => mappedNodes.find((n) => n.id === selectedNodeId) ?? mappedNodes[0] ?? null,
+    [selectedNodeId, mappedNodes]
   );
 
   const nodeMap = useMemo(() => {
     const m: Record<string, TopologyNode> = {};
-    for (const n of NODES) m[n.id] = n;
+    for (const n of mappedNodes) m[n.id] = n;
     return m;
-  }, []);
+  }, [mappedNodes]);
 
   return (
     <div className="flex flex-col gap-5 font-body text-on-surface min-h-0">
@@ -461,7 +396,7 @@ function AlertTopologyAnalysis() {
                 </marker>
               </defs>
 
-              {EDGES.map((edge, i) => {
+              {(mappedEdges as TopologyEdge[]).map((edge, i) => {
                 const fromNode = nodeMap[edge.from];
                 const toNode = nodeMap[edge.to];
                 if (!fromNode || !toNode) return null;
@@ -500,14 +435,29 @@ function AlertTopologyAnalysis() {
               })}
             </svg>
 
+            {/* Loading state */}
+            {graphLoading && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!graphLoading && mappedNodes.length === 0 && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-on-surface-variant">
+                <Icon name="account_tree" className="text-[40px] opacity-30" />
+                <span className="text-sm">No assets found in this location</span>
+              </div>
+            )}
+
             {/* Topology nodes */}
-            {NODES.filter((node) => {
+            {mappedNodes.filter((node) => {
               if (biaFilter !== 'all' && String(node.biaLevel) !== biaFilter) return false
               if (domainFilter !== 'all') {
                 const domainMap: Record<string, string[]> = {
-                  database: ['Database Server'],
-                  application: ['Web Application Server', 'Middleware Server'],
-                  network: ['CDN Edge Gateway', 'Cache Cluster'],
+                  database: ['server'],
+                  application: ['server'],
+                  network: ['network'],
                 }
                 if (domainMap[domainFilter] && !domainMap[domainFilter].includes(node.type)) return false
               }
@@ -569,20 +519,30 @@ function AlertTopologyAnalysis() {
               );
             })}
 
-            {/* Root cause badge on DB node */}
-            <div
-              className="absolute flex items-center gap-1 bg-error-container/80 text-error text-[0.625rem] font-bold tracking-wider px-2 py-0.5 rounded"
-              style={{ left: NODES[0].x + 4, top: NODES[0].y - 20, zIndex: 2 }}
-            >
-              <Icon name="crisis_alert" className="text-[12px]" />
-              {t('alert_topology.root_cause_candidate')}
-            </div>
+            {/* Root cause badge on first critical node */}
+            {mappedNodes.find(n => n.status === 'critical') && (() => {
+              const critNode = mappedNodes.find(n => n.status === 'critical')!;
+              return (
+                <div
+                  className="absolute flex items-center gap-1 bg-error-container/80 text-error text-[0.625rem] font-bold tracking-wider px-2 py-0.5 rounded"
+                  style={{ left: critNode.x + 4, top: critNode.y - 20, zIndex: 2 }}
+                >
+                  <Icon name="crisis_alert" className="text-[12px]" />
+                  {t('alert_topology.root_cause_candidate')}
+                </div>
+              );
+            })()}
           </div>
         </section>
       </div>
 
       {/* ── Bottom panel: Selected asset detail ── */}
       <section className="bg-surface-container rounded-lg p-5">
+        {!selectedNode && (
+          <div className="flex items-center justify-center py-6 text-sm text-on-surface-variant">
+            {graphLoading ? 'Loading topology…' : 'Select a node to view details'}
+          </div>
+        )}
         <div className="flex flex-wrap gap-6 items-start">
           {/* Asset identity */}
           <div className="flex items-start gap-4 min-w-[280px]">

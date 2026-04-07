@@ -1,82 +1,8 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useAuditEvents } from '../hooks/useAudit'
+import { useAuditEventDetail } from '../hooks/useAudit'
 
-/* ------------------------------------------------------------------ */
-/*  Fallback Data                                                      */
-/* ------------------------------------------------------------------ */
-
-const FALLBACK_EVENT = {
-  id: 'EVT-20241024-00347',
-  category: 'SYSTEM ALERT',
-  status: 'SUCCESSFUL',
-  title: 'Configuration Update',
-  subtitle:
-    'Manual adjustment of resource scaling limits for production database tier assets. Change authorized under maintenance window MW-2024-1881.',
-  timestamp: '2024-10-24 14:22:01.422',
-  performedBy: {
-    name: 'Marcus Vance',
-    role: 'SENIOR INFRASTRUCTURE ARCHITECT',
-    avatar: 'MV',
-  },
-  sourceIp: '10.244.12.89',
-  origin: 'REST API',
-  target: {
-    id: 'SRV-PROD-001',
-    model: 'PowerEdge R750',
-    site: 'IDC-NORTH-01',
-    rack: 'Rack A02 (U12-U14)',
-  },
-  systemComment:
-    'Scaling policy override applied under authorized maintenance window MW-2024-1881. All configuration deltas have been validated against the approved change request CR-7721. No anomalous side-effects detected during post-apply verification.',
-  metadata: {
-    userAgent:
-      'IronGrid-CLI/3.4.1 (Linux x86_64) libcurl/7.81.0 OpenSSL/3.0.2',
-    requestId: 'req_9f84c2e1-47ab-4d02-b8e3-6c10aef77d12',
-    validationHash: 'sha256:e3b0c44298fc1c149afbf4c8996fb924',
-    authProvider: 'SAML 2.0 / Okta Federation',
-  },
-}
-
-const FALLBACK_DIFF = [
-  {
-    field: 'cpu_core_limit',
-    label: 'CPU Core Limit',
-    prev: '4.0 vCPU',
-    next: '8.0 vCPU',
-  },
-  {
-    field: 'memory_allocation_gb',
-    label: 'Memory Allocation',
-    prev: '64 GB',
-    next: '128 GB',
-  },
-  {
-    field: 'scaling_strategy',
-    label: 'Scaling Strategy',
-    prev: 'MANUAL_STATIC',
-    next: 'DYNAMIC_BURST',
-  },
-  {
-    field: 'burst_ceiling',
-    label: 'Burst Ceiling',
-    prev: 'N/A',
-    next: '16.0 vCPU',
-  },
-  {
-    field: 'cooldown_period_sec',
-    label: 'Cooldown Period',
-    prev: '0',
-    next: '120',
-  },
-  {
-    field: 'auto_revert',
-    label: 'Auto Revert',
-    prev: 'false',
-    next: 'true',
-  },
-]
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -89,44 +15,49 @@ export default function AuditEventDetail() {
   const eventId = searchParams.get('id') ?? ''
   const [diffMode, setDiffMode] = useState<'side-by-side' | 'inline'>('side-by-side')
 
-  const params: Record<string, string> = {}
-  if (eventId) params.target_id = eventId
-  const { data: eventsResponse, isLoading } = useAuditEvents(params)
-  const apiEvent = eventsResponse?.data?.[0]
+  const { data: eventData, isLoading } = useAuditEventDetail(eventId)
+  const apiEvent = (eventData as any)?.event
 
-  // Build event from API data or fall back to static
-  const event = apiEvent ? {
-    ...FALLBACK_EVENT,
+  // Build display event from API data
+  const displayEvent = apiEvent ? {
     id: apiEvent.id,
-    category: apiEvent.module?.toUpperCase() ?? FALLBACK_EVENT.category,
-    title: `${apiEvent.action} on ${apiEvent.target_type}`,
-    subtitle: `Action: ${apiEvent.action} | Module: ${apiEvent.module} | Target: ${apiEvent.target_id}`,
-    timestamp: apiEvent.created_at ? new Date(apiEvent.created_at).toLocaleString() : FALLBACK_EVENT.timestamp,
-    performedBy: {
-      name: apiEvent.operator_id ?? FALLBACK_EVENT.performedBy.name,
-      role: FALLBACK_EVENT.performedBy.role,
-      avatar: (apiEvent.operator_id ?? 'SY').substring(0, 2).toUpperCase(),
-    },
-    target: {
-      ...FALLBACK_EVENT.target,
-      id: apiEvent.target_id,
-    },
-  } : FALLBACK_EVENT
+    category: apiEvent.module,
+    status: 'SUCCESSFUL',
+    title: `${apiEvent.module}.${apiEvent.action}`,
+    subtitle: `${apiEvent.target_type} ${apiEvent.action}`,
+    timestamp: apiEvent.created_at,
+    performedBy: { name: apiEvent.operator_name || 'System', role: 'Operator' },
+    sourceIp: '-',
+    origin: apiEvent.source || 'web',
+    target: { id: apiEvent.target_id, type: apiEvent.target_type },
+  } : null
 
-  // Build diff lines from API diff object or fall back
-  const diffLines = apiEvent?.diff && Object.keys(apiEvent.diff).length > 0
-    ? Object.entries(apiEvent.diff).map(([key, val]) => ({
-        field: key,
-        label: key.replace(/_/g, ' '),
-        prev: typeof val === 'object' && val !== null && 'old' in (val as Record<string, unknown>) ? String((val as Record<string, unknown>).old) : '—',
-        next: typeof val === 'object' && val !== null && 'new' in (val as Record<string, unknown>) ? String((val as Record<string, unknown>).new) : String(val),
-      }))
-    : FALLBACK_DIFF
+  // Build diff from API data
+  const displayDiff = apiEvent?.diff
+    ? (typeof apiEvent.diff === 'string' ? JSON.parse(apiEvent.diff) : apiEvent.diff)
+    : {}
+  const diffLines = Object.entries(displayDiff).map(([field, val]: [string, any]) => ({
+    field,
+    label: field.replace(/_/g, ' '),
+    prev: val?.old ?? '-',
+    next: val?.new ?? '-',
+  }))
+
+  const event = displayEvent
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!event) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-on-surface-variant">
+        <span className="material-symbols-outlined text-4xl opacity-30">event_note</span>
+        <p className="text-sm">{eventId ? 'Event not found.' : 'No event ID specified.'}</p>
       </div>
     )
   }
@@ -207,7 +138,7 @@ export default function AuditEventDetail() {
                 </div>
                 <div className="mt-2 flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-                    {event.performedBy.avatar}
+                    {event.performedBy.name.substring(0, 2).toUpperCase()}
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-on-surface">
@@ -269,28 +200,12 @@ export default function AuditEventDetail() {
               </span>
             </div>
             <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-              <div>
+              <div className="col-span-2">
                 <div className="text-[10px] tracking-widest text-on-surface-variant">
                   {t('audit_event_detail.label_hardware_model')}
                 </div>
                 <div className="mt-1 text-sm text-on-surface">
-                  {event.target.model}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] tracking-widest text-on-surface-variant">
-                  {t('audit_event_detail.label_site_location')}
-                </div>
-                <div className="mt-1 text-sm text-on-surface">
-                  {event.target.site}
-                </div>
-              </div>
-              <div className="col-span-2">
-                <div className="text-[10px] tracking-widest text-on-surface-variant">
-                  {t('audit_event_detail.label_rack_position')}
-                </div>
-                <div className="mt-1 text-sm text-on-surface">
-                  {event.target.rack}
+                  {(event.target as any).type || '-'}
                 </div>
               </div>
             </div>
@@ -302,7 +217,7 @@ export default function AuditEventDetail() {
               {t('audit_event_detail.section_system_comments')}
             </h2>
             <div className="rounded bg-surface-container-low p-4 text-sm leading-relaxed text-on-surface-variant italic border-l-2 border-primary/40">
-              &ldquo;{event.systemComment}&rdquo;
+              &ldquo;{(event as any).systemComment || `${event.title} recorded at ${event.timestamp}.`}&rdquo;
             </div>
           </div>
         </div>
@@ -386,22 +301,22 @@ export default function AuditEventDetail() {
                 {
                   icon: 'devices',
                   label: t('audit_event_detail.label_user_agent'),
-                  value: event.metadata.userAgent,
+                  value: (event as any).metadata?.userAgent || '-',
                 },
                 {
                   icon: 'fingerprint',
                   label: t('audit_event_detail.label_request_id'),
-                  value: event.metadata.requestId,
+                  value: (event as any).metadata?.requestId || event.id,
                 },
                 {
                   icon: 'verified',
                   label: t('audit_event_detail.label_validation_hash'),
-                  value: event.metadata.validationHash,
+                  value: (event as any).metadata?.validationHash || '-',
                 },
                 {
                   icon: 'shield',
                   label: t('audit_event_detail.label_auth_provider'),
-                  value: event.metadata.authProvider,
+                  value: (event as any).metadata?.authProvider || '-',
                 },
               ].map((item) => (
                 <div key={item.label}>
