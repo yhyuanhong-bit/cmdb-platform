@@ -39,4 +39,4 @@ WHERE tenant_id = $1
   AND discovered_at > now() - interval '24 hours';
 
 -- name: FindAssetByIP :one
-SELECT * FROM assets WHERE tenant_id = $1 AND serial_number = $2 LIMIT 1;
+SELECT * FROM assets WHERE tenant_id = $1 AND ip_address = $2 LIMIT 1;
