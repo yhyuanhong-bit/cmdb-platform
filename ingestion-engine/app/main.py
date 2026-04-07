@@ -10,6 +10,7 @@ from app.routes.collectors import router as collectors_router
 from app.routes.conflicts import router as conflicts_router
 from app.routes.credentials import router as credentials_router
 from app.routes.imports import router as imports_router
+from app.routes.scan_targets import router as scan_targets_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     application.include_router(conflicts_router)
     application.include_router(collectors_router)
     application.include_router(credentials_router)
+    application.include_router(scan_targets_router)
 
     @application.get("/healthz")
     async def healthz():
