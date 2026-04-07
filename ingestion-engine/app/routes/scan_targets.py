@@ -1,6 +1,5 @@
 """Scan target management routes: list, create, update, delete."""
 
-import json
 import logging
 import uuid
 
@@ -89,7 +88,7 @@ async def create_scan_target(
             uuid.UUID(target_id),
             uuid.UUID(body.tenant_id),
             body.name,
-            json.dumps(body.cidrs),
+            body.cidrs,
             body.collector_type,
             uuid.UUID(body.credential_id),
             body.mode,
@@ -130,7 +129,7 @@ async def update_scan_target(
     if body.name is not None:
         updates["name"] = body.name
     if body.cidrs is not None:
-        updates["cidrs"] = json.dumps(body.cidrs)
+        updates["cidrs"] = body.cidrs
     if body.collector_type is not None:
         updates["collector_type"] = body.collector_type
     if body.credential_id is not None:
