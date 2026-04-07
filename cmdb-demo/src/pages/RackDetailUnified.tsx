@@ -449,7 +449,7 @@ function GaugeWidget({
   );
 }
 
-function ConsoleTab() {
+function ConsoleTab({ recentActivity }: { recentActivity: any[] }) {
   const { t } = useTranslation();
   const [selectedSlot, setSelectedSlot] = useState<USlot | null>(
     uSlots.find((s) => s.label === "NEXUS-C93180YC") ?? null,
@@ -678,7 +678,7 @@ function ConsoleTab() {
 // Tab 3: Network
 // ---------------------------------------------------------------------------
 
-function NetworkTab() {
+function NetworkTab({ networkConnections }: { networkConnections: any[] }) {
   const { t } = useTranslation();
 
   return (
@@ -1075,8 +1075,8 @@ export default function RackDetailUnified() {
         {activeTab === "visualization" && (
           <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} rackSlots={rackSlots} totalU={rack?.total_u} liveAlerts={filteredAlerts} />
         )}
-        {activeTab === "console" && <ConsoleTab />}
-        {activeTab === "network" && <NetworkTab />}
+        {activeTab === "console" && <ConsoleTab recentActivity={recentActivity} />}
+        {activeTab === "network" && <NetworkTab networkConnections={networkConnections} />}
         {activeTab === "maintenance" && <MaintenanceTab />}
       </div>
     </div>
