@@ -893,7 +893,7 @@
     "auto": "自動",
     "label_rack_name_zh": "機櫃名稱",
     "label_rack_name": "機櫃名稱",
-    "placeholder_rack_name": "例如 Rack-A015",
+    "placeholder_rack_name": "例如：Rack-A015",
     "section_location_zh": "地理位置層級",
     "section_location": "位置層級",
     "label_data_center_zh": "數據中心",
@@ -1375,7 +1375,7 @@
     "label_low": "低",
     "label_high": "高",
     "footer_nodes": "128 節點",
-    "footer_avg_utilization": "平均使用率：82%"
+    "footer_avg_utilization": "平均利用率：82%"
   },
   "failure_forecast": {
     "breadcrumb_back": "返回預測性維護",
@@ -1419,9 +1419,9 @@
     "legend_process_consumption": "製程消耗",
     "legend_lighting_load": "照明負載",
     "chart_bia_power_ratio": "BIA 業務電力佔比",
-    "tier_1_critical": "Tier 1 嚴重",
-    "tier_2_important": "Tier 2 重要",
-    "tier_3_standard": "Tier 3 標準",
+    "tier_1_critical": "一級 關鍵",
+    "tier_2_important": "二級 重要",
+    "tier_3_standard": "三級 標準",
     "section_rack_heatmap": "機櫃電力熱力圖",
     "section_power_events": "電力事件清單"
   },
@@ -1430,7 +1430,7 @@
     "title": "預測性告警",
     "subtitle": "AIOps 智慧層",
     "active_monitoring": "主動監控中",
-    "fire_ping_active": "+ Fire Ping 啟用中",
+    "fire_ping_active": "+ 火警偵測已啟用",
     "stat_total_alerts": "告警總數",
     "stat_total_alerts_sub": "跨所有區域",
     "stat_critical_risks": "嚴重風險",
@@ -1659,8 +1659,8 @@
     "qr_scan_instruction": "掃描此二維碼以在行動裝置上驗證系統存取權限。",
     "qr_validity": "有效期限: 5 分鐘 | 一次性使用",
     "btn_regenerate_qr": "重新產生二維碼",
-    "footer_core_services": "核心服務：運作中",
-    "footer_ldap_sync": "LDAP 同步：效能降低"
+    "footer_core_services": "核心服務：運行正常",
+    "footer_ldap_sync": "LDAP 同步：降級"
   },
   "user_profile": {
     "role_badge": "高級管理員 L2",
@@ -1725,7 +1725,7 @@
     "stat_done": "已完成 (DONE)",
     "stat_system_health": "系統健康",
     "system_health_normal": "資源監控狀態正常",
-    "system_health_pulse": "Service Pulse: 99.9% Uptime",
+    "system_health_pulse": "服務脈搏：99.9% 可用率",
     "filter_all": "全部工單",
     "filter_review": "待審查的",
     "filter_approve": "需要批的",

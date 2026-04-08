@@ -893,7 +893,7 @@
     "auto": "auto",
     "label_rack_name_zh": "机柜名称",
     "label_rack_name": "机柜名称",
-    "placeholder_rack_name": "e.g., Rack-A015",
+    "placeholder_rack_name": "例如：Rack-A015",
     "section_location_zh": "地理位置层级",
     "section_location": "位置层级",
     "label_data_center_zh": "数据中心",
@@ -926,7 +926,7 @@
     "breadcrumb_topology_view": "拓扑视图",
     "title_zh": "告警拓扑分析",
     "title": "告警拓扑分析",
-    "live": "Live",
+    "live": "实时",
     "filter_all_bia_levels": "所有 BIA 等级",
     "filter_bia_level": "BIA 等级",
     "filter_service_domain": "服务域",
@@ -1073,7 +1073,7 @@
     "table_technician": "技术人员",
     "table_workflow_status": "工作流状态",
     "pagination_showing": "显示 1–5 / 共 42 条维护事件",
-    "ai_insight_label": "SystemInsight",
+    "ai_insight_label": "系统洞察",
     "ai_insight_text": "下次计划检查在 12 天后。由于主动执行热力维护计划，硬件健康预测较上季度提升了 4.2%。"
   },
   "asset_maint_history_detail": {
@@ -1375,7 +1375,7 @@
     "label_low": "低",
     "label_high": "高",
     "footer_nodes": "128 Nodes",
-    "footer_avg_utilization": "Avg. Utilization: 82%"
+    "footer_avg_utilization": "平均利用率：82%"
   },
   "failure_forecast": {
     "breadcrumb_back": "返回预测",
@@ -1419,9 +1419,9 @@
     "legend_process_consumption": "制程消耗",
     "legend_lighting_load": "照明负载",
     "chart_bia_power_ratio": "BIA 业务电力占比",
-    "tier_1_critical": "Tier 1 Critical",
-    "tier_2_important": "Tier 2 Important",
-    "tier_3_standard": "Tier 3 Standard",
+    "tier_1_critical": "一级 关键",
+    "tier_2_important": "二级 重要",
+    "tier_3_standard": "三级 标准",
     "section_rack_heatmap": "机柜电力热力图",
     "section_power_events": "电力事件清单"
   },
@@ -1430,7 +1430,7 @@
     "title": "预测性告警",
     "subtitle": "AIOps 智能层",
     "active_monitoring": "主动监控",
-    "fire_ping_active": "+ Fire Ping Active",
+    "fire_ping_active": "+ 火警探测已启用",
     "stat_total_alerts": "告警总数",
     "stat_total_alerts_sub": "所有区域",
     "stat_critical_risks": "严重风险",
@@ -1659,8 +1659,8 @@
     "qr_scan_instruction": "扫描此二维码以在移动设备上验证系统访问权限。",
     "qr_validity": "有效期限: 5 分钟 | 一次性使用",
     "btn_regenerate_qr": "重新产生二维码",
-    "footer_core_services": "Core Services: Operational",
-    "footer_ldap_sync": "LDAP Sync: Degraded"
+    "footer_core_services": "核心服务：运行正常",
+    "footer_ldap_sync": "LDAP 同步：降级"
   },
   "user_profile": {
     "role_badge": "高级管理员 L2",
@@ -1725,7 +1725,7 @@
     "stat_done": "已完成 (DONE)",
     "stat_system_health": "系统健康",
     "system_health_normal": "资源监控状态正常",
-    "system_health_pulse": "Service Pulse: 99.9% Uptime",
+    "system_health_pulse": "服务脉搏：99.9% 可用率",
     "filter_all": "全部工单",
     "filter_review": "待审查的",
     "filter_approve": "需要批的",
