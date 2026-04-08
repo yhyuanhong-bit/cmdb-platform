@@ -222,7 +222,9 @@
     "location_coming_soon": "位置（即將推出）",
     "no_assets_to_export": "沒有可匯出的資產。",
     "view_card": "卡片檢視",
-    "view_table": "表格檢視"
+    "view_table": "表格檢視",
+    "table_property_number": "財產編號",
+    "table_control_number": "管制編號"
   },
   "asset_health": {
     "breadcrumb_compute_node": "運算節點",
@@ -1036,7 +1038,9 @@
     "tab_overview": "概覽",
     "tab_health": "健康監控",
     "tab_usage": "使用分析",
-    "tab_maintenance": "維護歷史"
+    "tab_maintenance": "維護歷史",
+    "field_property_number": "財產編號",
+    "field_control_number": "管制編號"
   },
   "asset_lifecycle_timeline": {
     "breadcrumb_asset_lifecycle": "資產生命週期",
@@ -1845,7 +1849,11 @@
     "serial_number_placeholder": "序號",
     "btn_cancel": "取消",
     "btn_create": "建立",
-    "btn_creating": "建立中..."
+    "btn_creating": "建立中...",
+    "field_property_number": "財產編號",
+    "field_control_number": "管制編號",
+    "placeholder_property": "例如 P-2025-0001",
+    "placeholder_control": "例如 CTRL-TW-A-0001"
   },
   "inventory_task_modal": {
     "title": "新建盤點任務",

@@ -222,7 +222,9 @@
     "location_coming_soon": "Location (Coming Soon)",
     "no_assets_to_export": "No assets to export.",
     "view_card": "Card View",
-    "view_table": "Table View"
+    "view_table": "Table View",
+    "table_property_number": "Property No.",
+    "table_control_number": "Control No."
   },
   "asset_health": {
     "breadcrumb_compute_node": "Compute Node",
@@ -1036,7 +1038,9 @@
     "tab_overview": "Overview",
     "tab_health": "Health Monitor",
     "tab_usage": "Usage Analytics",
-    "tab_maintenance": "Maintenance History"
+    "tab_maintenance": "Maintenance History",
+    "field_property_number": "Property Number",
+    "field_control_number": "Control Number"
   },
   "asset_lifecycle_timeline": {
     "breadcrumb_asset_lifecycle": "ASSET LIFECYCLE",
@@ -1845,7 +1849,11 @@
     "serial_number_placeholder": "Serial number",
     "btn_cancel": "Cancel",
     "btn_create": "Create",
-    "btn_creating": "Creating..."
+    "btn_creating": "Creating...",
+    "field_property_number": "Property Number",
+    "field_control_number": "Control Number",
+    "placeholder_property": "e.g. P-2025-0001",
+    "placeholder_control": "e.g. CTRL-TW-A-0001"
   },
   "inventory_task_modal": {
     "title": "Create Inventory Task",
