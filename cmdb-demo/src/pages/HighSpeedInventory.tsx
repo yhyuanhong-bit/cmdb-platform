@@ -160,7 +160,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
           </button>
           {currentTask && currentTask.status === 'in_progress' && (
             <button onClick={() => {
-              if (confirm('Mark this task as completed?')) completeTask.mutate(currentTask.id)
+              if (confirm(t('inventory.confirm_complete_task'))) completeTask.mutate(currentTask.id)
             }} disabled={completeTask.isPending}
               className="px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 text-sm hover:bg-green-500/30 transition-colors font-label font-bold flex items-center gap-2">
               <Icon name="check_circle" className="text-lg" />

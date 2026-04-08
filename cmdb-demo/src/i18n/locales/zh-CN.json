@@ -87,7 +87,9 @@
     "weekly": "每周",
     "monthly": "每月",
     "minor": "次要",
-    "coming_soon": "即将推出"
+    "coming_soon": "即将推出",
+    "saving": "保存中...",
+    "back_to_dashboard": "返回仪表板"
   },
   "nav": {
     "dashboard": "仪表盘",
@@ -431,7 +433,8 @@
     "field": "字段",
     "duplicate_entry": "重复条目",
     "invalid_rack_reference": "无效的机柜引用",
-    "format_mismatch": "格式不匹配"
+    "format_mismatch": "格式不匹配",
+    "confirm_complete_task": "确定将此任务标记为已完成？"
   },
   "inventory_detail": {
     "back_to_inventory_task": "返回盘点任务",
@@ -467,7 +470,9 @@
     "submit_note": "提交备注",
     "mark_resolved": "标记为已解决",
     "escalate": "升级处理",
-    "via": "通过"
+    "via": "通过",
+    "tooltip_view_asset": "查看资产详情",
+    "label_owner": "负责人"
   },
   "monitoring": {
     "title": "监控告警清单",

@@ -120,7 +120,7 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
             <h1
               className="font-headline text-3xl font-bold tracking-tight text-on-surface cursor-pointer hover:text-primary transition-colors"
               onClick={() => navigate('/assets/detail')}
-              title="View asset detail"
+              title={t('inventory_detail.tooltip_view_asset')}
             >
               {ASSET.name}
             </h1>
@@ -199,7 +199,7 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
               />
             </div>
             <div>
-              <InfoRow label="Owner" value={ASSET.owner} />
+              <InfoRow label={t('inventory_detail.label_owner')} value={ASSET.owner} />
               <InfoRow label={t('inventory_detail.purchase_date')} value={ASSET.purchaseDate} />
               <InfoRow label={t('inventory_detail.warranty_expiry')} value={ASSET.warrantyExpiry} />
               <InfoRow label={t('inventory_detail.last_maintenance')} value={ASSET.lastMaintenance} />

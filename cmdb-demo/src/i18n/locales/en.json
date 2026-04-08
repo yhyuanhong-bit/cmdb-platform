@@ -87,7 +87,9 @@
     "weekly": "Weekly",
     "monthly": "Monthly",
     "minor": "Minor",
-    "coming_soon": "Coming Soon"
+    "coming_soon": "Coming Soon",
+    "saving": "Saving...",
+    "back_to_dashboard": "Back to Dashboard"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -431,7 +433,8 @@
     "field": "Field",
     "duplicate_entry": "Duplicate entry",
     "invalid_rack_reference": "Invalid rack reference",
-    "format_mismatch": "Format mismatch"
+    "format_mismatch": "Format mismatch",
+    "confirm_complete_task": "Mark this task as completed?"
   },
   "inventory_detail": {
     "back_to_inventory_task": "Back to Inventory Task",
@@ -467,7 +470,9 @@
     "submit_note": "Submit Note",
     "mark_resolved": "MARK RESOLVED",
     "escalate": "ESCALATE",
-    "via": "via"
+    "via": "via",
+    "tooltip_view_asset": "View asset detail",
+    "label_owner": "Owner"
   },
   "monitoring": {
     "title": "Monitoring Alert List",
