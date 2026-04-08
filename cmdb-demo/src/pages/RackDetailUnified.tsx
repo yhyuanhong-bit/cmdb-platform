@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useRack, useRackAssets, useRackSlots, useUpdateRack, useDeleteRack, useRackNetworkConnections } from "../hooks/useTopology";
+import AssignAssetToRackModal from '../components/AssignAssetToRackModal';
 import { useAlerts } from "../hooks/useMonitoring";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { apiClient } from "../lib/api/client";
@@ -946,6 +947,7 @@ export default function RackDetailUnified() {
   const deleteRack = useDeleteRack()
 
   const [activeTab, setActiveTab] = useState<string>("visualization");
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<Equipment | null>(
     liveEquipment.find((e) => e.assetTag === "APP-SRV-042-PROD") ?? liveEquipment[0] ?? null,
   );
@@ -999,6 +1001,10 @@ export default function RackDetailUnified() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={() => setShowAssignModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-semibold hover:bg-sky-500">
+              <span className="material-symbols-outlined text-[18px]">add</span> {t('rack_detail.btn_assign_asset')}
+            </button>
             <button onClick={() => {
               setEditingRack(true)
               setRackEdit({ name: rack?.name || '', status: rack?.status || '', total_u: rack?.total_u || 42 })
@@ -1088,6 +1094,13 @@ export default function RackDetailUnified() {
         {activeTab === "network" && <NetworkTab networkConnections={networkConnections} />}
         {activeTab === "maintenance" && <MaintenanceTab maintenanceHistory={maintenanceHistory} />}
       </div>
+
+      <AssignAssetToRackModal
+        open={showAssignModal}
+        onClose={() => setShowAssignModal(false)}
+        rackId={rackId ?? ''}
+        totalU={rack?.total_u ?? 42}
+      />
     </div>
   );
 }
