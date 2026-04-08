@@ -156,19 +156,19 @@ function VisualizationTab({
           <div className="flex flex-wrap gap-3 text-[10px] text-on-surface-variant">
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-error-container" />
-              <span>Critical</span>
+              <span>{t('common.critical')}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-[#92400e]" />
-              <span>Important</span>
+              <span>{t('common.important')}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-[#1e3a5f]" />
-              <span>Normal</span>
+              <span>{t('common.normal')}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-surface-container-highest" />
-              <span>Minor</span>
+              <span>{t('common.minor')}</span>
             </div>
           </div>
         ) : (
@@ -348,7 +348,7 @@ function VisualizationTab({
                   onClick={() => navigate(`/assets/${selectedAsset?.assetTag ?? ''}`)}
                   className="w-full machined-gradient text-on-primary font-label font-semibold text-sm px-5 py-2.5 rounded flex items-center justify-center gap-2 hover:opacity-90 transition-opacity cursor-pointer"
                 >
-                  查看資產詳情 →
+                  {t('rack_detail.view_asset_detail')} →
                 </button>
               </div>
             ) : (
@@ -485,9 +485,9 @@ function ConsoleTab({ recentActivity, slots }: { recentActivity: any[]; slots: U
 
         {/* Gauges */}
         <div className="col-span-4 flex items-center justify-center gap-4">
-          <GaugeWidget label="Active Power" value="11.2" unit="kW" percentage={75} />
-          <GaugeWidget label="Intake Temp" value="24.5" unit={"\u00b0C"} percentage={52} status="NOMINAL" />
-          <GaugeWidget label="Humidity" value="42" unit="%" percentage={42} />
+          <GaugeWidget label={t('rack_detail.gauge_active_power')} value="11.2" unit="kW" percentage={75} />
+          <GaugeWidget label={t('rack_detail.gauge_intake_temp')} value="24.5" unit={"\u00b0C"} percentage={52} status="NOMINAL" />
+          <GaugeWidget label={t('rack_detail.gauge_humidity')} value="42" unit="%" percentage={42} />
         </div>
 
         {/* Recent Activity */}
@@ -1082,7 +1082,7 @@ export default function RackDetailUnified() {
               setRackEdit({ name: rack?.name || '', status: rack?.status || '', total_u: rack?.total_u || 42 })
             }} className="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 text-sm hover:bg-blue-500/30 transition-colors">Edit</button>
             <button onClick={() => {
-              if (confirm('Delete this rack?')) deleteRack.mutate(rackId!, { onSuccess: () => navigate('/racks') })
+              if (confirm(t('rack_detail.confirm_delete_rack'))) deleteRack.mutate(rackId!, { onSuccess: () => navigate('/racks') })
             }} className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 text-sm hover:bg-red-500/30 transition-colors">
               {deleteRack.isPending ? 'Deleting...' : 'Delete'}
             </button>

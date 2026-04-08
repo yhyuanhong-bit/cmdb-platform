@@ -260,7 +260,7 @@ export default function DataCenter3D() {
             className="cursor-pointer transition-colors hover:text-primary"
             onClick={() => navigate("/racks")}
           >
-            機櫃管理
+            {t('datacenter_3d.rack_management')}
           </span>
           <span className="text-[10px] opacity-40" aria-hidden="true">›</span>
           <span className="text-on-surface font-semibold">{t('datacenter_3d.title')}</span>

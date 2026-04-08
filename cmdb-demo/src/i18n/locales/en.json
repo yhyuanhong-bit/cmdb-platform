@@ -377,7 +377,12 @@
     "status_active": "Active",
     "status_maintenance": "Maintenance",
     "status_decommissioned": "Decommissioned",
-    "status_staged": "Staged"
+    "status_staged": "Staged",
+    "view_asset_detail": "View Asset Detail",
+    "gauge_active_power": "Active Power",
+    "gauge_intake_temp": "Intake Temp",
+    "gauge_humidity": "Humidity",
+    "confirm_delete_rack": "Delete this rack?"
   },
   "inventory": {
     "title": "Inventory Task: 2024 Q3 IDC-01 Audit",
@@ -1305,7 +1310,8 @@
     "section_rack_status_legend": "Rack Status Legend",
     "legend_normal": "Normal",
     "legend_critical": "Critical",
-    "legend_selected": "Selected"
+    "legend_selected": "Selected",
+    "rack_management": "Rack Management"
   },
   "equipment_health_overview": {
     "title": "Equipment Health Overview",

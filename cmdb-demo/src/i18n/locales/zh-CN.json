@@ -377,7 +377,12 @@
     "status_active": "运行中",
     "status_maintenance": "维护中",
     "status_decommissioned": "已退役",
-    "status_staged": "待上架"
+    "status_staged": "待上架",
+    "view_asset_detail": "查看资产详情",
+    "gauge_active_power": "有功功率",
+    "gauge_intake_temp": "进气温度",
+    "gauge_humidity": "湿度",
+    "confirm_delete_rack": "确定删除此机柜？"
   },
   "inventory": {
     "title": "盘点任务：2024 Q3 IDC-01 审计",
@@ -1306,7 +1311,8 @@
     "section_rack_status_legend": "机柜状态图例",
     "legend_normal": "正常",
     "legend_critical": "严重",
-    "legend_selected": "已选中"
+    "legend_selected": "已选中",
+    "rack_management": "机柜管理"
   },
   "equipment_health_overview": {
     "title": "设备健康概览",

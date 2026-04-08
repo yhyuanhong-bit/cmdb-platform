@@ -377,7 +377,12 @@
     "status_active": "運作中",
     "status_maintenance": "維護中",
     "status_decommissioned": "已退役",
-    "status_staged": "待上架"
+    "status_staged": "待上架",
+    "view_asset_detail": "查看資產詳情",
+    "gauge_active_power": "有功功率",
+    "gauge_intake_temp": "進氣溫度",
+    "gauge_humidity": "濕度",
+    "confirm_delete_rack": "確定刪除此機櫃？"
   },
   "inventory": {
     "title": "盤點任務：2024 Q3 IDC-01 稽核",
@@ -1306,7 +1311,8 @@
     "section_rack_status_legend": "機櫃狀態圖例",
     "legend_normal": "正常",
     "legend_critical": "嚴重",
-    "legend_selected": "已選取"
+    "legend_selected": "已選取",
+    "rack_management": "機櫃管理"
   },
   "equipment_health_overview": {
     "title": "設備健康概覽",
