@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import StatCard from '../components/StatCard'
 import StatusBadge from '../components/StatusBadge'
-import { usePredictionModels, usePredictionsByAsset, useCreateRCA, useVerifyRCA } from '../hooks/usePrediction'
+import { usePredictionModels, usePredictionsByAsset, useCreateRCA, useVerifyRCA, useFailureDistribution } from '../hooks/usePrediction'
 import { useAssets } from '../hooks/useAssets'
 import CreateRCAModal from '../components/CreateRCAModal'
 
@@ -31,21 +31,6 @@ const TAB_DEFINITIONS: { key: TabKey; labelZh: string; labelEn: string }[] = [
 /* ──────────────────────────────────────────────
    Tab 1: Overview data
    ────────────────────────────────────────────── */
-
-const FAILURE_DIST = [
-  { label: 'Mechanical', pct: 38, color: 'bg-error' },
-  { label: 'Electrical', pct: 28, color: 'bg-tertiary' },
-  { label: 'Thermal', pct: 20, color: 'bg-primary' },
-  { label: 'Software', pct: 14, color: 'bg-secondary' },
-]
-
-// ASSETS fallback (used when API returns empty)
-const FALLBACK_ASSETS = [
-  { name: 'CORE-SW-A01', type: 'Core Switch', failureDate: '2026-04-15', rulDays: 12, rulMax: 90, severity: 'CRITICAL', severityColor: 'text-error', severityBg: 'bg-error-container' },
-  { name: 'SRV-DB-04', type: 'Database Server', failureDate: '2026-05-02', rulDays: 28, rulMax: 90, severity: 'HIGH', severityColor: 'text-tertiary', severityBg: 'bg-tertiary-container' },
-  { name: 'PUMP-MAIN-02', type: 'Cooling Pump', failureDate: '2026-06-18', rulDays: 74, rulMax: 90, severity: 'MEDIUM', severityColor: 'text-primary', severityBg: 'bg-primary-container' },
-  { name: 'UPS-BATT-03', type: 'UPS Battery Bank', failureDate: '2026-07-01', rulDays: 88, rulMax: 90, severity: 'LOW', severityColor: 'text-secondary', severityBg: 'bg-secondary-container' },
-]
 
 const AI_MESSAGES = [
   { role: 'ai' as const, text: '根據最近的遙測數據分析，CORE-SW-A01 的光模塊衰減速率已超出正常閾值 2.3 倍。建議在未來 7 天內安排更換作業。', time: '14:18' },
@@ -84,12 +69,6 @@ const FALLBACK_ALERTS_DATA: Alert[] = [
 /* ──────────────────────────────────────────────
    Tab 3: Insights data
    ────────────────────────────────────────────── */
-
-const INSIGHTS_STATS = [
-  { label: 'Critical Maintenance', value: 14, status: 'UPCOMING', color: 'text-error', bgColor: 'bg-error-container' },
-  { label: 'Major Maintenance', value: 28, status: 'PENDING', color: 'text-[#fbbf24]', bgColor: 'bg-[#92400e]' },
-  { label: 'Minor Maintenance', value: 42, status: 'SCHEDULED', color: 'text-primary', bgColor: 'bg-[#1e3a5f]' },
-]
 
 interface TimelineAsset {
   id: string
@@ -294,6 +273,13 @@ function ConfidenceBar({ value }: { value: number }) {
 
 /* ── Tab 1: Overview ─────────────────────────── */
 
+const CATEGORY_COLOR: Record<string, string> = {
+  Mechanical: 'bg-error',
+  Electrical: 'bg-tertiary',
+  Thermal: 'bg-primary',
+  Software: 'bg-secondary',
+}
+
 function OverviewTab() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -308,8 +294,17 @@ function OverviewTab() {
 
   const { data: modelsResponse, isLoading: modelsLoading } = usePredictionModels()
   const { data: predictionsResponse } = usePredictionsByAsset(selectedAssetId)
+  const { data: failDistData } = useFailureDistribution()
   const models = modelsResponse?.data ?? []
   const predictions = predictionsResponse?.data ?? []
+
+  const rawDist: { category: string; count: number }[] = (failDistData as any)?.distribution ?? []
+  const totalCount = rawDist.reduce((s, d) => s + d.count, 0)
+  const failureDist = rawDist.map((d) => ({
+    label: d.category,
+    pct: totalCount > 0 ? Math.round((d.count / totalCount) * 100) : 0,
+    color: CATEGORY_COLOR[d.category] ?? 'bg-on-surface-variant',
+  }))
 
   const SEVERITY_MAP: Record<string, { color: string; bg: string }> = {
     critical: { color: 'text-error', bg: 'bg-error-container' },
@@ -318,24 +313,22 @@ function OverviewTab() {
     low: { color: 'text-secondary', bg: 'bg-secondary-container' },
   }
 
-  // Map API predictions to ASSETS shape, fall back to static
-  const ASSETS = predictions.length > 0
-    ? predictions.map((p) => {
-        const sevKey = (p.severity ?? 'medium').toLowerCase()
-        const sevStyle = SEVERITY_MAP[sevKey] ?? SEVERITY_MAP.medium
-        const daysUntilExpiry = p.expires_at ? Math.max(0, Math.round((new Date(p.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 45
-        return {
-          name: p.ci_id,
-          type: p.prediction_type,
-          failureDate: p.expires_at ? new Date(p.expires_at).toISOString().split('T')[0] : '—',
-          rulDays: daysUntilExpiry,
-          rulMax: 90,
-          severity: (p.severity ?? 'MEDIUM').toUpperCase(),
-          severityColor: sevStyle.color,
-          severityBg: sevStyle.bg,
-        }
-      })
-    : FALLBACK_ASSETS
+  // Map API predictions to ASSETS shape, fall back to empty array
+  const ASSETS = predictions.map((p) => {
+    const sevKey = (p.severity ?? 'medium').toLowerCase()
+    const sevStyle = SEVERITY_MAP[sevKey] ?? SEVERITY_MAP.medium
+    const daysUntilExpiry = p.expires_at ? Math.max(0, Math.round((new Date(p.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 45
+    return {
+      name: p.ci_id,
+      type: p.prediction_type,
+      failureDate: p.expires_at ? new Date(p.expires_at).toISOString().split('T')[0] : '—',
+      rulDays: daysUntilExpiry,
+      rulMax: 90,
+      severity: (p.severity ?? 'MEDIUM').toUpperCase(),
+      severityColor: sevStyle.color,
+      severityBg: sevStyle.bg,
+    }
+  })
 
   return (
     <div className="space-y-6">
@@ -350,12 +343,12 @@ function OverviewTab() {
           </span>
         </div>
         <div className="flex gap-1 h-3 rounded-full overflow-hidden mt-1">
-          {FAILURE_DIST.map((d) => (
+          {failureDist.length > 0 ? failureDist.map((d) => (
             <div key={d.label} className={`${d.color} transition-all`} style={{ width: `${d.pct}%` }} />
-          ))}
+          )) : <div className="flex-1 bg-surface-container-low rounded-full" />}
         </div>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 mt-3">
-          {FAILURE_DIST.map((d) => (
+          {failureDist.map((d) => (
             <div key={d.label} className="flex items-center gap-1.5">
               <div className={`w-2 h-2 rounded-full ${d.color}`} />
               <span className="text-[10px] text-on-surface-variant font-label">{d.label} {d.pct}%</span>
@@ -606,12 +599,20 @@ function AlertsTab() {
 function InsightsTab() {
   const { t } = useTranslation()
   const days = Array.from({ length: 7 }, (_, i) => `DAY ${String((i * 4) + 1).padStart(2, '0')}`)
+  const { data: failDistData } = useFailureDistribution()
+  const failureDist: { category: string; count: number }[] = (failDistData as any)?.distribution ?? []
+
+  const insightsStats = [
+    { label: 'Critical Maintenance', value: failureDist.filter((d) => d.category === 'Thermal' || d.category === 'Electrical').reduce((s, d) => s + d.count, 0), status: 'UPCOMING', color: 'text-error', bgColor: 'bg-error-container' },
+    { label: 'Major Maintenance', value: failureDist.filter((d) => d.category === 'Mechanical').reduce((s, d) => s + d.count, 0), status: 'PENDING', color: 'text-[#fbbf24]', bgColor: 'bg-[#92400e]' },
+    { label: 'Minor Maintenance', value: failureDist.filter((d) => d.category === 'Software' || d.category === 'Other').reduce((s, d) => s + d.count, 0), status: 'SCHEDULED', color: 'text-primary', bgColor: 'bg-[#1e3a5f]' },
+  ]
 
   return (
     <div className="space-y-6">
       {/* Stats row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {INSIGHTS_STATS.map((s) => (
+        {insightsStats.map((s) => (
           <div key={s.label} className="bg-surface-container-low rounded-lg p-5">
             <div className="text-[0.6875rem] font-semibold tracking-wider text-on-surface-variant uppercase mb-2">
               {s.label}
