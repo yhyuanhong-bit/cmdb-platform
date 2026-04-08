@@ -413,25 +413,25 @@ function Dashboard() {
         <div className="mb-3 flex items-center gap-2">
           <span className="material-symbols-outlined text-primary text-xl">assessment</span>
           <h3 className="font-headline text-sm font-semibold uppercase tracking-wider text-on-surface-variant">
-            BIA Compliance
+            {t('dashboard.bia_compliance')}
           </h3>
         </div>
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
             <p className="font-headline text-2xl font-bold text-on-surface">{biaStats?.total ?? 0}</p>
-            <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">Systems</p>
+            <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">{t('dashboard.bia_systems')}</p>
           </div>
           <div>
             <p className="font-headline text-2xl font-bold text-[#34d399]">{biaStats?.avg_compliance?.toFixed(1) ?? 0}%</p>
-            <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">Compliance</p>
+            <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">{t('dashboard.compliance')}</p>
           </div>
           <div>
             <p className="font-headline text-2xl font-bold text-error">{biaStats?.by_tier?.critical ?? 0}</p>
-            <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">Critical</p>
+            <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">{t('dashboard.bia_critical')}</p>
           </div>
         </div>
         <button onClick={() => navigate('/bia')} className="mt-3 w-full rounded-lg bg-surface-container-high py-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant hover:text-on-surface transition-colors">
-          View BIA Modeler →
+          {t('dashboard.view_bia_modeler')} →
         </button>
       </div>
 

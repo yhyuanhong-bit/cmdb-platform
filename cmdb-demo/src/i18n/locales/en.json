@@ -187,7 +187,11 @@
     "rack": "Rack",
     "table_asset_id": "Asset ID",
     "predictive_analysis": "Predictive Analysis",
-    "no_critical_events": "No critical events in the last 24 hours"
+    "no_critical_events": "No critical events in the last 24 hours",
+    "bia_compliance": "BIA Compliance",
+    "bia_systems": "Systems",
+    "bia_critical": "Critical",
+    "view_bia_modeler": "View BIA Modeler"
   },
   "assets": {
     "title": "Asset Management",

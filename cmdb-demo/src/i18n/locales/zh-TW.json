@@ -187,7 +187,11 @@
     "rack": "機架",
     "table_asset_id": "資產 ID",
     "predictive_analysis": "預測分析",
-    "no_critical_events": "過去 24 小時無重大事件"
+    "no_critical_events": "過去 24 小時無重大事件",
+    "bia_compliance": "BIA 合規",
+    "bia_systems": "系統",
+    "bia_critical": "關鍵",
+    "view_bia_modeler": "查看 BIA 建模器"
   },
   "assets": {
     "title": "資產管理",
