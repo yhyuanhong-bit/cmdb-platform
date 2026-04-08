@@ -91,7 +91,7 @@ func main() {
 	}
 
 	// 8. Create all services
-	authSvc := identity.NewAuthService(queries, redisClient, cfg.JWTSecret)
+	authSvc := identity.NewAuthService(queries, redisClient, cfg.JWTSecret, pool)
 	identitySvc := identity.NewService(queries)
 	topologySvc := topology.NewService(queries)
 	assetSvc := asset.NewService(queries, bus)

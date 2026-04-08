@@ -4,8 +4,10 @@ import "github.com/google/uuid"
 
 // LoginRequest is the payload for username/password authentication.
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Username  string `json:"username" binding:"required"`
+	Password  string `json:"password" binding:"required"`
+	ClientIP  string `json:"-"`
+	UserAgent string `json:"-"`
 }
 
 // TokenResponse is returned after successful login or token refresh.

@@ -189,8 +189,10 @@ func (s *APIServer) Login(c *gin.Context) {
 		return
 	}
 	tokens, err := s.authSvc.Login(c.Request.Context(), identity.LoginRequest{
-		Username: req.Username,
-		Password: req.Password,
+		Username:  req.Username,
+		Password:  req.Password,
+		ClientIP:  c.ClientIP(),
+		UserAgent: c.GetHeader("User-Agent"),
 	})
 	if err != nil {
 		response.Unauthorized(c, err.Error())
