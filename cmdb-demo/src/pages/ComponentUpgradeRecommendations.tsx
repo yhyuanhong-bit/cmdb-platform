@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useAssets } from '../hooks/useAssets'
+import { useAssets, useUpgradeRecommendations, useAcceptUpgradeRecommendation } from '../hooks/useAssets'
 
 /* ------------------------------------------------------------------ */
-/*  Static Recommendation Data                                         */
-/*  TODO: needs backend recommendation engine endpoint                 */
+/*  Types                                                               */
 /* ------------------------------------------------------------------ */
 
 type FilterTab = 'ALL' | 'CPU' | 'RAM' | 'STORAGE' | 'NETWORKING'
@@ -18,12 +17,9 @@ const filters: { key: FilterTab; i18nKey: string }[] = [
   { key: 'NETWORKING', i18nKey: 'component_upgrades.filter_networking' },
 ]
 
-// impactMetricKeys computed inside component from asset data
-
 interface UpgradeCard {
   id: string
   category: string
-  categoryTag: 'COMPUTE' | 'MEMORY' | 'STORAGE' | 'NETWORK'
   filterKey: FilterTab
   title: string
   rcmLevel: string
@@ -32,72 +28,9 @@ interface UpgradeCard {
   recommended: string
   metric: string
   metricValue: string
-  costPerNode: string
+  costPerNode: string | number
   selected: boolean
 }
-
-const initialCards: UpgradeCard[] = [
-  {
-    id: 'u1',
-    category: 'COMPUTE',
-    categoryTag: 'COMPUTE',
-    filterKey: 'CPU',
-    title: 'Processor Upgrade',
-    rcmLevel: 'RCM HIGH',
-    rcmColor: 'bg-error/20 text-error',
-    current: 'Intel Xeon Gold 6130',
-    recommended: 'Intel Xeon Platinum 8338',
-    metric: 'Performance Gain',
-    metricValue: '+45% Throughput',
-    costPerNode: '$2,450.00',
-    selected: false,
-  },
-  {
-    id: 'u2',
-    category: 'MEMORY',
-    categoryTag: 'MEMORY',
-    filterKey: 'RAM',
-    title: 'Density Expansion',
-    rcmLevel: 'RCM MED',
-    rcmColor: 'bg-[#ffa94d]/20 text-[#ffa94d]',
-    current: '128GB DDR4 2666MHz',
-    recommended: '512GB DDR4 3200MHz',
-    metric: 'Memory Latency',
-    metricValue: '-20% Wait Time',
-    costPerNode: '$1,180.00',
-    selected: false,
-  },
-  {
-    id: 'u3',
-    category: 'STORAGE',
-    categoryTag: 'STORAGE',
-    filterKey: 'STORAGE',
-    title: 'NVMe Acceleration',
-    rcmLevel: 'RCM CRITICAL',
-    rcmColor: 'bg-error/30 text-error',
-    current: '2TB SATA SSD Raid 1',
-    recommended: '4TB NVMe Gen4',
-    metric: 'IOPS Gain',
-    metricValue: '12X',
-    costPerNode: '$890.00',
-    selected: false,
-  },
-  {
-    id: 'u4',
-    category: 'NETWORK',
-    categoryTag: 'NETWORK',
-    filterKey: 'NETWORKING',
-    title: 'Fabric Interconnect',
-    rcmLevel: 'RCM LOW',
-    rcmColor: 'bg-primary/20 text-primary',
-    current: '10GbE SFP+',
-    recommended: '100GbE QSFP28',
-    metric: 'Capacity',
-    metricValue: '+900%',
-    costPerNode: '$1,420.00',
-    selected: false,
-  },
-]
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -107,11 +40,14 @@ export default function ComponentUpgradeRecommendations() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [activeFilter, setActiveFilter] = useState<FilterTab>('ALL')
-  const [cards, setCards] = useState(initialCards)
-
+  const [selectedAssetId, setSelectedAssetId] = useState('')
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
+  const [localSelected, setLocalSelected] = useState<Set<string>>(new Set())
 
-  // Fetch assets to show fleet context
+  // Fetch server assets for dropdown
+  const { data: assetsData } = useAssets({ type: 'server' })
+
+  // Fetch fleet context
   const { data: apiData } = useAssets()
   const allAssets = (apiData as any)?.data || []
   const assetCount = allAssets?.length || 0
@@ -121,17 +57,45 @@ export default function ComponentUpgradeRecommendations() {
     { labelKey: 'component_upgrades.metric_power_efficiency', value: String(assetCount), icon: 'inventory_2' },
   ]
 
+  // Fetch upgrade recommendations for selected asset
+  const { data: recData } = useUpgradeRecommendations(selectedAssetId)
+  const acceptMutation = useAcceptUpgradeRecommendation()
+
+  // Map API data to card format
+  const apiCards: UpgradeCard[] = ((recData as any)?.recommendations ?? []).map((r: any) => ({
+    id: r.id,
+    category: r.category.toUpperCase(),
+    filterKey: r.category.toUpperCase() as FilterTab,
+    title: r.recommendation,
+    rcmLevel: `RCM ${r.priority.toUpperCase()}`,
+    rcmColor: r.priority === 'critical' ? 'bg-red-500/20 text-red-400' : r.priority === 'high' ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400',
+    current: r.current_spec || '-',
+    recommended: r.recommendation,
+    metric: r.metric_name,
+    metricValue: `${r.avg_value}% avg (threshold: ${r.threshold}%)`,
+    costPerNode: r.cost_estimate ?? '-',
+    selected: localSelected.has(r.id),
+  }))
+
+  const cards = apiCards
+
   const toggleSelect = (id: string) => {
-    setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, selected: !c.selected } : c)),
-    )
+    setLocalSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
   }
 
-  const selectedCards = cards.filter((c) => c.selected)
-  const totalCost = selectedCards.reduce(
-    (sum, c) => sum + parseFloat(c.costPerNode.replace(/[$,]/g, '')),
-    0,
-  )
+  const selectedCards = cards.filter((c) => localSelected.has(c.id))
+  const totalCost = selectedCards.reduce((sum, c) => {
+    const val = parseFloat(String(c.costPerNode).replace(/[$,]/g, ''))
+    return sum + (isNaN(val) ? 0 : val)
+  }, 0)
 
   const filtered =
     activeFilter === 'ALL'
@@ -151,8 +115,22 @@ export default function ComponentUpgradeRecommendations() {
         </p>
       </div>
 
+      {/* Asset selector */}
+      <div className="px-0 pb-4 pt-4">
+        <select
+          value={selectedAssetId}
+          onChange={e => setSelectedAssetId(e.target.value)}
+          className="bg-surface-container-high text-on-surface text-sm rounded-lg px-3 py-2 outline-none cursor-pointer"
+        >
+          <option value="">Select asset to analyze</option>
+          {((assetsData as any)?.data ?? []).map((a: any) => (
+            <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
+          ))}
+        </select>
+      </div>
+
       {/* Filters + Impact */}
-      <div className="mt-6 mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="mt-2 mb-6 flex flex-wrap items-center justify-between gap-4">
         {/* Filter tabs */}
         <div className="flex gap-1">
           {filters.map((tab) => (
@@ -203,104 +181,127 @@ export default function ComponentUpgradeRecommendations() {
         </h2>
       </div>
 
+      {/* No asset selected message */}
+      {!selectedAssetId && (
+        <div className="flex items-center justify-center rounded-lg bg-surface-container py-16 text-sm text-on-surface-variant">
+          Select an asset to view upgrade recommendations
+        </div>
+      )}
+
       {/* Card grid */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {filtered.map((card) => (
-          <div
-            key={card.id}
-            className={`rounded-lg p-5 transition-colors ${
-              card.selected
-                ? 'bg-primary/5 ring-1 ring-primary/30'
-                : 'bg-surface-container'
-            }`}
-          >
-            {/* Category + RCM badge */}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] tracking-widest text-on-surface-variant">
-                  {t('component_upgrades.label_category')}
-                </span>
-                <span className="text-[10px] font-bold tracking-widest text-on-surface">
-                  {card.category}
-                </span>
-              </div>
-              <span
-                className={`rounded px-2 py-0.5 text-[10px] font-bold tracking-widest ${card.rcmColor}`}
-              >
-                {card.rcmLevel}
-              </span>
+      {selectedAssetId && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {filtered.length === 0 && (
+            <div className="col-span-2 flex items-center justify-center rounded-lg bg-surface-container py-16 text-sm text-on-surface-variant">
+              No upgrade recommendations found for this asset.
             </div>
-
-            {/* Title */}
-            <h3 className="mb-4 font-headline text-lg font-bold text-on-surface">
-              {card.title}
-            </h3>
-
-            {/* Current vs Recommended */}
-            <div className="mb-4 grid grid-cols-2 gap-3">
-              <div className="rounded bg-surface-container-low p-3">
-                <div className="text-[10px] tracking-widest text-on-surface-variant">
-                  {t('component_upgrades.label_current')}
-                </div>
-                <div className="mt-1 text-xs font-semibold text-on-surface">
-                  {card.current}
-                </div>
-              </div>
-              <div className="rounded bg-surface-container-low p-3">
-                <div className="text-[10px] tracking-widest text-on-surface-variant">
-                  {t('component_upgrades.label_recommended')}
-                </div>
-                <div className="mt-1 text-xs font-semibold text-primary">
-                  {card.recommended}
-                </div>
-              </div>
-            </div>
-
-            {/* Metric + Cost */}
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <div className="text-[10px] tracking-widest text-on-surface-variant">
-                  {card.metric}
-                </div>
-                <div className="mt-0.5 font-mono text-sm font-bold text-[#69db7c]">
-                  {card.metricValue}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] tracking-widest text-on-surface-variant">
-                  {t('component_upgrades.label_cost_per_node')}
-                </div>
-                <div className="mt-0.5 font-mono text-sm font-bold text-on-surface">
-                  {card.costPerNode}
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => toggleSelect(card.id)}
-                className={`flex-1 rounded py-2.5 text-[10px] font-bold tracking-widest transition-colors cursor-pointer ${
-                  card.selected
-                    ? 'bg-primary text-[#0a151a]'
-                    : 'bg-surface-container-high text-primary hover:bg-primary/15'
+          )}
+          {filtered.map((card) => {
+            const isSelected = localSelected.has(card.id)
+            return (
+              <div
+                key={card.id}
+                className={`rounded-lg p-5 transition-colors ${
+                  isSelected
+                    ? 'bg-primary/5 ring-1 ring-primary/30'
+                    : 'bg-surface-container'
                 }`}
               >
-                {card.selected ? t('component_upgrades.btn_selected') : t('component_upgrades.btn_request_upgrade')}
-              </button>
-              <button onClick={() => setExpandedCard(expandedCard === card.id ? null : card.id)} className="rounded bg-surface-container-high px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-low cursor-pointer">
-                {t('component_upgrades.btn_learn_more')}
-              </button>
-            </div>
-            {expandedCard === card.id && (
-              <div className="mt-3 pt-3 border-t border-outline-variant/20 text-xs text-on-surface-variant">
-                <p>This upgrade recommendation is based on industry benchmarks and current asset utilization patterns.</p>
-                <p className="mt-1">Estimated implementation time: 2-4 hours per unit with zero downtime deployment.</p>
+                {/* Category + RCM badge */}
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] tracking-widest text-on-surface-variant">
+                      {t('component_upgrades.label_category')}
+                    </span>
+                    <span className="text-[10px] font-bold tracking-widest text-on-surface">
+                      {card.category}
+                    </span>
+                  </div>
+                  <span
+                    className={`rounded px-2 py-0.5 text-[10px] font-bold tracking-widest ${card.rcmColor}`}
+                  >
+                    {card.rcmLevel}
+                  </span>
+                </div>
+
+                {/* Title */}
+                <h3 className="mb-4 font-headline text-lg font-bold text-on-surface">
+                  {card.title}
+                </h3>
+
+                {/* Current vs Recommended */}
+                <div className="mb-4 grid grid-cols-2 gap-3">
+                  <div className="rounded bg-surface-container-low p-3">
+                    <div className="text-[10px] tracking-widest text-on-surface-variant">
+                      {t('component_upgrades.label_current')}
+                    </div>
+                    <div className="mt-1 text-xs font-semibold text-on-surface">
+                      {card.current}
+                    </div>
+                  </div>
+                  <div className="rounded bg-surface-container-low p-3">
+                    <div className="text-[10px] tracking-widest text-on-surface-variant">
+                      {t('component_upgrades.label_recommended')}
+                    </div>
+                    <div className="mt-1 text-xs font-semibold text-primary">
+                      {card.recommended}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metric + Cost */}
+                <div className="mb-5 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] tracking-widest text-on-surface-variant">
+                      {card.metric}
+                    </div>
+                    <div className="mt-0.5 font-mono text-sm font-bold text-[#69db7c]">
+                      {card.metricValue}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] tracking-widest text-on-surface-variant">
+                      {t('component_upgrades.label_cost_per_node')}
+                    </div>
+                    <div className="mt-0.5 font-mono text-sm font-bold text-on-surface">
+                      {card.costPerNode}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      toggleSelect(card.id)
+                      acceptMutation.mutate({ assetId: selectedAssetId, category: card.filterKey.toLowerCase() })
+                    }}
+                    className={`flex-1 rounded py-2.5 text-[10px] font-bold tracking-widest transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-primary text-[#0a151a]'
+                        : 'bg-surface-container-high text-primary hover:bg-primary/15'
+                    }`}
+                  >
+                    {isSelected ? t('component_upgrades.btn_selected') : t('component_upgrades.btn_request_upgrade')}
+                  </button>
+                  <button
+                    onClick={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
+                    className="rounded bg-surface-container-high px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-low cursor-pointer"
+                  >
+                    {t('component_upgrades.btn_learn_more')}
+                  </button>
+                </div>
+                {expandedCard === card.id && (
+                  <div className="mt-3 pt-3 border-t border-outline-variant/20 text-xs text-on-surface-variant">
+                    <p>This upgrade recommendation is based on industry benchmarks and current asset utilization patterns.</p>
+                    <p className="mt-1">Estimated implementation time: 2-4 hours per unit with zero downtime deployment.</p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Bottom action bar */}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-lg bg-surface-container p-5">
@@ -339,8 +340,7 @@ export default function ComponentUpgradeRecommendations() {
           </button>
           <button
             onClick={() => {
-              const selectedNames = cards.filter(c => c.selected).map(c => c.title).join(', ')
-              if (selectedNames) {
+              if (selectedCards.length > 0) {
                 navigate('/maintenance/add')
               } else {
                 alert('Please select at least one upgrade recommendation')
