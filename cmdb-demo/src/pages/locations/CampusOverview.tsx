@@ -11,6 +11,7 @@ import type { Location } from '../../lib/api/topology';
 
 interface IdcData {
   id: string;
+  slug: string;
   name: string;
   modules: number;
   racks: number;
@@ -25,6 +26,7 @@ interface IdcData {
 
 interface CampusData {
   id: string;
+  slug: string;
   nameCn: string;
   nameEn: string;
   addressCn: string;
@@ -33,14 +35,16 @@ interface CampusData {
 
 function locationToCampus(loc: Location, childIdcs: Location[]): CampusData {
   return {
-    id: loc.slug,
+    id: loc.id,
+    slug: loc.slug,
     nameCn: loc.name,
     nameEn: loc.name_en || loc.name,
     addressCn: (loc.metadata?.address as string) ?? '',
     idcs: childIdcs
       .filter((c) => c.parent_id === loc.id)
       .map((idc) => ({
-        id: idc.slug,
+        id: idc.id,
+        slug: idc.slug,
         name: idc.name,
         modules: (idc.metadata?.modules as number) ?? 0,
         racks: (idc.metadata?.racks as number) ?? 0,
@@ -495,13 +499,13 @@ function CampusOverview() {
       },
       campus: {
         id: campus.id,
-        slug: campus.id,
+        slug: campus.slug,
         name: campus.nameCn,
         nameEn: campus.nameEn,
       },
       idc: {
         id: idc.id,
-        slug: idc.id,
+        slug: idc.slug,
         name: idc.name,
         nameEn: idc.name,
       },
