@@ -1884,5 +1884,31 @@
     "btn_cancel": "Cancel",
     "btn_add": "Add",
     "btn_adding": "Adding..."
+  },
+  "locations": {
+    "global_title": "IRONGRID Global Command Center",
+    "global_title_zh": "集團全域資料中心指揮總覽",
+    "kpi_countries": "Countries",
+    "kpi_regions": "Regions",
+    "kpi_idcs": "IDCs",
+    "kpi_total_assets": "Total Assets",
+    "kpi_total_racks": "Total Racks",
+    "kpi_total_idcs": "Total IDCs",
+    "kpi_campuses": "Campuses",
+    "kpi_racks": "Racks",
+    "kpi_alerts": "Alerts",
+    "kpi_pue": "PUE",
+    "kpi_critical_alerts": "Critical Alerts",
+    "rack_occupancy": "Rack Occupancy",
+    "btn_enter_dashboard": "Enter Dashboard",
+    "btn_add_location": "Add Location",
+    "sort_by_name": "Sort by Name",
+    "sort_by_idc_count": "Sort by IDC Count",
+    "sort_by_occupancy": "Sort by Occupancy",
+    "sort_by_alerts": "Sort by Alerts",
+    "campus_subtitle": "Data Center Campuses",
+    "city_title_suffix": "Data Center Overview",
+    "region_title_suffix": "Data Center Overview",
+    "capacity_planning": "Capacity Planning"
   }
 }

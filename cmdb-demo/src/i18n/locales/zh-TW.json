@@ -1884,5 +1884,31 @@
     "btn_cancel": "取消",
     "btn_add": "新增",
     "btn_adding": "新增中..."
+  },
+  "locations": {
+    "global_title": "IRONGRID 全球指揮中心",
+    "global_title_zh": "集團全域資料中心指揮總覽",
+    "kpi_countries": "國家",
+    "kpi_regions": "區域",
+    "kpi_idcs": "資料中心",
+    "kpi_total_assets": "資產總數",
+    "kpi_total_racks": "機櫃總數",
+    "kpi_total_idcs": "資料中心總數",
+    "kpi_campuses": "園區",
+    "kpi_racks": "機櫃",
+    "kpi_alerts": "告警",
+    "kpi_pue": "PUE",
+    "kpi_critical_alerts": "嚴重告警",
+    "rack_occupancy": "機櫃佔用率",
+    "btn_enter_dashboard": "進入儀表板",
+    "btn_add_location": "新增位置",
+    "sort_by_name": "按名稱排序",
+    "sort_by_idc_count": "按資料中心數排序",
+    "sort_by_occupancy": "按佔用率排序",
+    "sort_by_alerts": "按告警數排序",
+    "campus_subtitle": "資料中心園區",
+    "city_title_suffix": "資料中心總覽",
+    "region_title_suffix": "資料中心總覽",
+    "capacity_planning": "容量規劃"
   }
 }

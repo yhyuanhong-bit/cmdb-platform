@@ -126,6 +126,7 @@ const IdcCard = memo(function IdcCard({
   idc: IdcData;
   onNavigate: () => void;
 }) {
+  const { t } = useTranslation();
   const pueColor =
     idc.pue < 1.3
       ? "text-green-400"
@@ -218,7 +219,7 @@ const IdcCard = memo(function IdcCard({
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-surface-container-high py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
       >
         <Icon name="dashboard" className="text-base" />
-        進入儀表板
+        {t('locations.btn_enter_dashboard')}
         <Icon name="arrow_forward" className="text-base" />
       </button>
     </div>
@@ -434,7 +435,7 @@ function CampusOverview() {
   const city = useMemo(() => ({
     nameCn: cityLoc?.name ?? '',
     nameEn: cityLoc?.name_en ?? cityLoc?.name ?? '',
-    titleCn: `${cityLoc?.name ?? ''}資料中心園區`,
+    titleCn: cityLoc?.name ?? '',
     regionNameEn: regionLoc?.name_en ?? regionLoc?.name ?? '',
     regionSlug: regionSlug ?? 'east',
     countryNameEn: countryLoc?.name_en ?? countryLoc?.name ?? '',
@@ -543,7 +544,7 @@ function CampusOverview() {
           {city.titleCn}
         </h1>
         <p className="mt-1 text-sm text-on-surface-variant">
-          {city.nameEn} Data Center Campuses
+          {city.nameEn} {t('locations.campus_subtitle')}
         </p>
       </div>
 
@@ -551,14 +552,14 @@ function CampusOverview() {
       <div className="mb-6 flex gap-3">
         <KpiCard
           icon="apartment"
-          label="Campuses"
+          label={t('locations.kpi_campuses')}
           value={city.totalCampuses}
         />
-        <KpiCard icon="domain" label="IDCs" value={city.totalIdcs} />
-        <KpiCard icon="dns" label="Racks" value={city.totalRacks} />
+        <KpiCard icon="domain" label={t('locations.kpi_idcs')} value={city.totalIdcs} />
+        <KpiCard icon="dns" label={t('locations.kpi_racks')} value={city.totalRacks} />
         <KpiCard
           icon="warning"
-          label="Alerts"
+          label={t('locations.kpi_alerts')}
           value={city.totalAlerts}
           alert
         />

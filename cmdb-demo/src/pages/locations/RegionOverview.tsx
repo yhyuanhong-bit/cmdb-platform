@@ -214,8 +214,8 @@ function RegionOverview() {
   const country = useMemo(() => ({
     nameCn: countryLoc?.name ?? '',
     nameEn: countryLoc?.name_en ?? countryLoc?.name ?? '',
-    titleCn: `${countryLoc?.name ?? ''}資料中心總覽`,
-    subtitleEn: `${countryLoc?.name_en ?? ''} Data Center Overview`,
+    titleCn: countryLoc?.name ?? '',
+    subtitleEn: countryLoc?.name_en ?? '',
     totalIdcs: regions.reduce((s, r) => s + r.idcCount, 0),
     totalRacks: cStats?.total_racks ?? regions.reduce((s, r) => s + r.racks, 0),
     totalAssets: cStats?.total_assets ?? regions.reduce((s, r) => s + r.assets, 0),
@@ -269,7 +269,7 @@ function RegionOverview() {
           {country.titleCn}
         </h1>
         <p className="mt-1 text-sm text-on-surface-variant">
-          {country.subtitleEn}
+          {country.subtitleEn} {t('locations.region_title_suffix')}
         </p>
       </div>
 
@@ -277,22 +277,22 @@ function RegionOverview() {
       <div className="mb-6 flex gap-3">
         <KpiCard
           icon="domain"
-          label="Total IDCs"
+          label={t('locations.kpi_total_idcs')}
           value={country.totalIdcs}
         />
         <KpiCard
           icon="dns"
-          label="Total Racks"
+          label={t('locations.kpi_total_racks')}
           value={country.totalRacks}
         />
         <KpiCard
           icon="devices"
-          label="Total Assets"
+          label={t('locations.kpi_total_assets')}
           value={country.totalAssets}
         />
         <KpiCard
           icon="warning"
-          label="Critical Alerts"
+          label={t('locations.kpi_critical_alerts')}
           value={country.criticalAlerts}
           alert
         />

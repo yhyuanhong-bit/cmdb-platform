@@ -393,7 +393,7 @@ function CityOverview() {
   const region = useMemo(() => ({
     nameCn: regionLoc?.name ?? '',
     nameEn: regionLoc?.name_en ?? regionLoc?.name ?? '',
-    titleCn: `${regionLoc?.name ?? ''}資料中心總覽`,
+    titleCn: regionLoc?.name ?? '',
     countrySlug: countrySlug ?? 'china',
     countryNameEn: countryLoc?.name_en ?? countryLoc?.name ?? '',
     idcs: cities.reduce((s, c) => s + c.idcCount, 0),
@@ -476,17 +476,17 @@ function CityOverview() {
           {region.titleCn}
         </h1>
         <p className="mt-1 text-sm text-on-surface-variant">
-          {region.nameCn} Region Data Center Overview
+          {region.nameCn} {t('locations.city_title_suffix')}
         </p>
       </div>
 
       {/* KPI Bar */}
       <div className="mb-6 flex gap-3">
-        <KpiCard icon="domain" label="IDCs" value={region.idcs} />
-        <KpiCard icon="apartment" label="Campuses" value={region.campuses} />
-        <KpiCard icon="dns" label="Racks" value={region.racks} />
-        <KpiCard icon="bolt" label="PUE" value={region.pue.toFixed(2)} />
-        <KpiCard icon="warning" label="Alerts" value={region.alerts} alert />
+        <KpiCard icon="domain" label={t('locations.kpi_idcs')} value={region.idcs} />
+        <KpiCard icon="apartment" label={t('locations.kpi_campuses')} value={region.campuses} />
+        <KpiCard icon="dns" label={t('locations.kpi_racks')} value={region.racks} />
+        <KpiCard icon="bolt" label={t('locations.kpi_pue')} value={region.pue.toFixed(2)} />
+        <KpiCard icon="warning" label={t('locations.kpi_alerts')} value={region.alerts} alert />
       </div>
 
       {/* Toolbar: View toggle + Sort */}
@@ -523,10 +523,10 @@ function CityOverview() {
             onChange={(e) => setSortBy(e.target.value as SortKey)}
             className="rounded-lg bg-surface-container px-3 py-1.5 text-xs text-on-surface outline-none"
           >
-            <option value="name">Sort by Name</option>
-            <option value="idcCount">Sort by IDC Count</option>
-            <option value="occupancy">Sort by Occupancy</option>
-            <option value="alerts">Sort by Alerts</option>
+            <option value="name">{t('locations.sort_by_name')}</option>
+            <option value="idcCount">{t('locations.sort_by_idc_count')}</option>
+            <option value="occupancy">{t('locations.sort_by_occupancy')}</option>
+            <option value="alerts">{t('locations.sort_by_alerts')}</option>
           </select>
         </div>
       </div>

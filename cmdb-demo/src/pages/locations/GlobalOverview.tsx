@@ -148,6 +148,7 @@ function KpiCard({ icon, label, value, accent }: { icon: string; label: string; 
 }
 
 function MapMarker({ country, onClick }: { country: CountryData; onClick: () => void }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const markerColor = country.criticalAlerts > 3 ? 'bg-orange-400' : 'bg-green-400';
   const ringColor = country.criticalAlerts > 3 ? 'ring-orange-400/30' : 'ring-green-400/30';
@@ -186,7 +187,7 @@ function MapMarker({ country, onClick }: { country: CountryData; onClick: () => 
             <p>{country.idcCount} IDCs across {country.regionCount} Region{country.regionCount > 1 ? 's' : ''}</p>
             <p>{formatNumber(country.totalAssets)} Assets</p>
             <p>PUE {country.pue.toFixed(2)}</p>
-            <p>Rack Occupancy {country.rackOccupancy}%</p>
+            <p>{t('locations.rack_occupancy')} {country.rackOccupancy}%</p>
             {country.criticalAlerts > 0 && (
               <p className="text-error font-semibold">{country.criticalAlerts} Critical Alert{country.criticalAlerts > 1 ? 's' : ''}</p>
             )}
@@ -198,6 +199,7 @@ function MapMarker({ country, onClick }: { country: CountryData; onClick: () => 
 }
 
 function CountryCard({ country, onClick }: { country: CountryData; onClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -223,7 +225,7 @@ function CountryCard({ country, onClick }: { country: CountryData; onClick: () =
       {/* Stats */}
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm font-body">
         <div>
-          <p className="text-on-surface-variant text-xs">Total Assets</p>
+          <p className="text-on-surface-variant text-xs">{t('locations.kpi_total_assets')}</p>
           <p className="text-on-surface font-semibold">{formatNumber(country.totalAssets)}</p>
         </div>
         <div>
@@ -235,7 +237,7 @@ function CountryCard({ country, onClick }: { country: CountryData; onClick: () =
       {/* Rack Occupancy */}
       <div className="mt-4">
         <div className="flex items-center justify-between text-xs font-body mb-1">
-          <span className="text-on-surface-variant">Rack Occupancy</span>
+          <span className="text-on-surface-variant">{t('locations.rack_occupancy')}</span>
           <span className="text-on-surface font-semibold">{country.rackOccupancy}%</span>
         </div>
         <div className="w-full h-2 bg-surface-container-low rounded-full overflow-hidden">
@@ -346,10 +348,10 @@ const GlobalOverview: React.FC = () => {
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-5 py-4 bg-surface-container-low rounded-lg">
         <div>
           <h1 className="font-headline text-2xl font-bold uppercase tracking-wider text-on-surface">
-            IRONGRID GLOBAL COMMAND CENTER
+            {t('locations.global_title').toUpperCase()}
           </h1>
           <p className="text-on-surface-variant text-sm mt-0.5 font-body">
-            集團全域資料中心指揮總覽
+            {t('locations.global_title_zh')}
           </p>
         </div>
         <div className="flex items-center gap-3 mt-3 sm:mt-0">
@@ -358,7 +360,7 @@ const GlobalOverview: React.FC = () => {
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">add</span>
-            Add Location
+            {t('locations.btn_add_location')}
           </button>
           <PulsingDot />
           <span className="text-xs text-on-surface-variant font-body">
@@ -372,10 +374,10 @@ const GlobalOverview: React.FC = () => {
         {/* Global KPI Bar                                                   */}
         {/* --------------------------------------------------------------- */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-4" aria-label="Global KPIs">
-          <KpiCard icon="public" label="Countries" value={GLOBAL_KPI.countries} />
-          <KpiCard icon="pin_drop" label="Regions" value={GLOBAL_KPI.regions} />
-          <KpiCard icon="domain" label="IDCs" value={GLOBAL_KPI.idcs} />
-          <KpiCard icon="inventory_2" label="Total Assets" value={GLOBAL_KPI.totalAssets} />
+          <KpiCard icon="public" label={t('locations.kpi_countries')} value={GLOBAL_KPI.countries} />
+          <KpiCard icon="pin_drop" label={t('locations.kpi_regions')} value={GLOBAL_KPI.regions} />
+          <KpiCard icon="domain" label={t('locations.kpi_idcs')} value={GLOBAL_KPI.idcs} />
+          <KpiCard icon="inventory_2" label={t('locations.kpi_total_assets')} value={GLOBAL_KPI.totalAssets} />
         </section>
 
         {/* --------------------------------------------------------------- */}
@@ -446,7 +448,7 @@ const GlobalOverview: React.FC = () => {
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-on-surface-variant font-body flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg text-primary">view_column</span>
-                  Total Racks
+                  {t('locations.kpi_total_racks')}
                 </span>
                 <span className="text-lg font-bold text-on-surface font-headline">{formatNumber(stats?.total_racks ?? 0)}</span>
               </div>
@@ -475,7 +477,7 @@ const GlobalOverview: React.FC = () => {
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-on-surface-variant font-body flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg text-error">warning</span>
-                  Critical Alerts
+                  {t('locations.kpi_critical_alerts')}
                 </span>
                 <span className={`text-lg font-bold font-headline ${(stats?.critical_alerts ?? 0) > 0 ? 'text-error' : 'text-on-surface'}`}>
                   {stats?.critical_alerts ?? 0}
