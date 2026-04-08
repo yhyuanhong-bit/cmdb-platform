@@ -1,4 +1,5 @@
-import { memo, useState } from "react";
+import { memo, useState, useRef } from "react";
+import * as XLSX from 'xlsx'
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -62,6 +63,74 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   // The current task (first active) - used for header display
   const currentTask = tasks.find((t) => t.status === 'in_progress') ?? tasks[0];
   const currentTaskId = currentTask?.id;
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!currentTask) {
+      alert(t('inventory.import_no_task'))
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      try {
+        const data = evt.target?.result
+        const workbook = XLSX.read(data, { type: 'array' })
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+        const rows: any[] = XLSX.utils.sheet_to_json(firstSheet)
+
+        if (rows.length === 0) {
+          alert(t('inventory.import_no_data'))
+          return
+        }
+
+        // Map Excel rows to API format — accept both English and Chinese column names
+        const items = rows.map((row: any) => ({
+          asset_tag: row.asset_tag || row['Asset Tag'] || row['资产编号'] || row['資產編號'] || undefined,
+          serial_number: row.serial_number || row['Serial Number'] || row['序列号'] || row['序號'] || undefined,
+          property_number: row.property_number || row['Property Number'] || row['财产编号'] || row['財產編號'] || undefined,
+          control_number: row.control_number || row['Control Number'] || row['管制编号'] || row['管制編號'] || undefined,
+          expected_location: row.expected_location || row['Expected Location'] || row['预期位置'] || row['預期位置'] || undefined,
+        })).filter((item: any) =>
+          item.asset_tag || item.serial_number || item.property_number || item.control_number
+        )
+
+        if (items.length === 0) {
+          alert(t('inventory.import_no_data'))
+          return
+        }
+
+        importItems.mutate({ taskId: currentTask.id, items }, {
+          onSuccess: (resp: any) => {
+            const d = resp?.data ?? {}
+            alert(t('inventory.import_success', {
+              matched: d.matched ?? 0,
+              not_found: d.not_found ?? 0,
+              total: d.total ?? 0,
+            }))
+          },
+          onError: () => alert(t('inventory.import_error')),
+        })
+      } catch {
+        alert(t('inventory.import_error'))
+      }
+    }
+    reader.readAsArrayBuffer(file)
+    e.target.value = ''
+  }
+
+  const handleDownloadTemplate = () => {
+    const headers = ['asset_tag', 'serial_number', 'property_number', 'control_number', 'expected_location']
+    const exampleRow = ['SRV-PROD-001', 'SN-DELL-001', 'P-2025-0001', 'CTRL-TW-A-0001', 'RACK-A01']
+    const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow])
+    ws['!cols'] = headers.map(() => ({ wch: 22 }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventory')
+    XLSX.writeFile(wb, 'inventory_import_template.xlsx')
+  }
 
   const { data: racksSummaryData } = useQuery({
     queryKey: ['inventoryRacks', currentTaskId],
@@ -239,32 +308,33 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
           )}
 
           <div className="mt-auto pt-4 flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-xs text-on-surface-variant">
-              <Icon name="upload_file" className="text-lg text-primary" />
-              <span className="font-label">IDC01_Q3_assets.xlsx</span>
-            </div>
+            <p className="text-[10px] text-on-surface-variant">
+              {t('inventory.import_columns_hint')}
+            </p>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileUpload}
+              hidden
+            />
+
             <button
-              onClick={() => {
-                const demo = [
-                  { asset_tag: 'SRV-PROD-001', serial_number: 'SN-DELL-001', expected_location: 'RACK-A01' },
-                  { asset_tag: 'SRV-PROD-002', serial_number: 'SN-DELL-002', expected_location: 'RACK-A01' },
-                  { asset_tag: 'UNKNOWN-001', serial_number: 'SN-MYSTERY', expected_location: 'RACK-X01' },
-                ]
-                if (currentTask) {
-                  importItems.mutate({ taskId: currentTask.id, items: demo }, {
-                    onSuccess: (resp: any) => {
-                      alert(`Import complete: ${resp?.data?.matched || 0} matched, ${resp?.data?.not_found || 0} not found, ${resp?.data?.total || 0} total`)
-                    }
-                  })
-                } else {
-                  alert('No active inventory task. Create a task first.')
-                }
-              }}
-              disabled={importItems.isPending}
-              className="bg-primary hover:opacity-90 text-on-primary px-3 py-1.5 rounded-lg text-xs font-label font-bold flex items-center gap-2 transition-opacity w-fit"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importItems.isPending || !currentTask}
+              className="bg-primary hover:opacity-90 text-on-primary px-3 py-1.5 rounded-lg text-xs font-label font-bold flex items-center gap-2 transition-opacity w-fit disabled:opacity-50"
             >
               <Icon name="cloud_upload" className="text-sm" />
-              {importItems.isPending ? 'Importing...' : 'Run Demo Import'}
+              {importItems.isPending ? t('inventory.btn_uploading') : t('inventory.btn_upload_excel')}
+            </button>
+
+            <button
+              onClick={handleDownloadTemplate}
+              className="text-xs text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
+            >
+              <Icon name="download" className="text-sm" />
+              {t('inventory.btn_download_template')}
             </button>
           </div>
         </div>

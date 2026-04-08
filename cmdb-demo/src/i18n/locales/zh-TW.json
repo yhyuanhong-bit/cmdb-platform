@@ -436,7 +436,15 @@
     "duplicate_entry": "重複項目",
     "invalid_rack_reference": "無效的機櫃參照",
     "format_mismatch": "格式不符",
-    "confirm_complete_task": "確定將此任務標記為已完成？"
+    "confirm_complete_task": "確定將此任務標記為已完成？",
+    "btn_upload_excel": "上傳 Excel / CSV",
+    "btn_uploading": "匯入中...",
+    "btn_download_template": "下載範本",
+    "import_success": "匯入完成：{{matched}} 匹配，{{not_found}} 未找到，共 {{total}} 筆",
+    "import_error": "匯入失敗，請檢查檔案格式。",
+    "import_no_task": "沒有進行中的盤點任務，請先建立任務。",
+    "import_no_data": "檔案中未找到有效資料列。",
+    "import_columns_hint": "所需欄位：asset_tag, serial_number, property_number, control_number, expected_location"
   },
   "inventory_detail": {
     "back_to_inventory_task": "返回盤點任務",

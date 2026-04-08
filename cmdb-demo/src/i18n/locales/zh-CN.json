@@ -436,7 +436,15 @@
     "duplicate_entry": "重复条目",
     "invalid_rack_reference": "无效的机柜引用",
     "format_mismatch": "格式不匹配",
-    "confirm_complete_task": "确定将此任务标记为已完成？"
+    "confirm_complete_task": "确定将此任务标记为已完成？",
+    "btn_upload_excel": "上传 Excel / CSV",
+    "btn_uploading": "导入中...",
+    "btn_download_template": "下载模板",
+    "import_success": "导入完成：{{matched}} 匹配，{{not_found}} 未找到，共 {{total}} 条",
+    "import_error": "导入失败，请检查文件格式。",
+    "import_no_task": "没有进行中的盘点任务，请先创建任务。",
+    "import_no_data": "文件中未找到有效数据行。",
+    "import_columns_hint": "所需列：asset_tag, serial_number, property_number, control_number, expected_location"
   },
   "inventory_detail": {
     "back_to_inventory_task": "返回盘点任务",

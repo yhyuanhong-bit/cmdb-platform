@@ -436,7 +436,15 @@
     "duplicate_entry": "Duplicate entry",
     "invalid_rack_reference": "Invalid rack reference",
     "format_mismatch": "Format mismatch",
-    "confirm_complete_task": "Mark this task as completed?"
+    "confirm_complete_task": "Mark this task as completed?",
+    "btn_upload_excel": "Upload Excel / CSV",
+    "btn_uploading": "Importing...",
+    "btn_download_template": "Download Template",
+    "import_success": "Import complete: {{matched}} matched, {{not_found}} not found, {{total}} total",
+    "import_error": "Import failed. Please check the file format.",
+    "import_no_task": "No active inventory task. Create a task first.",
+    "import_no_data": "No valid data rows found in the file.",
+    "import_columns_hint": "Required columns: asset_tag, serial_number, property_number, control_number, expected_location"
   },
   "inventory_detail": {
     "back_to_inventory_task": "Back to Inventory Task",
