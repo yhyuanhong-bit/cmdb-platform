@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon";
 import { useAssets } from "../hooks/useAssets";
 import { useAlertRules, useUpdateAlertRule, useCreateAlertRule } from "../hooks/useMonitoring";
+import { useSensors, useUpdateSensor } from "../hooks/useSensors";
 
 /* ──────────────────────────────────────────────
    Mock data
@@ -197,6 +198,10 @@ function SensorConfiguration() {
   const { data: assetsResp, isLoading } = useAssets();
   const allAssets = assetsResp?.data ?? [];
 
+  const { data: sensorData } = useSensors();
+  const apiSensors = (sensorData as any)?.sensors ?? [];
+  const updateSensor = useUpdateSensor();
+
   const { data: rulesResp, isLoading: rulesLoading } = useAlertRules();
   const apiRules = rulesResp?.data || [];
   const updateAlertRule = useUpdateAlertRule();
@@ -208,7 +213,20 @@ function SensorConfiguration() {
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (allAssets.length > 0) {
+    if (apiSensors.length > 0) {
+      setSensors(apiSensors.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        type: s.type,
+        icon: s.icon || 'sensors',
+        location: s.location || '',
+        enabled: s.enabled,
+        pollingInterval: s.pollingInterval || 30,
+        lastSeen: s.lastSeen ? new Date(s.lastSeen).toLocaleString() : 'Never',
+        status: s.status || 'Offline',
+      })));
+    } else if (allAssets.length > 0) {
+      // Fallback: derive from assets if sensor API returns nothing
       setSensors(allAssets.map(a => {
         const subType = (a as any).sub_type as string | undefined;
         const sensorType =
@@ -241,7 +259,7 @@ function SensorConfiguration() {
         };
       }));
     }
-  }, [allAssets]);
+  }, [apiSensors, allAssets]);
   const [rules, setRules] = useState(INITIAL_RULES);
   const [thresholds, setThresholds] = useState<ThresholdConfig[]>(THRESHOLDS);
 
@@ -297,6 +315,10 @@ function SensorConfiguration() {
   const [globalPolling, setGlobalPolling] = useState(30);
 
   const toggleSensor = (id: string) => {
+    const sensor = sensors.find(s => s.id === id);
+    if (sensor) {
+      updateSensor.mutate({ id, data: { enabled: !sensor.enabled } });
+    }
     setSensors((prev) =>
       prev.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s)),
     );
@@ -453,6 +475,13 @@ function SensorConfiguration() {
               </tr>
             </thead>
             <tbody>
+              {sensors.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-on-surface-variant">
+                    No sensors registered
+                  </td>
+                </tr>
+              )}
               {sensors.map((sensor) => (
                 <tr
                   key={sensor.id}

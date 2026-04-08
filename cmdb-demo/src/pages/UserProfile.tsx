@@ -2,12 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
-import { useUpdateUser } from '../hooks/useIdentity'
+import { useUpdateUser, useUserSessions, useChangePassword } from '../hooks/useIdentity'
 import { useSystemHealth } from '../hooks/useSystemHealth'
-
-const sessions = [
-  { device: 'Current Session', browser: navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Firefox') ? 'Firefox' : 'Browser', time: 'Active Now', icon: 'laptop_mac', current: true },
-]
 
 export default function UserProfile() {
   const { t } = useTranslation()
@@ -18,6 +14,21 @@ export default function UserProfile() {
   const { data: healthResp } = useSystemHealth()
   const dbLatency = (healthResp as any)?.data?.database?.latency_ms
   const connectivity = dbLatency ? (dbLatency < 50 ? 'Good' : dbLatency < 200 ? 'Normal' : 'Degraded') : '—'
+
+  const { data: sessionsData } = useUserSessions(user?.id || '')
+  const sessions = (sessionsData as any)?.sessions ?? []
+  const changePasswordMutation = useChangePassword()
+
+  const [showPwModal, setShowPwModal] = useState(false)
+  const [currentPw, setCurrentPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+
+  const handlePasswordChange = () => {
+    changePasswordMutation.mutate({ current_password: currentPw, new_password: newPw }, {
+      onSuccess: () => { setShowPwModal(false); setCurrentPw(''); setNewPw(''); alert('Password changed successfully!') },
+      onError: () => alert('Failed to change password. Check your current password.')
+    })
+  }
 
   const [displayName, setDisplayName] = useState(user?.display_name ?? 'OPERATOR_042')
   const [employeeId, setEmployeeId] = useState(user?.id?.substring(0, 12) ?? 'IG-992-042')
@@ -124,7 +135,7 @@ export default function UserProfile() {
           <p className="text-on-surface-variant text-xs mb-5">{t('user_profile.section_security')}</p>
 
           {/* Change Password */}
-          <button onClick={() => alert('Change Password: Coming Soon')} className="w-full flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3 mb-3 hover:bg-surface-container-high transition-colors">
+          <button onClick={() => setShowPwModal(true)} className="w-full flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3 mb-3 hover:bg-surface-container-high transition-colors">
             <div className="flex items-center gap-3">
               <span className="material-symbols-outlined text-on-surface-variant text-[20px]">lock</span>
               <span className="text-sm text-on-surface">{t('user_profile.btn_change_password')}</span>
@@ -229,6 +240,54 @@ export default function UserProfile() {
           </div>
         </div>
       </div>
+
+      {/* Password Change Modal */}
+      {showPwModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-surface-container rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h2 className="font-headline font-bold text-lg text-on-surface mb-4">{t('user_profile.btn_change_password')}</h2>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label block mb-1.5">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  value={currentPw}
+                  onChange={(e) => setCurrentPw(e.target.value)}
+                  className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40"
+                />
+              </div>
+              <div>
+                <label className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label block mb-1.5">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                  className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40"
+                />
+              </div>
+              <div className="flex gap-3 justify-end mt-2">
+                <button
+                  onClick={() => { setShowPwModal(false); setCurrentPw(''); setNewPw('') }}
+                  className="px-4 py-2 rounded-lg bg-surface-container-high text-sm text-on-surface-variant hover:text-on-surface transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePasswordChange}
+                  disabled={!currentPw || !newPw || changePasswordMutation.isPending}
+                  className="px-4 py-2 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors disabled:opacity-50"
+                >
+                  {changePasswordMutation.isPending ? 'Saving...' : 'Change Password'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
