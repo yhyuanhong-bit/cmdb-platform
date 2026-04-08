@@ -155,7 +155,7 @@ export default function AutoDiscovery() {
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
               activeTab === tab ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'
             }`}>
-            {tab === 'review' ? 'Discovery Review' : 'Scan Management'}
+            {tab === 'review' ? t('auto_discovery.tab_review') : t('auto_discovery.tab_scan')}
           </button>
         ))}
       </div>
@@ -167,12 +167,12 @@ export default function AutoDiscovery() {
       {/* ============================================================ */}
       <section className="px-8 pb-4">
         <div className="flex flex-wrap items-stretch gap-4">
-          <StatCard label="Total (24h)" value={stats.total} icon="inventory_2" />
-          <StatCard label="Pending" value={stats.pending} icon="pending_actions" color="text-blue-400" />
-          <StatCard label="Conflict" value={stats.conflict} icon="warning" color="text-amber-400" />
-          <StatCard label="Approved" value={stats.approved} icon="check_circle" color="text-emerald-400" />
-          <StatCard label="Ignored" value={stats.ignored} icon="block" color="text-on-surface-variant" />
-          <StatCard label="Matched" value={stats.matched} icon="link" color="text-primary" />
+          <StatCard label={t('auto_discovery.stat_total')} value={stats.total} icon="inventory_2" />
+          <StatCard label={t('auto_discovery.stat_pending')} value={stats.pending} icon="pending_actions" color="text-blue-400" />
+          <StatCard label={t('auto_discovery.stat_conflict')} value={stats.conflict} icon="warning" color="text-amber-400" />
+          <StatCard label={t('auto_discovery.stat_approved')} value={stats.approved} icon="check_circle" color="text-emerald-400" />
+          <StatCard label={t('auto_discovery.stat_ignored')} value={stats.ignored} icon="block" color="text-on-surface-variant" />
+          <StatCard label={t('auto_discovery.stat_matched')} value={stats.matched} icon="link" color="text-primary" />
         </div>
       </section>
 
@@ -192,7 +192,7 @@ export default function AutoDiscovery() {
             <option value="SNMP">SNMP</option>
             <option value="SSH">SSH</option>
             <option value="IPMI">IPMI</option>
-            <option value="manual">Manual</option>
+            <option value="manual">{t('auto_discovery.source_manual')}</option>
           </select>
           <Icon name="expand_more" className="absolute right-2 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant pointer-events-none" />
         </div>
@@ -205,10 +205,10 @@ export default function AutoDiscovery() {
             aria-label="Filter by status"
           >
             <option value="all">{t('auto_discovery.filter_all_statuses')}</option>
-            <option value="pending">Pending</option>
-            <option value="conflict">Conflict</option>
-            <option value="approved">Approved</option>
-            <option value="ignored">Ignored</option>
+            <option value="pending">{t('auto_discovery.status_pending')}</option>
+            <option value="conflict">{t('auto_discovery.status_conflict')}</option>
+            <option value="approved">{t('auto_discovery.status_approved')}</option>
+            <option value="ignored">{t('auto_discovery.status_ignored')}</option>
           </select>
           <Icon name="expand_more" className="absolute right-2 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant pointer-events-none" />
         </div>
@@ -227,11 +227,11 @@ export default function AutoDiscovery() {
             <thead>
               <tr className="bg-surface-container-high text-on-surface-variant text-[0.6875rem] uppercase tracking-wider">
                 <th className="px-4 py-3 text-left font-semibold">{t('auto_discovery.table_source')}</th>
-                <th className="px-4 py-3 text-left font-semibold">Hostname</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('auto_discovery.table_hostname')}</th>
                 <th className="px-4 py-3 text-left font-semibold">{t('auto_discovery.table_ip_address')}</th>
-                <th className="px-4 py-3 text-left font-semibold">External ID</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('auto_discovery.table_external_id')}</th>
                 <th className="px-4 py-3 text-left font-semibold">{t('auto_discovery.table_status')}</th>
-                <th className="px-4 py-3 text-left font-semibold">Details</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('auto_discovery.table_details')}</th>
                 <th className="px-4 py-3 text-right font-semibold">{t('auto_discovery.table_actions')}</th>
               </tr>
             </thead>
@@ -268,9 +268,9 @@ export default function AutoDiscovery() {
                       {row.status === 'conflict' && row.diff_details ? (
                         <DiffDetails diff={row.diff_details} />
                       ) : row.matched_asset_id ? (
-                        <span className="text-xs text-on-surface-variant">Matched: {row.matched_asset_id.slice(0, 8)}...</span>
+                        <span className="text-xs text-on-surface-variant">{t('auto_discovery.matched_prefix')}: {row.matched_asset_id.slice(0, 8)}...</span>
                       ) : (
-                        <span className="text-xs text-on-surface-variant">New asset</span>
+                        <span className="text-xs text-on-surface-variant">{t('auto_discovery.new_asset')}</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -302,7 +302,7 @@ export default function AutoDiscovery() {
               })}
               {!isLoading && !error && filtered.length === 0 && (
                 <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant text-sm">
-                  No discovered assets found.
+                  {t('auto_discovery.empty_state')}
                 </td></tr>
               )}
             </tbody>
