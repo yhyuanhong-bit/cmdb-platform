@@ -133,8 +133,8 @@ export default function DataCenter3D() {
 
   // Fetch API-driven location tree
   const { data: rootResp } = useRootLocations();
-  const country = rootResp?.data?.[0];
-  const { data: descResp } = useLocationDescendants(country?.id || '');
+  const territory = rootResp?.data?.[0];
+  const { data: descResp } = useLocationDescendants(territory?.id || '');
   const allLocations = descResp?.data || [];
 
   const [selectedLocationId, setSelectedLocationId] = useState('');
@@ -169,11 +169,11 @@ export default function DataCenter3D() {
       });
   }
 
-  const locationTree: TreeNode[] = country
+  const locationTree: TreeNode[] = territory
     ? [{
-        id: country.id,
-        label: country.name_en || country.name,
-        children: buildTree(country.id),
+        id: territory.id,
+        label: territory.name_en || territory.name,
+        children: buildTree(territory.id),
       }]
     : [];
 
@@ -190,12 +190,12 @@ export default function DataCenter3D() {
 
   // Auto-expand all nodes when data loads
   useEffect(() => {
-    if (country && allLocations.length > 0) {
-      const expanded: Record<string, boolean> = { [country.id]: true };
+    if (territory && allLocations.length > 0) {
+      const expanded: Record<string, boolean> = { [territory.id]: true };
       allLocations.forEach(loc => { expanded[loc.id] = true; });
       setTreeExpanded(expanded);
     }
-  }, [country, allLocations]);
+  }, [territory, allLocations]);
 
   const tabs = [
     { id: "global", label: t('datacenter_3d.tab_global_view'), icon: "public" },
@@ -213,7 +213,7 @@ export default function DataCenter3D() {
     }
   };
 
-  const selectedLocation = allLocations.find(l => l.id === selectedLocationId) || country;
+  const selectedLocation = allLocations.find(l => l.id === selectedLocationId) || territory;
   const subtitle = selectedLocation ? (selectedLocation.name_en || selectedLocation.name) : 'Data Center';
 
   const getRackColor = (status: RackCell["status"], isHovered: boolean) => {

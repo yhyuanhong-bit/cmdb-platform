@@ -852,7 +852,8 @@
     "summary_total_u": "总 U 位",
     "summary_occupied": "已占用",
     "summary_available": "可用",
-    "summary_max_power": "最大功率"
+    "summary_max_power": "最大功率",
+    "select_territory": "选择运营区域..."
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "系统监控",
@@ -1734,7 +1735,7 @@
     "slug_label": "Slug",
     "slug_placeholder": "自动从英文名称生成",
     "level_label": "层级",
-    "level_country": "国家",
+    "level_territory": "运营区域",
     "level_region": "区域",
     "level_city": "城市",
     "level_campus": "园区",
@@ -1888,7 +1889,7 @@
   "locations": {
     "global_title": "IRONGRID 全球指挥中心",
     "global_title_zh": "集团全域数据中心指挥总览",
-    "kpi_countries": "国家",
+    "kpi_territories": "运营区域",
     "kpi_regions": "区域",
     "kpi_idcs": "数据中心",
     "kpi_total_assets": "资产总数",
@@ -1916,7 +1917,7 @@
     "global_uptime": "全球可用率",
     "energy_trend": "能源趋势 (7天)",
     "global_kpi_summary": "全球 KPI 概览",
-    "country_overview": "国家总览",
+    "territory_overview": "运营区域总览",
     "alert_stream": "全球实时告警流",
     "modules": "模块",
     "used": "已用",

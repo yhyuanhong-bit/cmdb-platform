@@ -392,24 +392,24 @@ function CapacityChart({ campuses }: { campuses: CampusData[] }) {
 function CampusOverview() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { countrySlug, regionSlug, citySlug } = useParams<{
-    countrySlug: string;
+  const { territorySlug, regionSlug, citySlug } = useParams<{
+    territorySlug: string;
     regionSlug: string;
     citySlug: string;
   }>();
 
   const { setPath } = useLocationContext();
 
-  // Chain location lookups: root -> country -> region -> city -> campuses (children of city)
+  // Chain location lookups: root -> territory -> region -> city -> campuses (children of city)
   const rootQ = useRootLocations();
-  const countryLoc = useMemo(
-    () => (rootQ.data?.data ?? []).find((l) => l.slug === (countrySlug ?? 'china')),
-    [rootQ.data, countrySlug],
+  const territoryLoc = useMemo(
+    () => (rootQ.data?.data ?? []).find((l) => l.slug === (territorySlug ?? 'china')),
+    [rootQ.data, territorySlug],
   );
-  const countryChildrenQ = useLocationChildren(countryLoc?.id ?? '');
+  const territoryChildrenQ = useLocationChildren(territoryLoc?.id ?? '');
   const regionLoc = useMemo(
-    () => (countryChildrenQ.data?.data ?? []).find((l) => l.slug === (regionSlug ?? 'east')),
-    [countryChildrenQ.data, regionSlug],
+    () => (territoryChildrenQ.data?.data ?? []).find((l) => l.slug === (regionSlug ?? 'east')),
+    [territoryChildrenQ.data, regionSlug],
   );
   const regionChildrenQ = useLocationChildren(regionLoc?.id ?? '');
   const cityLoc = useMemo(
@@ -439,20 +439,20 @@ function CampusOverview() {
     titleCn: cityLoc?.name ?? '',
     regionNameEn: regionLoc?.name_en ?? regionLoc?.name ?? '',
     regionSlug: regionSlug ?? 'east',
-    countryNameEn: countryLoc?.name_en ?? countryLoc?.name ?? '',
-    countrySlug: countrySlug ?? 'china',
+    countryNameEn: territoryLoc?.name_en ?? territoryLoc?.name ?? '',
+    countrySlug: territorySlug ?? 'china',
     totalCampuses: campuses.length,
     totalIdcs: campuses.reduce((s, c) => s + c.idcs.length, 0),
     totalRacks: cStats?.total_racks ?? racksQ.data?.data?.length ?? campuses.reduce((s, c) => s + c.idcs.reduce((rs, idc) => rs + idc.racks, 0), 0),
     totalAlerts: cStats?.critical_alerts ?? campuses.reduce((s, c) => s + c.idcs.reduce((as2, idc) => as2 + idc.alerts, 0), 0),
     campuses,
-  }), [cityLoc, regionLoc, countryLoc, campuses, racksQ.data, countrySlug, regionSlug]);
+  }), [cityLoc, regionLoc, territoryLoc, campuses, racksQ.data, territorySlug, regionSlug]);
 
-  const country = countrySlug ?? city.countrySlug;
+  const territory = territorySlug ?? city.countrySlug;
   const region = regionSlug ?? city.regionSlug;
 
-  const isLoading = rootQ.isLoading || countryChildrenQ.isLoading || regionChildrenQ.isLoading || campusChildrenQ.isLoading || cityDescendantsQ.isLoading;
-  const hasError = rootQ.error || countryChildrenQ.error || regionChildrenQ.error || campusChildrenQ.error || cityDescendantsQ.error;
+  const isLoading = rootQ.isLoading || territoryChildrenQ.isLoading || regionChildrenQ.isLoading || campusChildrenQ.isLoading || cityDescendantsQ.isLoading;
+  const hasError = rootQ.error || territoryChildrenQ.error || regionChildrenQ.error || campusChildrenQ.error || cityDescendantsQ.error;
 
   if (isLoading) {
     return (
@@ -475,9 +475,9 @@ function CampusOverview() {
 
   const handleIdcNavigate = (campus: CampusData, idc: IdcData) => {
     setPath({
-      country: {
-        id: country,
-        slug: country,
+      territory: {
+        id: territory,
+        slug: territory,
         name: city.countryNameEn,
         nameEn: city.countryNameEn,
       },
@@ -521,14 +521,14 @@ function CampusOverview() {
         </button>
         <Icon name="chevron_right" className="text-sm text-on-surface-variant" />
         <button
-          onClick={() => navigate(`/locations/${country}`)}
+          onClick={() => navigate(`/locations/${territory}`)}
           className="font-medium uppercase tracking-wider text-primary hover:underline"
         >
           {city.countryNameEn.toUpperCase()}
         </button>
         <Icon name="chevron_right" className="text-sm text-on-surface-variant" />
         <button
-          onClick={() => navigate(`/locations/${country}/${region}`)}
+          onClick={() => navigate(`/locations/${territory}/${region}`)}
           className="font-medium uppercase tracking-wider text-primary hover:underline"
         >
           {city.regionNameEn.toUpperCase()}

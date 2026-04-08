@@ -17,7 +17,7 @@ export default function AddNewRack() {
   const [maxPower, setMaxPower] = useState('12.5')
 
   // Location cascade state
-  const [selectedCountryId, setSelectedCountryId] = useState('')
+  const [selectedTerritoryId, setSelectedTerritoryId] = useState('')
   const [selectedRegionId, setSelectedRegionId] = useState('')
   const [selectedCityId, setSelectedCityId] = useState('')
   const [selectedCampusId, setSelectedCampusId] = useState('')
@@ -25,7 +25,7 @@ export default function AddNewRack() {
   // API-driven location data
   const { data: countriesResp } = useRootLocations()
   const countries = countriesResp?.data || []
-  const { data: regionsResp } = useLocationChildren(selectedCountryId)
+  const { data: regionsResp } = useLocationChildren(selectedTerritoryId)
   const regions = regionsResp?.data || []
   const { data: citiesResp } = useLocationChildren(selectedRegionId)
   const cities = citiesResp?.data || []
@@ -34,14 +34,14 @@ export default function AddNewRack() {
 
   // Pre-fill from LocationContext if available
   useEffect(() => {
-    if (path.country?.id && !selectedCountryId) setSelectedCountryId(path.country.id)
+    if (path.territory?.id && !selectedTerritoryId) setSelectedTerritoryId(path.territory.id)
     if (path.region?.id && !selectedRegionId) setSelectedRegionId(path.region.id)
     if (path.city?.id && !selectedCityId) setSelectedCityId(path.city.id)
     if (path.campus?.id && !selectedCampusId) setSelectedCampusId(path.campus.id)
   }, [path])
 
   // Cascade clear: when parent changes, clear children
-  useEffect(() => { setSelectedRegionId(''); setSelectedCityId(''); setSelectedCampusId('') }, [selectedCountryId])
+  useEffect(() => { setSelectedRegionId(''); setSelectedCityId(''); setSelectedCampusId('') }, [selectedTerritoryId])
   useEffect(() => { setSelectedCityId(''); setSelectedCampusId('') }, [selectedRegionId])
   useEffect(() => { setSelectedCampusId('') }, [selectedCityId])
 
@@ -50,7 +50,7 @@ export default function AddNewRack() {
   const rackSlots = Array.from({ length: totalU }, (_, i) => ({ u: totalU - i, occupied: false }))
 
   // Selected location names for breadcrumb
-  const selectedCountry = countries.find((c: any) => c.id === selectedCountryId)
+  const selectedCountry = countries.find((c: any) => c.id === selectedTerritoryId)
   const selectedRegion = regions.find((r: any) => r.id === selectedRegionId)
   const selectedCity = cities.find((c: any) => c.id === selectedCityId)
   const selectedCampus = campuses.find((c: any) => c.id === selectedCampusId)
@@ -153,14 +153,14 @@ export default function AddNewRack() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Country */}
+              {/* Territory */}
               <div>
                 <label className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label block mb-1.5">
-                  Country
+                  {t('locations.level_territory')}
                 </label>
-                <select value={selectedCountryId} onChange={e => setSelectedCountryId(e.target.value)}
+                <select value={selectedTerritoryId} onChange={e => setSelectedTerritoryId(e.target.value)}
                   className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 appearance-none">
-                  <option value="">Select country...</option>
+                  <option value="">{t('add_new_rack.select_territory')}</option>
                   {countries.map((c: any) => <option key={c.id} value={c.id}>{c.name_en || c.name}</option>)}
                 </select>
               </div>
@@ -170,7 +170,7 @@ export default function AddNewRack() {
                   Region
                 </label>
                 <select value={selectedRegionId} onChange={e => setSelectedRegionId(e.target.value)}
-                  disabled={!selectedCountryId}
+                  disabled={!selectedTerritoryId}
                   className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 appearance-none disabled:opacity-40">
                   <option value="">Select region...</option>
                   {regions.map((r: any) => <option key={r.id} value={r.id}>{r.name_en || r.name}</option>)}

@@ -101,9 +101,9 @@ export default function App() {
         <Route element={<AuthGuard><MainLayout /></AuthGuard>}>
           {/* Location hierarchy */}
           <Route path="/locations" element={<GlobalOverview />} />
-          <Route path="/locations/:countrySlug" element={<RegionOverview />} />
-          <Route path="/locations/:countrySlug/:regionSlug" element={<CityOverview />} />
-          <Route path="/locations/:countrySlug/:regionSlug/:citySlug" element={<CampusOverview />} />
+          <Route path="/locations/:territorySlug" element={<RegionOverview />} />
+          <Route path="/locations/:territorySlug/:regionSlug" element={<CityOverview />} />
+          <Route path="/locations/:territorySlug/:regionSlug/:citySlug" element={<CampusOverview />} />
 
           {/* Dashboard */}
           <Route path="/dashboard" element={<Dashboard />} />

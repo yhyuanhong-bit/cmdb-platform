@@ -41,9 +41,9 @@ ON CONFLICT DO NOTHING;
 -- metadata 包含頁面需要的統計信息
 -- ============================================================
 INSERT INTO locations (id, tenant_id, name, name_en, slug, level, parent_id, path, metadata, sort_order) VALUES
-    -- Country
+    -- Territory
     ('d0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001',
-     '台灣', 'Taiwan', 'tw', 'country', NULL, 'tw',
+     '台灣', 'Taiwan', 'tw', 'territory', NULL, 'tw',
      '{"idc_count": 3, "region_count": 2, "pue": 1.42, "rack_occupancy": 72, "power_trend": [82,79,84,81,78,80,77]}', 1),
     -- Regions
     ('d0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001',

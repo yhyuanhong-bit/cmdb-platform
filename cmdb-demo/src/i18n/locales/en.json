@@ -852,7 +852,8 @@
     "summary_total_u": "總 U 位",
     "summary_occupied": "已佔用",
     "summary_available": "可用",
-    "summary_max_power": "最大功率"
+    "summary_max_power": "最大功率",
+    "select_territory": "Select territory..."
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "System Monitoring",
@@ -1734,7 +1735,7 @@
     "slug_label": "Slug",
     "slug_placeholder": "auto-derived-from-name-en",
     "level_label": "Level",
-    "level_country": "Country",
+    "level_territory": "Territory",
     "level_region": "Region",
     "level_city": "City",
     "level_campus": "Campus",
@@ -1888,7 +1889,7 @@
   "locations": {
     "global_title": "IRONGRID Global Command Center",
     "global_title_zh": "集團全域資料中心指揮總覽",
-    "kpi_countries": "Countries",
+    "kpi_territories": "Territories",
     "kpi_regions": "Regions",
     "kpi_idcs": "IDCs",
     "kpi_total_assets": "Total Assets",
@@ -1916,7 +1917,7 @@
     "global_uptime": "Global Uptime",
     "energy_trend": "Energy Trend (7d)",
     "global_kpi_summary": "Global KPI Summary",
-    "country_overview": "Country Overview",
+    "territory_overview": "Territory Overview",
     "alert_stream": "Global Real-Time Alert Stream",
     "modules": "Modules",
     "used": "Used",

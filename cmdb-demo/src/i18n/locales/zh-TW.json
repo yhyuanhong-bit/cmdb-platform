@@ -852,7 +852,8 @@
     "summary_total_u": "總 U 位",
     "summary_occupied": "已佔用",
     "summary_available": "可用",
-    "summary_max_power": "最大功率"
+    "summary_max_power": "最大功率",
+    "select_territory": "選擇營運區域..."
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "系統監控",
@@ -1734,7 +1735,7 @@
     "slug_label": "Slug",
     "slug_placeholder": "自動從英文名稱產生",
     "level_label": "層級",
-    "level_country": "國家",
+    "level_territory": "營運區域",
     "level_region": "區域",
     "level_city": "城市",
     "level_campus": "園區",
@@ -1888,7 +1889,7 @@
   "locations": {
     "global_title": "IRONGRID 全球指揮中心",
     "global_title_zh": "集團全域資料中心指揮總覽",
-    "kpi_countries": "國家",
+    "kpi_territories": "營運區域",
     "kpi_regions": "區域",
     "kpi_idcs": "資料中心",
     "kpi_total_assets": "資產總數",
@@ -1916,7 +1917,7 @@
     "global_uptime": "全球可用率",
     "energy_trend": "能源趨勢 (7天)",
     "global_kpi_summary": "全球 KPI 概覽",
-    "country_overview": "國家總覽",
+    "territory_overview": "營運區域總覽",
     "alert_stream": "全球即時告警流",
     "modules": "模組",
     "used": "已用",

@@ -366,21 +366,21 @@ function ComparisonBars({ cities }: { cities: CityData[] }) {
 function CityOverview() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { countrySlug, regionSlug } = useParams<{
-    countrySlug: string;
+  const { territorySlug, regionSlug } = useParams<{
+    territorySlug: string;
     regionSlug: string;
   }>();
 
-  // Chain: root locations -> find country -> children -> find region -> children (cities)
+  // Chain: root locations -> find territory -> children -> find region -> children (cities)
   const rootQ = useRootLocations();
-  const countryLoc = useMemo(
-    () => (rootQ.data?.data ?? []).find((l) => l.slug === (countrySlug ?? 'china')),
-    [rootQ.data, countrySlug],
+  const territoryLoc = useMemo(
+    () => (rootQ.data?.data ?? []).find((l) => l.slug === (territorySlug ?? 'china')),
+    [rootQ.data, territorySlug],
   );
-  const countryChildrenQ = useLocationChildren(countryLoc?.id ?? '');
+  const territoryChildrenQ = useLocationChildren(territoryLoc?.id ?? '');
   const regionLoc = useMemo(
-    () => (countryChildrenQ.data?.data ?? []).find((l) => l.slug === (regionSlug ?? 'east')),
-    [countryChildrenQ.data, regionSlug],
+    () => (territoryChildrenQ.data?.data ?? []).find((l) => l.slug === (regionSlug ?? 'east')),
+    [territoryChildrenQ.data, regionSlug],
   );
   const citiesQ = useLocationChildren(regionLoc?.id ?? '');
   const regionStatsQ = useLocationStats(regionLoc?.id ?? '');
@@ -395,21 +395,21 @@ function CityOverview() {
     nameCn: regionLoc?.name ?? '',
     nameEn: regionLoc?.name_en ?? regionLoc?.name ?? '',
     titleCn: regionLoc?.name ?? '',
-    countrySlug: countrySlug ?? 'china',
-    countryNameEn: countryLoc?.name_en ?? countryLoc?.name ?? '',
+    countrySlug: territorySlug ?? 'china',
+    countryNameEn: territoryLoc?.name_en ?? territoryLoc?.name ?? '',
     idcs: cities.reduce((s, c) => s + c.idcCount, 0),
     campuses: cities.reduce((s, c) => s + c.campuses, 0),
     racks: rStats?.total_racks ?? cities.reduce((s, c) => s + c.racks, 0),
     pue: cities.length > 0 ? cities.reduce((s, c) => s + c.pue, 0) / cities.length : 0,
     alerts: rStats?.critical_alerts ?? cities.reduce((s, c) => s + c.alerts, 0),
     cities,
-  }), [regionLoc, countrySlug, countryLoc, cities]);
+  }), [regionLoc, territorySlug, territoryLoc, cities]);
 
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
   const [sortBy, setSortBy] = useState<SortKey>("name");
 
-  const isLoading = rootQ.isLoading || countryChildrenQ.isLoading || citiesQ.isLoading;
-  const hasError = rootQ.error || countryChildrenQ.error || citiesQ.error;
+  const isLoading = rootQ.isLoading || territoryChildrenQ.isLoading || citiesQ.isLoading;
+  const hasError = rootQ.error || territoryChildrenQ.error || citiesQ.error;
 
   const sortedCities = useMemo(() => {
     const copy = [...cities];
@@ -427,7 +427,7 @@ function CityOverview() {
     }
   }, [cities, sortBy]);
 
-  const country = countrySlug ?? "china";
+  const territory = territorySlug ?? "china";
 
   if (isLoading) {
     return (
@@ -442,7 +442,7 @@ function CityOverview() {
       <div className="p-6">
         <div className="rounded-lg bg-red-900/20 p-4 text-red-300 text-sm">
           Failed to load city data.{' '}
-          <button onClick={() => { rootQ.refetch(); countryChildrenQ.refetch(); citiesQ.refetch(); }} className="underline">Retry</button>
+          <button onClick={() => { rootQ.refetch(); territoryChildrenQ.refetch(); citiesQ.refetch(); }} className="underline">Retry</button>
         </div>
       </div>
     );
@@ -460,7 +460,7 @@ function CityOverview() {
         </button>
         <Icon name="chevron_right" className="text-sm text-on-surface-variant" />
         <button
-          onClick={() => navigate(`/locations/${country}`)}
+          onClick={() => navigate(`/locations/${territory}`)}
           className="font-medium uppercase tracking-wider text-primary hover:underline"
         >
           {region.countryNameEn.toUpperCase()}
@@ -541,7 +541,7 @@ function CityOverview() {
               city={city}
               onClick={() =>
                 navigate(
-                  `/locations/${country}/${regionSlug ?? "east"}/${city.slug}`,
+                  `/locations/${territory}/${regionSlug ?? "east"}/${city.slug}`,
                 )
               }
             />
@@ -555,7 +555,7 @@ function CityOverview() {
               city={city}
               onClick={() =>
                 navigate(
-                  `/locations/${country}/${regionSlug ?? "east"}/${city.slug}`,
+                  `/locations/${territory}/${regionSlug ?? "east"}/${city.slug}`,
                 )
               }
             />

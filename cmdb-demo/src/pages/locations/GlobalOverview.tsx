@@ -21,7 +21,7 @@ const SUMMARY_KPI = {
   energyTrend: [82, 79, 84, 81, 78, 80, 77],
 };
 
-interface CountryData {
+interface TerritoryData {
   slug: string;
   nameCn: string;
   nameEn: string;
@@ -47,7 +47,7 @@ const MAP_META: Record<string, { flag: string; mapLeft: string; mapTop: string; 
   tw:        { flag: '\u{1F1F9}\u{1F1FC}', mapLeft: '78%', mapTop: '38%', markerSize: '2rem' },
 };
 
-function locationToCountry(loc: Location): CountryData {
+function locationToTerritory(loc: Location): TerritoryData {
   const meta = MAP_META[loc.slug] ?? { flag: '\u{1F30D}', mapLeft: '50%', mapTop: '50%', markerSize: '2rem' };
   return {
     slug: loc.slug,
@@ -147,11 +147,11 @@ function KpiCard({ icon, label, value, accent }: { icon: string; label: string; 
   );
 }
 
-function MapMarker({ country, onClick }: { country: CountryData; onClick: () => void }) {
+function MapMarker({ territory, onClick }: { territory: TerritoryData; onClick: () => void }) {
   const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
-  const markerColor = country.criticalAlerts > 3 ? 'bg-orange-400' : 'bg-green-400';
-  const ringColor = country.criticalAlerts > 3 ? 'ring-orange-400/30' : 'ring-green-400/30';
+  const markerColor = territory.criticalAlerts > 3 ? 'bg-orange-400' : 'bg-green-400';
+  const ringColor = territory.criticalAlerts > 3 ? 'ring-orange-400/30' : 'ring-green-400/30';
 
   return (
     <button
@@ -160,36 +160,36 @@ function MapMarker({ country, onClick }: { country: CountryData; onClick: () => 
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className="absolute flex flex-col items-center group focus:outline-none"
-      style={{ left: country.mapLeft, top: country.mapTop, transform: 'translate(-50%, -50%)' }}
-      aria-label={`${country.nameEn} - ${country.idcCount} IDCs`}
+      style={{ left: territory.mapLeft, top: territory.mapTop, transform: 'translate(-50%, -50%)' }}
+      aria-label={`${territory.nameEn} - ${territory.idcCount} IDCs`}
     >
       {/* Pulsing marker */}
       <span
         className={`relative rounded-full ${markerColor} ring-4 ${ringColor} transition-transform duration-200 ${hovered ? 'scale-125' : 'scale-100'}`}
-        style={{ width: country.markerSize, height: country.markerSize }}
+        style={{ width: territory.markerSize, height: territory.markerSize }}
       >
         <span className={`absolute inset-0 rounded-full ${markerColor} opacity-40 animate-ping`} />
       </span>
 
       {/* Label */}
       <span className="mt-1.5 text-xs font-bold font-headline text-on-surface whitespace-nowrap">
-        {country.nameEn}
+        {territory.nameEn}
       </span>
       <span className="text-[10px] text-on-surface-variant whitespace-nowrap">
-        {country.idcCount} IDC
+        {territory.idcCount} IDC
       </span>
 
       {/* Hover tooltip */}
       {hovered && (
         <div className="absolute top-full mt-2 bg-surface-container-high rounded-lg p-3 min-w-[180px] z-10 text-left shadow-lg">
-          <p className="text-sm font-bold text-on-surface font-headline">{country.flag} {country.nameCn} {country.nameEn}</p>
+          <p className="text-sm font-bold text-on-surface font-headline">{territory.flag} {territory.nameCn} {territory.nameEn}</p>
           <div className="mt-2 space-y-1 text-xs text-on-surface-variant font-body">
-            <p>{country.idcCount} IDCs across {country.regionCount} Region{country.regionCount > 1 ? 's' : ''}</p>
-            <p>{formatNumber(country.totalAssets)} Assets</p>
-            <p>PUE {country.pue.toFixed(2)}</p>
-            <p>{t('locations.rack_occupancy')} {country.rackOccupancy}%</p>
-            {country.criticalAlerts > 0 && (
-              <p className="text-error font-semibold">{country.criticalAlerts} Critical Alert{country.criticalAlerts > 1 ? 's' : ''}</p>
+            <p>{territory.idcCount} IDCs across {territory.regionCount} Region{territory.regionCount > 1 ? 's' : ''}</p>
+            <p>{formatNumber(territory.totalAssets)} Assets</p>
+            <p>PUE {territory.pue.toFixed(2)}</p>
+            <p>{t('locations.rack_occupancy')} {territory.rackOccupancy}%</p>
+            {territory.criticalAlerts > 0 && (
+              <p className="text-error font-semibold">{territory.criticalAlerts} Critical Alert{territory.criticalAlerts > 1 ? 's' : ''}</p>
             )}
           </div>
         </div>
@@ -198,26 +198,26 @@ function MapMarker({ country, onClick }: { country: CountryData; onClick: () => 
   );
 }
 
-function CountryCard({ country, onClick }: { country: CountryData; onClick: () => void }) {
+function TerritoryCard({ territory, onClick }: { territory: TerritoryData; onClick: () => void }) {
   const { t } = useTranslation();
   return (
     <button
       type="button"
       onClick={onClick}
       className="bg-surface-container rounded-lg p-5 text-left hover:bg-surface-container-high transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary/50 w-full"
-      aria-label={`View ${country.nameEn} details`}
+      aria-label={`View ${territory.nameEn} details`}
     >
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-lg font-bold font-headline text-on-surface">{country.flag} {country.nameCn} {country.nameEn}</p>
+          <p className="text-lg font-bold font-headline text-on-surface">{territory.flag} {territory.nameCn} {territory.nameEn}</p>
           <p className="text-xs text-on-surface-variant font-body mt-0.5">
-            {country.idcCount} IDC &middot; {country.regionCount} Region{country.regionCount > 1 ? 's' : ''}
+            {territory.idcCount} IDC &middot; {territory.regionCount} Region{territory.regionCount > 1 ? 's' : ''}
           </p>
         </div>
-        {country.criticalAlerts > 0 && (
+        {territory.criticalAlerts > 0 && (
           <span className="bg-error/20 text-error text-xs font-bold px-2 py-0.5 rounded-full">
-            {country.criticalAlerts} Alert{country.criticalAlerts > 1 ? 's' : ''}
+            {territory.criticalAlerts} Alert{territory.criticalAlerts > 1 ? 's' : ''}
           </span>
         )}
       </div>
@@ -226,11 +226,11 @@ function CountryCard({ country, onClick }: { country: CountryData; onClick: () =
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm font-body">
         <div>
           <p className="text-on-surface-variant text-xs">{t('locations.kpi_total_assets')}</p>
-          <p className="text-on-surface font-semibold">{formatNumber(country.totalAssets)}</p>
+          <p className="text-on-surface font-semibold">{formatNumber(territory.totalAssets)}</p>
         </div>
         <div>
           <p className="text-on-surface-variant text-xs">PUE</p>
-          <p className={`font-semibold ${country.pue < 1.3 ? 'text-green-400' : 'text-orange-400'}`}>{country.pue.toFixed(2)}</p>
+          <p className={`font-semibold ${territory.pue < 1.3 ? 'text-green-400' : 'text-orange-400'}`}>{territory.pue.toFixed(2)}</p>
         </div>
       </div>
 
@@ -238,14 +238,14 @@ function CountryCard({ country, onClick }: { country: CountryData; onClick: () =
       <div className="mt-4">
         <div className="flex items-center justify-between text-xs font-body mb-1">
           <span className="text-on-surface-variant">{t('locations.rack_occupancy')}</span>
-          <span className="text-on-surface font-semibold">{country.rackOccupancy}%</span>
+          <span className="text-on-surface font-semibold">{territory.rackOccupancy}%</span>
         </div>
         <div className="w-full h-2 bg-surface-container-low rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${
-              country.rackOccupancy > 80 ? 'bg-orange-400' : 'bg-primary'
+              territory.rackOccupancy > 80 ? 'bg-orange-400' : 'bg-primary'
             }`}
-            style={{ width: `${country.rackOccupancy}%` }}
+            style={{ width: `${territory.rackOccupancy}%` }}
           />
         </div>
       </div>
@@ -253,7 +253,7 @@ function CountryCard({ country, onClick }: { country: CountryData; onClick: () =
       {/* Power Trend */}
       <div className="mt-4 flex items-center justify-between">
         <span className="text-xs text-on-surface-variant font-body">Power Trend (7d)</span>
-        <Sparkline data={country.powerTrend} />
+        <Sparkline data={territory.powerTrend} />
       </div>
     </button>
   );
@@ -304,18 +304,18 @@ const GlobalOverview: React.FC = () => {
     return raw.map(apiAlertToAlertData);
   }, [alertsQ.data]);
 
-  // Convert API locations to CountryData for rendering
-  const COUNTRIES: CountryData[] = useMemo(() => {
+  // Convert API locations to TerritoryData for rendering
+  const TERRITORIES: TerritoryData[] = useMemo(() => {
     const locs = rootLocationsQ.data?.data ?? [];
-    return locs.map(locationToCountry);
+    return locs.map(locationToTerritory);
   }, [rootLocationsQ.data]);
 
   const GLOBAL_KPI = useMemo(() => ({
-    countries: COUNTRIES.length,
-    regions: COUNTRIES.reduce((s, c) => s + c.regionCount, 0),
-    idcs: COUNTRIES.reduce((s, c) => s + c.idcCount, 0),
-    totalAssets: stats?.total_assets ?? COUNTRIES.reduce((s, c) => s + c.totalAssets, 0),
-  }), [COUNTRIES, stats]);
+    territories: TERRITORIES.length,
+    regions: TERRITORIES.reduce((s, c) => s + c.regionCount, 0),
+    idcs: TERRITORIES.reduce((s, c) => s + c.idcCount, 0),
+    totalAssets: stats?.total_assets ?? TERRITORIES.reduce((s, c) => s + c.totalAssets, 0),
+  }), [TERRITORIES, stats]);
 
   const syncDate = new Date(LAST_SYNC);
   const syncTimeStr = syncDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -374,7 +374,7 @@ const GlobalOverview: React.FC = () => {
         {/* Global KPI Bar                                                   */}
         {/* --------------------------------------------------------------- */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-4" aria-label="Global KPIs">
-          <KpiCard icon="public" label={t('locations.kpi_countries')} value={GLOBAL_KPI.countries} />
+          <KpiCard icon="public" label={t('locations.kpi_territories')} value={GLOBAL_KPI.territories} />
           <KpiCard icon="pin_drop" label={t('locations.kpi_regions')} value={GLOBAL_KPI.regions} />
           <KpiCard icon="domain" label={t('locations.kpi_idcs')} value={GLOBAL_KPI.idcs} />
           <KpiCard icon="inventory_2" label={t('locations.kpi_total_assets')} value={GLOBAL_KPI.totalAssets} />
@@ -418,12 +418,12 @@ const GlobalOverview: React.FC = () => {
                 Africa
               </span>
 
-              {/* Country markers */}
-              {COUNTRIES.map((country) => (
+              {/* Territory markers */}
+              {TERRITORIES.map((territory) => (
                 <MapMarker
-                  key={country.slug}
-                  country={country}
-                  onClick={() => navigate(`/locations/${country.slug}`)}
+                  key={territory.slug}
+                  territory={territory}
+                  onClick={() => navigate(`/locations/${territory.slug}`)}
                 />
               ))}
 
@@ -506,19 +506,19 @@ const GlobalOverview: React.FC = () => {
         </section>
 
         {/* --------------------------------------------------------------- */}
-        {/* Country Cards                                                    */}
+        {/* Territory Cards                                                  */}
         {/* --------------------------------------------------------------- */}
-        <section aria-label="Country Overview">
+        <section aria-label="Territory Overview">
           <h2 className="font-headline text-sm font-bold uppercase tracking-wider text-on-surface-variant mb-4">
             <span className="material-symbols-outlined text-base align-middle mr-1.5">flag</span>
-            {t('locations.country_overview')}
+            {t('locations.territory_overview')}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {COUNTRIES.map((country) => (
-              <CountryCard
-                key={country.slug}
-                country={country}
-                onClick={() => navigate(`/locations/${country.slug}`)}
+            {TERRITORIES.map((territory) => (
+              <TerritoryCard
+                key={territory.slug}
+                territory={territory}
+                onClick={() => navigate(`/locations/${territory.slug}`)}
               />
             ))}
           </div>

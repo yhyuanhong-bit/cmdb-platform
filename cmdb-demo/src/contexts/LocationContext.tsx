@@ -16,14 +16,14 @@ export interface LocationNode {
 }
 
 export interface LocationPath {
-  country?: LocationNode
+  territory?: LocationNode
   region?: LocationNode
   city?: LocationNode
   campus?: LocationNode
   idc?: LocationNode
 }
 
-export type LocationLevel = 'global' | 'country' | 'region' | 'city' | 'campus' | 'idc'
+export type LocationLevel = 'global' | 'territory' | 'region' | 'city' | 'campus' | 'idc'
 
 interface LocationContextValue {
   path: LocationPath
@@ -42,7 +42,7 @@ function deriveLevel(path: LocationPath): LocationLevel {
   if (path.campus) return 'campus'
   if (path.city) return 'city'
   if (path.region) return 'region'
-  if (path.country) return 'country'
+  if (path.territory) return 'territory'
   return 'global'
 }
 
@@ -83,26 +83,26 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         switch (level) {
           case 'global':
             return {}
-          case 'country':
-            return { country: node ?? prev.country }
+          case 'territory':
+            return { territory: node ?? prev.territory }
           case 'region':
-            return { country: prev.country, region: node ?? prev.region }
+            return { territory: prev.territory, region: node ?? prev.region }
           case 'city':
             return {
-              country: prev.country,
+              territory: prev.territory,
               region: prev.region,
               city: node ?? prev.city,
             }
           case 'campus':
             return {
-              country: prev.country,
+              territory: prev.territory,
               region: prev.region,
               city: prev.city,
               campus: node ?? prev.campus,
             }
           case 'idc':
             return {
-              country: prev.country,
+              territory: prev.territory,
               region: prev.region,
               city: prev.city,
               campus: prev.campus,
@@ -121,39 +121,39 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const breadcrumbs = useMemo(() => {
     const crumbs: Array<{ label: string; labelEn: string; to: string }> = []
 
-    if (path.country) {
+    if (path.territory) {
       crumbs.push({
-        label: path.country.name,
-        labelEn: path.country.nameEn,
-        to: `/locations/${path.country.slug}`,
+        label: path.territory.name,
+        labelEn: path.territory.nameEn,
+        to: `/locations/${path.territory.slug}`,
       })
     }
 
-    if (path.region && path.country) {
+    if (path.region && path.territory) {
       crumbs.push({
         label: path.region.name,
         labelEn: path.region.nameEn,
-        to: `/locations/${path.country.slug}/${path.region.slug}`,
+        to: `/locations/${path.territory.slug}/${path.region.slug}`,
       })
     }
 
-    if (path.city && path.country && path.region) {
+    if (path.city && path.territory && path.region) {
       crumbs.push({
         label: path.city.name,
         labelEn: path.city.nameEn,
-        to: `/locations/${path.country.slug}/${path.region.slug}/${path.city.slug}`,
+        to: `/locations/${path.territory.slug}/${path.region.slug}/${path.city.slug}`,
       })
     }
 
-    if (path.campus && path.country && path.region && path.city) {
+    if (path.campus && path.territory && path.region && path.city) {
       crumbs.push({
         label: path.campus.name,
         labelEn: path.campus.nameEn,
-        to: `/locations/${path.country.slug}/${path.region.slug}/${path.city.slug}/${path.campus.slug}`,
+        to: `/locations/${path.territory.slug}/${path.region.slug}/${path.city.slug}/${path.campus.slug}`,
       })
     }
 
-    if (path.idc && path.country && path.region && path.city && path.campus) {
+    if (path.idc && path.territory && path.region && path.city && path.campus) {
       crumbs.push({
         label: path.idc.name,
         labelEn: path.idc.nameEn,

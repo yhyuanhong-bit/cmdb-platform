@@ -47,9 +47,9 @@ export default function RackManagement() {
 
   // If no location selected in context, find the first campus as default
   const rootQ = useRootLocations();
-  const firstCountryId = rootQ.data?.data?.[0]?.id ?? "";
-  const countryChildrenQ = useLocationChildren(contextLocationId ? "" : firstCountryId);
-  const firstRegionId = countryChildrenQ.data?.data?.[0]?.id ?? "";
+  const firstTerritoryId = rootQ.data?.data?.[0]?.id ?? "";
+  const territoryChildrenQ = useLocationChildren(contextLocationId ? "" : firstTerritoryId);
+  const firstRegionId = territoryChildrenQ.data?.data?.[0]?.id ?? "";
   const regionChildrenQ = useLocationChildren(contextLocationId ? "" : firstRegionId);
   const firstCityId = regionChildrenQ.data?.data?.[0]?.id ?? "";
   const cityChildrenQ = useLocationChildren(contextLocationId ? "" : firstCityId);
@@ -64,7 +64,7 @@ export default function RackManagement() {
     severity: e.severity || 'info',
   }));
   const { data: racksResponse, isLoading: racksLoading, error } = useRacks(locationId);
-  const isLoading = racksLoading || (!contextLocationId && (rootQ.isLoading || countryChildrenQ.isLoading || regionChildrenQ.isLoading || cityChildrenQ.isLoading));
+  const isLoading = racksLoading || (!contextLocationId && (rootQ.isLoading || territoryChildrenQ.isLoading || regionChildrenQ.isLoading || cityChildrenQ.isLoading));
   const racks: Rack[] = racksResponse?.data ?? [];
 
   if (isLoading) {

@@ -189,21 +189,21 @@ const RegionCard = memo(function RegionCard({
 function RegionOverview() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { countrySlug } = useParams<{ countrySlug: string }>();
+  const { territorySlug } = useParams<{ territorySlug: string }>();
 
-  // Find the country from root locations by slug
+  // Find the territory from root locations by slug
   const rootQ = useRootLocations();
-  const countryLoc = useMemo(
-    () => (rootQ.data?.data ?? []).find((l) => l.slug === (countrySlug ?? 'china')),
-    [rootQ.data, countrySlug],
+  const territoryLoc = useMemo(
+    () => (rootQ.data?.data ?? []).find((l) => l.slug === (territorySlug ?? 'china')),
+    [rootQ.data, territorySlug],
   );
 
-  // Fetch children (regions) of the country
-  const childrenQ = useLocationChildren(countryLoc?.id ?? '');
+  // Fetch children (regions) of the territory
+  const childrenQ = useLocationChildren(territoryLoc?.id ?? '');
 
-  // Fetch aggregate stats for the country (recursive)
-  const countryStatsQ = useLocationStats(countryLoc?.id ?? '');
-  const cStats = countryStatsQ.data?.data;
+  // Fetch aggregate stats for the territory (recursive)
+  const territoryStatsQ = useLocationStats(territoryLoc?.id ?? '');
+  const cStats = territoryStatsQ.data?.data;
 
   // Map to display format
   const regions: RegionDisplay[] = useMemo(
@@ -211,16 +211,16 @@ function RegionOverview() {
     [childrenQ.data],
   );
 
-  const country = useMemo(() => ({
-    nameCn: countryLoc?.name ?? '',
-    nameEn: countryLoc?.name_en ?? countryLoc?.name ?? '',
-    titleCn: countryLoc?.name ?? '',
-    subtitleEn: countryLoc?.name_en ?? '',
+  const territory = useMemo(() => ({
+    nameCn: territoryLoc?.name ?? '',
+    nameEn: territoryLoc?.name_en ?? territoryLoc?.name ?? '',
+    titleCn: territoryLoc?.name ?? '',
+    subtitleEn: territoryLoc?.name_en ?? '',
     totalIdcs: regions.reduce((s, r) => s + r.idcCount, 0),
     totalRacks: cStats?.total_racks ?? regions.reduce((s, r) => s + r.racks, 0),
     totalAssets: cStats?.total_assets ?? regions.reduce((s, r) => s + r.assets, 0),
     criticalAlerts: cStats?.critical_alerts ?? regions.reduce((s, r) => s + r.alerts, 0),
-  }), [countryLoc, regions, cStats]);
+  }), [territoryLoc, regions, cStats]);
 
   if (rootQ.isLoading || childrenQ.isLoading) {
     return (
@@ -259,17 +259,17 @@ function RegionOverview() {
         </button>
         <Icon name="chevron_right" className="text-sm text-on-surface-variant" />
         <span className="font-medium uppercase tracking-wider text-on-surface">
-          {country.nameEn.toUpperCase()}
+          {territory.nameEn.toUpperCase()}
         </span>
       </nav>
 
       {/* Title */}
       <div className="mb-6">
         <h1 className="font-headline text-2xl font-bold text-on-surface">
-          {country.titleCn}
+          {territory.titleCn}
         </h1>
         <p className="mt-1 text-sm text-on-surface-variant">
-          {country.subtitleEn} {t('locations.region_title_suffix')}
+          {territory.subtitleEn} {t('locations.region_title_suffix')}
         </p>
       </div>
 
@@ -278,22 +278,22 @@ function RegionOverview() {
         <KpiCard
           icon="domain"
           label={t('locations.kpi_total_idcs')}
-          value={country.totalIdcs}
+          value={territory.totalIdcs}
         />
         <KpiCard
           icon="dns"
           label={t('locations.kpi_total_racks')}
-          value={country.totalRacks}
+          value={territory.totalRacks}
         />
         <KpiCard
           icon="devices"
           label={t('locations.kpi_total_assets')}
-          value={country.totalAssets}
+          value={territory.totalAssets}
         />
         <KpiCard
           icon="warning"
           label={t('locations.kpi_critical_alerts')}
-          value={country.criticalAlerts}
+          value={territory.criticalAlerts}
           alert
         />
       </div>
@@ -315,7 +315,7 @@ function RegionOverview() {
                 region={region}
                 onClick={() =>
                   navigate(
-                    `/locations/${countrySlug ?? "china"}/${region.slug}`,
+                    `/locations/${territorySlug ?? "china"}/${region.slug}`,
                   )
                 }
               />

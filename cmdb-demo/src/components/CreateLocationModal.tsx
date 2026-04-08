@@ -11,7 +11,7 @@ const initial = {
   name: '',
   name_en: '',
   slug: '',
-  level: 'country',
+  level: 'territory',
   parent_id: '',
   status: 'active',
 }
@@ -58,7 +58,7 @@ export default function CreateLocationModal({ open, onClose }: Props) {
           <label className="block text-sm text-gray-400 mb-1">{t('location_modal.level_label')}</label>
           <select value={formData.level} onChange={e => setFormData(p => ({ ...p, level: e.target.value }))}
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm">
-            <option value="country">{t('location_modal.level_country')}</option>
+            <option value="territory">{t('location_modal.level_territory')}</option>
             <option value="region">{t('location_modal.level_region')}</option>
             <option value="city">{t('location_modal.level_city')}</option>
             <option value="campus">{t('location_modal.level_campus')}</option>
