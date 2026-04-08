@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import Icon from './Icon'
 import {
   useScanTargets,
@@ -60,10 +61,12 @@ const taskStatusStyle: Record<string, string> = {
 }
 
 function TaskStatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation()
+  const statusKey = `scan_management.status_${status}` as const
   const cls = taskStatusStyle[status] ?? taskStatusStyle.pending
   return (
     <span className={`inline-block px-2.5 py-1 rounded text-[0.6875rem] font-semibold uppercase tracking-wider ${cls}`}>
-      {status}
+      {t(statusKey, status)}
     </span>
   )
 }
@@ -99,6 +102,7 @@ function fmt(ts?: string) {
 /* ------------------------------------------------------------------ */
 
 export default function ScanManagementTab() {
+  const { t } = useTranslation()
   const [modalOpen, setModalOpen]     = useState(false)
   const [editingTarget, setEditingTarget] = useState<ScanTarget | null>(null)
 
@@ -112,8 +116,8 @@ export default function ScanManagementTab() {
   const targets: ScanTarget[] = (targetsData as any)?.data ?? []
   const tasks: DiscoveryTask[] = (tasksData as any)?.data ?? []
 
-  function handleEdit(t: ScanTarget) {
-    setEditingTarget(t)
+  function handleEdit(target: ScanTarget) {
+    setEditingTarget(target)
     setModalOpen(true)
   }
 
@@ -123,7 +127,7 @@ export default function ScanManagementTab() {
   }
 
   function handleDelete(id: string) {
-    if (confirm('Delete this scan target?')) {
+    if (confirm(t('scan_management.confirm_delete'))) {
       deleteMutation.mutate(id)
     }
   }
@@ -151,14 +155,14 @@ export default function ScanManagementTab() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-headline font-bold text-lg text-on-surface flex items-center gap-2">
             <Icon name="radar" className="text-[20px] text-primary" />
-            Scan Targets
+            {t('scan_management.section_scan_targets')}
           </h2>
           <button
             onClick={handleAdd}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity"
           >
             <Icon name="add" className="text-[18px]" />
-            Add Target
+            {t('scan_management.btn_add_target')}
           </button>
         </div>
 
@@ -166,12 +170,12 @@ export default function ScanManagementTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-surface-container-high text-on-surface-variant text-[0.6875rem] uppercase tracking-wider">
-                <th className="px-4 py-3 text-left font-semibold">Name</th>
-                <th className="px-4 py-3 text-left font-semibold">Type</th>
-                <th className="px-4 py-3 text-left font-semibold">CIDRs</th>
-                <th className="px-4 py-3 text-left font-semibold">Credential</th>
-                <th className="px-4 py-3 text-left font-semibold">Mode</th>
-                <th className="px-4 py-3 text-right font-semibold">Actions</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('scan_management.table_name')}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('scan_management.table_type')}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('scan_management.table_cidrs')}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('scan_management.table_credential')}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('scan_management.table_mode')}</th>
+                <th className="px-4 py-3 text-right font-semibold">{t('scan_management.table_actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -185,32 +189,32 @@ export default function ScanManagementTab() {
               {!targetsLoading && targets.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-10 text-center text-on-surface-variant text-sm">
-                    No scan targets configured. Click "Add Target" to get started.
+                    {t('scan_management.empty_targets')}
                   </td>
                 </tr>
               )}
-              {targets.map(t => {
-                const icon = typeIcon[t.collector_type] ?? 'devices'
-                const bg   = typeBg[t.collector_type]  ?? 'bg-surface-container-high'
+              {targets.map(target => {
+                const icon = typeIcon[target.collector_type] ?? 'devices'
+                const bg   = typeBg[target.collector_type]  ?? 'bg-surface-container-high'
                 return (
                   <tr
-                    key={t.id}
+                    key={target.id}
                     className="bg-surface-container hover:bg-surface-container-high transition-colors border-t border-surface-container-high"
                   >
-                    <td className="px-4 py-3 font-medium text-on-surface">{t.name}</td>
+                    <td className="px-4 py-3 font-medium text-on-surface">{target.name}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <span className={`inline-flex items-center justify-center w-7 h-7 rounded-md ${bg}`}>
                           <Icon name={icon} className="text-[16px] text-on-surface" />
                         </span>
                         <span className="text-on-surface-variant uppercase text-xs font-semibold">
-                          {t.collector_type}
+                          {target.collector_type}
                         </span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {(t.cidrs ?? []).slice(0, 3).map(cidr => (
+                        {(target.cidrs ?? []).slice(0, 3).map(cidr => (
                           <span
                             key={cidr}
                             className="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded text-on-surface-variant"
@@ -218,52 +222,52 @@ export default function ScanManagementTab() {
                             {cidr}
                           </span>
                         ))}
-                        {(t.cidrs ?? []).length > 3 && (
+                        {(target.cidrs ?? []).length > 3 && (
                           <span className="text-xs text-on-surface-variant">
-                            +{t.cidrs.length - 3} more
+                            +{target.cidrs.length - 3} more
                           </span>
                         )}
-                        {(!t.cidrs || t.cidrs.length === 0) && (
+                        {(!target.cidrs || target.cidrs.length === 0) && (
                           <span className="text-xs text-on-surface-variant">—</span>
                         )}
                       </div>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-on-surface-variant">
-                      {t.credential_id ? t.credential_id.slice(0, 8) + '…' : '—'}
+                      {target.credential_id ? target.credential_id.slice(0, 8) + '…' : '—'}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs text-on-surface-variant capitalize">{t.mode}</span>
+                      <span className="text-xs text-on-surface-variant capitalize">{target.mode}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => handleScanNow(t.id)}
+                          onClick={() => handleScanNow(target.id)}
                           disabled={triggerMutation.isPending}
                           className="p-1.5 rounded-md hover:bg-primary/20 transition-colors"
-                          title="Scan Now"
+                          title={t('scan_management.tooltip_scan_now')}
                         >
                           <Icon name="play_arrow" className="text-[18px] text-primary" />
                         </button>
                         <button
-                          onClick={() => handleTest(t)}
+                          onClick={() => handleTest(target)}
                           disabled={testMutation.isPending}
                           className="p-1.5 rounded-md hover:bg-blue-500/20 transition-colors"
-                          title="Test Connection"
+                          title={t('scan_management.tooltip_test_connection')}
                         >
                           <Icon name="lan" className="text-[18px] text-blue-400" />
                         </button>
                         <button
-                          onClick={() => handleEdit(t)}
+                          onClick={() => handleEdit(target)}
                           className="p-1.5 rounded-md hover:bg-surface-container-highest transition-colors"
-                          title="Edit"
+                          title={t('scan_management.tooltip_edit')}
                         >
                           <Icon name="edit" className="text-[18px] text-on-surface-variant" />
                         </button>
                         <button
-                          onClick={() => handleDelete(t.id)}
+                          onClick={() => handleDelete(target.id)}
                           disabled={deleteMutation.isPending}
                           className="p-1.5 rounded-md hover:bg-error-container/40 transition-colors"
-                          title="Delete"
+                          title={t('scan_management.tooltip_delete')}
                         >
                           <Icon name="delete" className="text-[18px] text-error" />
                         </button>
@@ -283,18 +287,18 @@ export default function ScanManagementTab() {
       <div>
         <h2 className="font-headline font-bold text-lg text-on-surface flex items-center gap-2 mb-3">
           <Icon name="history" className="text-[20px] text-primary" />
-          Scan History
+          {t('scan_management.section_scan_history')}
         </h2>
 
         <div className="bg-surface-container rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-surface-container-high text-on-surface-variant text-[0.6875rem] uppercase tracking-wider">
-                <th className="px-4 py-3 text-left font-semibold">Type</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-left font-semibold">Stats</th>
-                <th className="px-4 py-3 text-left font-semibold">Started</th>
-                <th className="px-4 py-3 text-left font-semibold">Completed</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('scan_management.table_type')}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('scan_management.table_status')}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('scan_management.table_stats')}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('scan_management.table_started')}</th>
+                <th className="px-4 py-3 text-left font-semibold">{t('scan_management.table_completed')}</th>
               </tr>
             </thead>
             <tbody>
@@ -308,7 +312,7 @@ export default function ScanManagementTab() {
               {!tasksLoading && tasks.length === 0 && (
                 <tr>
                   <td colSpan={5} className="py-10 text-center text-on-surface-variant text-sm">
-                    No scan history yet.
+                    {t('scan_management.empty_history')}
                   </td>
                 </tr>
               )}
