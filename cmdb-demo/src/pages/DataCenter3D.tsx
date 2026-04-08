@@ -1,8 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useRacks, useRootLocations, useLocationDescendants } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
+import { useAlerts } from "../hooks/useMonitoring";
+import { apiClient } from "../lib/api/client";
 import type { Rack } from "../lib/api/topology";
 
 interface TreeNode {
@@ -56,11 +59,7 @@ function buildRackGrid(racks: Rack[]): RackCell[] {
   return cells;
 }
 
-const alerts = [
-  { level: "CRITICAL", text: "Rack A02: 電源供應異常", color: "text-error" },
-  { level: "CRITICAL", text: "Rack B14: 核心交換機故障", color: "text-error" },
-  { level: "WARNING", text: "Module 1: 溫度警報", color: "text-tertiary" },
-];
+// alerts are fetched from API inside the component
 
 function TreeItem({
   node,
@@ -183,6 +182,22 @@ export default function DataCenter3D() {
   const { data: racksResponse, isLoading } = useRacks(effectiveLocationId);
   const apiRacks: Rack[] = racksResponse?.data ?? [];
   const rackGrid = useMemo(() => buildRackGrid(apiRacks), [apiRacks]);
+
+  // Alerts from API (Task 8)
+  const { data: alertsResp } = useAlerts({ status: 'firing' })
+  const alerts: Array<{ level: string; text: string; color: string }> = ((alertsResp as any)?.data ?? []).slice(0, 5).map((a: any) => ({
+    level: (a.severity ?? '').toUpperCase() === 'CRITICAL' ? 'CRITICAL' : 'WARNING',
+    text: (a.message as string) || `Alert: ${String(a.id ?? '').slice(0, 8)}`,
+    color: (a.severity ?? '') === 'critical' ? 'text-error' : 'text-tertiary',
+  }))
+
+  // Energy summary from API (Task 9)
+  const { data: energySummary } = useQuery({
+    queryKey: ['energySummary3d'],
+    queryFn: () => apiClient.get('/energy/summary'),
+  })
+  const eSummary = energySummary as any
+
   const [activeTab, setActiveTab] = useState("global");
   const [heatMode, setHeatMode] = useState(false);
   const [hoveredRack, setHoveredRack] = useState<string | null>(null);
@@ -464,16 +479,16 @@ export default function DataCenter3D() {
           {/* Last update */}
           <div className="text-xs text-on-surface-variant mb-4 flex items-center gap-1.5">
             <span className="material-symbols-outlined text-sm">schedule</span>
-            {t('datacenter_3d.label_last_update')}: 2026-03-28 14:32:15
+            {t('datacenter_3d.label_last_update')}: {new Date().toLocaleString()}
           </div>
 
           {/* Stats grid */}
           <div className="grid grid-cols-2 gap-2 mb-6">
             {[
-              { label: t('datacenter_3d.stat_power_consumption'), value: "840kW", icon: "bolt" },
-              { label: t('datacenter_3d.stat_pue'), value: "1.22", icon: "speed" },
-              { label: t('datacenter_3d.stat_avg_temperature'), value: "22°C", icon: "thermostat" },
-              { label: t('datacenter_3d.stat_cooling_efficiency'), value: "45%", icon: "ac_unit" },
+              { label: t('datacenter_3d.stat_power_consumption'), value: `${eSummary?.total_kw?.toFixed(1) ?? '-'} kW`, icon: 'bolt' },
+              { label: 'PUE', value: eSummary?.pue?.toFixed(2) ?? '-', icon: 'speed' },
+              { label: t('datacenter_3d.stat_avg_temperature'), value: '-', icon: 'thermostat' },
+              { label: t('datacenter_3d.stat_cooling_efficiency'), value: '-', icon: 'ac_unit' },
             ].map((stat) => (
               <div
                 key={stat.label}
@@ -495,7 +510,7 @@ export default function DataCenter3D() {
             <div className="flex items-center gap-2 mb-3">
               <span className="material-symbols-outlined text-error text-lg">warning</span>
               <h3 className="text-sm font-headline font-semibold text-on-surface">
-                {t('datacenter_3d.section_alerts')} (3)
+                {t('datacenter_3d.section_alerts')} ({alerts.length})
               </h3>
             </div>
             <div className="space-y-2">

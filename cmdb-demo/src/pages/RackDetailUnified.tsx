@@ -126,6 +126,7 @@ function VisualizationTab({
   rackSlots,
   totalU,
   liveAlerts,
+  selectedAssetData,
 }: {
   selectedAsset: Equipment | null;
   setSelectedAsset: (eq: Equipment | null) => void;
@@ -133,6 +134,7 @@ function VisualizationTab({
   rackSlots?: any[];
   totalU?: number;
   liveAlerts?: LiveAlert[];
+  selectedAssetData?: any;
 }) {
   const eqList = equipmentList ?? [];
   const { t } = useTranslation();
@@ -329,12 +331,12 @@ function VisualizationTab({
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   {[
-                    { label: "Type", value: "Intel Xeon Platinum 8380" },
-                    { label: "Serial", value: "DR-DKY-22619" },
-                    { label: "IP", value: "10.28.1.45" },
-                    { label: "Power", value: "425W" },
-                    { label: "Network", value: "2x 25GbE" },
-                    { label: "Storage", value: "4x 1.92TB NVMe" },
+                    { label: "Vendor", value: selectedAssetData?.vendor ?? '-' },
+                    { label: "Model", value: selectedAssetData?.model ?? '-' },
+                    { label: "Serial", value: selectedAssetData?.serial_number ?? '-' },
+                    { label: "IP", value: (selectedAssetData as any)?.ip_address ?? selectedAssetData?.attributes?.ip_address ?? '-' },
+                    { label: "Power", value: selectedAssetData?.attributes?.power_draw ?? '-' },
+                    { label: "Network", value: selectedAssetData?.attributes?.network_specs ?? '-' },
                   ].map((item) => (
                     <div key={item.label} className="bg-surface-container-low rounded p-3">
                       <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-0.5">{item.label}</p>
@@ -1163,7 +1165,7 @@ export default function RackDetailUnified() {
 
         {/* Tab content */}
         {activeTab === "visualization" && (
-          <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} rackSlots={rackSlots} totalU={rack?.total_u} liveAlerts={filteredAlerts} />
+          <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} rackSlots={rackSlots} totalU={rack?.total_u} liveAlerts={filteredAlerts} selectedAssetData={selectedAssetData} />
         )}
         {activeTab === "console" && <ConsoleTab recentActivity={recentActivity} slots={consoleSlots.length > 0 ? consoleSlots : uSlots} />}
         {activeTab === "network" && <NetworkTab networkConnections={networkConnections} rackId={rackId ?? ''} onAddConnection={() => setShowAddConnModal(true)} />}
