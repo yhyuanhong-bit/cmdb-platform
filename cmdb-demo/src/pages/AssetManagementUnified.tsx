@@ -254,10 +254,10 @@ export default function AssetManagementUnified() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface rounded appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/40"
         >
-          <option>{t('assets.all_status')}</option>
-          <option>{t('common.operational')}</option>
-          <option>{t('common.maintenance')}</option>
-          <option>{t('common.offline')}</option>
+          <option value="All Status">{t('assets.all_status')}</option>
+          <option value="Operational">{t('common.operational')}</option>
+          <option value="Maintenance">{t('common.maintenance')}</option>
+          <option value="Offline">{t('common.offline')}</option>
         </select>
 
         {/* Location Filter */}
