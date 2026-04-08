@@ -382,7 +382,20 @@
     "gauge_active_power": "Active Power",
     "gauge_intake_temp": "Intake Temp",
     "gauge_humidity": "Humidity",
-    "confirm_delete_rack": "Delete this rack?"
+    "confirm_delete_rack": "Delete this rack?",
+    "tab_visualization": "Visualization",
+    "tab_console": "Console",
+    "tab_network": "Network",
+    "tab_maintenance": "Maintenance",
+    "label_vendor": "Vendor",
+    "label_model": "Model",
+    "label_serial": "Serial",
+    "label_ip": "IP",
+    "label_power": "Power",
+    "label_network": "Network",
+    "label_load": "Load",
+    "label_occupancy": "Occupancy",
+    "label_temp": "Temp"
   },
   "inventory": {
     "title": "Inventory Task: 2024 Q3 IDC-01 Audit",
@@ -1538,7 +1551,14 @@
     "section_quick_actions": "Quick Actions",
     "btn_scan": "SCAN",
     "btn_cable": "CABLE",
-    "prompt_select_slot": "Select a slot to view analytics"
+    "prompt_select_slot": "Select a slot to view analytics",
+    "rack_height": "Rack Height",
+    "max_power_draw": "Max Power Draw",
+    "weight_capacity": "Weight Capacity",
+    "position": "Position",
+    "size": "Size",
+    "thermal_warning": "Thermal Warning",
+    "operational": "Operational"
   },
   "rack_front_2d": {
     "breadcrumb_data_center": "Data Center",

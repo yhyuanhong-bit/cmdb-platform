@@ -382,7 +382,20 @@
     "gauge_active_power": "有功功率",
     "gauge_intake_temp": "進氣溫度",
     "gauge_humidity": "濕度",
-    "confirm_delete_rack": "確定刪除此機櫃？"
+    "confirm_delete_rack": "確定刪除此機櫃？",
+    "tab_visualization": "視覺化",
+    "tab_console": "控制台",
+    "tab_network": "網路連接",
+    "tab_maintenance": "維護歷史",
+    "label_vendor": "供應商",
+    "label_model": "型號",
+    "label_serial": "序號",
+    "label_ip": "IP",
+    "label_power": "功耗",
+    "label_network": "網路",
+    "label_load": "負載",
+    "label_occupancy": "佔用率",
+    "label_temp": "溫度"
   },
   "inventory": {
     "title": "盤點任務：2024 Q3 IDC-01 稽核",
@@ -1539,7 +1552,14 @@
     "section_quick_actions": "快速操作",
     "btn_scan": "掃描",
     "btn_cable": "線纜",
-    "prompt_select_slot": "請選取槽位以查看分析"
+    "prompt_select_slot": "請選取槽位以查看分析",
+    "rack_height": "機櫃高度",
+    "max_power_draw": "最大功耗",
+    "weight_capacity": "承重",
+    "position": "位置",
+    "size": "大小",
+    "thermal_warning": "溫度告警",
+    "operational": "運行正常"
   },
   "rack_front_2d": {
     "breadcrumb_data_center": "資料中心",

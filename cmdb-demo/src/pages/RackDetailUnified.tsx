@@ -331,12 +331,12 @@ function VisualizationTab({
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   {[
-                    { label: "Vendor", value: selectedAssetData?.vendor ?? '-' },
-                    { label: "Model", value: selectedAssetData?.model ?? '-' },
-                    { label: "Serial", value: selectedAssetData?.serial_number ?? '-' },
-                    { label: "IP", value: (selectedAssetData as any)?.ip_address ?? selectedAssetData?.attributes?.ip_address ?? '-' },
-                    { label: "Power", value: selectedAssetData?.attributes?.power_draw ?? '-' },
-                    { label: "Network", value: selectedAssetData?.attributes?.network_specs ?? '-' },
+                    { label: t('rack_detail.label_vendor'), value: selectedAssetData?.vendor ?? '-' },
+                    { label: t('rack_detail.label_model'), value: selectedAssetData?.model ?? '-' },
+                    { label: t('rack_detail.label_serial'), value: selectedAssetData?.serial_number ?? '-' },
+                    { label: t('rack_detail.label_ip'), value: (selectedAssetData as any)?.ip_address ?? selectedAssetData?.attributes?.ip_address ?? '-' },
+                    { label: t('rack_detail.label_power'), value: selectedAssetData?.attributes?.power_draw ?? '-' },
+                    { label: t('rack_detail.label_network'), value: selectedAssetData?.attributes?.network_specs ?? '-' },
                   ].map((item) => (
                     <div key={item.label} className="bg-surface-container-low rounded p-3">
                       <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-0.5">{item.label}</p>
@@ -471,9 +471,9 @@ function ConsoleTab({ recentActivity, slots }: { recentActivity: any[]; slots: U
           </h3>
           <div className="space-y-2 text-xs">
             {[
-              { label: "Rack Height", value: "42U" },
-              { label: "Max Power Draw", value: "15kW" },
-              { label: "Weight Capacity", value: "1200kg" },
+              { label: t('rack_console.rack_height'), value: "42U" },
+              { label: t('rack_console.max_power_draw'), value: "15kW" },
+              { label: t('rack_console.weight_capacity'), value: "1200kg" },
             ].map((item) => (
               <div key={item.label} className="flex justify-between bg-surface-container rounded-lg px-3 py-2">
                 <span className="text-on-surface-variant">{item.label}</span>
@@ -593,9 +593,9 @@ function ConsoleTab({ recentActivity, slots }: { recentActivity: any[]; slots: U
               </div>
               <div className="bg-surface-container-low rounded-xl p-3 space-y-2">
                 {[
-                  { label: "Position", value: `U${selectedSlot.startU}-${selectedSlot.endU}` },
-                  { label: "Size", value: `${selectedSlot.endU - selectedSlot.startU + 1}U` },
-                  { label: "Type", value: selectedSlot.type },
+                  { label: t('rack_console.position'), value: `U${selectedSlot.startU}-${selectedSlot.endU}` },
+                  { label: t('rack_console.size'), value: `${selectedSlot.endU - selectedSlot.startU + 1}U` },
+                  { label: t('rack_console.label_type'), value: selectedSlot.type },
                 ].map((row) => (
                   <div key={row.label} className="flex justify-between text-xs">
                     <span className="text-on-surface-variant">{row.label}</span>
@@ -603,9 +603,9 @@ function ConsoleTab({ recentActivity, slots }: { recentActivity: any[]; slots: U
                   </div>
                 ))}
                 <div className="flex justify-between text-xs">
-                  <span className="text-on-surface-variant">Status</span>
+                  <span className="text-on-surface-variant">{t('rack_console.label_status')}</span>
                   <span className={`font-medium ${selectedSlot.warning ? "text-tertiary" : "text-emerald-400"}`}>
-                    {selectedSlot.warning ? "Thermal Warning" : "Operational"}
+                    {selectedSlot.warning ? t('rack_console.thermal_warning') : t('rack_console.operational')}
                   </span>
                 </div>
               </div>
@@ -896,10 +896,10 @@ function MaintenanceTab({ maintenanceHistory, environmentMetrics }: {
 // ---------------------------------------------------------------------------
 
 const tabs = [
-  { id: "visualization", label: "\u8996\u89BA\u5316", icon: "dns" },
-  { id: "console",       label: "\u63A7\u5236\u53F0", icon: "terminal" },
-  { id: "network",       label: "\u7DB2\u8DEF\u9023\u63A5", icon: "lan" },
-  { id: "maintenance",   label: "\u7DAD\u8B77\u6B77\u53F2", icon: "build" },
+  { id: "visualization", icon: "dns" },
+  { id: "console",       icon: "terminal" },
+  { id: "network",       icon: "lan" },
+  { id: "maintenance",   icon: "build" },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -908,6 +908,12 @@ const tabs = [
 
 export default function RackDetailUnified() {
   const { t } = useTranslation();
+  const tabLabels: Record<string, string> = {
+    visualization: t('rack_detail.tab_visualization'),
+    console: t('rack_detail.tab_console'),
+    network: t('rack_detail.tab_network'),
+    maintenance: t('rack_detail.tab_maintenance'),
+  };
   const navigate = useNavigate();
   const { id: rackId } = useParams<{ id: string }>();
   const { data: rackResponse, isLoading, error } = useRack(rackId ?? "");
@@ -1131,9 +1137,9 @@ export default function RackDetailUnified() {
         {/* Stats bar (always visible) */}
         <div className="flex gap-4 mb-6">
           {[
-            { label: "Load", value: rack ? `${rack.power_current_kw}kW` : "32.4kW", icon: "bolt", color: "text-tertiary" },
-            { label: "Occupancy", value: `${occupancy}%`, icon: "stacked_bar_chart", color: "text-primary" },
-            { label: "Temp", value: "22.4\u00b0C", icon: "thermostat", color: "text-on-surface" },
+            { label: t('rack_detail.label_load'), value: rack ? `${rack.power_current_kw}kW` : "32.4kW", icon: "bolt", color: "text-tertiary" },
+            { label: t('rack_detail.label_occupancy'), value: `${occupancy}%`, icon: "stacked_bar_chart", color: "text-primary" },
+            { label: t('rack_detail.label_temp'), value: "22.4\u00b0C", icon: "thermostat", color: "text-on-surface" },
           ].map((stat) => (
             <div key={stat.label} className="bg-surface-container rounded px-5 py-3 flex items-center gap-3">
               <span className={`material-symbols-outlined ${stat.color}`}>{stat.icon}</span>
@@ -1158,7 +1164,7 @@ export default function RackDetailUnified() {
               }`}
             >
               <span className="material-symbols-outlined text-lg">{tab.icon}</span>
-              {tab.label}
+              {tabLabels[tab.id] ?? tab.id}
             </button>
           ))}
         </div>
