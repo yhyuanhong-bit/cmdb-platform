@@ -914,7 +914,8 @@
     "summary_occupied": "已占用",
     "summary_available": "可用",
     "summary_max_power": "最大功率",
-    "select_territory": "选择运营区域..."
+    "select_territory": "选择运营区域...",
+    "error_create_failed": "创建机柜失败，请检查所有字段。"
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "系统监控",
@@ -1152,7 +1153,7 @@
     "btn_batch_approve": "批量审批",
     "stat_new_unreviewed": "新增未审核",
     "stat_needs_manual_confirm": "需要人工确认",
-    "stat_pending": "待确认 (PENDING)",
+    "stat_pending": "待处理",
     "stat_awaiting_batch": "等待批次处理",
     "sync_status": "全面同步中",
     "sync_accuracy": "98.2% 准确率",
@@ -1180,7 +1181,6 @@
     "tab_review": "发现审核",
     "tab_scan": "扫描管理",
     "stat_total": "合计 (24h)",
-    "stat_pending": "待处理",
     "stat_conflict": "冲突",
     "stat_approved": "已批准",
     "stat_ignored": "已忽略",

@@ -261,12 +261,12 @@ export default function AddNewRack() {
                     used_u: 0,
                     power_capacity_kw: parseFloat(maxPower) || 0,
                     power_current_kw: 0,
-                    status: 'OPERATIONAL',
+                    status: 'active',
                     tags: [],
                   },
                   {
                     onSuccess: () => navigate('/racks'),
-                    onError: () => alert('Failed to create rack. Please check all fields.'),
+                    onError: () => alert(t('add_new_rack.error_create_failed')),
                   },
                 )
               }}

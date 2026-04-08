@@ -914,7 +914,8 @@
     "summary_occupied": "Occupied",
     "summary_available": "Available",
     "summary_max_power": "Max Power",
-    "select_territory": "Select territory..."
+    "select_territory": "Select territory...",
+    "error_create_failed": "Failed to create rack. Please check all fields."
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "System Monitoring",

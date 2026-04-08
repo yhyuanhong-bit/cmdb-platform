@@ -914,7 +914,8 @@
     "summary_occupied": "已佔用",
     "summary_available": "可用",
     "summary_max_power": "最大功率",
-    "select_territory": "選擇營運區域..."
+    "select_territory": "選擇營運區域...",
+    "error_create_failed": "建立機櫃失敗，請檢查所有欄位。"
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "系統監控",
@@ -1152,7 +1153,7 @@
     "btn_batch_approve": "批次核准",
     "stat_new_unreviewed": "新增未審核",
     "stat_needs_manual_confirm": "需要人工確認",
-    "stat_pending": "待確認 (PENDING)",
+    "stat_pending": "待處理",
     "stat_awaiting_batch": "等待批次處理",
     "sync_status": "全面同步中",
     "sync_accuracy": "98.2% 準確率",
@@ -1180,7 +1181,6 @@
     "tab_review": "發現審核",
     "tab_scan": "掃描管理",
     "stat_total": "合計 (24h)",
-    "stat_pending": "待處理",
     "stat_conflict": "衝突",
     "stat_approved": "已批准",
     "stat_ignored": "已忽略",
