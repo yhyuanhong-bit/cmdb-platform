@@ -974,7 +974,11 @@
     "bia_minor": "次要",
     "select_location": "選擇位置...",
     "select_rack": "選擇機櫃...",
-    "no_rack": "無機櫃"
+    "no_rack": "無機櫃",
+    "tab_overview": "概覽",
+    "tab_health": "健康監控",
+    "tab_usage": "使用分析",
+    "tab_maintenance": "維護歷史"
   },
   "asset_lifecycle_timeline": {
     "breadcrumb_asset_lifecycle": "資產生命週期",

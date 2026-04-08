@@ -974,7 +974,11 @@
     "bia_minor": "Minor",
     "select_location": "Select location...",
     "select_rack": "Select rack...",
-    "no_rack": "No rack"
+    "no_rack": "No rack",
+    "tab_overview": "Overview",
+    "tab_health": "Health Monitor",
+    "tab_usage": "Usage Analytics",
+    "tab_maintenance": "Maintenance History"
   },
   "asset_lifecycle_timeline": {
     "breadcrumb_asset_lifecycle": "ASSET LIFECYCLE",

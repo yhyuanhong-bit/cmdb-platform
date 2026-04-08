@@ -6,6 +6,7 @@ import StatusBadge from '../components/StatusBadge'
 import { useAsset, useUpdateAsset, useDeleteAsset } from '../hooks/useAssets'
 import { useBIAImpact } from '../hooks/useBIA'
 import { useMetrics } from '../hooks/useMetrics'
+import { useRootLocations, useLocationDescendants } from '../hooks/useTopology'
 
 /* ================================================================== */
 /*  SHARED DATA & HELPERS                                              */
@@ -882,6 +883,20 @@ export default function AssetDetailUnified() {
   const updateAsset = useUpdateAsset()
   const deleteAsset = useDeleteAsset()
 
+  const rootLocQ = useRootLocations()
+  const firstTerritoryId = rootLocQ.data?.data?.[0]?.id ?? ''
+  const descQ = useLocationDescendants(firstTerritoryId)
+  const allLocations = (descQ.data?.data ?? []).filter((l: any) =>
+    ['room', 'module', 'idc', 'campus'].includes(l.level)
+  )
+
+  const tabLabels: Record<string, string> = {
+    overview: t('asset_detail.tab_overview'),
+    health: t('asset_detail.tab_health'),
+    usage: t('asset_detail.tab_usage'),
+    maintenance: t('asset_detail.tab_maintenance'),
+  }
+
   // Fetch asset from API
   const assetQ = useAsset(assetId ?? '')
   const apiAsset = assetQ.data?.data
@@ -1014,18 +1029,22 @@ export default function AssetDetailUnified() {
                 vendor: apiAsset?.vendor || '',
                 model: apiAsset?.model || '',
                 bia_level: apiAsset?.bia_level || '',
+                serial_number: apiAsset?.serial_number || '',
+                ip_address: apiAsset?.ip_address || '',
+                location_id: apiAsset?.location_id || '',
+                tags: (apiAsset?.tags || []).join(', '),
               })
             }} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-on-primary-container text-[#ffffff] text-[0.75rem] font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity">
               <span className="material-symbols-outlined text-[18px]">edit</span>
               {t('asset_detail.btn_edit_asset')}
             </button>
             <button onClick={() => {
-              if (confirm('Are you sure you want to delete this asset?')) {
+              if (confirm(t('asset_detail.confirm_delete'))) {
                 deleteAsset.mutate(assetId!, { onSuccess: () => navigate('/assets') })
               }
             }} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-red-500/20 text-red-400 text-[0.75rem] font-semibold uppercase tracking-wider hover:bg-red-500/30 transition-colors">
               <span className="material-symbols-outlined text-[18px]">delete</span>
-              {deleteAsset.isPending ? 'Deleting...' : 'Delete'}
+              {deleteAsset.isPending ? t('asset_detail.btn_deleting') : t('asset_detail.btn_delete')}
             </button>
             <button
               onClick={() => navigate('/audit')}
@@ -1055,7 +1074,7 @@ export default function AssetDetailUnified() {
             }`}
           >
             <Icon name={tab.icon} className="text-[18px]" />
-            {tab.label}
+            {tabLabels[tab.key] ?? tab.label}
           </button>
         ))}
       </div>
@@ -1064,22 +1083,121 @@ export default function AssetDetailUnified() {
       {editing && (
         <div className="px-8 py-4">
           <div className="bg-surface-container rounded-lg p-5 space-y-4">
-            <h3 className="font-headline text-sm font-bold text-on-surface uppercase tracking-wider">Edit Asset</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {(['name', 'status', 'vendor', 'model', 'bia_level'] as const).map((field) => (
-                <div key={field} className="flex flex-col gap-1">
-                  <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">{field.replace('_', ' ')}</label>
-                  <input
-                    value={editData[field] ?? ''}
-                    onChange={e => setEditData(p => ({ ...p, [field]: e.target.value }))}
-                    className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1 text-white text-sm"
-                  />
-                </div>
-              ))}
+            <h3 className="font-headline text-sm font-bold text-on-surface uppercase tracking-wider">{t('asset_detail.edit_title')}</h3>
+            <div className="grid grid-cols-3 gap-4">
+              {/* Name */}
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">{t('asset_detail.field_name')}</label>
+                <input
+                  value={editData.name ?? ''}
+                  onChange={e => setEditData(p => ({ ...p, name: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
+                />
+              </div>
+              {/* Status */}
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">{t('asset_detail.field_status')}</label>
+                <select
+                  value={editData.status ?? ''}
+                  onChange={e => setEditData(p => ({ ...p, status: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
+                >
+                  <option value=""></option>
+                  <option value="inventoried">{t('asset_detail.status_inventoried')}</option>
+                  <option value="operational">{t('asset_detail.status_operational')}</option>
+                  <option value="deployed">{t('asset_detail.status_deployed')}</option>
+                  <option value="maintenance">{t('asset_detail.status_maintenance')}</option>
+                  <option value="retired">{t('asset_detail.status_retired')}</option>
+                </select>
+              </div>
+              {/* BIA Level */}
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">{t('asset_detail.field_bia_level')}</label>
+                <select
+                  value={editData.bia_level ?? ''}
+                  onChange={e => setEditData(p => ({ ...p, bia_level: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
+                >
+                  <option value=""></option>
+                  <option value="critical">{t('asset_detail.bia_critical')}</option>
+                  <option value="important">{t('asset_detail.bia_important')}</option>
+                  <option value="normal">{t('asset_detail.bia_normal')}</option>
+                  <option value="minor">{t('asset_detail.bia_minor')}</option>
+                </select>
+              </div>
+              {/* Vendor */}
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">{t('asset_detail.field_vendor')}</label>
+                <input
+                  value={editData.vendor ?? ''}
+                  onChange={e => setEditData(p => ({ ...p, vendor: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
+                />
+              </div>
+              {/* Model */}
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">{t('asset_detail.field_model')}</label>
+                <input
+                  value={editData.model ?? ''}
+                  onChange={e => setEditData(p => ({ ...p, model: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
+                />
+              </div>
+              {/* Serial Number */}
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">{t('asset_detail.field_serial_number')}</label>
+                <input
+                  value={editData.serial_number ?? ''}
+                  onChange={e => setEditData(p => ({ ...p, serial_number: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
+                />
+              </div>
+              {/* IP Address */}
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">{t('asset_detail.field_ip_address')}</label>
+                <input
+                  value={editData.ip_address ?? ''}
+                  onChange={e => setEditData(p => ({ ...p, ip_address: e.target.value }))}
+                  placeholder="192.168.1.100"
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
+                />
+              </div>
+              {/* Location */}
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">{t('asset_detail.field_location')}</label>
+                <select
+                  value={editData.location_id ?? ''}
+                  onChange={e => setEditData(p => ({ ...p, location_id: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
+                >
+                  <option value="">{t('asset_detail.select_location')}</option>
+                  {allLocations.map((loc: any) => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Tags */}
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">
+                  {t('asset_detail.field_tags')}
+                  <span className="ml-1 normal-case text-[0.6rem] opacity-60">({t('asset_detail.tags_hint')})</span>
+                </label>
+                <input
+                  value={editData.tags ?? ''}
+                  onChange={e => setEditData(p => ({ ...p, tags: e.target.value }))}
+                  placeholder="production, tier-1"
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
+                />
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => {
-                updateAsset.mutate({ id: assetId!, data: editData }, {
+                const payload: Record<string, any> = { ...editData }
+                if (typeof payload.tags === 'string') {
+                  payload.tags = payload.tags.split(',').map((s: string) => s.trim()).filter(Boolean)
+                }
+                Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+                updateAsset.mutate({ id: assetId!, data: payload }, {
                   onSuccess: (resp: any) => {
                     setEditing(false)
                     if (resp?.meta?.change_order_id) {
@@ -1089,10 +1207,10 @@ export default function AssetDetailUnified() {
                 })
               }} disabled={updateAsset.isPending}
                 className="px-4 py-2 rounded bg-blue-600 text-white text-sm">
-                {updateAsset.isPending ? 'Saving...' : 'Save Changes'}
+                {updateAsset.isPending ? t('asset_detail.edit_saving') : t('asset_detail.edit_save')}
               </button>
               <button onClick={() => setEditing(false)}
-                className="px-4 py-2 rounded bg-gray-700 text-white text-sm">Cancel</button>
+                className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('asset_detail.edit_cancel')}</button>
             </div>
           </div>
         </div>
