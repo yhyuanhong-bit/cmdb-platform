@@ -330,7 +330,7 @@ function RegionOverview() {
             <div className="mb-4 flex items-center gap-2">
               <Icon name="bar_chart" className="text-lg text-primary" />
               <h3 className="font-headline text-sm font-semibold uppercase tracking-wider text-on-surface-variant">
-                Occupancy Comparison
+                {t('locations.occupancy_comparison')}
               </h3>
             </div>
             <div className="space-y-3">
@@ -365,7 +365,7 @@ function RegionOverview() {
             <div className="mb-4 flex items-center gap-2">
               <Icon name="bolt" className="text-lg text-primary" />
               <h3 className="font-headline text-sm font-semibold uppercase tracking-wider text-on-surface-variant">
-                PUE Ranking
+                {t('locations.pue_ranking')}
               </h3>
             </div>
             <div className="space-y-2">

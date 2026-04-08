@@ -285,11 +285,12 @@ const CityRow = memo(function CityRow({
    ────────────────────────────────────────────── */
 
 function ComparisonBars({ cities }: { cities: CityData[] }) {
+  const { t } = useTranslation();
   const metrics: { key: keyof CityData; label: string; max: number }[] = [
     { key: "pue", label: "PUE (lower is better)", max: 2 },
-    { key: "occupancy", label: "Occupancy %", max: 100 },
-    { key: "power", label: "Power Utilization %", max: 100 },
-    { key: "reliability", label: "Reliability %", max: 100 },
+    { key: "occupancy", label: t('locations.occupancy_pct'), max: 100 },
+    { key: "power", label: t('locations.power_utilization'), max: 100 },
+    { key: "reliability", label: t('locations.reliability_pct'), max: 100 },
   ];
 
   const colors = [
@@ -303,7 +304,7 @@ function ComparisonBars({ cities }: { cities: CityData[] }) {
       <div className="mb-4 flex items-center gap-2">
         <Icon name="analytics" className="text-lg text-primary" />
         <h3 className="font-headline text-sm font-semibold uppercase tracking-wider text-on-surface-variant">
-          City KPI Comparison
+          {t('locations.city_comparison')}
         </h3>
       </div>
 
@@ -501,7 +502,7 @@ function CityOverview() {
             }`}
           >
             <Icon name="grid_view" className="text-base" />
-            Card View
+            {t('locations.view_card')}
           </button>
           <button
             onClick={() => setViewMode("list")}
@@ -512,7 +513,7 @@ function CityOverview() {
             }`}
           >
             <Icon name="view_list" className="text-base" />
-            List View
+            {t('locations.view_list')}
           </button>
         </div>
 

@@ -1909,6 +1909,26 @@
     "campus_subtitle": "資料中心園區",
     "city_title_suffix": "資料中心總覽",
     "region_title_suffix": "資料中心總覽",
-    "capacity_planning": "容量規劃"
+    "capacity_planning": "容量規劃 - 各 IDC 機櫃分配",
+    "last_sync": "最後同步",
+    "avg_pue": "平均 PUE",
+    "total_power": "總功耗",
+    "global_uptime": "全球可用率",
+    "energy_trend": "能源趨勢 (7天)",
+    "global_kpi_summary": "全球 KPI 概覽",
+    "country_overview": "國家總覽",
+    "alert_stream": "全球即時告警流",
+    "modules": "模組",
+    "used": "已用",
+    "available": "可用",
+    "reserved": "預留",
+    "occupancy_pct": "佔用率 %",
+    "power_utilization": "功耗利用率 %",
+    "reliability_pct": "可靠性 %",
+    "city_comparison": "城市 KPI 比較",
+    "occupancy_comparison": "佔用率比較",
+    "pue_ranking": "PUE 排名",
+    "view_card": "卡片",
+    "view_list": "列表"
   }
 }

@@ -364,7 +364,7 @@ const GlobalOverview: React.FC = () => {
           </button>
           <PulsingDot />
           <span className="text-xs text-on-surface-variant font-body">
-            Last Sync: {syncDateStr} {syncTimeStr}
+            {t('locations.last_sync')}: {syncDateStr} {syncTimeStr}
           </span>
         </div>
       </header>
@@ -440,7 +440,7 @@ const GlobalOverview: React.FC = () => {
           <div className="bg-surface-container rounded-lg p-5 space-y-4">
             <h2 className="font-headline text-sm font-bold uppercase tracking-wider text-on-surface-variant">
               <span className="material-symbols-outlined text-base align-middle mr-1.5">analytics</span>
-              Global KPI Summary
+              {t('locations.global_kpi_summary')}
             </h2>
 
             <div className="space-y-3">
@@ -457,7 +457,7 @@ const GlobalOverview: React.FC = () => {
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-on-surface-variant font-body flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg text-primary">speed</span>
-                  Average PUE
+                  {t('locations.avg_pue')}
                 </span>
                 <span className={`text-lg font-bold font-headline ${SUMMARY_KPI.averagePUE < 1.3 ? 'text-green-400' : 'text-orange-400'}`}>
                   {SUMMARY_KPI.averagePUE.toFixed(2)}
@@ -468,7 +468,7 @@ const GlobalOverview: React.FC = () => {
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-on-surface-variant font-body flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg text-primary">bolt</span>
-                  Total Power
+                  {t('locations.total_power')}
                 </span>
                 <span className="text-lg font-bold text-on-surface font-headline">{formatNumber(SUMMARY_KPI.totalPowerKW)} kW</span>
               </div>
@@ -488,7 +488,7 @@ const GlobalOverview: React.FC = () => {
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-on-surface-variant font-body flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg text-green-400">check_circle</span>
-                  Global Uptime
+                  {t('locations.global_uptime')}
                 </span>
                 <span className="text-lg font-bold text-green-400 font-headline">{SUMMARY_KPI.globalUptime}%</span>
               </div>
@@ -497,7 +497,7 @@ const GlobalOverview: React.FC = () => {
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-on-surface-variant font-body flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg text-primary">trending_down</span>
-                  Energy Trend (7d)
+                  {t('locations.energy_trend')}
                 </span>
                 <Sparkline data={SUMMARY_KPI.energyTrend} color="#4ade80" width={100} height={28} />
               </div>
@@ -511,7 +511,7 @@ const GlobalOverview: React.FC = () => {
         <section aria-label="Country Overview">
           <h2 className="font-headline text-sm font-bold uppercase tracking-wider text-on-surface-variant mb-4">
             <span className="material-symbols-outlined text-base align-middle mr-1.5">flag</span>
-            Country Overview
+            {t('locations.country_overview')}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {COUNTRIES.map((country) => (
@@ -531,7 +531,7 @@ const GlobalOverview: React.FC = () => {
           <div className="flex items-center gap-3 mb-4">
             <h2 className="font-headline text-sm font-bold uppercase tracking-wider text-on-surface-variant flex items-center gap-1.5">
               <span className="material-symbols-outlined text-base align-middle text-error">notifications_active</span>
-              GLOBAL REAL-TIME ALERT STREAM
+              {t('locations.alert_stream').toUpperCase()}
             </h2>
             <span className="bg-error/20 text-error text-xs font-bold px-2 py-0.5 rounded-full">
               {ALERTS.length}

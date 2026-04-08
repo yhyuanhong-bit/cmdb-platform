@@ -1909,6 +1909,26 @@
     "campus_subtitle": "Data Center Campuses",
     "city_title_suffix": "Data Center Overview",
     "region_title_suffix": "Data Center Overview",
-    "capacity_planning": "Capacity Planning"
+    "capacity_planning": "Capacity Planning - Rack Allocation per IDC",
+    "last_sync": "Last Sync",
+    "avg_pue": "Average PUE",
+    "total_power": "Total Power",
+    "global_uptime": "Global Uptime",
+    "energy_trend": "Energy Trend (7d)",
+    "global_kpi_summary": "Global KPI Summary",
+    "country_overview": "Country Overview",
+    "alert_stream": "Global Real-Time Alert Stream",
+    "modules": "Modules",
+    "used": "Used",
+    "available": "Available",
+    "reserved": "Reserved",
+    "occupancy_pct": "Occupancy %",
+    "power_utilization": "Power Utilization %",
+    "reliability_pct": "Reliability %",
+    "city_comparison": "City KPI Comparison",
+    "occupancy_comparison": "Occupancy Comparison",
+    "pue_ranking": "PUE Ranking",
+    "view_card": "Card",
+    "view_list": "List"
   }
 }

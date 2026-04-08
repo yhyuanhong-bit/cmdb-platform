@@ -170,7 +170,7 @@ const IdcCard = memo(function IdcCard({
       <div className="mb-4 grid grid-cols-3 gap-4">
         <div className="rounded-lg bg-surface-container p-3">
           <span className="text-[11px] uppercase tracking-wider text-on-surface-variant">
-            Modules
+            {t('locations.modules')}
           </span>
           <p className="font-headline text-lg font-semibold text-on-surface">
             {idc.modules}
@@ -311,6 +311,7 @@ function CampusSection({
    ────────────────────────────────────────────── */
 
 function CapacityChart({ campuses }: { campuses: CampusData[] }) {
+  const { t } = useTranslation();
   const allIdcs = campuses.flatMap((c) => c.idcs);
   const maxRacks = Math.max(...allIdcs.map((idc) => idc.racks));
 
@@ -319,7 +320,7 @@ function CapacityChart({ campuses }: { campuses: CampusData[] }) {
       <div className="mb-4 flex items-center gap-2">
         <Icon name="stacked_bar_chart" className="text-lg text-primary" />
         <h3 className="font-headline text-sm font-semibold uppercase tracking-wider text-on-surface-variant">
-          Capacity Planning - Rack Allocation per IDC
+          {t('locations.capacity_planning')}
         </h3>
       </div>
 
@@ -327,15 +328,15 @@ function CapacityChart({ campuses }: { campuses: CampusData[] }) {
       <div className="mb-4 flex gap-5">
         <div className="flex items-center gap-1.5">
           <div className="h-2.5 w-2.5 rounded bg-primary" />
-          <span className="text-xs text-on-surface-variant">Used</span>
+          <span className="text-xs text-on-surface-variant">{t('locations.used')}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-2.5 w-2.5 rounded bg-green-400" />
-          <span className="text-xs text-on-surface-variant">Available</span>
+          <span className="text-xs text-on-surface-variant">{t('locations.available')}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-2.5 w-2.5 rounded bg-amber-400/60" />
-          <span className="text-xs text-on-surface-variant">Reserved</span>
+          <span className="text-xs text-on-surface-variant">{t('locations.reserved')}</span>
         </div>
       </div>
 
