@@ -46,11 +46,26 @@ function deriveLevel(path: LocationPath): LocationLevel {
   return 'global'
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function isValidLocationNode(node: any): boolean {
+  return node && typeof node.id === 'string' && UUID_RE.test(node.id)
+}
+
 function loadPersistedPath(): LocationPath {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
-      return JSON.parse(raw) as LocationPath
+      const parsed = JSON.parse(raw) as LocationPath
+      // Discard stale data where id contains a slug instead of UUID
+      // (migration from old code that stored slug as id)
+      for (const key of ['territory', 'region', 'city', 'campus', 'idc'] as const) {
+        if (parsed[key] && !isValidLocationNode(parsed[key])) {
+          localStorage.removeItem(STORAGE_KEY)
+          return {}
+        }
+      }
+      return parsed
     }
   } catch {
     // Ignore malformed data
