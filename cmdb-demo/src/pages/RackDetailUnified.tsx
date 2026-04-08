@@ -2,8 +2,9 @@ import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useRack, useRackAssets, useRackSlots, useUpdateRack, useDeleteRack, useRackNetworkConnections } from "../hooks/useTopology";
+import { useRack, useRackAssets, useRackSlots, useUpdateRack, useDeleteRack, useRackNetworkConnections, useDeleteNetworkConnection } from "../hooks/useTopology";
 import AssignAssetToRackModal from '../components/AssignAssetToRackModal';
+import AddNetworkConnectionModal from '../components/AddNetworkConnectionModal';
 import { useAlerts } from "../hooks/useMonitoring";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { apiClient } from "../lib/api/client";
@@ -674,16 +675,32 @@ function ConsoleTab({ recentActivity }: { recentActivity: any[] }) {
 // Tab 3: Network
 // ---------------------------------------------------------------------------
 
-function NetworkTab({ networkConnections }: { networkConnections: any[] }) {
+function NetworkTab({ networkConnections, rackId, onAddConnection }: { networkConnections: any[]; rackId: string; onAddConnection: () => void }) {
   const { t } = useTranslation();
+  const deleteConn = useDeleteNetworkConnection();
+
+  function handleDelete(connId: string) {
+    if (confirm(t("rack_detail.confirm_delete_connection"))) {
+      deleteConn.mutate({ rackId, connId });
+    }
+  }
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-primary">lan</span>
-        <h2 className="font-headline font-bold text-sm tracking-widest uppercase text-on-surface">
-          {t("rack_detail.network_connectivity")}
-        </h2>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary">lan</span>
+          <h2 className="font-headline font-bold text-sm tracking-widest uppercase text-on-surface">
+            {t("rack_detail.network_connectivity")}
+          </h2>
+        </div>
+        <button
+          onClick={onAddConnection}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/20 text-primary text-sm font-medium hover:bg-primary/30 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[18px]">add</span>
+          {t("rack_detail.btn_add_connection")}
+        </button>
       </div>
       <div className="bg-surface-container rounded overflow-hidden">
         <table className="w-full text-sm">
@@ -694,16 +711,17 @@ function NetworkTab({ networkConnections }: { networkConnections: any[] }) {
               <th className="text-left px-5 py-3 font-medium">{t("rack_detail.table_speed")}</th>
               <th className="text-left px-5 py-3 font-medium">{t("rack_detail.table_status")}</th>
               <th className="text-left px-5 py-3 font-medium">{t("rack_detail.table_vlan")}</th>
+              <th className="px-5 py-3" />
             </tr>
           </thead>
           <tbody>
             {networkConnections.map((conn) => (
-              <tr key={conn.port} className="bg-surface-container hover:bg-surface-container-high transition-colors">
-                <td className="px-5 py-3 font-label font-semibold text-on-surface">{conn.port}</td>
+              <tr key={conn.id ?? conn.source_port ?? conn.port} className="bg-surface-container hover:bg-surface-container-high transition-colors">
+                <td className="px-5 py-3 font-label font-semibold text-on-surface">{conn.source_port ?? conn.port}</td>
                 <td className="px-5 py-3 text-on-surface-variant">
                   <div className="flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[16px]">router</span>
-                    {conn.device}
+                    {conn.external_device ?? conn.connected_asset_id ?? conn.device}
                   </div>
                 </td>
                 <td className="px-5 py-3 text-on-surface-variant">{conn.speed}</td>
@@ -719,7 +737,19 @@ function NetworkTab({ networkConnections }: { networkConnections: any[] }) {
                     {conn.status}
                   </span>
                 </td>
-                <td className="px-5 py-3 text-on-surface-variant font-mono text-xs">{conn.vlan}</td>
+                <td className="px-5 py-3 text-on-surface-variant font-mono text-xs">
+                  {Array.isArray(conn.vlans) ? conn.vlans.join(', ') : (conn.vlan ?? '')}
+                </td>
+                <td className="px-3 py-3">
+                  <button
+                    onClick={() => handleDelete(conn.id)}
+                    disabled={deleteConn.isPending}
+                    className="p-1 rounded text-on-surface-variant hover:text-error hover:bg-error-container/20 transition-colors disabled:opacity-50"
+                    title={t("rack_detail.confirm_delete_connection")}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -948,6 +978,7 @@ export default function RackDetailUnified() {
 
   const [activeTab, setActiveTab] = useState<string>("visualization");
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showAddConnModal, setShowAddConnModal] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<Equipment | null>(
     liveEquipment.find((e) => e.assetTag === "APP-SRV-042-PROD") ?? liveEquipment[0] ?? null,
   );
@@ -1091,7 +1122,7 @@ export default function RackDetailUnified() {
           <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} rackSlots={rackSlots} totalU={rack?.total_u} liveAlerts={filteredAlerts} />
         )}
         {activeTab === "console" && <ConsoleTab recentActivity={recentActivity} />}
-        {activeTab === "network" && <NetworkTab networkConnections={networkConnections} />}
+        {activeTab === "network" && <NetworkTab networkConnections={networkConnections} rackId={rackId ?? ''} onAddConnection={() => setShowAddConnModal(true)} />}
         {activeTab === "maintenance" && <MaintenanceTab maintenanceHistory={maintenanceHistory} />}
       </div>
 
@@ -1100,6 +1131,11 @@ export default function RackDetailUnified() {
         onClose={() => setShowAssignModal(false)}
         rackId={rackId ?? ''}
         totalU={rack?.total_u ?? 42}
+      />
+      <AddNetworkConnectionModal
+        open={showAddConnModal}
+        onClose={() => setShowAddConnModal(false)}
+        rackId={rackId ?? ''}
       />
     </div>
   );
