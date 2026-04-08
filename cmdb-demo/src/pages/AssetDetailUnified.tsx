@@ -1030,8 +1030,8 @@ export default function AssetDetailUnified() {
                 model: apiAsset?.model || '',
                 bia_level: apiAsset?.bia_level || '',
                 serial_number: apiAsset?.serial_number || '',
-                ip_address: apiAsset?.ip_address || '',
-                location_id: apiAsset?.location_id || '',
+                ip_address: (apiAsset as any)?.ip_address || '',
+                location_id: (apiAsset as any)?.location_id || '',
                 tags: (apiAsset?.tags || []).join(', '),
               })
             }} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-on-primary-container text-[#ffffff] text-[0.75rem] font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity">
