@@ -184,7 +184,10 @@
     "live_telemetry": "即時遙測",
     "view_all_monitoring": "查看所有監控活動 (142 事件)",
     "row": "列",
-    "rack": "機架"
+    "rack": "機架",
+    "table_asset_id": "資產 ID",
+    "predictive_analysis": "預測分析",
+    "no_critical_events": "過去 24 小時無重大事件"
   },
   "assets": {
     "title": "資產管理",

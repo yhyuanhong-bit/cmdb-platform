@@ -184,7 +184,10 @@
     "live_telemetry": "Live Telemetry",
     "view_all_monitoring": "VIEW ALL MONITORING ACTIVITY (142 EVENTS)",
     "row": "Row",
-    "rack": "Rack"
+    "rack": "Rack",
+    "table_asset_id": "Asset ID",
+    "predictive_analysis": "Predictive Analysis",
+    "no_critical_events": "No critical events in the last 24 hours"
   },
   "assets": {
     "title": "Asset Management",

@@ -543,7 +543,7 @@ function Dashboard() {
 
             {/* Table header */}
             <div className="mb-2 grid grid-cols-[1fr_2fr_auto_auto] gap-3 px-3 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
-              <span>Asset ID</span>
+              <span>{t('dashboard.table_asset_id')}</span>
               <span>{t('common.description')}</span>
               <span>{t('common.severity')}</span>
               <span>{t('common.priority')}</span>
@@ -593,7 +593,7 @@ function Dashboard() {
           onClick={() => navigate('/predictive')}
           className="text-xs text-on-surface-variant hover:text-primary uppercase tracking-wider transition-colors"
         >
-          預測分析 →
+          {t('dashboard.predictive_analysis')} →
         </button>
         <button
           type="button"
