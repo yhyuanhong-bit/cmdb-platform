@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useCreateScanTarget, useUpdateScanTarget } from '../hooks/useScanTargets'
 import { useCredentials } from '../hooks/useCredentials'
 
@@ -33,6 +34,7 @@ const initial = {
 }
 
 export default function CreateScanTargetModal({ open, onClose, editing }: Props) {
+  const { t } = useTranslation()
   const tenantId = 'a0000000-0000-0000-0000-000000000001'
   const [formData, setFormData] = useState({ ...initial })
 
@@ -102,23 +104,23 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
         onClick={e => e.stopPropagation()}
       >
         <h3 className="text-lg font-bold text-white">
-          {isEditing ? 'Edit Scan Target' : 'Add Scan Target'}
+          {isEditing ? t('scan_target_modal.title_edit') : t('scan_target_modal.title_create')}
         </h3>
 
         {/* Name */}
         <div>
-          <label className="block text-sm text-gray-400 mb-1">Name *</label>
+          <label className="block text-sm text-gray-400 mb-1">{t('scan_target_modal.label_name')} *</label>
           <input
             value={formData.name}
             onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
-            placeholder="e.g. Core Network SNMP"
+            placeholder={t('scan_target_modal.placeholder_name')}
           />
         </div>
 
         {/* Collector Type */}
         <div>
-          <label className="block text-sm text-gray-400 mb-1">Collector Type</label>
+          <label className="block text-sm text-gray-400 mb-1">{t('scan_target_modal.label_collector_type')}</label>
           <select
             value={formData.collector_type}
             onChange={e => setFormData(p => ({ ...p, collector_type: e.target.value, credential_id: '' }))}
@@ -132,25 +134,25 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
 
         {/* CIDRs */}
         <div>
-          <label className="block text-sm text-gray-400 mb-1">CIDRs (one per line)</label>
+          <label className="block text-sm text-gray-400 mb-1">{t('scan_target_modal.label_cidrs')}</label>
           <textarea
             value={formData.cidrs}
             onChange={e => setFormData(p => ({ ...p, cidrs: e.target.value }))}
             rows={4}
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm font-mono resize-y"
-            placeholder={"192.168.1.0/24\n10.0.0.0/8"}
+            placeholder={t('scan_target_modal.placeholder_cidrs')}
           />
         </div>
 
         {/* Credential */}
         <div>
-          <label className="block text-sm text-gray-400 mb-1">Credential</label>
+          <label className="block text-sm text-gray-400 mb-1">{t('scan_target_modal.label_credential')}</label>
           <select
             value={formData.credential_id}
             onChange={e => setFormData(p => ({ ...p, credential_id: e.target.value }))}
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
           >
-            <option value="">— Select credential —</option>
+            <option value="">{t('scan_target_modal.option_select_credential')}</option>
             {filteredCreds.map((c: any) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({c.cred_type})
@@ -159,22 +161,22 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
           </select>
           {filteredCreds.length === 0 && (
             <p className="text-xs text-gray-500 mt-1">
-              No compatible credentials found for {formData.collector_type.toUpperCase()}.
+              {t('scan_target_modal.no_credentials', { type: formData.collector_type.toUpperCase() })}
             </p>
           )}
         </div>
 
         {/* Mode */}
         <div>
-          <label className="block text-sm text-gray-400 mb-1">Mode</label>
+          <label className="block text-sm text-gray-400 mb-1">{t('scan_target_modal.label_mode')}</label>
           <select
             value={formData.mode}
             onChange={e => setFormData(p => ({ ...p, mode: e.target.value }))}
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
           >
-            <option value="auto">Auto</option>
-            <option value="review">Review</option>
-            <option value="smart">Smart</option>
+            <option value="auto">{t('scan_target_modal.mode_auto')}</option>
+            <option value="review">{t('scan_target_modal.mode_review')}</option>
+            <option value="smart">{t('scan_target_modal.mode_smart')}</option>
           </select>
         </div>
 
@@ -184,14 +186,16 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
             onClick={onClose}
             className="px-4 py-2 rounded bg-gray-700 text-white text-sm hover:bg-gray-600 transition-colors"
           >
-            Cancel
+            {t('scan_target_modal.btn_cancel')}
           </button>
           <button
             onClick={handleSubmit}
             disabled={isPending || !formData.name}
             className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50 hover:bg-blue-500 transition-colors"
           >
-            {isPending ? (isEditing ? 'Saving...' : 'Creating...') : (isEditing ? 'Save Changes' : 'Create')}
+            {isPending
+              ? (isEditing ? t('scan_target_modal.btn_saving') : t('scan_target_modal.btn_creating'))
+              : (isEditing ? t('scan_target_modal.btn_update') : t('scan_target_modal.btn_create'))}
           </button>
         </div>
       </div>
