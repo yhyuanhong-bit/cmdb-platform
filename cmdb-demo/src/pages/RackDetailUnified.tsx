@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useRack, useRackAssets, useRackSlots, useUpdateRack, useDeleteRack, useRackNetworkConnections } from "../hooks/useTopology";
 import { useAlerts } from "../hooks/useMonitoring";
 import { useActivityFeed } from "../hooks/useActivityFeed";
+import { apiClient } from "../lib/api/client";
 
 // ---------------------------------------------------------------------------
 // Shared types & data (equipment slots — no API for sub-rack assets yet)
@@ -19,13 +21,6 @@ interface Equipment {
 
 // Equipment list is now derived from API data only (no hardcoded fallback)
 
-
-const maintenanceHistory = [
-  { date: "2026-03-25", type: "Preventive", description: "Scheduled quarterly PM - cleaned filters, checked cable management", engineer: "Chen, Wei-Lin", status: "COMPLETED" },
-  { date: "2026-03-18", type: "Corrective", description: "Replaced faulty PDU breaker on Phase B circuit", engineer: "Wang, Jun", status: "COMPLETED" },
-  { date: "2026-03-10", type: "Change", description: "Installed DELL PowerEdge R750 in U35-U38, asset SRV-A01-07", engineer: "Liu, Mei-Hua", status: "COMPLETED" },
-  { date: "2026-02-28", type: "Firmware", description: "Updated Cisco Catalyst 9300 firmware to v17.9.4a", engineer: "Chen, Wei-Lin", status: "COMPLETED" },
-];
 
 const environmentMetrics = {
   temperature: { current: 23.1, min: 19.4, max: 26.8, unit: "\u00b0C", threshold: 30 },
@@ -782,7 +777,7 @@ function MetricGauge({
   );
 }
 
-function MaintenanceTab() {
+function MaintenanceTab({ maintenanceHistory }: { maintenanceHistory: Array<{ date: string; type: string; description: string; engineer: string; status: string }> }) {
   const { t } = useTranslation();
 
   return (
@@ -900,6 +895,20 @@ export default function RackDetailUnified() {
   // Network connections from API
   const { data: netData } = useRackNetworkConnections(rackId ?? "");
   const networkConnections = (netData as any)?.connections ?? [];
+
+  // Maintenance history from API
+  const { data: maintData } = useQuery({
+    queryKey: ['rackMaintenance', rackId],
+    queryFn: () => apiClient.get(`/racks/${rackId}/maintenance`),
+    enabled: !!rackId,
+  })
+  const maintenanceHistory = ((maintData as any)?.maintenance ?? []).map((wo: any) => ({
+    date: wo.scheduled_start ? new Date(wo.scheduled_start).toLocaleDateString() : new Date(wo.created_at).toLocaleDateString(),
+    type: wo.type ?? 'inspection',
+    description: wo.title,
+    engineer: '-',
+    status: wo.status,
+  }))
 
   // Activity feed from API
   const { data: activityData } = useActivityFeed('rack', rackId ?? "");
@@ -1077,7 +1086,7 @@ export default function RackDetailUnified() {
         )}
         {activeTab === "console" && <ConsoleTab recentActivity={recentActivity} />}
         {activeTab === "network" && <NetworkTab networkConnections={networkConnections} />}
-        {activeTab === "maintenance" && <MaintenanceTab />}
+        {activeTab === "maintenance" && <MaintenanceTab maintenanceHistory={maintenanceHistory} />}
       </div>
     </div>
   );

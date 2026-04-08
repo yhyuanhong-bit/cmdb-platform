@@ -91,15 +91,21 @@ export default function RackManagement() {
       r.status.toLowerCase().includes(search.toLowerCase())
   );
 
+  const breadcrumbParts = []
+  if (path.territory) breadcrumbParts.push(path.territory.name)
+  if (path.region) breadcrumbParts.push(path.region.name)
+  if (path.city) breadcrumbParts.push(path.city.name)
+  if (path.campus) breadcrumbParts.push(path.campus.name)
+  if (path.idc) breadcrumbParts.push(path.idc.name)
+  const breadcrumbText = breadcrumbParts.length > 0 ? breadcrumbParts.join(' / ') : t('racks.breadcrumb_rack_management')
+
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body">
       {/* Breadcrumb */}
       <div className="bg-surface-container-low px-8 py-3">
         <div className="flex items-center gap-2 text-sm text-on-surface-variant">
           <span className="material-symbols-outlined text-[16px]">home</span>
-          <span>IDC Alpha</span>
-          <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-          <span>Module 1</span>
+          <span>{breadcrumbText}</span>
           <span className="material-symbols-outlined text-[14px]">chevron_right</span>
           <span className="text-primary">{t('racks.breadcrumb_rack_management')}</span>
         </div>
