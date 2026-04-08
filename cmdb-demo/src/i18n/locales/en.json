@@ -918,7 +918,8 @@
     "error_create_failed": "Failed to create rack. Please check all fields.",
     "select_region": "Select region...",
     "select_city": "Select city...",
-    "select_campus": "Select campus..."
+    "select_campus": "Select campus...",
+    "label_row": "Row Label"
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "System Monitoring",

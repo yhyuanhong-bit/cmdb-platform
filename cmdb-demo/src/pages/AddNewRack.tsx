@@ -122,7 +122,7 @@ export default function AddNewRack() {
               </div>
               <div>
                 <label className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label block mb-1.5">
-                  Row Label
+                  {t('add_new_rack.label_row')}
                 </label>
                 <select
                   value={rowLabel}

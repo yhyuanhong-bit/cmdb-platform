@@ -918,7 +918,8 @@
     "error_create_failed": "建立機櫃失敗，請檢查所有欄位。",
     "select_region": "選擇區域...",
     "select_city": "選擇城市...",
-    "select_campus": "選擇園區..."
+    "select_campus": "選擇園區...",
+    "label_row": "機櫃排號"
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "系統監控",

@@ -918,7 +918,8 @@
     "error_create_failed": "创建机柜失败，请检查所有字段。",
     "select_region": "选择区域...",
     "select_city": "选择城市...",
-    "select_campus": "选择园区..."
+    "select_campus": "选择园区...",
+    "label_row": "机柜排号"
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "系统监控",
