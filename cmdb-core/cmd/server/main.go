@@ -195,6 +195,15 @@ func main() {
 	v1.GET("/upgrade-rules", apiServer.GetUpgradeRules)
 	v1.POST("/upgrade-rules", apiServer.CreateUpgradeRule)
 
+	// Phase 4 Group 2 routes
+	v1.GET("/users/:id/sessions", apiServer.GetUserSessions)
+	v1.POST("/auth/change-password", apiServer.ChangePassword)
+	v1.GET("/sensors", apiServer.ListSensors)
+	v1.POST("/sensors", apiServer.CreateSensor)
+	v1.PUT("/sensors/:id", apiServer.UpdateSensor)
+	v1.DELETE("/sensors/:id", apiServer.DeleteSensor)
+	v1.POST("/sensors/:id/heartbeat", apiServer.SensorHeartbeat)
+
 	// Protected sub-group for non-API routes that need auth (e.g. WebSocket)
 	protected := v1.Group("", authMW)
 
