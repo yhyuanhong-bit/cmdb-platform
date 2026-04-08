@@ -377,6 +377,9 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 	if req.Model != nil {
 		params.Model = pgtype.Text{String: *req.Model, Valid: true}
 	}
+	if req.SerialNumber != nil {
+		params.SerialNumber = pgtype.Text{String: *req.SerialNumber, Valid: true}
+	}
 	if req.Attributes != nil {
 		b, _ := json.Marshal(req.Attributes)
 		params.Attributes = b
@@ -394,6 +397,15 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 		}
 		return
 	}
+
+	// Supplementary update for ip_address (not in sqlc-generated query)
+	if req.IpAddress != nil {
+		s.pool.Exec(c.Request.Context(),
+			"UPDATE assets SET ip_address = $1 WHERE id = $2",
+			*req.IpAddress, uuid.UUID(id),
+		)
+	}
+
 	diff := map[string]any{}
 	if req.Name != nil {
 		diff["name"] = *req.Name
@@ -409,6 +421,12 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 	}
 	if req.Model != nil {
 		diff["model"] = *req.Model
+	}
+	if req.SerialNumber != nil {
+		diff["serial_number"] = *req.SerialNumber
+	}
+	if req.IpAddress != nil {
+		diff["ip_address"] = *req.IpAddress
 	}
 	s.recordAudit(c, "asset.updated", "asset", "asset", updated.ID, diff)
 	s.publishEvent(c.Request.Context(), eventbus.SubjectAssetUpdated, tenantIDFromContext(c).String(), map[string]any{

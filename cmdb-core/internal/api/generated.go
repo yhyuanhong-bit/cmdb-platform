@@ -524,15 +524,17 @@ type ListAssetsParams struct {
 
 // UpdateAssetJSONBody defines parameters for UpdateAsset.
 type UpdateAssetJSONBody struct {
-	Attributes *map[string]interface{} `json:"attributes,omitempty"`
-	BiaLevel   *string                 `json:"bia_level,omitempty"`
-	LocationId *openapi_types.UUID     `json:"location_id,omitempty"`
-	Model      *string                 `json:"model,omitempty"`
-	Name       *string                 `json:"name,omitempty"`
-	RackId     *openapi_types.UUID     `json:"rack_id,omitempty"`
-	Status     *string                 `json:"status,omitempty"`
-	Tags       *[]string               `json:"tags,omitempty"`
-	Vendor     *string                 `json:"vendor,omitempty"`
+	Attributes   *map[string]interface{} `json:"attributes,omitempty"`
+	BiaLevel     *string                 `json:"bia_level,omitempty"`
+	IpAddress    *string                 `json:"ip_address,omitempty"`
+	LocationId   *openapi_types.UUID     `json:"location_id,omitempty"`
+	Model        *string                 `json:"model,omitempty"`
+	Name         *string                 `json:"name,omitempty"`
+	RackId       *openapi_types.UUID     `json:"rack_id,omitempty"`
+	SerialNumber *string                 `json:"serial_number,omitempty"`
+	Status       *string                 `json:"status,omitempty"`
+	Tags         *[]string               `json:"tags,omitempty"`
+	Vendor       *string                 `json:"vendor,omitempty"`
 }
 
 // QueryAuditEventsParams defines parameters for QueryAuditEvents.
