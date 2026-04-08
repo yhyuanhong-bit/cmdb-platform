@@ -187,6 +187,14 @@ func main() {
 	v1.GET("/activity-feed", apiServer.GetActivityFeed)
 	v1.GET("/audit/events/:id", apiServer.GetAuditEventDetail)
 
+	// Phase 4 Group 1 routes
+	v1.GET("/prediction/rul/:id", apiServer.GetAssetRUL)
+	v1.GET("/prediction/failure-distribution", apiServer.GetFailureDistribution)
+	v1.GET("/assets/:id/upgrade-recommendations", apiServer.GetAssetUpgradeRecommendations)
+	v1.POST("/assets/:id/upgrade-recommendations/:category/accept", apiServer.AcceptUpgradeRecommendation)
+	v1.GET("/upgrade-rules", apiServer.GetUpgradeRules)
+	v1.POST("/upgrade-rules", apiServer.CreateUpgradeRule)
+
 	// Protected sub-group for non-API routes that need auth (e.g. WebSocket)
 	protected := v1.Group("", authMW)
 
