@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useBIAStats, useBIAAssessments } from '../../hooks/useBIA'
 
 const TIER_COLORS: Record<string, { bg: string; text: string; badge: string }> = {
@@ -18,6 +19,7 @@ function Icon({ name, className = '' }: { name: string; className?: string }) {
 }
 
 function SystemGrading() {
+  const { t } = useTranslation()
   const { data: statsResp, isLoading: statsLoading } = useBIAStats()
   const { data: assessResp, isLoading: assessLoading } = useBIAAssessments()
 
@@ -31,10 +33,10 @@ function SystemGrading() {
   const byTier = stats?.by_tier || {}
 
   const statCards = [
-    { label: 'Total Systems', value: total, icon: 'dns', color: 'text-primary' },
-    { label: 'Critical', value: byTier['critical'] || 0, icon: 'error', color: 'text-[#dc2626]' },
-    { label: 'Important', value: byTier['important'] || 0, icon: 'warning', color: 'text-[#f59e0b]' },
-    { label: 'Normal', value: byTier['normal'] || 0, icon: 'info', color: 'text-[#3b82f6]' },
+    { labelKey: 'bia_grading.card_total_systems', value: total, icon: 'dns', color: 'text-primary' },
+    { labelKey: 'bia_grading.card_critical', value: byTier['critical'] || 0, icon: 'error', color: 'text-[#dc2626]' },
+    { labelKey: 'bia_grading.card_important', value: byTier['important'] || 0, icon: 'warning', color: 'text-[#f59e0b]' },
+    { labelKey: 'bia_grading.card_normal', value: byTier['normal'] || 0, icon: 'info', color: 'text-[#3b82f6]' },
   ]
 
   const isLoading = statsLoading || assessLoading
@@ -44,11 +46,11 @@ function SystemGrading() {
       {/* Breadcrumb + Header */}
       <div>
         <div className="flex items-center gap-1.5 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-2">
-          <Link to="/bia" className="hover:text-on-surface transition-colors">BIA</Link>
+          <Link to="/bia" className="hover:text-on-surface transition-colors">{t('bia_grading.breadcrumb_bia')}</Link>
           <Icon name="chevron_right" className="text-base" />
-          <span className="text-on-surface">System Grading</span>
+          <span className="text-on-surface">{t('bia_grading.page_title')}</span>
         </div>
-        <h1 className="font-headline font-bold text-2xl text-on-surface">System Grading</h1>
+        <h1 className="font-headline font-bold text-2xl text-on-surface">{t('bia_grading.page_title')}</h1>
       </div>
 
       {/* Stats Row */}
@@ -56,7 +58,7 @@ function SystemGrading() {
         {statCards.map((card) => (
           <div key={card.label} className="rounded-lg bg-surface-container p-5">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">{card.label}</span>
+              <span className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">{t(card.labelKey)}</span>
               <Icon name={card.icon} className={`text-xl ${card.color}`} />
             </div>
             <div className="text-3xl font-bold text-on-surface">
@@ -68,7 +70,7 @@ function SystemGrading() {
 
       {/* Score Distribution */}
       <div className="rounded-lg bg-surface-container p-5">
-        <h2 className="font-headline font-bold text-lg text-on-surface mb-4">Score Distribution by Tier</h2>
+        <h2 className="font-headline font-bold text-lg text-on-surface mb-4">{t('bia_grading.section_distribution')}</h2>
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
@@ -95,18 +97,18 @@ function SystemGrading() {
 
       {/* Full Assessment Table */}
       <div className="rounded-lg bg-surface-container p-5">
-        <h2 className="font-headline font-bold text-lg text-on-surface mb-4">All Assessments</h2>
+        <h2 className="font-headline font-bold text-lg text-on-surface mb-4">{t('bia_grading.section_all_assessments')}</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-outline-variant">
-                <th className="text-left py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">System</th>
-                <th className="text-left py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">Code</th>
-                <th className="text-left py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">Tier</th>
-                <th className="text-right py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">BIA Score</th>
-                <th className="text-right py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">RTO (hrs)</th>
-                <th className="text-right py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">RPO (min)</th>
-                <th className="text-left py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">Owner</th>
+                <th className="text-left py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_grading.col_system')}</th>
+                <th className="text-left py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_grading.col_code')}</th>
+                <th className="text-left py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_grading.col_tier')}</th>
+                <th className="text-right py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_grading.col_bia_score')}</th>
+                <th className="text-right py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_grading.col_rto_hrs')}</th>
+                <th className="text-right py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_grading.col_rpo_min')}</th>
+                <th className="text-left py-3 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_grading.col_owner')}</th>
               </tr>
             </thead>
             <tbody>
@@ -123,7 +125,7 @@ function SystemGrading() {
               ) : assessments.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-on-surface-variant">
-                    No assessments found
+                    {t('bia_grading.no_assessments')}
                   </td>
                 </tr>
               ) : (

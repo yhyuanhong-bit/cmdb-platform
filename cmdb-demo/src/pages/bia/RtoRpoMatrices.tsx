@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useBIAAssessments, useBIAScoringRules } from '../../hooks/useBIA'
 
 const TIER_BADGE: Record<string, string> = {
@@ -18,18 +19,19 @@ function getBadge(tier: string) {
 }
 
 function ComplianceMatrix({
-  title,
-  subtitle,
+  titleKey,
+  subtitleKey,
   assessments,
   rules,
   mode,
 }: {
-  title: string
-  subtitle: string
+  titleKey: string
+  subtitleKey: string
   assessments: any[]
   rules: any[]
   mode: 'rto' | 'rpo'
 }) {
+  const { t } = useTranslation()
   const sorted = useMemo(() => {
     return [...assessments].sort((a, b) => {
       const aVal = mode === 'rto' ? (a.rto_hours ?? Infinity) : (a.rpo_minutes ?? Infinity)
@@ -38,30 +40,29 @@ function ComplianceMatrix({
     })
   }, [assessments, mode])
 
-  const valueLabel = mode === 'rto' ? 'RTO (hrs)' : 'RPO (min)'
-  const thresholdLabel = 'Threshold'
+  const valueLabel = mode === 'rto' ? t('bia_rto_rpo.col_rto_hrs') : t('bia_rto_rpo.col_rpo_min')
 
   return (
     <div className="rounded-lg bg-surface-container p-5">
       <div className="mb-4">
-        <h3 className="font-headline font-bold text-lg text-on-surface">{title}</h3>
-        <p className="text-xs text-on-surface-variant mt-1">{subtitle}</p>
+        <h3 className="font-headline font-bold text-lg text-on-surface">{t(titleKey)}</h3>
+        <p className="text-xs text-on-surface-variant mt-1">{t(subtitleKey)}</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-outline-variant">
-              <th className="text-left py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">System</th>
-              <th className="text-left py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">Tier</th>
+              <th className="text-left py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_rto_rpo.col_system')}</th>
+              <th className="text-left py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_rto_rpo.col_tier')}</th>
               <th className="text-right py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{valueLabel}</th>
-              <th className="text-right py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{thresholdLabel}</th>
-              <th className="text-center py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">Status</th>
+              <th className="text-right py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_rto_rpo.col_threshold')}</th>
+              <th className="text-center py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_rto_rpo.col_status')}</th>
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-10 text-center text-on-surface-variant">No data</td>
+                <td colSpan={5} className="py-10 text-center text-on-surface-variant">{t('bia_rto_rpo.no_data')}</td>
               </tr>
             ) : (
               sorted.map((a) => {
@@ -107,6 +108,7 @@ function ComplianceMatrix({
 }
 
 function RtoRpoMatrices() {
+  const { t } = useTranslation()
   const { data: assessResp, isLoading: assessLoading } = useBIAAssessments()
   const { data: rulesResp, isLoading: rulesLoading } = useBIAScoringRules()
 
@@ -119,11 +121,11 @@ function RtoRpoMatrices() {
       {/* Breadcrumb + Header */}
       <div>
         <div className="flex items-center gap-1.5 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-2">
-          <Link to="/bia" className="hover:text-on-surface transition-colors">BIA</Link>
+          <Link to="/bia" className="hover:text-on-surface transition-colors">{t('bia_rto_rpo.breadcrumb_bia')}</Link>
           <Icon name="chevron_right" className="text-base" />
-          <span className="text-on-surface">RTO/RPO Matrices</span>
+          <span className="text-on-surface">{t('bia_rto_rpo.page_title')}</span>
         </div>
-        <h1 className="font-headline font-bold text-2xl text-on-surface">RTO/RPO Matrices</h1>
+        <h1 className="font-headline font-bold text-2xl text-on-surface">{t('bia_rto_rpo.page_title')}</h1>
       </div>
 
       {isLoading ? (
@@ -135,15 +137,15 @@ function RtoRpoMatrices() {
       ) : (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <ComplianceMatrix
-            title="Recovery Time Objective (RTO)"
-            subtitle="Maximum acceptable downtime before business impact"
+            titleKey="bia_rto_rpo.rto_title"
+            subtitleKey="bia_rto_rpo.rto_subtitle"
             assessments={assessments}
             rules={rules}
             mode="rto"
           />
           <ComplianceMatrix
-            title="Recovery Point Objective (RPO)"
-            subtitle="Maximum acceptable data loss measured in time"
+            titleKey="bia_rto_rpo.rpo_title"
+            subtitleKey="bia_rto_rpo.rpo_subtitle"
             assessments={assessments}
             rules={rules}
             mode="rpo"

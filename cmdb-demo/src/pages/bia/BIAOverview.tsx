@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import Icon from '../../components/Icon'
 import BIAComplianceIcon from '../../components/BIAComplianceIcon'
 import CreateAssessmentModal from '../../components/CreateAssessmentModal'
@@ -23,12 +24,12 @@ const DONUT_COLORS: Record<string, string> = {
   minor:     '#8e9196',
 }
 
-const NAV_ITEMS = [
-  { icon: 'dashboard',  label: 'BIA Overview',     path: '/bia' },
-  { icon: 'grade',      label: 'System Grading',   path: '/bia/grading' },
-  { icon: 'timer',      label: 'RTO/RPO Matrices', path: '/bia/rto-rpo' },
-  { icon: 'rule',       label: 'Scoring Rules',    path: '/bia/rules' },
-  { icon: 'device_hub', label: 'Dependency Map',   path: '/bia/dependencies' },
+const NAV_ITEM_KEYS = [
+  { icon: 'dashboard',  labelKey: 'bia_overview.nav_overview',    path: '/bia' },
+  { icon: 'grade',      labelKey: 'bia_overview.nav_grading',     path: '/bia/grading' },
+  { icon: 'timer',      labelKey: 'bia_overview.nav_rto_rpo',     path: '/bia/rto-rpo' },
+  { icon: 'rule',       labelKey: 'bia_overview.nav_rules',       path: '/bia/rules' },
+  { icon: 'device_hub', labelKey: 'bia_overview.nav_dependencies', path: '/bia/dependencies' },
 ]
 
 /* ──────────────────────────────────────────────
@@ -110,6 +111,7 @@ function BiaScoreArrow({ score }: { score: number }) {
    ────────────────────────────────────────────── */
 
 export default function BIAOverview() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const [modalOpen, setModalOpen] = useState(false)
@@ -145,16 +147,16 @@ export default function BIAOverview() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="material-symbols-outlined text-primary text-2xl">assessment</span>
-          <h1 className="font-headline text-xl font-bold text-on-surface">BIA Modeler</h1>
+          <h1 className="font-headline text-xl font-bold text-on-surface">{t('bia_overview.page_title')}</h1>
         </div>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container text-on-surface-variant text-xs hover:bg-surface-container-high transition-colors">
             <span className="material-symbols-outlined text-sm">download</span>
-            Export
+            {t('bia_overview.btn_export')}
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-surface-container text-on-surface-variant text-xs hover:bg-surface-container-high transition-colors">
             <span className="material-symbols-outlined text-sm">description</span>
-            Report
+            {t('bia_overview.btn_report')}
           </button>
         </div>
       </div>
@@ -163,7 +165,7 @@ export default function BIAOverview() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr]">
         {/* Left Nav Panel */}
         <div className="space-y-1">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEM_KEYS.map((item) => {
             const active = location.pathname === item.path
             return (
               <button
@@ -177,7 +179,7 @@ export default function BIAOverview() {
               >
                 <Icon name={item.icon} className="text-[20px]" />
                 <span className="font-headline tracking-tight font-semibold text-[0.75rem]">
-                  {item.label}
+                  {t(item.labelKey)}
                 </span>
               </button>
             )
@@ -192,7 +194,7 @@ export default function BIAOverview() {
           >
             <Icon name="play_arrow" className="text-[20px]" />
             <span className="font-headline tracking-tight font-semibold text-[0.75rem]">
-              Run New Analysis
+              {t('bia_overview.btn_run_analysis')}
             </span>
           </button>
 
@@ -202,7 +204,7 @@ export default function BIAOverview() {
           >
             <Icon name="history" className="text-[20px]" />
             <span className="font-headline tracking-tight font-semibold text-[0.75rem]">
-              Audit Logs
+              {t('bia_overview.btn_audit_logs')}
             </span>
           </button>
 
@@ -212,7 +214,7 @@ export default function BIAOverview() {
           >
             <Icon name="download" className="text-[20px]" />
             <span className="font-headline tracking-tight font-semibold text-[0.75rem]">
-              Export
+              {t('bia_overview.btn_export')}
             </span>
           </button>
         </div>
@@ -226,7 +228,7 @@ export default function BIAOverview() {
               <div className="mb-4 flex items-center gap-2">
                 <Icon name="tune" className="text-primary text-xl" />
                 <h3 className="font-headline text-[0.6875rem] font-semibold uppercase tracking-wider text-on-surface-variant">
-                  BIA Tier Rules
+                  {t('bia_overview.card_tier_rules')}
                 </h3>
               </div>
               <div className="space-y-2">
@@ -257,7 +259,7 @@ export default function BIAOverview() {
               <div className="mb-4 flex items-center gap-2">
                 <Icon name="donut_large" className="text-primary text-xl" />
                 <h3 className="font-headline text-[0.6875rem] font-semibold uppercase tracking-wider text-on-surface-variant">
-                  System Overview
+                  {t('bia_overview.card_system_overview')}
                 </h3>
               </div>
               <DonutChart segments={donutSegments} />
@@ -266,12 +268,12 @@ export default function BIAOverview() {
                   {stats.total}
                 </p>
                 <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">
-                  Total Monitored
+                  {t('bia_overview.total_monitored')}
                 </p>
               </div>
               <div className="mt-2 text-center">
                 <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">
-                  Avg Compliance
+                  {t('bia_overview.avg_compliance')}
                 </p>
                 <p className="font-headline text-xl font-bold text-[#34d399]">
                   {stats.avg_compliance}%
@@ -298,7 +300,7 @@ export default function BIAOverview() {
               <div className="mb-4 flex items-center gap-2">
                 <Icon name="device_hub" className="text-primary text-xl" />
                 <h3 className="font-headline text-[0.6875rem] font-semibold uppercase tracking-wider text-on-surface-variant">
-                  Asset Dependencies
+                  {t('bia_overview.card_asset_deps')}
                 </h3>
               </div>
               <div className="space-y-3">
@@ -307,14 +309,14 @@ export default function BIAOverview() {
                     {stats.total_dependencies ?? 8}
                   </p>
                   <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mt-1">
-                    Linked CIs
+                    {t('bia_overview.linked_cis')}
                   </p>
                 </div>
                 <div className="space-y-2">
                   {[
-                    { label: 'Data Compliant', count: stats.data_compliant, icon: 'storage' },
-                    { label: 'Asset Compliant', count: stats.asset_compliant, icon: 'dns' },
-                    { label: 'Audit Compliant', count: stats.audit_compliant, icon: 'verified_user' },
+                    { labelKey: 'bia_overview.data_compliant', count: stats.data_compliant, icon: 'storage' },
+                    { labelKey: 'bia_overview.asset_compliant', count: stats.asset_compliant, icon: 'dns' },
+                    { labelKey: 'bia_overview.audit_compliant', count: stats.audit_compliant, icon: 'verified_user' },
                   ].map((item) => (
                     <div
                       key={item.label}
@@ -322,7 +324,7 @@ export default function BIAOverview() {
                     >
                       <div className="flex items-center gap-2">
                         <Icon name={item.icon} className="text-on-surface-variant text-lg" />
-                        <span className="text-xs text-on-surface-variant">{item.label}</span>
+                        <span className="text-xs text-on-surface-variant">{t(item.labelKey)}</span>
                       </div>
                       <span className="text-sm font-semibold text-on-surface">
                         {item.count}/{stats.total}
@@ -340,7 +342,7 @@ export default function BIAOverview() {
               <div className="flex items-center gap-2">
                 <Icon name="assessment" className="text-primary text-xl" />
                 <h3 className="font-headline text-[0.6875rem] font-semibold uppercase tracking-wider text-on-surface-variant">
-                  BIA Assessment Matrix
+                  {t('bia_overview.table_title')}
                 </h3>
               </div>
               <div className="flex items-center gap-2">
@@ -363,31 +365,31 @@ export default function BIAOverview() {
               <thead>
                 <tr className="bg-surface-container-high">
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-                    Business System
+                    {t('bia_overview.col_business_system')}
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-                    Owner
+                    {t('bia_overview.col_owner')}
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-                    Tier
+                    {t('bia_overview.col_tier')}
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-                    BIA Score
+                    {t('bia_overview.col_bia_score')}
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-                    RTO (hrs)
+                    {t('bia_overview.col_rto_hrs')}
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-                    RPO (min)
+                    {t('bia_overview.col_rpo_min')}
                   </th>
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-                    Asset
+                    {t('bia_overview.col_asset')}
                   </th>
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-                    Data
+                    {t('bia_overview.col_data')}
                   </th>
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
-                    Audit
+                    {t('bia_overview.col_audit')}
                   </th>
                 </tr>
               </thead>
@@ -444,7 +446,7 @@ export default function BIAOverview() {
                 {assessments.length === 0 && (
                   <tr>
                     <td colSpan={9} className="px-5 py-8 text-center text-sm text-on-surface-variant">
-                      No assessments found
+                      {t('bia_overview.no_assessments')}
                     </td>
                   </tr>
                 )}

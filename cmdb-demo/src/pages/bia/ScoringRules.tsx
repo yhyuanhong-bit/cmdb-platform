@@ -1,5 +1,6 @@
 import { memo, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useBIAScoringRules, useUpdateBIAScoringRule } from '../../hooks/useBIA'
 
 const TIER_BADGE: Record<string, string> = {
@@ -18,6 +19,7 @@ function getBadge(tier: string) {
 }
 
 function ScoringRules() {
+  const { t } = useTranslation()
   const { data: rulesResp, isLoading } = useBIAScoringRules()
   const updateRule = useUpdateBIAScoringRule()
   const rules = (rulesResp?.data as any)?.data || []
@@ -69,11 +71,11 @@ function ScoringRules() {
       {/* Breadcrumb + Header */}
       <div>
         <div className="flex items-center gap-1.5 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-2">
-          <Link to="/bia" className="hover:text-on-surface transition-colors">BIA</Link>
+          <Link to="/bia" className="hover:text-on-surface transition-colors">{t('bia_rules.breadcrumb_bia')}</Link>
           <Icon name="chevron_right" className="text-base" />
-          <span className="text-on-surface">Scoring Rules</span>
+          <span className="text-on-surface">{t('bia_rules.page_title')}</span>
         </div>
-        <h1 className="font-headline font-bold text-2xl text-on-surface">Scoring Rules</h1>
+        <h1 className="font-headline font-bold text-2xl text-on-surface">{t('bia_rules.page_title')}</h1>
       </div>
 
       {isLoading ? (
@@ -83,7 +85,7 @@ function ScoringRules() {
           {/* Left Panel: Rule List */}
           <div className="rounded-lg bg-surface-container p-4">
             <h3 className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium mb-3">
-              Tier Rules
+              {t('bia_rules.panel_tier_rules')}
             </h3>
             <div className="space-y-1">
               {rules.map((rule) => (
@@ -121,7 +123,7 @@ function ScoringRules() {
           <div className="rounded-lg bg-surface-container p-5">
             {!selectedRule ? (
               <div className="flex items-center justify-center h-64 text-on-surface-variant">
-                Select a rule to view details
+                {t('bia_rules.select_rule_hint')}
               </div>
             ) : (
               <div className="space-y-5">
@@ -136,14 +138,14 @@ function ScoringRules() {
                     </div>
                   </div>
                   <span className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">
-                    Level {selectedRule.tier_level}
+                    {t('bia_rules.label_level')} {selectedRule.tier_level}
                   </span>
                 </div>
 
                 {/* Editable fields */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">Display Name</label>
+                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">{t('bia_rules.label_display_name')}</label>
                     <input
                       type="text"
                       value={editData.display_name ?? ''}
@@ -152,7 +154,7 @@ function ScoringRules() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">Description</label>
+                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">{t('bia_rules.label_description')}</label>
                     <input
                       type="text"
                       value={editData.description ?? ''}
@@ -161,7 +163,7 @@ function ScoringRules() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">Min Score</label>
+                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">{t('bia_rules.label_min_score')}</label>
                     <input
                       type="number"
                       value={editData.min_score ?? ''}
@@ -170,7 +172,7 @@ function ScoringRules() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">Max Score</label>
+                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">{t('bia_rules.label_max_score')}</label>
                     <input
                       type="number"
                       value={editData.max_score ?? ''}
@@ -179,7 +181,7 @@ function ScoringRules() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">RTO Threshold (hrs)</label>
+                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">{t('bia_rules.label_rto_threshold')}</label>
                     <input
                       type="number"
                       step="0.5"
@@ -189,7 +191,7 @@ function ScoringRules() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">RPO Threshold (min)</label>
+                    <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">{t('bia_rules.label_rpo_threshold')}</label>
                     <input
                       type="number"
                       step="1"
@@ -209,7 +211,7 @@ function ScoringRules() {
                     className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Icon name="save" className="text-lg" />
-                    {updateRule.isPending ? 'Saving...' : 'Save Changes'}
+                    {updateRule.isPending ? t('bia_rules.btn_saving') : t('bia_rules.btn_save')}
                   </button>
                   <button
                     type="button"
@@ -217,11 +219,11 @@ function ScoringRules() {
                     disabled={!dirty}
                     className="inline-flex items-center gap-2 rounded-lg bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    Cancel
+                    {t('bia_rules.btn_cancel')}
                   </button>
                   {updateRule.isSuccess && !dirty && (
                     <span className="flex items-center gap-1 text-xs text-[#34d399]">
-                      <Icon name="check_circle" className="text-sm" /> Saved
+                      <Icon name="check_circle" className="text-sm" /> {t('bia_rules.saved_indicator')}
                     </span>
                   )}
                 </div>

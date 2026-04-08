@@ -1,5 +1,6 @@
 import { memo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useBIAAssessments, useBIADependencies, useCreateBIADependency } from '../../hooks/useBIA'
 import { useAssets } from '../../hooks/useAssets'
 
@@ -32,6 +33,7 @@ function getBadge(tier: string) {
 }
 
 function DependencyMap() {
+  const { t } = useTranslation()
   const { data: assessResp, isLoading: assessLoading } = useBIAAssessments()
   const assessments = (assessResp?.data as any)?.data || []
 
@@ -70,26 +72,26 @@ function DependencyMap() {
       {/* Breadcrumb + Header */}
       <div>
         <div className="flex items-center gap-1.5 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-2">
-          <Link to="/bia" className="hover:text-on-surface transition-colors">BIA</Link>
+          <Link to="/bia" className="hover:text-on-surface transition-colors">{t('bia_deps.breadcrumb_bia')}</Link>
           <Icon name="chevron_right" className="text-base" />
-          <span className="text-on-surface">Dependency Map</span>
+          <span className="text-on-surface">{t('bia_deps.page_title')}</span>
         </div>
-        <h1 className="font-headline font-bold text-2xl text-on-surface">Dependency Map</h1>
+        <h1 className="font-headline font-bold text-2xl text-on-surface">{t('bia_deps.page_title')}</h1>
       </div>
 
       {/* Assessment Selector */}
       <div className="rounded-lg bg-surface-container p-5">
         <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-2">
-          Select Business System
+          {t('bia_deps.label_select_system')}
         </label>
         <select
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
           className="w-full max-w-md rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary"
         >
-          <option value="">-- Choose a system --</option>
+          <option value="">{t('bia_deps.placeholder_choose_system')}</option>
           {assessLoading ? (
-            <option disabled>Loading...</option>
+            <option disabled>{t('bia_deps.loading')}</option>
           ) : (
             assessments.map((a) => (
               <option key={a.id} value={a.id}>
@@ -114,10 +116,10 @@ function DependencyMap() {
                   {selectedAssessment.tier}
                 </span>
                 <span className="text-xs text-on-surface-variant">
-                  BIA Score: <span className="font-bold text-on-surface">{selectedAssessment.bia_score}</span>
+                  {t('bia_deps.label_bia_score')}: <span className="font-bold text-on-surface">{selectedAssessment.bia_score}</span>
                 </span>
                 <span className="text-xs text-on-surface-variant">
-                  Code: <span className="font-mono">{selectedAssessment.system_code}</span>
+                  {t('bia_deps.label_code')}: <span className="font-mono">{selectedAssessment.system_code}</span>
                 </span>
               </div>
             </div>
@@ -129,14 +131,14 @@ function DependencyMap() {
       {selectedId && (
         <div className="rounded-lg bg-surface-container p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-headline font-bold text-lg text-on-surface">Linked Dependencies</h3>
+            <h3 className="font-headline font-bold text-lg text-on-surface">{t('bia_deps.section_linked_deps')}</h3>
             <button
               type="button"
               onClick={() => setShowModal(true)}
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-primary/90"
             >
               <Icon name="add" className="text-lg" />
-              Add Dependency
+              {t('bia_deps.btn_add_dep')}
             </button>
           </div>
 
@@ -149,16 +151,16 @@ function DependencyMap() {
           ) : deps.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-on-surface-variant">
               <Icon name="link_off" className="text-4xl mb-2 opacity-50" />
-              <p className="text-sm">No dependencies linked yet</p>
+              <p className="text-sm">{t('bia_deps.no_deps')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-outline-variant">
-                    <th className="text-left py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">Asset</th>
-                    <th className="text-left py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">Type</th>
-                    <th className="text-left py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">Criticality</th>
+                    <th className="text-left py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_deps.col_asset')}</th>
+                    <th className="text-left py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_deps.col_type')}</th>
+                    <th className="text-left py-2.5 px-3 text-[0.6875rem] uppercase tracking-wider text-on-surface-variant font-medium">{t('bia_deps.col_criticality')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -191,7 +193,7 @@ function DependencyMap() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
           <div className="w-full max-w-md rounded-xl bg-surface-container p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-headline font-bold text-lg text-on-surface">Add Dependency</h3>
+              <h3 className="font-headline font-bold text-lg text-on-surface">{t('bia_deps.modal_title')}</h3>
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
@@ -203,13 +205,13 @@ function DependencyMap() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">Asset</label>
+                <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">{t('bia_deps.label_asset')}</label>
                 <select
                   value={newDep.asset_id}
                   onChange={(e) => setNewDep((p) => ({ ...p, asset_id: e.target.value }))}
                   className="w-full rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary"
                 >
-                  <option value="">-- Select asset --</option>
+                  <option value="">{t('bia_deps.placeholder_select_asset')}</option>
                   {assets.map((a) => (
                     <option key={a.id} value={a.id}>{a.name || a.id}</option>
                   ))}
@@ -217,29 +219,29 @@ function DependencyMap() {
               </div>
 
               <div>
-                <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">Dependency Type</label>
+                <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">{t('bia_deps.label_dep_type')}</label>
                 <select
                   value={newDep.dependency_type}
                   onChange={(e) => setNewDep((p) => ({ ...p, dependency_type: e.target.value }))}
                   className="w-full rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary"
                 >
-                  <option value="runs_on">Runs On</option>
-                  <option value="depends_on">Depends On</option>
-                  <option value="backed_by">Backed By</option>
+                  <option value="runs_on">{t('bia_deps.dep_runs_on')}</option>
+                  <option value="depends_on">{t('bia_deps.dep_depends_on')}</option>
+                  <option value="backed_by">{t('bia_deps.dep_backed_by')}</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">Criticality</label>
+                <label className="block text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mb-1.5">{t('bia_deps.label_criticality')}</label>
                 <select
                   value={newDep.criticality}
                   onChange={(e) => setNewDep((p) => ({ ...p, criticality: e.target.value }))}
                   className="w-full rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary"
                 >
-                  <option value="critical">Critical</option>
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
+                  <option value="critical">{t('bia_deps.crit_critical')}</option>
+                  <option value="high">{t('bia_deps.crit_high')}</option>
+                  <option value="medium">{t('bia_deps.crit_medium')}</option>
+                  <option value="low">{t('bia_deps.crit_low')}</option>
                 </select>
               </div>
             </div>
@@ -250,7 +252,7 @@ function DependencyMap() {
                 onClick={() => setShowModal(false)}
                 className="rounded-lg bg-surface-container-high px-4 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-highest transition-colors"
               >
-                Cancel
+                {t('bia_deps.btn_cancel')}
               </button>
               <button
                 type="button"
@@ -259,7 +261,7 @@ function DependencyMap() {
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Icon name="add_link" className="text-lg" />
-                {createDep.isPending ? 'Adding...' : 'Add'}
+                {createDep.isPending ? t('bia_deps.btn_adding') : t('bia_deps.btn_add')}
               </button>
             </div>
           </div>
