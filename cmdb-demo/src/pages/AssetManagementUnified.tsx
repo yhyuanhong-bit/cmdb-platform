@@ -169,7 +169,7 @@ export default function AssetManagementUnified() {
 
   const handleExport = () => {
     if (!assets?.length) {
-      alert('No assets to export.')
+      alert(t('assets.no_assets_to_export'))
       return
     }
     const headers: (keyof Asset)[] = ['asset_tag', 'name', 'type', 'status', 'vendor', 'model', 'serial_number']
@@ -193,7 +193,7 @@ export default function AssetManagementUnified() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-headline text-2xl font-bold tracking-tight text-on-surface">
-              {t('assets.title_zh')} / {t('assets.title')}
+              {t('assets.title')}
             </h1>
             <p className="mt-1 text-sm text-on-surface-variant">
               {t('assets.subtitle')}
@@ -205,14 +205,14 @@ export default function AssetManagementUnified() {
               className="flex items-center gap-1.5 bg-surface-container-high px-3 py-2 text-xs font-semibold text-on-surface-variant rounded hover:bg-surface-container-highest hover:text-on-surface transition-all"
             >
               <Icon name="cycle" className="text-[16px]" />
-              生命週期
+              {t('assets.btn_lifecycle')}
             </button>
             <button
               onClick={() => navigate('/assets/discovery')}
               className="flex items-center gap-1.5 bg-surface-container-high px-3 py-2 text-xs font-semibold text-on-surface-variant rounded hover:bg-surface-container-highest hover:text-on-surface transition-all"
             >
               <Icon name="search" className="text-[16px]" />
-              自動發現
+              {t('assets.btn_discovery')}
             </button>
           </div>
         </div>
@@ -265,7 +265,7 @@ export default function AssetManagementUnified() {
           disabled
           className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface-variant rounded appearance-none cursor-not-allowed focus:outline-none"
         >
-          <option>Location (Coming Soon)</option>
+          <option>{t('assets.location_coming_soon')}</option>
         </select>
 
         {/* View Toggle */}
@@ -396,7 +396,7 @@ export default function AssetManagementUnified() {
                 <button onClick={(e) => { e.stopPropagation(); navigate(`/assets/${asset.id}`); }} className="p-1 rounded hover:bg-surface-container-highest transition-colors">
                   <Icon name="visibility" className="text-[18px] text-on-surface-variant" />
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }} className="p-1 rounded hover:bg-surface-container-highest transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); alert(t('common.coming_soon')); }} className="p-1 rounded hover:bg-surface-container-highest transition-colors">
                   <Icon name="more_vert" className="text-[18px] text-on-surface-variant" />
                 </button>
               </span>

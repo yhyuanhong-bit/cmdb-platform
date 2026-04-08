@@ -86,7 +86,8 @@
     "daily": "Daily",
     "weekly": "Weekly",
     "monthly": "Monthly",
-    "minor": "Minor"
+    "minor": "Minor",
+    "coming_soon": "Coming Soon"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -195,7 +196,7 @@
   },
   "assets": {
     "title": "Asset Management",
-    "title_zh": "資產管理",
+    "title_zh": "",
     "subtitle": "Enterprise configuration item registry and lifecycle tracking",
     "search_placeholder": "Search by asset ID, name, vendor...",
     "all_types": "All Types",
@@ -213,7 +214,13 @@
     "type_server": "Server",
     "type_network": "Network",
     "type_storage": "Storage",
-    "type_ups": "UPS"
+    "type_ups": "UPS",
+    "btn_lifecycle": "Lifecycle",
+    "btn_discovery": "Auto Discovery",
+    "location_coming_soon": "Location (Coming Soon)",
+    "no_assets_to_export": "No assets to export.",
+    "view_card": "Card View",
+    "view_table": "Table View"
   },
   "asset_health": {
     "breadcrumb_compute_node": "Compute Node",

@@ -86,7 +86,8 @@
     "daily": "每日",
     "weekly": "每週",
     "monthly": "每月",
-    "minor": "次要"
+    "minor": "次要",
+    "coming_soon": "即將推出"
   },
   "nav": {
     "dashboard": "儀表板",
@@ -213,7 +214,13 @@
     "type_server": "伺服器",
     "type_network": "網路設備",
     "type_storage": "儲存設備",
-    "type_ups": "UPS"
+    "type_ups": "UPS",
+    "btn_lifecycle": "生命週期",
+    "btn_discovery": "自動發現",
+    "location_coming_soon": "位置（即將推出）",
+    "no_assets_to_export": "沒有可匯出的資產。",
+    "view_card": "卡片檢視",
+    "view_table": "表格檢視"
   },
   "asset_health": {
     "breadcrumb_compute_node": "運算節點",

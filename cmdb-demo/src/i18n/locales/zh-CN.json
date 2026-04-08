@@ -86,7 +86,8 @@
     "daily": "每日",
     "weekly": "每周",
     "monthly": "每月",
-    "minor": "次要"
+    "minor": "次要",
+    "coming_soon": "即将推出"
   },
   "nav": {
     "dashboard": "仪表盘",
@@ -213,7 +214,13 @@
     "type_server": "服务器",
     "type_network": "网络设备",
     "type_storage": "存储设备",
-    "type_ups": "UPS"
+    "type_ups": "UPS",
+    "btn_lifecycle": "生命周期",
+    "btn_discovery": "自动发现",
+    "location_coming_soon": "位置（即将推出）",
+    "no_assets_to_export": "没有可导出的资产。",
+    "view_card": "卡片视图",
+    "view_table": "表格视图"
   },
   "asset_health": {
     "breadcrumb_compute_node": "计算节点",
