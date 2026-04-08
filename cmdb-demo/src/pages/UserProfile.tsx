@@ -166,7 +166,7 @@ export default function UserProfile() {
               {t('user_profile.section_active_sessions')}
             </h3>
             <div className="flex flex-col gap-2">
-              {sessions.map((s, i) => (
+              {sessions.map((s: any, i: number) => (
                 <div key={i} className="flex items-center justify-between bg-surface-container rounded-lg px-3 py-2.5">
                   <div className="flex items-center gap-3">
                     <span className="material-symbols-outlined text-on-surface-variant text-[18px]">{s.icon}</span>
