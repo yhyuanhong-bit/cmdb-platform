@@ -274,6 +274,8 @@ function OverviewTab({ t, navigate, asset, assetId, impactedSystems = [] }: { t:
           <div className="grid grid-cols-2 gap-4">
             <DataRow label={t('asset_detail.label_model')} value={asset.model} mono />
             <DataRow label={t('asset_detail.label_serial_number')} value={asset.serial} mono />
+            <DataRow label={t('asset_detail.field_property_number')} value={asset.property_number || '-'} mono />
+            <DataRow label={t('asset_detail.field_control_number')} value={asset.control_number || '-'} mono />
             <DataRow label={t('asset_detail.label_cpu_architecture')} value={asset.cpu} mono />
             <DataRow label={t('asset_detail.label_memory_ram')} value={asset.memory} mono />
             <DataRow label={t('asset_detail.label_form_factor')} value={asset.formFactor} />
@@ -1033,6 +1035,8 @@ export default function AssetDetailUnified() {
                 ip_address: (apiAsset as any)?.ip_address || '',
                 location_id: (apiAsset as any)?.location_id || '',
                 tags: (apiAsset?.tags || []).join(', '),
+                property_number: (apiAsset as any)?.property_number || '',
+                control_number: (apiAsset as any)?.control_number || '',
               })
             }} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-on-primary-container text-[#ffffff] text-[0.75rem] font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity">
               <span className="material-symbols-outlined text-[18px]">edit</span>
@@ -1188,6 +1192,20 @@ export default function AssetDetailUnified() {
                   placeholder="production, tier-1"
                   className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
                 />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">
+                  {t('asset_detail.field_property_number')}
+                </label>
+                <input value={editData.property_number ?? ''} onChange={e => setEditData(p => ({ ...p, property_number: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm" placeholder="P-2025-0001" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="font-label text-[0.625rem] uppercase tracking-[0.06em] text-on-surface-variant">
+                  {t('asset_detail.field_control_number')}
+                </label>
+                <input value={editData.control_number ?? ''} onChange={e => setEditData(p => ({ ...p, control_number: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm" placeholder="CTRL-TW-A-0001" />
               </div>
             </div>
             <div className="flex gap-2 mt-4">

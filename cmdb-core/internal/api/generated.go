@@ -663,6 +663,8 @@ type ImportInventoryItemsJSONBody struct {
 		AssetTag         *string `json:"asset_tag,omitempty"`
 		ExpectedLocation *string `json:"expected_location,omitempty"`
 		SerialNumber     *string `json:"serial_number,omitempty"`
+		PropertyNumber   *string `json:"property_number,omitempty"`
+		ControlNumber    *string `json:"control_number,omitempty"`
 	} `json:"items"`
 }
 

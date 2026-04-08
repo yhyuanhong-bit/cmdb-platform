@@ -1624,6 +1624,37 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 		}
 
 		asset, err := s.assetSvc.FindBySerialOrTag(ctx, tenantID, serial, tag)
+
+		// Fallback: try property_number
+		if (err != nil || asset == nil) && item.PropertyNumber != nil && *item.PropertyNumber != "" {
+			row := s.pool.QueryRow(ctx,
+				"SELECT id FROM assets WHERE tenant_id = $1 AND property_number = $2 LIMIT 1",
+				tenantID, *item.PropertyNumber)
+			var assetID uuid.UUID
+			if row.Scan(&assetID) == nil {
+				a, e := s.assetSvc.GetByID(ctx, assetID)
+				if e == nil {
+					asset = a
+					err = nil
+				}
+			}
+		}
+
+		// Fallback: try control_number
+		if (err != nil || asset == nil) && item.ControlNumber != nil && *item.ControlNumber != "" {
+			row := s.pool.QueryRow(ctx,
+				"SELECT id FROM assets WHERE tenant_id = $1 AND control_number = $2 LIMIT 1",
+				tenantID, *item.ControlNumber)
+			var assetID uuid.UUID
+			if row.Scan(&assetID) == nil {
+				a, e := s.assetSvc.GetByID(ctx, assetID)
+				if e == nil {
+					asset = a
+					err = nil
+				}
+			}
+		}
+
 		if err != nil || asset == nil {
 			stats["not_found"]++
 			continue

@@ -75,6 +75,12 @@ function AssetCard({ asset, onClick }: { asset: Asset; onClick: () => void }) {
       <div className="space-y-1 mb-3 text-xs text-on-surface-variant">
         <div>{asset.vendor} {asset.model}</div>
         <div className="font-mono">{asset.serial_number}</div>
+        {(asset as any).property_number && (
+          <div className="font-mono">P#: {(asset as any).property_number}</div>
+        )}
+        {(asset as any).control_number && (
+          <div className="font-mono">CTRL#: {(asset as any).control_number}</div>
+        )}
       </div>
 
       {/* Footer info */}
@@ -335,8 +341,10 @@ export default function AssetManagementUnified() {
       {viewMode === 'table' && (
         <div className="bg-surface-container rounded overflow-hidden">
           {/* Table Header */}
-          <div className="grid grid-cols-[120px_1fr_100px_1fr_1fr_110px_120px_80px] items-center gap-2 bg-surface-container-low px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-wider text-on-surface-variant">
+          <div className="grid grid-cols-[120px_120px_120px_1fr_100px_1fr_1fr_110px_120px_80px] items-center gap-2 bg-surface-container-low px-4 py-3 text-[0.6875rem] font-semibold uppercase tracking-wider text-on-surface-variant">
             <span>{t('assets.table_asset_no')}</span>
+            <span>{t('assets.table_property_number')}</span>
+            <span>{t('assets.table_control_number')}</span>
             <span>{t('assets.table_name')}</span>
             <span>{t('assets.table_type')}</span>
             <span>{t('assets.table_vendor_model')}</span>
@@ -364,13 +372,15 @@ export default function AssetManagementUnified() {
             <div
               key={asset.id}
               onClick={() => navigate(`/assets/${asset.id}`)}
-              className={`grid grid-cols-[120px_1fr_100px_1fr_1fr_110px_120px_80px] items-center gap-2 px-4 py-3 text-sm transition-colors hover:bg-surface-container-high cursor-pointer ${
+              className={`grid grid-cols-[120px_120px_120px_1fr_100px_1fr_1fr_110px_120px_80px] items-center gap-2 px-4 py-3 text-sm transition-colors hover:bg-surface-container-high cursor-pointer ${
                 i % 2 === 1 ? 'bg-surface-container-low/40' : ''
               }`}
             >
               <span className="font-mono text-primary text-xs font-semibold">
                 {asset.asset_tag}
               </span>
+              <span className="text-on-surface-variant text-xs font-mono">{(asset as any).property_number || '-'}</span>
+              <span className="text-on-surface-variant text-xs font-mono">{(asset as any).control_number || '-'}</span>
               <span className="text-on-surface truncate">{asset.name}</span>
               <span className="flex items-center gap-1.5 text-on-surface-variant">
                 <Icon name={typeIcons[asset.type?.toLowerCase()] ?? 'dns'} className="text-[18px]" />

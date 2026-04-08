@@ -17,6 +17,8 @@ const initial = {
   vendor: '',
   model: '',
   serial_number: '',
+  property_number: '',
+  control_number: '',
 }
 
 export default function CreateAssetModal({ open, onClose }: Props) {
@@ -97,6 +99,20 @@ export default function CreateAssetModal({ open, onClose }: Props) {
           <label className="block text-sm text-gray-400 mb-1">{t('asset_modal.serial_number_label')}</label>
           <input value={formData.serial_number} onChange={e => setFormData(p => ({ ...p, serial_number: e.target.value }))}
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" placeholder={t('asset_modal.serial_number_placeholder')} />
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">{t('asset_modal.field_property_number')}</label>
+          <input value={formData.property_number} onChange={e => setFormData(p => ({ ...p, property_number: e.target.value }))}
+            className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
+            placeholder={t('asset_modal.placeholder_property')} />
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">{t('asset_modal.field_control_number')}</label>
+          <input value={formData.control_number} onChange={e => setFormData(p => ({ ...p, control_number: e.target.value }))}
+            className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
+            placeholder={t('asset_modal.placeholder_control')} />
         </div>
 
         <div className="flex gap-2 justify-end pt-2">
