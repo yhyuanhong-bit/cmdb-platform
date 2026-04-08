@@ -22,4 +22,7 @@ export const identityApi = {
     apiClient.put<ApiResponse<Role>>(`/roles/${id}`, data),
   deleteRole: (id: string) =>
     apiClient.del(`/roles/${id}`),
+  listSessions: (userId: string) => apiClient.get(`/users/${userId}/sessions`),
+  changePassword: (data: { current_password: string; new_password: string }) =>
+    apiClient.post('/auth/change-password', data),
 }

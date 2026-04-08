@@ -64,3 +64,17 @@ export function useDeleteRole() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['roles'] }),
   })
 }
+
+export function useUserSessions(userId: string) {
+  return useQuery({
+    queryKey: ['userSessions', userId],
+    queryFn: () => identityApi.listSessions(userId),
+    enabled: !!userId,
+  })
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: identityApi.changePassword,
+  })
+}
