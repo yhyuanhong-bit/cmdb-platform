@@ -789,9 +789,10 @@
     "entry": "入口",
     "emergency_exit": "紧急出口",
     "cooling_unit": "制冷机组",
-    "row": "行",
+    "row": "排",
     "position": "位置",
-    "units": "单元"
+    "units": "台",
+    "btn_maintenance": "维护"
   },
   "video_library": {
     "title": "视频库",

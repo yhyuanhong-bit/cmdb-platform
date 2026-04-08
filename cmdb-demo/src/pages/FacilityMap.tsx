@@ -368,7 +368,7 @@ function FacilityMap() {
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-surface-container-low px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant transition-colors hover:bg-surface-container-high"
                 >
                   <Icon name="build" className="text-sm" />
-                  {t('common.maintenance')}
+                  {t('facility_map.btn_maintenance')}
                 </button>
               </div>
             </div>

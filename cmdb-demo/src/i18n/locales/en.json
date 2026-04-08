@@ -791,7 +791,8 @@
     "cooling_unit": "Cooling Unit",
     "row": "Row",
     "position": "Position",
-    "units": "units"
+    "units": "units",
+    "btn_maintenance": "Maintenance"
   },
   "video_library": {
     "title": "Video Library",
