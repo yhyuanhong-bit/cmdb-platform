@@ -1223,7 +1223,13 @@
     "label_approval_status": "审批状态",
     "status_pending_review": "待审核",
     "btn_schedule_maintenance": "排程维护",
-    "btn_request_selection": "提交选择申请"
+    "btn_request_selection": "提交选择申请",
+    "select_asset": "选择要分析的资产",
+    "empty_select_asset": "选择一个资产以查看升级建议",
+    "empty_no_recommendations": "未找到该资产的升级建议。",
+    "detail_benchmark": "此升级建议基于行业基准和当前资产利用率模式。",
+    "detail_implementation": "预计实施时间：每台设备 2-4 小时，零停机部署。",
+    "alert_select_one": "请至少选择一个升级建议"
   },
   "component_usage": {
     "breadcrumb_realtime_telemetry": "实时节点遥测",

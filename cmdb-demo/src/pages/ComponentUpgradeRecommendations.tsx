@@ -122,7 +122,7 @@ export default function ComponentUpgradeRecommendations() {
           onChange={e => setSelectedAssetId(e.target.value)}
           className="bg-surface-container-high text-on-surface text-sm rounded-lg px-3 py-2 outline-none cursor-pointer"
         >
-          <option value="">Select asset to analyze</option>
+          <option value="">{t('component_upgrades.select_asset')}</option>
           {((assetsData as any)?.data ?? []).map((a: any) => (
             <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
           ))}
@@ -184,7 +184,7 @@ export default function ComponentUpgradeRecommendations() {
       {/* No asset selected message */}
       {!selectedAssetId && (
         <div className="flex items-center justify-center rounded-lg bg-surface-container py-16 text-sm text-on-surface-variant">
-          Select an asset to view upgrade recommendations
+          {t('component_upgrades.empty_select_asset')}
         </div>
       )}
 
@@ -193,7 +193,7 @@ export default function ComponentUpgradeRecommendations() {
         <div className="grid gap-4 sm:grid-cols-2">
           {filtered.length === 0 && (
             <div className="col-span-2 flex items-center justify-center rounded-lg bg-surface-container py-16 text-sm text-on-surface-variant">
-              No upgrade recommendations found for this asset.
+              {t('component_upgrades.empty_no_recommendations')}
             </div>
           )}
           {filtered.map((card) => {
@@ -293,8 +293,8 @@ export default function ComponentUpgradeRecommendations() {
                 </div>
                 {expandedCard === card.id && (
                   <div className="mt-3 pt-3 border-t border-outline-variant/20 text-xs text-on-surface-variant">
-                    <p>This upgrade recommendation is based on industry benchmarks and current asset utilization patterns.</p>
-                    <p className="mt-1">Estimated implementation time: 2-4 hours per unit with zero downtime deployment.</p>
+                    <p>{t('component_upgrades.detail_benchmark')}</p>
+                    <p className="mt-1">{t('component_upgrades.detail_implementation')}</p>
                   </div>
                 )}
               </div>
@@ -343,7 +343,7 @@ export default function ComponentUpgradeRecommendations() {
               if (selectedCards.length > 0) {
                 navigate('/maintenance/add')
               } else {
-                alert('Please select at least one upgrade recommendation')
+                alert(t('component_upgrades.alert_select_one'))
               }
             }}
             className={`rounded px-5 py-2.5 text-[10px] font-bold tracking-widest transition-colors cursor-pointer ${

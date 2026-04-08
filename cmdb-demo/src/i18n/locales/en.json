@@ -1223,7 +1223,13 @@
     "label_approval_status": "APPROVAL STATUS",
     "status_pending_review": "PENDING REVIEW",
     "btn_schedule_maintenance": "SCHEDULE MAINTENANCE",
-    "btn_request_selection": "REQUEST SELECTION"
+    "btn_request_selection": "REQUEST SELECTION",
+    "select_asset": "Select asset to analyze",
+    "empty_select_asset": "Select an asset to view upgrade recommendations",
+    "empty_no_recommendations": "No upgrade recommendations found for this asset.",
+    "detail_benchmark": "This upgrade recommendation is based on industry benchmarks and current asset utilization patterns.",
+    "detail_implementation": "Estimated implementation time: 2-4 hours per unit with zero downtime deployment.",
+    "alert_select_one": "Please select at least one upgrade recommendation"
   },
   "component_usage": {
     "breadcrumb_realtime_telemetry": "REAL-TIME NODE TELEMETRY",

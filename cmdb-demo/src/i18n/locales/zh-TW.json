@@ -1223,7 +1223,13 @@
     "label_approval_status": "核准狀態",
     "status_pending_review": "待審核",
     "btn_schedule_maintenance": "排程維護",
-    "btn_request_selection": "申請選取項目"
+    "btn_request_selection": "申請選取項目",
+    "select_asset": "選擇要分析的資產",
+    "empty_select_asset": "選擇一個資產以查看升級建議",
+    "empty_no_recommendations": "未找到該資產的升級建議。",
+    "detail_benchmark": "此升級建議基於行業基準和目前資產使用率模式。",
+    "detail_implementation": "預計實施時間：每台設備 2-4 小時，零停機部署。",
+    "alert_select_one": "請至少選擇一個升級建議"
   },
   "component_usage": {
     "breadcrumb_realtime_telemetry": "即時節點遙測",
