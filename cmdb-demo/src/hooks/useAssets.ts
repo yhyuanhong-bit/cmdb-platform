@@ -40,3 +40,23 @@ export function useDeleteAsset() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['assets'] }) },
   })
 }
+
+export function useUpgradeRecommendations(assetId: string) {
+  return useQuery({
+    queryKey: ['upgradeRecommendations', assetId],
+    queryFn: () => assetApi.getUpgradeRecommendations(assetId),
+    enabled: !!assetId,
+  })
+}
+
+export function useAcceptUpgradeRecommendation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ assetId, category, data }: { assetId: string; category: string; data?: any }) =>
+      assetApi.acceptUpgradeRecommendation(assetId, category, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['upgradeRecommendations'] })
+      qc.invalidateQueries({ queryKey: ['workOrders'] })
+    },
+  })
+}

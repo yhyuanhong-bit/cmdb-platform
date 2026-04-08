@@ -31,3 +31,18 @@ export function useVerifyRCA() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['predictions'] }),
   })
 }
+
+export function useAssetRUL(assetId: string) {
+  return useQuery({
+    queryKey: ['assetRUL', assetId],
+    queryFn: () => predictionApi.getRUL(assetId),
+    enabled: !!assetId,
+  })
+}
+
+export function useFailureDistribution() {
+  return useQuery({
+    queryKey: ['failureDistribution'],
+    queryFn: () => predictionApi.getFailureDistribution(),
+  })
+}

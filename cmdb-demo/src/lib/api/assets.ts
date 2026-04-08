@@ -17,6 +17,10 @@ export const assetApi = {
     apiClient.del(`/assets/${id}`),
   getLifecycleStats: () =>
     apiClient.get<LifecycleStats>('/assets/lifecycle-stats'),
+  getUpgradeRecommendations: (assetId: string) =>
+    apiClient.get(`/assets/${assetId}/upgrade-recommendations`),
+  acceptUpgradeRecommendation: (assetId: string, category: string, data?: any) =>
+    apiClient.post(`/assets/${assetId}/upgrade-recommendations/${category}/accept`, data || {}),
 }
 
 export interface LifecycleStats {

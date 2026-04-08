@@ -16,4 +16,8 @@ export const predictionApi = {
     apiClient.post<ApiResponse<RCAAnalysis>>('/prediction/rca', data),
   verifyRCA: (id: string, data: any) =>
     apiClient.post<ApiResponse<RCAAnalysis>>(`/prediction/rca/${id}/verify`, data),
+  getRUL: (assetId: string) =>
+    apiClient.get(`/prediction/rul/${assetId}`),
+  getFailureDistribution: () =>
+    apiClient.get('/prediction/failure-distribution'),
 }
