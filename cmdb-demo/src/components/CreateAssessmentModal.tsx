@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useCreateBIAAssessment } from '../hooks/useBIA'
 
 interface Props {
@@ -18,6 +19,7 @@ const initial = {
 }
 
 export default function CreateAssessmentModal({ open, onClose }: Props) {
+  const { t } = useTranslation()
   const [formData, setFormData] = useState({ ...initial })
   const mutation = useCreateBIAAssessment()
 
@@ -37,48 +39,48 @@ export default function CreateAssessmentModal({ open, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-headline font-bold text-on-surface">
-          Run New BIA Assessment
+          {t('assessment_modal.title')}
         </h3>
 
         <div>
-          <label className={labelCls}>System Name *</label>
+          <label className={labelCls}>{t('assessment_modal.system_name_label')} *</label>
           <input
             value={formData.system_name}
             onChange={(e) =>
               setFormData((p) => ({ ...p, system_name: e.target.value }))
             }
             className={inputCls}
-            placeholder="e.g. Payment Gateway"
+            placeholder={t('assessment_modal.system_name_placeholder')}
           />
         </div>
 
         <div>
-          <label className={labelCls}>System Code *</label>
+          <label className={labelCls}>{t('assessment_modal.system_code_label')} *</label>
           <input
             value={formData.system_code}
             onChange={(e) =>
               setFormData((p) => ({ ...p, system_code: e.target.value }))
             }
             className={inputCls}
-            placeholder="e.g. SYS-PROD-PAY-001"
+            placeholder={t('assessment_modal.system_code_placeholder')}
           />
         </div>
 
         <div>
-          <label className={labelCls}>Owner</label>
+          <label className={labelCls}>{t('assessment_modal.owner_label')}</label>
           <input
             value={formData.owner}
             onChange={(e) =>
               setFormData((p) => ({ ...p, owner: e.target.value }))
             }
             className={inputCls}
-            placeholder="System owner name"
+            placeholder={t('assessment_modal.owner_placeholder')}
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelCls}>BIA Score (0-100)</label>
+            <label className={labelCls}>{t('assessment_modal.bia_score_label')}</label>
             <input
               type="number"
               min={0}
@@ -94,7 +96,7 @@ export default function CreateAssessmentModal({ open, onClose }: Props) {
             />
           </div>
           <div>
-            <label className={labelCls}>Tier</label>
+            <label className={labelCls}>{t('assessment_modal.tier_label')}</label>
             <select
               value={formData.tier}
               onChange={(e) =>
@@ -102,17 +104,17 @@ export default function CreateAssessmentModal({ open, onClose }: Props) {
               }
               className={inputCls}
             >
-              <option value="critical">Critical</option>
-              <option value="important">Important</option>
-              <option value="normal">Normal</option>
-              <option value="minor">Minor</option>
+              <option value="critical">{t('assessment_modal.tier_critical')}</option>
+              <option value="important">{t('assessment_modal.tier_important')}</option>
+              <option value="normal">{t('assessment_modal.tier_normal')}</option>
+              <option value="minor">{t('assessment_modal.tier_minor')}</option>
             </select>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelCls}>RTO (hours)</label>
+            <label className={labelCls}>{t('assessment_modal.rto_label')}</label>
             <input
               type="number"
               min={0}
@@ -127,7 +129,7 @@ export default function CreateAssessmentModal({ open, onClose }: Props) {
             />
           </div>
           <div>
-            <label className={labelCls}>RPO (minutes)</label>
+            <label className={labelCls}>{t('assessment_modal.rpo_label')}</label>
             <input
               type="number"
               min={0}
@@ -144,14 +146,14 @@ export default function CreateAssessmentModal({ open, onClose }: Props) {
         </div>
 
         <div>
-          <label className={labelCls}>Description</label>
+          <label className={labelCls}>{t('assessment_modal.description_label')}</label>
           <textarea
             value={formData.description}
             onChange={(e) =>
               setFormData((p) => ({ ...p, description: e.target.value }))
             }
             className={`${inputCls} h-20 resize-none`}
-            placeholder="Business system description..."
+            placeholder={t('assessment_modal.description_placeholder')}
           />
         </div>
 
@@ -160,7 +162,7 @@ export default function CreateAssessmentModal({ open, onClose }: Props) {
             onClick={onClose}
             className="px-4 py-2 rounded bg-surface-container-high text-on-surface text-sm hover:bg-surface-container-highest transition-colors"
           >
-            Cancel
+            {t('assessment_modal.btn_cancel')}
           </button>
           <button
             onClick={() =>
@@ -178,7 +180,7 @@ export default function CreateAssessmentModal({ open, onClose }: Props) {
             }
             className="px-4 py-2 rounded machined-gradient text-on-primary text-sm font-semibold disabled:opacity-50"
           >
-            {mutation.isPending ? 'Creating...' : 'Run Assessment'}
+            {mutation.isPending ? t('assessment_modal.btn_running') : t('assessment_modal.btn_run')}
           </button>
         </div>
       </div>
