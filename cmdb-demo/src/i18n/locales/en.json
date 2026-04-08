@@ -915,7 +915,10 @@
     "summary_available": "Available",
     "summary_max_power": "Max Power",
     "select_territory": "Select territory...",
-    "error_create_failed": "Failed to create rack. Please check all fields."
+    "error_create_failed": "Failed to create rack. Please check all fields.",
+    "select_region": "Select region...",
+    "select_city": "Select city...",
+    "select_campus": "Select campus..."
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "System Monitoring",
@@ -2052,6 +2055,13 @@
     "occupancy_comparison": "Occupancy Comparison",
     "pue_ranking": "PUE Ranking",
     "view_card": "Card",
-    "view_list": "List"
+    "view_list": "List",
+    "level_territory": "Territory",
+    "level_region": "Region",
+    "level_city": "City",
+    "level_campus": "Campus",
+    "level_idc": "IDC",
+    "level_module": "Module",
+    "level_room": "Room"
   }
 }

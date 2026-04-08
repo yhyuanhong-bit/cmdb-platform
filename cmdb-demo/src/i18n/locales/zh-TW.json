@@ -915,7 +915,10 @@
     "summary_available": "可用",
     "summary_max_power": "最大功率",
     "select_territory": "選擇營運區域...",
-    "error_create_failed": "建立機櫃失敗，請檢查所有欄位。"
+    "error_create_failed": "建立機櫃失敗，請檢查所有欄位。",
+    "select_region": "選擇區域...",
+    "select_city": "選擇城市...",
+    "select_campus": "選擇園區..."
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "系統監控",
@@ -2052,6 +2055,13 @@
     "occupancy_comparison": "佔用率比較",
     "pue_ranking": "PUE 排名",
     "view_card": "卡片",
-    "view_list": "列表"
+    "view_list": "列表",
+    "level_territory": "營運區域",
+    "level_region": "區域",
+    "level_city": "城市",
+    "level_campus": "園區",
+    "level_idc": "資料中心",
+    "level_module": "模組",
+    "level_room": "機房"
   }
 }

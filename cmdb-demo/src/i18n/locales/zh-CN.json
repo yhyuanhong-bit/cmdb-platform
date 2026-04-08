@@ -915,7 +915,10 @@
     "summary_available": "可用",
     "summary_max_power": "最大功率",
     "select_territory": "选择运营区域...",
-    "error_create_failed": "创建机柜失败，请检查所有字段。"
+    "error_create_failed": "创建机柜失败，请检查所有字段。",
+    "select_region": "选择区域...",
+    "select_city": "选择城市...",
+    "select_campus": "选择园区..."
   },
   "alert_topology": {
     "breadcrumb_system_monitoring": "系统监控",
@@ -2052,6 +2055,13 @@
     "occupancy_comparison": "占用率对比",
     "pue_ranking": "PUE 排名",
     "view_card": "卡片",
-    "view_list": "列表"
+    "view_list": "列表",
+    "level_territory": "运营区域",
+    "level_region": "区域",
+    "level_city": "城市",
+    "level_campus": "园区",
+    "level_idc": "数据中心",
+    "level_module": "模块",
+    "level_room": "机房"
   }
 }

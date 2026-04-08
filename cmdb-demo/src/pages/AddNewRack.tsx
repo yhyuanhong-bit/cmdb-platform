@@ -167,36 +167,36 @@ export default function AddNewRack() {
               {/* Region */}
               <div>
                 <label className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label block mb-1.5">
-                  Region
+                  {t('locations.level_region')}
                 </label>
                 <select value={selectedRegionId} onChange={e => setSelectedRegionId(e.target.value)}
                   disabled={!selectedTerritoryId}
                   className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 appearance-none disabled:opacity-40">
-                  <option value="">Select region...</option>
+                  <option value="">{t('add_new_rack.select_region')}</option>
                   {regions.map((r: any) => <option key={r.id} value={r.id}>{r.name_en || r.name}</option>)}
                 </select>
               </div>
               {/* City */}
               <div>
                 <label className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label block mb-1.5">
-                  City
+                  {t('locations.level_city')}
                 </label>
                 <select value={selectedCityId} onChange={e => setSelectedCityId(e.target.value)}
                   disabled={!selectedRegionId}
                   className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 appearance-none disabled:opacity-40">
-                  <option value="">Select city...</option>
+                  <option value="">{t('add_new_rack.select_city')}</option>
                   {cities.map((c: any) => <option key={c.id} value={c.id}>{c.name_en || c.name}</option>)}
                 </select>
               </div>
               {/* Campus */}
               <div>
                 <label className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label block mb-1.5">
-                  Campus / Data Center
+                  {t('locations.level_campus')}
                 </label>
                 <select value={selectedCampusId} onChange={e => setSelectedCampusId(e.target.value)}
                   disabled={!selectedCityId}
                   className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 appearance-none disabled:opacity-40">
-                  <option value="">Select campus...</option>
+                  <option value="">{t('add_new_rack.select_campus')}</option>
                   {campuses.map((c: any) => <option key={c.id} value={c.id}>{c.name_en || c.name}</option>)}
                 </select>
               </div>
