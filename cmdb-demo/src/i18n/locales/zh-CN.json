@@ -373,7 +373,11 @@
     "conn_network": "网络",
     "conn_power": "电力",
     "conn_management": "管理",
-    "confirm_delete_connection": "确定删除此连接？"
+    "confirm_delete_connection": "确定删除此连接？",
+    "status_active": "运行中",
+    "status_maintenance": "维护中",
+    "status_decommissioned": "已退役",
+    "status_staged": "待上架"
   },
   "inventory": {
     "title": "盘点任务：2024 Q3 IDC-01 审计",

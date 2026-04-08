@@ -373,7 +373,11 @@
     "conn_network": "Network",
     "conn_power": "Power",
     "conn_management": "Management",
-    "confirm_delete_connection": "Delete this connection?"
+    "confirm_delete_connection": "Delete this connection?",
+    "status_active": "Active",
+    "status_maintenance": "Maintenance",
+    "status_decommissioned": "Decommissioned",
+    "status_staged": "Staged"
   },
   "inventory": {
     "title": "Inventory Task: 2024 Q3 IDC-01 Audit",

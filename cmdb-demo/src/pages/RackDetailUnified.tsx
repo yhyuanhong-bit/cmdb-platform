@@ -8,6 +8,7 @@ import AddNetworkConnectionModal from '../components/AddNetworkConnectionModal';
 import { useAlerts } from "../hooks/useMonitoring";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { apiClient } from "../lib/api/client";
+import { useMetrics } from "../hooks/useMetrics";
 
 // ---------------------------------------------------------------------------
 // Shared types & data (equipment slots — no API for sub-rack assets yet)
@@ -24,12 +25,7 @@ interface Equipment {
 // Equipment list is now derived from API data only (no hardcoded fallback)
 
 
-const environmentMetrics = {
-  temperature: { current: 23.1, min: 19.4, max: 26.8, unit: "\u00b0C", threshold: 30 },
-  humidity: { current: 45, min: 38, max: 52, unit: "%", threshold: 60 },
-  powerDraw: { current: 32.4, min: 28.1, max: 35.2, unit: "kW", threshold: 40 },
-  airflow: { current: 1250, min: 1100, max: 1400, unit: "CFM", threshold: 1500 },
-};
+// environmentMetrics is computed inside the main component from API data
 
 
 // Console U-slot data
@@ -446,17 +442,17 @@ function GaugeWidget({
   );
 }
 
-function ConsoleTab({ recentActivity }: { recentActivity: any[] }) {
+function ConsoleTab({ recentActivity, slots }: { recentActivity: any[]; slots: USlot[] }) {
   const { t } = useTranslation();
   const [selectedSlot, setSelectedSlot] = useState<USlot | null>(
-    uSlots.find((s) => s.label === "NEXUS-C93180YC") ?? null,
+    slots.find((s) => s.label === "NEXUS-C93180YC") ?? slots[0] ?? null,
   );
 
   const totalU = 42;
   const uHeight = 22;
 
   const occupiedUs = new Set<number>();
-  uSlots.forEach((slot) => {
+  slots.forEach((slot) => {
     for (let u = slot.startU; u <= slot.endU; u++) occupiedUs.add(u);
   });
   const occupiedCount = occupiedUs.size;
@@ -548,7 +544,7 @@ function ConsoleTab({ recentActivity }: { recentActivity: any[] }) {
                     </div>
                   );
                 })}
-                {uSlots.map((slot) => {
+                {slots.map((slot) => {
                   const span = slot.endU - slot.startU + 1;
                   const topOffset = (totalU - slot.endU) * uHeight;
                   const height = span * uHeight;
@@ -808,7 +804,15 @@ function MetricGauge({
   );
 }
 
-function MaintenanceTab({ maintenanceHistory }: { maintenanceHistory: Array<{ date: string; type: string; description: string; engineer: string; status: string }> }) {
+function MaintenanceTab({ maintenanceHistory, environmentMetrics }: {
+  maintenanceHistory: Array<{ date: string; type: string; description: string; engineer: string; status: string }>;
+  environmentMetrics: {
+    temperature: { current: number; min: number; max: number; threshold: number; unit: string };
+    humidity: { current: number; min: number; max: number; threshold: number; unit: string };
+    powerDraw: { current: number; min: number; max: number; threshold: number; unit: string };
+    airflow: { current: number; min: number; max: number; threshold: number; unit: string };
+  };
+}) {
   const { t } = useTranslation();
 
   return (
@@ -911,6 +915,25 @@ export default function RackDetailUnified() {
   const { data: slotsResp } = useRackSlots(rackId ?? "");
   const rackSlots = slotsResp?.data || [];
 
+  // Build console slots from real rack slots API (falls back to hardcoded uSlots)
+  const consoleSlots: USlot[] = useMemo(() => {
+    if (!rackSlots || rackSlots.length === 0) return []
+    return rackSlots.map((slot: any) => {
+      const assetType = (slot.asset_type || slot.type || '').toLowerCase()
+      let slotType: string = 'compute'
+      if (assetType.includes('network') || assetType.includes('switch')) slotType = 'network'
+      else if (assetType.includes('storage') || assetType.includes('nas') || assetType.includes('san')) slotType = 'storage'
+      else if (assetType.includes('power') || assetType.includes('ups')) slotType = 'ups'
+      else if (assetType.includes('pdu')) slotType = 'pdu'
+      return {
+        startU: slot.start_u ?? 1,
+        endU: slot.end_u ?? 1,
+        label: slot.asset_name || slot.asset_tag || `U${slot.start_u}`,
+        type: slotType as any,
+      }
+    })
+  }, [rackSlots])
+
   // Build equipment list from real rack assets API (empty array if no data yet)
   const liveEquipment: Equipment[] = useMemo(() => {
     if (!rackAssets || rackAssets.length === 0) return [];
@@ -971,6 +994,17 @@ export default function RackDetailUnified() {
       }));
   }, [allAlerts, rackAssetIds]);
 
+  // Environmental metrics: temperature from API, power from rack data, humidity/airflow placeholder (Phase 4 Group 2)
+  const firstAssetId = rackAssets?.[0]?.id || ''
+  const { data: tempMetrics } = useMetrics({ asset_id: firstAssetId, metric_name: 'temperature', time_range: '1h' })
+  const latestTemp = (tempMetrics as any)?.data?.[0]?.value ?? 23.0
+  const environmentMetrics = {
+    temperature: { current: Number(latestTemp.toFixed(1)), min: Number((latestTemp - 3).toFixed(1)), max: Number((latestTemp + 3).toFixed(1)), threshold: 30, unit: '°C' },
+    humidity: { current: 45, min: 38, max: 52, threshold: 60, unit: '%' },
+    powerDraw: { current: Number(rack?.power_current_kw ?? 0), min: 0, max: Number(rack?.power_capacity_kw ?? 40), threshold: Number(rack?.power_capacity_kw ?? 40), unit: 'kW' },
+    airflow: { current: 1250, min: 1100, max: 1400, threshold: 1500, unit: 'CFM' },
+  }
+
   const [editingRack, setEditingRack] = useState(false)
   const [rackEdit, setRackEdit] = useState({ name: '', status: '', total_u: 42 })
   const updateRack = useUpdateRack()
@@ -982,6 +1016,11 @@ export default function RackDetailUnified() {
   const [selectedAsset, setSelectedAsset] = useState<Equipment | null>(
     liveEquipment.find((e) => e.assetTag === "APP-SRV-042-PROD") ?? liveEquipment[0] ?? null,
   );
+
+  // Selected asset data looked up from API rack assets
+  const selectedAssetData = rackAssets?.find((a: any) =>
+    a.asset_tag === selectedAsset?.assetTag || a.id === selectedAsset?.assetTag
+  )
 
   const occupiedUs = liveEquipment.reduce((acc, eq) => acc + (eq.endU - eq.startU + 1), 0);
   const occupancy = rack ? Math.round((rack.used_u / rack.total_u) * 100) : Math.round((occupiedUs / 42) * 100);
@@ -1060,8 +1099,13 @@ export default function RackDetailUnified() {
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase tracking-widest text-on-surface-variant">Status</label>
-                <input value={rackEdit.status} onChange={e => setRackEdit(p => ({ ...p, status: e.target.value }))}
-                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1 text-white text-sm" />
+                <select value={rackEdit.status} onChange={e => setRackEdit(p => ({ ...p, status: e.target.value }))}
+                  className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm">
+                  <option value="active">{t('rack_detail.status_active')}</option>
+                  <option value="maintenance">{t('rack_detail.status_maintenance')}</option>
+                  <option value="decommissioned">{t('rack_detail.status_decommissioned')}</option>
+                  <option value="staged">{t('rack_detail.status_staged')}</option>
+                </select>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase tracking-widest text-on-surface-variant">Total U</label>
@@ -1121,9 +1165,9 @@ export default function RackDetailUnified() {
         {activeTab === "visualization" && (
           <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} rackSlots={rackSlots} totalU={rack?.total_u} liveAlerts={filteredAlerts} />
         )}
-        {activeTab === "console" && <ConsoleTab recentActivity={recentActivity} />}
+        {activeTab === "console" && <ConsoleTab recentActivity={recentActivity} slots={consoleSlots.length > 0 ? consoleSlots : uSlots} />}
         {activeTab === "network" && <NetworkTab networkConnections={networkConnections} rackId={rackId ?? ''} onAddConnection={() => setShowAddConnModal(true)} />}
-        {activeTab === "maintenance" && <MaintenanceTab maintenanceHistory={maintenanceHistory} />}
+        {activeTab === "maintenance" && <MaintenanceTab maintenanceHistory={maintenanceHistory} environmentMetrics={environmentMetrics} />}
       </div>
 
       <AssignAssetToRackModal

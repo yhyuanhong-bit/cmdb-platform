@@ -373,7 +373,11 @@
     "conn_network": "網路",
     "conn_power": "電力",
     "conn_management": "管理",
-    "confirm_delete_connection": "確定刪除此連線？"
+    "confirm_delete_connection": "確定刪除此連線？",
+    "status_active": "運作中",
+    "status_maintenance": "維護中",
+    "status_decommissioned": "已退役",
+    "status_staged": "待上架"
   },
   "inventory": {
     "title": "盤點任務：2024 Q3 IDC-01 稽核",
