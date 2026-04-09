@@ -56,6 +56,16 @@ SET name = COALESCE(NULLIF(sqlc.narg('name')::varchar, ''), name),
 WHERE id = $1 AND tenant_id = $2 AND status != 'completed' AND deleted_at IS NULL
 RETURNING *;
 
+-- name: CreateInventoryItem :one
+INSERT INTO inventory_items (task_id, asset_id, rack_id, expected, status)
+VALUES ($1, $2, $3, $4, 'pending')
+RETURNING *;
+
+-- name: ActivateInventoryTask :one
+UPDATE inventory_tasks SET status = 'in_progress'
+WHERE id = $1 AND status = 'planned'
+RETURNING *;
+
 -- name: SoftDeleteInventoryTask :exec
 UPDATE inventory_tasks
 SET deleted_at = NOW()

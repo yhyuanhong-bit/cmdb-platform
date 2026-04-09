@@ -272,6 +272,61 @@ func (q *Queries) ScanInventoryItem(ctx context.Context, arg ScanInventoryItemPa
 	return i, err
 }
 
+const activateInventoryTask = `-- name: ActivateInventoryTask :one
+UPDATE inventory_tasks SET status = 'in_progress'
+WHERE id = $1 AND status = 'planned'
+RETURNING id, tenant_id, code, name, scope_location_id, status, method, planned_date, completed_date, assigned_to, created_at
+`
+
+func (q *Queries) ActivateInventoryTask(ctx context.Context, id uuid.UUID) (InventoryTask, error) {
+	row := q.db.QueryRow(ctx, activateInventoryTask, id)
+	var i InventoryTask
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Name,
+		&i.ScopeLocationID,
+		&i.Status,
+		&i.Method,
+		&i.PlannedDate,
+		&i.CompletedDate,
+		&i.AssignedTo,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createInventoryItem = `-- name: CreateInventoryItem :one
+INSERT INTO inventory_items (task_id, asset_id, rack_id, expected, status)
+VALUES ($1, $2, $3, $4, 'pending')
+RETURNING id, task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by
+`
+
+type CreateInventoryItemParams struct {
+	TaskID   uuid.UUID   `json:"task_id"`
+	AssetID  pgtype.UUID `json:"asset_id"`
+	RackID   pgtype.UUID `json:"rack_id"`
+	Expected []byte      `json:"expected"`
+}
+
+func (q *Queries) CreateInventoryItem(ctx context.Context, arg CreateInventoryItemParams) (InventoryItem, error) {
+	row := q.db.QueryRow(ctx, createInventoryItem, arg.TaskID, arg.AssetID, arg.RackID, arg.Expected)
+	var i InventoryItem
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.AssetID,
+		&i.RackID,
+		&i.Expected,
+		&i.Actual,
+		&i.Status,
+		&i.ScannedAt,
+		&i.ScannedBy,
+	)
+	return i, err
+}
+
 const softDeleteInventoryTask = `-- name: SoftDeleteInventoryTask :exec
 DELETE FROM inventory_tasks WHERE id = $1 AND tenant_id = $2
 `

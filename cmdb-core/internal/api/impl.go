@@ -1655,11 +1655,19 @@ func (s *APIServer) ScanInventoryItem(c *gin.Context, id IdPath, itemId openapi_
 		ScannedBy: pgtype.UUID{Bytes: userID, Valid: true},
 	}
 
-	item, err := s.inventorySvc.ScanItem(c.Request.Context(), params)
+	ctx := c.Request.Context()
+	item, err := s.inventorySvc.ScanItem(ctx, params)
 	if err != nil {
 		response.NotFound(c, "inventory item not found")
 		return
 	}
+
+	// Auto-activate task if still planned
+	taskID := uuid.UUID(id)
+	s.pool.Exec(ctx,
+		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND status = 'planned'",
+		taskID)
+
 	s.recordAudit(c, "item.scanned", "inventory", "inventory_item", uuid.UUID(itemId), map[string]any{
 		"status": req.Status,
 	})
@@ -1725,21 +1733,45 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 			}
 		}
 
+		// Build expected JSON
+		expectedData := map[string]string{}
+		if item.AssetTag != nil {
+			expectedData["asset_tag"] = *item.AssetTag
+		}
+		if item.SerialNumber != nil {
+			expectedData["serial_number"] = *item.SerialNumber
+		}
+		if item.ExpectedLocation != nil {
+			expectedData["expected_location"] = *item.ExpectedLocation
+		}
+		if item.PropertyNumber != nil {
+			expectedData["property_number"] = *item.PropertyNumber
+		}
+		if item.ControlNumber != nil {
+			expectedData["control_number"] = *item.ControlNumber
+		}
+		expectedJSON, _ := json.Marshal(expectedData)
+
 		if err != nil || asset == nil {
 			stats["not_found"]++
+			// Insert as missing item (no asset_id)
+			s.pool.Exec(ctx,
+				"INSERT INTO inventory_items (task_id, expected, status) VALUES ($1, $2, 'missing')",
+				taskID, expectedJSON)
 			continue
 		}
 
-		// Check for location discrepancy (simplified: compare expected_location
-		// against the asset's rack_id string representation)
-		if item.ExpectedLocation != nil && *item.ExpectedLocation != "" && asset.RackID.Valid {
-			stats["matched"]++
-			// A full implementation would resolve rack_id → location name and compare.
-			// For now we count all found assets as matched.
-		} else {
-			stats["matched"]++
-		}
+		stats["matched"]++
+		// Insert matched item
+		s.pool.Exec(ctx,
+			"INSERT INTO inventory_items (task_id, asset_id, rack_id, expected, status) VALUES ($1, $2, $3, $4, 'pending')",
+			taskID, asset.ID, asset.RackID, expectedJSON)
 	}
+
+	// Auto-transition task: planned → in_progress
+	s.pool.Exec(ctx,
+		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND status = 'planned'",
+		taskID)
 
 	s.recordAudit(c, "inventory.imported", "inventory", "inventory_task", taskID, map[string]any{
 		"matched":   stats["matched"],
