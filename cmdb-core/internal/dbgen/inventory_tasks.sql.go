@@ -38,11 +38,18 @@ func (q *Queries) CompleteInventoryTask(ctx context.Context, id uuid.UUID) (Inve
 }
 
 const countInventoryTasks = `-- name: CountInventoryTasks :one
-SELECT count(*) FROM inventory_tasks WHERE tenant_id = $1
+SELECT count(*) FROM inventory_tasks
+WHERE tenant_id = $1
+  AND ($2::uuid IS NULL OR scope_location_id = $2)
 `
 
-func (q *Queries) CountInventoryTasks(ctx context.Context, tenantID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countInventoryTasks, tenantID)
+type CountInventoryTasksParams struct {
+	TenantID        uuid.UUID   `json:"tenant_id"`
+	ScopeLocationID pgtype.UUID `json:"scope_location_id"`
+}
+
+func (q *Queries) CountInventoryTasks(ctx context.Context, arg CountInventoryTasksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countInventoryTasks, arg.TenantID, arg.ScopeLocationID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -182,18 +189,20 @@ func (q *Queries) ListInventoryItems(ctx context.Context, taskID uuid.UUID) ([]I
 const listInventoryTasks = `-- name: ListInventoryTasks :many
 SELECT id, tenant_id, code, name, scope_location_id, status, method, planned_date, completed_date, assigned_to, created_at FROM inventory_tasks
 WHERE tenant_id = $1
+  AND ($4::uuid IS NULL OR scope_location_id = $4)
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
 `
 
 type ListInventoryTasksParams struct {
-	TenantID uuid.UUID `json:"tenant_id"`
-	Limit    int32     `json:"limit"`
-	Offset   int32     `json:"offset"`
+	TenantID        uuid.UUID   `json:"tenant_id"`
+	Limit           int32       `json:"limit"`
+	Offset          int32       `json:"offset"`
+	ScopeLocationID pgtype.UUID `json:"scope_location_id"`
 }
 
 func (q *Queries) ListInventoryTasks(ctx context.Context, arg ListInventoryTasksParams) ([]InventoryTask, error) {
-	rows, err := q.db.Query(ctx, listInventoryTasks, arg.TenantID, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listInventoryTasks, arg.TenantID, arg.Limit, arg.Offset, arg.ScopeLocationID)
 	if err != nil {
 		return nil, err
 	}
@@ -259,6 +268,62 @@ func (q *Queries) ScanInventoryItem(ctx context.Context, arg ScanInventoryItemPa
 		&i.Status,
 		&i.ScannedAt,
 		&i.ScannedBy,
+	)
+	return i, err
+}
+
+const softDeleteInventoryTask = `-- name: SoftDeleteInventoryTask :exec
+DELETE FROM inventory_tasks WHERE id = $1 AND tenant_id = $2
+`
+
+type SoftDeleteInventoryTaskParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) SoftDeleteInventoryTask(ctx context.Context, arg SoftDeleteInventoryTaskParams) error {
+	_, err := q.db.Exec(ctx, softDeleteInventoryTask, arg.ID, arg.TenantID)
+	return err
+}
+
+const updateInventoryTask = `-- name: UpdateInventoryTask :one
+UPDATE inventory_tasks SET
+    name         = COALESCE($3, name),
+    planned_date = COALESCE($4, planned_date),
+    assigned_to  = COALESCE($5, assigned_to)
+WHERE id = $1 AND tenant_id = $2
+RETURNING id, tenant_id, code, name, scope_location_id, status, method, planned_date, completed_date, assigned_to, created_at
+`
+
+type UpdateInventoryTaskParams struct {
+	ID          uuid.UUID   `json:"id"`
+	TenantID    uuid.UUID   `json:"tenant_id"`
+	Name        pgtype.Text `json:"name"`
+	PlannedDate pgtype.Text `json:"planned_date"`
+	AssignedTo  pgtype.UUID `json:"assigned_to"`
+}
+
+func (q *Queries) UpdateInventoryTask(ctx context.Context, arg UpdateInventoryTaskParams) (InventoryTask, error) {
+	row := q.db.QueryRow(ctx, updateInventoryTask,
+		arg.ID,
+		arg.TenantID,
+		arg.Name,
+		arg.PlannedDate,
+		arg.AssignedTo,
+	)
+	var i InventoryTask
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Name,
+		&i.ScopeLocationID,
+		&i.Status,
+		&i.Method,
+		&i.PlannedDate,
+		&i.CompletedDate,
+		&i.AssignedTo,
+		&i.CreatedAt,
 	)
 	return i, err
 }

@@ -961,7 +961,12 @@ func (s *APIServer) ListWorkOrders(c *gin.Context, params ListWorkOrdersParams) 
 	tenantID := tenantIDFromContext(c)
 	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
 
-	orders, total, err := s.maintenanceSvc.List(c.Request.Context(), tenantID, params.Status, limit, offset)
+	var locationID *uuid.UUID
+	if params.LocationId != nil {
+		u := uuid.UUID(*params.LocationId)
+		locationID = &u
+	}
+	orders, total, err := s.maintenanceSvc.List(c.Request.Context(), tenantID, params.Status, locationID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "failed to list work orders")
 		return
@@ -1109,6 +1114,22 @@ func (s *APIServer) UpdateWorkOrder(c *gin.Context, id IdPath) {
 		"order_id": uuid.UUID(id).String(), "action": "updated",
 	})
 	response.OK(c, toAPIWorkOrder(*order))
+}
+
+// DeleteWorkOrder soft-deletes a work order.
+// (DELETE /maintenance/orders/{id})
+func (s *APIServer) DeleteWorkOrder(c *gin.Context, id openapi_types.UUID) {
+	tenantID := tenantIDFromContext(c)
+	err := s.maintenanceSvc.Delete(c.Request.Context(), tenantID, uuid.UUID(id))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			response.NotFound(c, "work order not found")
+			return
+		}
+		response.BadRequest(c, err.Error())
+		return
+	}
+	c.Status(204)
 }
 
 // ListWorkOrderLogs returns the audit trail for a work order.
@@ -1479,7 +1500,12 @@ func (s *APIServer) ListInventoryTasks(c *gin.Context, params ListInventoryTasks
 	tenantID := tenantIDFromContext(c)
 	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
 
-	tasks, total, err := s.inventorySvc.List(c.Request.Context(), tenantID, limit, offset)
+	var scopeLocationID *uuid.UUID
+	if params.ScopeLocationId != nil {
+		u := uuid.UUID(*params.ScopeLocationId)
+		scopeLocationID = &u
+	}
+	tasks, total, err := s.inventorySvc.List(c.Request.Context(), tenantID, scopeLocationID, limit, offset)
 	if err != nil {
 		response.InternalError(c, "failed to list inventory tasks")
 		return
@@ -1564,6 +1590,50 @@ func (s *APIServer) CompleteInventoryTask(c *gin.Context, id IdPath) {
 		"code": task.Code,
 	})
 	response.OK(c, toAPIInventoryTask(*task))
+}
+
+// UpdateInventoryTask updates an inventory task.
+// (PUT /inventory/tasks/{id})
+func (s *APIServer) UpdateInventoryTask(c *gin.Context, id openapi_types.UUID) {
+	var req UpdateInventoryTaskJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+	var assignedTo *uuid.UUID
+	if req.AssignedTo != nil {
+		u := uuid.UUID(*req.AssignedTo)
+		assignedTo = &u
+	}
+
+	task, err := s.inventorySvc.Update(c.Request.Context(), tenantID, uuid.UUID(id), req.Name, req.PlannedDate, assignedTo)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			response.NotFound(c, "inventory task not found")
+			return
+		}
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.OK(c, toAPIInventoryTask(*task))
+}
+
+// DeleteInventoryTask soft-deletes an inventory task.
+// (DELETE /inventory/tasks/{id})
+func (s *APIServer) DeleteInventoryTask(c *gin.Context, id openapi_types.UUID) {
+	tenantID := tenantIDFromContext(c)
+	err := s.inventorySvc.Delete(c.Request.Context(), tenantID, uuid.UUID(id))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			response.NotFound(c, "inventory task not found")
+			return
+		}
+		response.BadRequest(c, err.Error())
+		return
+	}
+	c.Status(204)
 }
 
 // ScanInventoryItem records a scan result for an inventory item.

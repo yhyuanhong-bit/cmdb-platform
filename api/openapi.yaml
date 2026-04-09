@@ -833,6 +833,11 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: location_id
+          in: query
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Paginated work order list
@@ -965,6 +970,24 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteWorkOrder
+      tags: [maintenance]
+      summary: Soft-delete a work order
+      description: |
+        Marks a work order as deleted. Only work orders in draft or rejected
+        status can be deleted. Completed/closed orders are preserved for audit.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Work order deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1408,6 +1431,11 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
+        - name: scope_location_id
+          in: query
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Paginated inventory task list
@@ -1486,6 +1514,59 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateInventoryTask
+      tags: [inventory]
+      summary: Update an inventory task
+      description: |
+        Update editable fields of an inventory task. Only planned and in_progress
+        tasks can be modified. Method and scope_location_id cannot be changed.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                planned_date:
+                  type: string
+                assigned_to:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Inventory task updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InventoryTask'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteInventoryTask
+      tags: [inventory]
+      summary: Soft-delete an inventory task
+      description: Only planned tasks can be deleted.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Inventory task deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
 

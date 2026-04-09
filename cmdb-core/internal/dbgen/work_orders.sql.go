@@ -17,16 +17,18 @@ SELECT count(*) FROM work_orders
 WHERE tenant_id = $1
   AND ($2::varchar IS NULL OR status = $2)
   AND ($3::uuid IS NULL OR asset_id = $3)
+  AND ($4::uuid IS NULL OR location_id = $4)
 `
 
 type CountWorkOrdersParams struct {
-	TenantID uuid.UUID   `json:"tenant_id"`
-	Status   pgtype.Text `json:"status"`
-	AssetID  pgtype.UUID `json:"asset_id"`
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	Status     pgtype.Text `json:"status"`
+	AssetID    pgtype.UUID `json:"asset_id"`
+	LocationID pgtype.UUID `json:"location_id"`
 }
 
 func (q *Queries) CountWorkOrders(ctx context.Context, arg CountWorkOrdersParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countWorkOrders, arg.TenantID, arg.Status, arg.AssetID)
+	row := q.db.QueryRow(ctx, countWorkOrders, arg.TenantID, arg.Status, arg.AssetID, arg.LocationID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -222,16 +224,18 @@ SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id
 WHERE tenant_id = $1
   AND ($4::varchar IS NULL OR status = $4)
   AND ($5::uuid IS NULL OR asset_id = $5)
+  AND ($6::uuid IS NULL OR location_id = $6)
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
 `
 
 type ListWorkOrdersParams struct {
-	TenantID uuid.UUID   `json:"tenant_id"`
-	Limit    int32       `json:"limit"`
-	Offset   int32       `json:"offset"`
-	Status   pgtype.Text `json:"status"`
-	AssetID  pgtype.UUID `json:"asset_id"`
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	Limit      int32       `json:"limit"`
+	Offset     int32       `json:"offset"`
+	Status     pgtype.Text `json:"status"`
+	AssetID    pgtype.UUID `json:"asset_id"`
+	LocationID pgtype.UUID `json:"location_id"`
 }
 
 func (q *Queries) ListWorkOrders(ctx context.Context, arg ListWorkOrdersParams) ([]WorkOrder, error) {
@@ -241,6 +245,7 @@ func (q *Queries) ListWorkOrders(ctx context.Context, arg ListWorkOrdersParams) 
 		arg.Offset,
 		arg.Status,
 		arg.AssetID,
+		arg.LocationID,
 	)
 	if err != nil {
 		return nil, err
@@ -379,4 +384,18 @@ func (q *Queries) UpdateWorkOrderStatus(ctx context.Context, arg UpdateWorkOrder
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const softDeleteWorkOrder = `-- name: SoftDeleteWorkOrder :exec
+DELETE FROM work_orders WHERE id = $1 AND tenant_id = $2
+`
+
+type SoftDeleteWorkOrderParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) SoftDeleteWorkOrder(ctx context.Context, arg SoftDeleteWorkOrderParams) error {
+	_, err := q.db.Exec(ctx, softDeleteWorkOrder, arg.ID, arg.TenantID)
+	return err
 }

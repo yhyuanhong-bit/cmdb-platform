@@ -24,7 +24,7 @@ func NewService(queries *dbgen.Queries, bus eventbus.Bus) *Service {
 }
 
 // List returns a paginated list of work orders and the total count.
-func (s *Service) List(ctx context.Context, tenantID uuid.UUID, status *string, limit, offset int32) ([]dbgen.WorkOrder, int64, error) {
+func (s *Service) List(ctx context.Context, tenantID uuid.UUID, status *string, locationID *uuid.UUID, limit, offset int32) ([]dbgen.WorkOrder, int64, error) {
 	listParams := dbgen.ListWorkOrdersParams{
 		TenantID: tenantID,
 		Limit:    limit,
@@ -37,6 +37,11 @@ func (s *Service) List(ctx context.Context, tenantID uuid.UUID, status *string, 
 	if status != nil {
 		listParams.Status = pgtype.Text{String: *status, Valid: true}
 		countParams.Status = pgtype.Text{String: *status, Valid: true}
+	}
+
+	if locationID != nil {
+		listParams.LocationID = pgtype.UUID{Bytes: *locationID, Valid: true}
+		countParams.LocationID = pgtype.UUID{Bytes: *locationID, Valid: true}
 	}
 
 	orders, err := s.queries.ListWorkOrders(ctx, listParams)
@@ -164,6 +169,23 @@ func (s *Service) Update(ctx context.Context, params dbgen.UpdateWorkOrderParams
 		return nil, fmt.Errorf("update work order: %w", err)
 	}
 	return &order, nil
+}
+
+// Delete soft-deletes a work order. Only draft/rejected orders can be deleted.
+func (s *Service) Delete(ctx context.Context, tenantID, orderID uuid.UUID) error {
+	order, err := s.queries.GetWorkOrder(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("work order not found: %w", err)
+	}
+
+	if order.Status != "draft" && order.Status != "rejected" {
+		return fmt.Errorf("cannot delete work order in '%s' status; only draft or rejected orders can be deleted", order.Status)
+	}
+
+	return s.queries.SoftDeleteWorkOrder(ctx, dbgen.SoftDeleteWorkOrderParams{
+		ID:       orderID,
+		TenantID: tenantID,
+	})
 }
 
 // ListLogs returns all log entries for a work order.
