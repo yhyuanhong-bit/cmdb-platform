@@ -1,16 +1,20 @@
 -- name: ListWorkOrders :many
 SELECT * FROM work_orders
 WHERE tenant_id = $1
+  AND deleted_at IS NULL
   AND (sqlc.narg('status')::varchar IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('asset_id')::uuid IS NULL OR asset_id = sqlc.narg('asset_id'))
+  AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'))
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CountWorkOrders :one
 SELECT count(*) FROM work_orders
 WHERE tenant_id = $1
+  AND deleted_at IS NULL
   AND (sqlc.narg('status')::varchar IS NULL OR status = sqlc.narg('status'))
-  AND (sqlc.narg('asset_id')::uuid IS NULL OR asset_id = sqlc.narg('asset_id'));
+  AND (sqlc.narg('asset_id')::uuid IS NULL OR asset_id = sqlc.narg('asset_id'))
+  AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'));
 
 -- name: GetWorkOrder :one
 SELECT * FROM work_orders WHERE id = $1;
@@ -60,3 +64,8 @@ RETURNING *;
 SELECT * FROM work_order_logs
 WHERE order_id = $1
 ORDER BY created_at;
+
+-- name: SoftDeleteWorkOrder :exec
+UPDATE work_orders
+SET deleted_at = NOW(), updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
