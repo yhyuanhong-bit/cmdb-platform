@@ -21,7 +21,7 @@ export function useCreateSensor() {
 export function useUpdateSensor() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => sensorApi.update(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => sensorApi.update(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sensors'] }),
   })
 }

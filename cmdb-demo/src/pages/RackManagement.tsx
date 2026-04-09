@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -259,7 +260,7 @@ export default function RackManagement() {
                           <span className="material-symbols-outlined text-[18px]">edit</span>
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }}
+                          onClick={(e) => { e.stopPropagation(); toast.info('Coming Soon'); }}
                           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-primary"
                           aria-label={`More options for ${rack.id}`}
                         >

@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { memo, useState, useRef } from "react";
 import * as XLSX from 'xlsx'
 import { useNavigate } from "react-router-dom";
@@ -70,7 +71,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
     const file = e.target.files?.[0]
     if (!file) return
     if (!currentTask) {
-      alert(t('inventory.import_no_task'))
+      toast.error(t('inventory.import_no_task'))
       return
     }
 
@@ -83,7 +84,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
         const rows: any[] = XLSX.utils.sheet_to_json(firstSheet)
 
         if (rows.length === 0) {
-          alert(t('inventory.import_no_data'))
+          toast.error(t('inventory.import_no_data'))
           return
         }
 
@@ -99,23 +100,23 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
         )
 
         if (items.length === 0) {
-          alert(t('inventory.import_no_data'))
+          toast.error(t('inventory.import_no_data'))
           return
         }
 
         importItems.mutate({ taskId: currentTask.id, items }, {
           onSuccess: (resp: any) => {
             const d = resp?.data ?? {}
-            alert(t('inventory.import_success', {
+            toast.success(t('inventory.import_success', {
               matched: d.matched ?? 0,
               not_found: d.not_found ?? 0,
               total: d.total ?? 0,
             }))
           },
-          onError: () => alert(t('inventory.import_error')),
+          onError: () => toast.error(t('inventory.import_error')),
         })
       } catch {
-        alert(t('inventory.import_error'))
+        toast.error(t('inventory.import_error'))
       }
     }
     reader.readAsArrayBuffer(file)
@@ -215,15 +216,15 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
             <Icon name="add" className="text-lg" />
             New Task
           </button>
-          <button onClick={() => alert('Scan: Coming Soon')} className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
+          <button onClick={() => toast.info('Scan: Coming Soon')} className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
             <Icon name="qr_code_scanner" className="text-lg" />
             {t('inventory.scan_rack_qr')}
           </button>
-          <button onClick={() => alert('Manual QR: Coming Soon')} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
+          <button onClick={() => toast.info('Manual QR: Coming Soon')} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
             <Icon name="edit" className="text-lg" />
             {t('inventory.manual_qr')}
           </button>
-          <button onClick={() => alert('Report: Coming Soon')} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
+          <button onClick={() => toast.info('Report: Coming Soon')} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
             <Icon name="summarize" className="text-lg" />
             {t('inventory.generate_report')}
           </button>
@@ -487,7 +488,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
                   </div>
                   <div className="shrink-0">
                     {d.type === "status_mismatch" && !d.resolved && (
-                      <button onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }} className="bg-tertiary-container text-tertiary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
+                      <button onClick={(e) => { e.stopPropagation(); toast.info('Coming Soon'); }} className="bg-tertiary-container text-tertiary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
                         {t('inventory.verify_volume')}
                       </button>
                     )}
@@ -497,12 +498,12 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
                       </span>
                     )}
                     {d.type === "scan_mismatch" && !d.resolved && (
-                      <button onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }} className="bg-error-container text-error text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
+                      <button onClick={(e) => { e.stopPropagation(); toast.info('Coming Soon'); }} className="bg-error-container text-error text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
                         {t('inventory.add_to_findings')}
                       </button>
                     )}
                     {d.type === "unregistered" && !d.resolved && (
-                      <button onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }} className="bg-primary-container text-primary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
+                      <button onClick={(e) => { e.stopPropagation(); toast.info('Coming Soon'); }} className="bg-primary-container text-primary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
                         {t('inventory.register_asset')}
                       </button>
                     )}

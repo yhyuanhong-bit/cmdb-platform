@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { assetApi } from '../lib/api/assets'
+import { assetApi, type Asset } from '../lib/api/assets'
 
 export function useAssets(params?: Record<string, string>) {
   return useQuery({
@@ -27,7 +27,7 @@ export function useCreateAsset() {
 export function useUpdateAsset() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<any> }) =>
+    mutationFn: ({ id, data }: { id: string; data: Partial<Asset> }) =>
       assetApi.update(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['assets'] }),
   })
@@ -52,7 +52,7 @@ export function useUpgradeRecommendations(assetId: string) {
 export function useAcceptUpgradeRecommendation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ assetId, category, data }: { assetId: string; category: string; data?: any }) =>
+    mutationFn: ({ assetId, category, data }: { assetId: string; category: string; data?: Record<string, unknown> }) =>
       assetApi.acceptUpgradeRecommendation(assetId, category, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['upgradeRecommendations'] })

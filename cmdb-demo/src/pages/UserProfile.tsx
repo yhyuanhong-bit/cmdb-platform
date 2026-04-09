@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -25,8 +26,8 @@ export default function UserProfile() {
 
   const handlePasswordChange = () => {
     changePasswordMutation.mutate({ current_password: currentPw, new_password: newPw }, {
-      onSuccess: () => { setShowPwModal(false); setCurrentPw(''); setNewPw(''); alert('Password changed successfully!') },
-      onError: () => alert('Failed to change password. Check your current password.')
+      onSuccess: () => { setShowPwModal(false); setCurrentPw(''); setNewPw(''); toast.success('Password changed successfully!') },
+      onError: () => toast.error('Failed to change password. Check your current password.')
     })
   }
 
@@ -155,7 +156,7 @@ export default function UserProfile() {
               </span>
             </div>
             <p className="text-on-surface-variant text-xs ml-8 mb-3">{t('user_profile.label_2fa_provider')}</p>
-            <button onClick={() => alert('Coming Soon')} className="ml-8 px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant text-xs font-semibold hover:bg-surface-container-highest transition-colors">
+            <button onClick={() => toast.info('Coming Soon')} className="ml-8 px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant text-xs font-semibold hover:bg-surface-container-highest transition-colors">
               {t('user_profile.btn_reset_2fa_key')}
             </button>
           </div>
@@ -176,7 +177,7 @@ export default function UserProfile() {
                     </div>
                   </div>
                   {!s.current && (
-                    <button onClick={() => alert('Coming Soon')} className="px-3 py-1.5 rounded text-[0.6875rem] font-semibold bg-error-container text-on-error-container hover:bg-error-container/80 transition-colors">
+                    <button onClick={() => toast.info('Coming Soon')} className="px-3 py-1.5 rounded text-[0.6875rem] font-semibold bg-error-container text-on-error-container hover:bg-error-container/80 transition-colors">
                       {t('user_profile.btn_revoke')}
                     </button>
                   )}

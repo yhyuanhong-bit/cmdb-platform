@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { topologyApi } from '../lib/api/topology'
+import { topologyApi, type Location, type Rack } from '../lib/api/topology'
 
 export function useRootLocations() {
   return useQuery({
@@ -83,7 +83,7 @@ export function useCreateLocation() {
 export function useUpdateLocation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<any> }) =>
+    mutationFn: ({ id, data }: { id: string; data: Partial<Location> }) =>
       topologyApi.updateLocation(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
   })
@@ -100,7 +100,7 @@ export function useDeleteLocation() {
 export function useUpdateRack() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<any> }) =>
+    mutationFn: ({ id, data }: { id: string; data: Partial<Rack> }) =>
       topologyApi.updateRack(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['racks'] }),
   })
@@ -125,7 +125,7 @@ export function useRackSlots(rackId: string) {
 export function useCreateRackSlot() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ rackId, data }: { rackId: string; data: any }) => topologyApi.createRackSlot(rackId, data),
+    mutationFn: ({ rackId, data }: { rackId: string; data: Record<string, unknown> }) => topologyApi.createRackSlot(rackId, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['rackSlots'] }) }
   })
 }
@@ -149,7 +149,7 @@ export function useAssetDependencies(assetId: string) {
 export function useCreateDependency() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: any) => topologyApi.createDependency(data),
+    mutationFn: (data: Record<string, unknown>) => topologyApi.createDependency(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['assetDependencies'] })
       qc.invalidateQueries({ queryKey: ['topologyGraph'] })
@@ -179,7 +179,7 @@ export function useRackNetworkConnections(rackId: string) {
 export function useCreateNetworkConnection() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ rackId, data }: { rackId: string; data: any }) =>
+    mutationFn: ({ rackId, data }: { rackId: string; data: Record<string, unknown> }) =>
       topologyApi.createNetworkConnection(rackId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rackNetworkConnections'] }),
   })

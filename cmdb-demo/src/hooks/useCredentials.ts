@@ -25,7 +25,7 @@ export function useCreateCredential() {
 export function useUpdateCredential() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       ingestionApi.updateCredential(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['credentials'] }),
   })

@@ -8,113 +8,120 @@ import { useTranslation } from "react-i18next";
 
 interface Category {
   icon: string;
-  label: string;
+  labelKey: string;
+  filterKey: string;
   count: number;
   color: string;
 }
 
 interface ResolutionStep {
   step: number;
-  instruction: string;
+  instructionKey: string;
 }
 
 interface CommonIssue {
   id: string;
-  title: string;
-  category: string;
+  titleKey: string;
+  categoryKey: string;
+  filterCategory: string;
   severity: "critical" | "high" | "medium" | "low";
-  lastSeen: string;
+  lastSeenKey: string;
   steps: ResolutionStep[];
 }
 
 const CATEGORIES: Category[] = [
-  { icon: "lan", label: "Network Issues", count: 24, color: "#9ecaff" },
-  { icon: "memory", label: "Hardware Failures", count: 18, color: "#ffb5a0" },
-  { icon: "bug_report", label: "Software Errors", count: 31, color: "#ff6b6b" },
-  { icon: "speed", label: "Performance", count: 15, color: "#ffa94d" },
-  { icon: "shield", label: "Security", count: 9, color: "#69db7c" },
-  { icon: "thermostat", label: "Power & Cooling", count: 12, color: "#c4b5fd" },
+  { icon: "lan", labelKey: "troubleshooting.category_network", filterKey: "Network", count: 24, color: "#9ecaff" },
+  { icon: "memory", labelKey: "troubleshooting.category_hardware", filterKey: "Hardware", count: 18, color: "#ffb5a0" },
+  { icon: "bug_report", labelKey: "troubleshooting.category_software", filterKey: "Software", count: 31, color: "#ff6b6b" },
+  { icon: "speed", labelKey: "troubleshooting.category_performance", filterKey: "Performance", count: 15, color: "#ffa94d" },
+  { icon: "shield", labelKey: "troubleshooting.category_security", filterKey: "Security", count: 9, color: "#69db7c" },
+  { icon: "thermostat", labelKey: "troubleshooting.category_power_cooling", filterKey: "Power", count: 12, color: "#c4b5fd" },
 ];
 
 const COMMON_ISSUES: CommonIssue[] = [
   {
     id: "NET-001",
-    title: "Server not responding to ping",
-    category: "Network",
+    titleKey: "troubleshooting.issue_net001_title",
+    categoryKey: "troubleshooting.cat_network",
+    filterCategory: "Network",
     severity: "critical",
-    lastSeen: "2 hours ago",
+    lastSeenKey: "troubleshooting.issue_net001_last_seen",
     steps: [
-      { step: 1, instruction: "Verify the server is powered on and the network interface LED is active." },
-      { step: 2, instruction: "Check the switch port status using 'show interface status' on the connected switch." },
-      { step: 3, instruction: "Run 'ip addr show' or 'ifconfig' on the server to confirm the NIC has an IP address." },
-      { step: 4, instruction: "Test connectivity from the same subnet to rule out routing issues." },
-      { step: 5, instruction: "Check host-based firewall rules (iptables/firewalld) for ICMP blocking." },
-      { step: 6, instruction: "If the issue persists, replace the network cable and test with a known-good NIC." },
+      { step: 1, instructionKey: "troubleshooting.issue_net001_step1" },
+      { step: 2, instructionKey: "troubleshooting.issue_net001_step2" },
+      { step: 3, instructionKey: "troubleshooting.issue_net001_step3" },
+      { step: 4, instructionKey: "troubleshooting.issue_net001_step4" },
+      { step: 5, instructionKey: "troubleshooting.issue_net001_step5" },
+      { step: 6, instructionKey: "troubleshooting.issue_net001_step6" },
     ],
   },
   {
     id: "PERF-002",
-    title: "High CPU utilization (>90%)",
-    category: "Performance",
+    titleKey: "troubleshooting.issue_perf002_title",
+    categoryKey: "troubleshooting.cat_performance",
+    filterCategory: "Performance",
     severity: "high",
-    lastSeen: "45 minutes ago",
+    lastSeenKey: "troubleshooting.issue_perf002_last_seen",
     steps: [
-      { step: 1, instruction: "Run 'top' or 'htop' to identify the process consuming the most CPU." },
-      { step: 2, instruction: "Check if the high-CPU process is a known application or potentially malicious." },
-      { step: 3, instruction: "Review recent deployments or configuration changes that may have triggered the spike." },
-      { step: 4, instruction: "If a runaway process is identified, attempt a graceful restart of the service." },
-      { step: 5, instruction: "Monitor for 15 minutes after remediation to confirm CPU returns to normal levels." },
+      { step: 1, instructionKey: "troubleshooting.issue_perf002_step1" },
+      { step: 2, instructionKey: "troubleshooting.issue_perf002_step2" },
+      { step: 3, instructionKey: "troubleshooting.issue_perf002_step3" },
+      { step: 4, instructionKey: "troubleshooting.issue_perf002_step4" },
+      { step: 5, instructionKey: "troubleshooting.issue_perf002_step5" },
     ],
   },
   {
     id: "HW-003",
-    title: "Disk array degraded",
-    category: "Hardware",
+    titleKey: "troubleshooting.issue_hw003_title",
+    categoryKey: "troubleshooting.cat_hardware",
+    filterCategory: "Hardware",
     severity: "critical",
-    lastSeen: "1 day ago",
+    lastSeenKey: "troubleshooting.issue_hw003_last_seen",
     steps: [
-      { step: 1, instruction: "Identify the failed drive using the RAID controller management tool (e.g., MegaCLI, storcli)." },
-      { step: 2, instruction: "Check the drive bay LED indicators for physical identification." },
-      { step: 3, instruction: "Verify a hot spare is available and rebuild has started automatically." },
-      { step: 4, instruction: "If no hot spare exists, procure an identical replacement drive and initiate manual rebuild." },
-      { step: 5, instruction: "Monitor rebuild progress and verify array returns to optimal state." },
+      { step: 1, instructionKey: "troubleshooting.issue_hw003_step1" },
+      { step: 2, instructionKey: "troubleshooting.issue_hw003_step2" },
+      { step: 3, instructionKey: "troubleshooting.issue_hw003_step3" },
+      { step: 4, instructionKey: "troubleshooting.issue_hw003_step4" },
+      { step: 5, instructionKey: "troubleshooting.issue_hw003_step5" },
     ],
   },
   {
     id: "SEC-004",
-    title: "Authentication timeout",
-    category: "Security",
+    titleKey: "troubleshooting.issue_sec004_title",
+    categoryKey: "troubleshooting.cat_security",
+    filterCategory: "Security",
     severity: "medium",
-    lastSeen: "3 hours ago",
+    lastSeenKey: "troubleshooting.issue_sec004_last_seen",
     steps: [
-      { step: 1, instruction: "Verify LDAP/AD domain controller reachability with 'nslookup' and 'ping'." },
-      { step: 2, instruction: "Check the authentication service logs for timeout errors or connection refusals." },
-      { step: 3, instruction: "Validate DNS resolution for the authentication endpoint." },
-      { step: 4, instruction: "Test with a known-good service account to isolate user-specific vs system-wide issues." },
-      { step: 5, instruction: "If the domain controller is unreachable, failover to a secondary DC and investigate the primary." },
+      { step: 1, instructionKey: "troubleshooting.issue_sec004_step1" },
+      { step: 2, instructionKey: "troubleshooting.issue_sec004_step2" },
+      { step: 3, instructionKey: "troubleshooting.issue_sec004_step3" },
+      { step: 4, instructionKey: "troubleshooting.issue_sec004_step4" },
+      { step: 5, instructionKey: "troubleshooting.issue_sec004_step5" },
     ],
   },
   {
     id: "PWR-005",
-    title: "UPS battery low warning",
-    category: "Power",
+    titleKey: "troubleshooting.issue_pwr005_title",
+    categoryKey: "troubleshooting.cat_power",
+    filterCategory: "Power",
     severity: "high",
-    lastSeen: "6 hours ago",
+    lastSeenKey: "troubleshooting.issue_pwr005_last_seen",
     steps: [
-      { step: 1, instruction: "Log in to the UPS management interface and confirm the battery charge level and estimated runtime." },
-      { step: 2, instruction: "Check if the UPS is actively charging or if mains power has been interrupted." },
-      { step: 3, instruction: "If mains power is down, initiate graceful shutdown of non-critical systems per the runbook." },
-      { step: 4, instruction: "Inspect the battery pack age; replace if older than 3 years or showing degraded capacity." },
-      { step: 5, instruction: "Schedule a battery replacement during the next maintenance window if capacity is below threshold." },
+      { step: 1, instructionKey: "troubleshooting.issue_pwr005_step1" },
+      { step: 2, instructionKey: "troubleshooting.issue_pwr005_step2" },
+      { step: 3, instructionKey: "troubleshooting.issue_pwr005_step3" },
+      { step: 4, instructionKey: "troubleshooting.issue_pwr005_step4" },
+      { step: 5, instructionKey: "troubleshooting.issue_pwr005_step5" },
     ],
   },
 ];
 
-const SEVERITY_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  critical: { bg: "bg-red-500/15", text: "text-red-400", label: "Critical" },
-  high: { bg: "bg-orange-500/15", text: "text-orange-400", label: "High" },
-  medium: { bg: "bg-yellow-500/15", text: "text-yellow-400", label: "Medium" },
-  low: { bg: "bg-green-500/15", text: "text-green-400", label: "Low" },
+const SEVERITY_STYLES: Record<string, { bg: string; text: string; labelKey: string }> = {
+  critical: { bg: "bg-red-500/15", text: "text-red-400", labelKey: "troubleshooting.severity_critical" },
+  high: { bg: "bg-orange-500/15", text: "text-orange-400", labelKey: "troubleshooting.severity_high" },
+  medium: { bg: "bg-yellow-500/15", text: "text-yellow-400", labelKey: "troubleshooting.severity_medium" },
+  low: { bg: "bg-green-500/15", text: "text-green-400", labelKey: "troubleshooting.severity_low" },
 };
 
 /* ──────────────────────────────────────────────
@@ -161,18 +168,18 @@ const IssueRow = memo(function IssueRow({
               {issue.id}
             </span>
             <span className={`text-[0.65rem] font-semibold px-2 py-0.5 rounded-full ${sev.bg} ${sev.text}`}>
-              {sev.label}
+              {t(sev.labelKey)}
             </span>
           </div>
           <p className="text-sm font-medium text-on-surface mt-0.5 truncate">
-            {issue.title}
+            {t(issue.titleKey)}
           </p>
         </div>
         <span className="text-xs text-on-surface-variant bg-surface-container-high px-2.5 py-1 rounded-md shrink-0">
-          {issue.category}
+          {t(issue.categoryKey)}
         </span>
         <span className="text-xs text-on-surface-variant shrink-0">
-          {issue.lastSeen}
+          {t(issue.lastSeenKey)}
         </span>
       </button>
 
@@ -189,7 +196,7 @@ const IssueRow = memo(function IssueRow({
                   {s.step}
                 </span>
                 <p className="text-sm text-on-surface-variant leading-relaxed pt-0.5">
-                  {s.instruction}
+                  {t(s.instructionKey)}
                 </p>
               </li>
             ))}
@@ -216,13 +223,15 @@ const TroubleshootingGuide = memo(function TroubleshootingGuide() {
   }, []);
 
   const filteredIssues = COMMON_ISSUES.filter((issue) => {
+    const translatedTitle = t(issue.titleKey).toLowerCase();
+    const translatedCategory = t(issue.categoryKey).toLowerCase();
     const matchesSearch =
       !searchQuery ||
-      issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      translatedTitle.includes(searchQuery.toLowerCase()) ||
       issue.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      issue.category.toLowerCase().includes(searchQuery.toLowerCase());
+      translatedCategory.includes(searchQuery.toLowerCase());
     const matchesCategory =
-      !activeCategory || issue.category === activeCategory;
+      !activeCategory || issue.filterCategory === activeCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -237,7 +246,7 @@ const TroubleshootingGuide = memo(function TroubleshootingGuide() {
           className="cursor-pointer transition-colors hover:text-primary"
           onClick={() => navigate('/help/troubleshooting')}
         >
-          幫助
+          {t('troubleshooting.breadcrumb_help')}
         </span>
         <span className="text-[10px] opacity-40" aria-hidden="true">›</span>
         <span className="text-on-surface font-semibold">{t('troubleshooting.title')}</span>
@@ -282,13 +291,13 @@ const TroubleshootingGuide = memo(function TroubleshootingGuide() {
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {CATEGORIES.map((cat) => {
-            const isActive = activeCategory === cat.label.split(" ")[0];
+            const isActive = activeCategory === cat.filterKey;
             return (
               <button
-                key={cat.label}
+                key={cat.filterKey}
                 onClick={() =>
                   setActiveCategory(
-                    isActive ? null : cat.label.split(" ")[0]
+                    isActive ? null : cat.filterKey
                   )
                 }
                 className={`flex flex-col items-center gap-2.5 p-4 rounded-xl border transition-all ${
@@ -306,7 +315,7 @@ const TroubleshootingGuide = memo(function TroubleshootingGuide() {
                 </div>
                 <div className="text-center">
                   <p className="text-xs font-semibold text-on-surface leading-tight">
-                    {cat.label}
+                    {t(cat.labelKey)}
                   </p>
                   <p className="text-[0.65rem] text-on-surface-variant mt-0.5">
                     {cat.count} {t('troubleshooting.issues')}

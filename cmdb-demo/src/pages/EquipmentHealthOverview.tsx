@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -89,7 +90,7 @@ export default function EquipmentHealthOverview() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => alert('Coming Soon')} className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer">
+          <button onClick={() => toast.info('Coming Soon')} className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer">
             <span className="material-symbols-outlined text-base">
               download
             </span>
@@ -307,7 +308,7 @@ export default function EquipmentHealthOverview() {
               ].map((item) => (
                 <button
                   key={item.labelKey}
-                  onClick={() => item.action === '__export__' ? alert('Coming Soon') : item.action && navigate(item.action)}
+                  onClick={() => item.action === '__export__' ? toast.info('Coming Soon') : item.action && navigate(item.action)}
                   className="flex w-full items-center gap-3 rounded bg-surface-container-low px-4 py-3 text-left text-xs font-bold tracking-wider text-on-surface transition-colors hover:bg-surface-container-high cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-base text-primary">

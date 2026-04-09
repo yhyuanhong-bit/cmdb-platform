@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { monitoringApi } from '../lib/api/monitoring'
+import { monitoringApi, type AlertRule } from '../lib/api/monitoring'
 
 export function useAlerts(params?: Record<string, string>) {
   return useQuery({
@@ -41,7 +41,7 @@ export function useResolveAlert() {
 export function useUpdateAlertRule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: Partial<AlertRule> }) =>
       monitoringApi.updateAlertRule(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alertRules'] }),
   })
@@ -50,7 +50,7 @@ export function useUpdateAlertRule() {
 export function useCreateAlertRule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: any) => monitoringApi.createAlertRule(data),
+    mutationFn: (data: Record<string, unknown>) => monitoringApi.createAlertRule(data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alertRules'] }),
   })
 }

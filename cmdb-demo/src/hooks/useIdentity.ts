@@ -34,7 +34,7 @@ export function useCreateUser() {
 export function useUpdateUser() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       identityApi.updateUser(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   })
@@ -51,7 +51,7 @@ export function useCreateRole() {
 export function useUpdateRole() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       identityApi.updateRole(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['roles'] }),
   })

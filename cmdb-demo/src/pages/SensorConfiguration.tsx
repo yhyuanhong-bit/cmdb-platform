@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { memo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -173,16 +174,21 @@ function Section({
 }
 
 function StatusDot({ status }: { status: string }) {
+  const { t } = useTranslation();
   const color =
     status === "Online"
       ? "bg-[#34d399]"
       : status === "Degraded"
         ? "bg-[#fbbf24]"
         : "bg-[#ff6b6b]";
+  const statusLabel =
+    status === "Online" ? t('common.online') :
+    status === "Degraded" ? t('common.degraded') :
+    t('common.offline');
   return (
     <span className="flex items-center gap-1.5">
       <span className={`h-2 w-2 rounded-full ${color}`} />
-      <span className="text-xs text-on-surface-variant">{status}</span>
+      <span className="text-xs text-on-surface-variant">{statusLabel}</span>
     </span>
   );
 }
@@ -355,7 +361,7 @@ function SensorConfiguration() {
           className="cursor-pointer transition-colors hover:text-primary"
           onClick={() => navigate("/monitoring")}
         >
-          監控
+          {t('common.monitoring')}
         </span>
         <span className="text-[10px] opacity-40" aria-hidden="true">›</span>
         <span className="text-on-surface font-semibold">{t('sensors.title')}</span>
@@ -376,23 +382,23 @@ function SensorConfiguration() {
             type="button"
             onClick={async () => {
               try {
-                for (const t of thresholds) {
-                  if (t.warningId) {
+                for (const th of thresholds) {
+                  if (th.warningId) {
                     await updateAlertRule.mutateAsync({
-                      id: t.warningId,
-                      data: { condition: { op: '>', threshold: t.warning } }
+                      id: th.warningId,
+                      data: { condition: { op: '>', threshold: th.warning } }
                     });
                   }
-                  if (t.criticalId) {
+                  if (th.criticalId) {
                     await updateAlertRule.mutateAsync({
-                      id: t.criticalId,
-                      data: { condition: { op: '>', threshold: t.critical } }
+                      id: th.criticalId,
+                      data: { condition: { op: '>', threshold: th.critical } }
                     });
                   }
                 }
-                alert('Configuration saved!');
+                toast.success(t('sensors.configuration_saved'));
               } catch (e) {
-                alert('Save failed: ' + (e as Error).message);
+                toast.error(t('sensors.save_failed', { message: (e as Error).message }));
               }
             }}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary-container transition-colors hover:brightness-110"
@@ -402,7 +408,7 @@ function SensorConfiguration() {
           </button>
           <button
             type="button"
-            onClick={() => alert('Coming Soon')}
+            onClick={() => toast.info(t('common.coming_soon'))}
             className="flex items-center gap-2 rounded-lg bg-surface-container-high px-4 py-2.5 text-sm font-semibold text-on-surface-variant transition-colors hover:text-on-surface"
           >
             <Icon name="sync" className="text-base" />
@@ -478,7 +484,7 @@ function SensorConfiguration() {
               {sensors.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-sm text-on-surface-variant">
-                    No sensors registered
+                    {t('sensors.no_sensors_registered')}
                   </td>
                 </tr>
               )}
@@ -518,7 +524,7 @@ function SensorConfiguration() {
                   <td className="px-4 py-3">
                     <select
                       value={sensor.pollingInterval}
-                      onChange={() => alert('Coming Soon')}
+                      onChange={() => toast.info(t('common.coming_soon'))}
                       className="rounded bg-surface-container-low px-2 py-1 text-xs text-on-surface outline-none"
                     >
                       {POLLING_OPTIONS.map((opt) => (
@@ -654,7 +660,7 @@ function SensorConfiguration() {
             <div className="space-y-2">
               <button
                 type="button"
-                onClick={() => { setThresholds(THRESHOLDS); alert('Thresholds reset to defaults') }}
+                onClick={() => { setThresholds(THRESHOLDS); toast.success(t('sensors.thresholds_reset')) }}
                 className="flex w-full items-center gap-2 rounded-lg bg-surface-container-low p-3 text-sm text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 <Icon name="restart_alt" className="text-lg text-primary" />
@@ -691,8 +697,8 @@ function SensorConfiguration() {
                           if (config.thresholds) setThresholds(config.thresholds);
                           if (config.rules) setRules(config.rules);
                           if (config.globalPolling) setGlobalPolling(config.globalPolling);
-                          alert('Configuration imported successfully');
-                        } catch { alert('Invalid configuration file') }
+                          toast.success(t('sensors.config_imported'));
+                        } catch { toast.error(t('sensors.config_invalid')) }
                       };
                       reader.readAsText(file);
                     }
@@ -746,21 +752,21 @@ function SensorConfiguration() {
               </div>
               <button
                 type="button"
-                onClick={() => alert('Use the threshold sliders above to modify rule thresholds')}
+                onClick={() => toast.info(t('sensors.edit_rule_hint'))}
                 className="shrink-0 rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
-                title="Edit rule"
+                title={t('sensors.edit_rule')}
               >
                 <Icon name="edit" className="text-lg" />
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm(`Delete rule "${rule.name}"?`)) {
+                  if (confirm(t('sensors.delete_rule_confirm', { name: rule.name }))) {
                     setRules(prev => prev.filter(r => r.id !== rule.id));
                   }
                 }}
                 className="shrink-0 rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-error"
-                title="Delete rule"
+                title={t('sensors.delete_rule')}
               >
                 <Icon name="delete" className="text-lg" />
               </button>
@@ -778,32 +784,32 @@ function SensorConfiguration() {
         {showAddRule && (
           <div className="mt-3 rounded-lg bg-surface-container-low p-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <input placeholder="Rule Name" value={newRule.name}
+              <input placeholder={t('sensors.rule_name_placeholder')} value={newRule.name}
                 onChange={e => setNewRule(p => ({...p, name: e.target.value}))}
                 className="p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40" />
               <select value={newRule.metric_name}
                 onChange={e => setNewRule(p => ({...p, metric_name: e.target.value}))}
                 className="p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none">
-                <option value="">Metric...</option>
-                <option value="cpu_usage">CPU Usage</option>
-                <option value="temperature">Temperature</option>
-                <option value="memory_usage">Memory Usage</option>
-                <option value="disk_usage">Disk Usage</option>
-                <option value="power_kw">Power (kW)</option>
+                <option value="">{t('sensors.metric_placeholder')}</option>
+                <option value="cpu_usage">{t('sensors.metric_cpu_usage')}</option>
+                <option value="temperature">{t('sensors.metric_temperature')}</option>
+                <option value="memory_usage">{t('sensors.metric_memory_usage')}</option>
+                <option value="disk_usage">{t('sensors.metric_disk_usage')}</option>
+                <option value="power_kw">{t('sensors.metric_power_kw')}</option>
               </select>
               <select value={newRule.severity}
                 onChange={e => setNewRule(p => ({...p, severity: e.target.value}))}
                 className="p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none">
-                <option value="warning">Warning</option>
-                <option value="critical">Critical</option>
+                <option value="warning">{t('sensors.severity_warning')}</option>
+                <option value="critical">{t('sensors.severity_critical')}</option>
               </select>
-              <input type="number" placeholder="Threshold" value={newRule.threshold}
+              <input type="number" placeholder={t('sensors.threshold_placeholder')} value={newRule.threshold}
                 onChange={e => setNewRule(p => ({...p, threshold: Number(e.target.value)}))}
                 className="p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none" />
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setShowAddRule(false)}
-                className="px-3 py-1.5 rounded-lg bg-surface-container-high text-xs text-on-surface-variant">Cancel</button>
+                className="px-3 py-1.5 rounded-lg bg-surface-container-high text-xs text-on-surface-variant">{t('common.cancel')}</button>
               <button onClick={() => {
                 if (newRule.name && newRule.metric_name) {
                   createAlertRule.mutate({
@@ -821,7 +827,7 @@ function SensorConfiguration() {
                 }
               }} disabled={!newRule.name || !newRule.metric_name}
                 className="px-3 py-1.5 rounded-lg bg-primary text-on-primary-container text-xs font-semibold disabled:opacity-40">
-                Create Rule
+                {t('sensors.create_rule')}
               </button>
             </div>
           </div>

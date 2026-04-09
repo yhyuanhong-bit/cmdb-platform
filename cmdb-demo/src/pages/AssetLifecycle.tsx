@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -109,11 +110,11 @@ export default function AssetLifecycle() {
             <Icon name="timeline" className="text-[18px]" />
             {t('asset_lifecycle.view_timeline', 'Timeline')}
           </button>
-          <button onClick={() => alert('Coming Soon')} className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
+          <button onClick={() => toast.info('Coming Soon')} className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
             <Icon name="filter_list" className="text-[18px]" />
             {t('common.filters')}
           </button>
-          <button onClick={() => alert('Coming Soon')} className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2.5 text-sm font-semibold text-white rounded hover:brightness-110 transition-all">
+          <button onClick={() => toast.info('Coming Soon')} className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2.5 text-sm font-semibold text-white rounded hover:brightness-110 transition-all">
             <Icon name="download" className="text-[18px]" />
             {t('common.export_report')}
           </button>

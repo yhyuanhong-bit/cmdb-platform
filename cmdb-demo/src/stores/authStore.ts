@@ -1,7 +1,8 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import type { CurrentUser, TokenPair } from '../lib/api/types'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://10.134.143.218:8080/api/v1'
+const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
 
 interface AuthState {
   accessToken: string | null
@@ -15,7 +16,9 @@ interface AuthState {
   fetchCurrentUser: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set, get) => ({
   accessToken: null,
   refreshToken: null,
   user: null,
@@ -98,4 +101,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // ignore
     }
   },
-}))
+    }),
+    {
+      name: 'cmdb-auth',
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: (state) => ({
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
+    }
+  )
+)

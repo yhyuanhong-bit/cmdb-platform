@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -145,7 +146,7 @@ export default function MaintenanceTaskView() {
               <Icon name="group" className="text-[18px]" />
               調度人員
             </button>
-            <button onClick={() => alert('Edit: Coming Soon')} className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
+            <button onClick={() => toast.info('Edit: Coming Soon')} className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
               <Icon name="edit" className="text-[18px]" />
               {t('maintenance_task.edit_task')}
             </button>

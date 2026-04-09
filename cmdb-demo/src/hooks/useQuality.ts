@@ -28,7 +28,7 @@ export function useTriggerQualityScan() {
 export function useCreateQualityRule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: any) => qualityApi.createRule(data),
+    mutationFn: (data: Record<string, unknown>) => qualityApi.createRule(data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['qualityRules'] }) }
   })
 }

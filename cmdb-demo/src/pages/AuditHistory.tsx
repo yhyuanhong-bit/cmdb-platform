@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { memo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -275,7 +276,7 @@ function AuditHistory() {
         {/* Advanced */}
         <button
           type="button"
-          onClick={() => alert('Coming Soon')}
+          onClick={() => toast.info('Coming Soon')}
           className="flex items-center gap-1.5 rounded-md bg-surface-container-high px-3 py-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant transition-colors hover:text-on-surface"
         >
           <Icon name="tune" className="text-base" />

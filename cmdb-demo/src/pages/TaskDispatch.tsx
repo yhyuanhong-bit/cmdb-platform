@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { memo, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -217,7 +218,7 @@ function TaskDispatch() {
 
   function handleAssign(taskDisplayId: string) {
     if (!selectedTech) {
-      alert(t('task_dispatch.select_technician_first') || 'Please select a technician first');
+      toast.info(t('task_dispatch.select_technician_first') || 'Please select a technician first');
       return;
     }
     const task = TASKS.find((t) => t.id === taskDisplayId);
@@ -229,7 +230,7 @@ function TaskDispatch() {
           setSelectedTech("");
         },
         onError: () => {
-          alert('Failed to assign technician');
+          toast.error('Failed to assign technician');
         },
       },
     );
@@ -237,7 +238,7 @@ function TaskDispatch() {
 
   function handleConfirmAssign() {
     if (!effectiveSelectedTask) {
-      alert('No task selected');
+      toast.info('No task selected');
       return;
     }
     handleAssign(effectiveSelectedTask);
@@ -483,7 +484,7 @@ function TaskDispatch() {
             <div className="mt-5 flex gap-3">
               <button
                 type="button"
-                onClick={() => alert('Auto-assign: Coming Soon')}
+                onClick={() => toast.info('Auto-assign: Coming Soon')}
                 className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-surface-container-high py-2.5 text-xs font-semibold uppercase tracking-wider text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 <Icon name="auto_fix_high" className="text-base" />

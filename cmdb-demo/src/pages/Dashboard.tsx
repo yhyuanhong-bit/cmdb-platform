@@ -5,7 +5,6 @@ import { useLocationContext } from '../contexts/LocationContext';
 import LocationBreadcrumb from '../components/LocationBreadcrumb';
 import { useDashboardStats, useRackStats, useLifecycleStats } from '../hooks/useDashboard';
 import { useAlerts } from '../hooks/useMonitoring';
-import { useAssets } from '../hooks/useAssets';
 import { useBIAStats } from '../hooks/useBIA';
 
 /* ──────────────────────────────────────────────
@@ -178,30 +177,31 @@ function Dashboard() {
   const { data: alertsResponse } = useAlerts({ severity: 'critical' });
   const criticalAlerts = alertsResponse?.data ?? [];
 
-  // Fetch assets to derive BIA distribution
-  const { data: assetsResponse } = useAssets();
-  const allAssets = assetsResponse?.data ?? [];
-
-  // Fetch BIA stats for compliance card
+  // Fetch BIA stats for compliance card and distribution chart
   const { data: biaResp } = useBIAStats();
   const biaStats = biaResp?.data;
 
+  // Derive BIA distribution from aggregated /bia/stats endpoint (by_tier counts)
+  // instead of fetching all assets and counting client-side.
   const biaDerived = useMemo(() => {
-    if (allAssets.length === 0) return BIA_SEGMENTS;
-    const counts: Record<string, number> = { critical: 0, important: 0, normal: 0, minor: 0 };
-    allAssets.forEach((a: any) => {
-      const level = (a.bia_level ?? '').toLowerCase();
-      if (level in counts) counts[level]++;
-      else counts['normal']++;
-    });
-    const total = allAssets.length || 1;
+    const byTier = biaStats?.by_tier;
+    if (!byTier) return BIA_SEGMENTS;
+    const critical = byTier.critical ?? 0;
+    const important = byTier.important ?? 0;
+    const normal = byTier.normal ?? 0;
+    const minor = byTier.minor ?? 0;
+    const total = critical + important + normal + minor || 1;
+    const critPct = Math.round((critical / total) * 100);
+    const impPct = Math.round((important / total) * 100);
+    const normPct = Math.round((normal / total) * 100);
+    const minPct = 100 - critPct - impPct - normPct; // remainder to ensure sum = 100
     return [
-      { labelKey: "common.critical", pct: Math.round((counts.critical / total) * 100), color: "#ff6b6b" },
-      { labelKey: "common.important", pct: Math.round((counts.important / total) * 100), color: "#ffa94d" },
-      { labelKey: "common.normal", pct: Math.round((counts.normal / total) * 100), color: "#9ecaff" },
-      { labelKey: "common.minor", pct: Math.round((counts.minor / total) * 100) || (100 - Math.round((counts.critical / total) * 100) - Math.round((counts.important / total) * 100) - Math.round((counts.normal / total) * 100)), color: "#69db7c" },
+      { labelKey: "common.critical", pct: critPct, color: "#ff6b6b" },
+      { labelKey: "common.important", pct: impPct, color: "#ffa94d" },
+      { labelKey: "common.normal", pct: normPct, color: "#9ecaff" },
+      { labelKey: "common.minor", pct: minPct, color: "#69db7c" },
     ];
-  }, [allAssets]);
+  }, [biaStats]);
 
   // Compute lifecycle financial breakdown from real API data
   const lifecycleBreakdown = useMemo(() => {

@@ -27,7 +27,7 @@ export function useCreateWorkOrder() {
 export function useUpdateWorkOrder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       maintenanceApi.update(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrders'] }),
   })
@@ -61,7 +61,7 @@ export function useWorkOrderComments(orderId: string) {
 export function useCreateWorkOrderComment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ orderId, data }: { orderId: string; data: any }) =>
+    mutationFn: ({ orderId, data }: { orderId: string; data: Record<string, unknown> }) =>
       maintenanceApi.createComment(orderId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrderComments'] }),
   })

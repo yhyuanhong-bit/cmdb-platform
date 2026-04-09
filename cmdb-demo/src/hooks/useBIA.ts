@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { biaApi } from '../lib/api/bia'
 
-export function useBIAAssessments(params?: any) {
+export function useBIAAssessments(params?: Record<string, string>) {
   return useQuery({
     queryKey: ['biaAssessments', params],
     queryFn: () => biaApi.listAssessments(params),
@@ -19,7 +19,7 @@ export function useBIAAssessment(id: string) {
 export function useCreateBIAAssessment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: any) => biaApi.createAssessment(data),
+    mutationFn: (data: Record<string, unknown>) => biaApi.createAssessment(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['biaAssessments'] })
       qc.invalidateQueries({ queryKey: ['biaStats'] })
@@ -30,7 +30,7 @@ export function useCreateBIAAssessment() {
 export function useUpdateBIAAssessment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       biaApi.updateAssessment(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['biaAssessments'] })
@@ -59,7 +59,7 @@ export function useBIAScoringRules() {
 export function useUpdateBIAScoringRule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       biaApi.updateRule(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['biaScoringRules'] })
@@ -83,7 +83,7 @@ export function useCreateBIADependency() {
       data,
     }: {
       assessmentId: string
-      data: any
+      data: Record<string, unknown>
     }) => biaApi.createDependency(assessmentId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['biaDependencies'] })

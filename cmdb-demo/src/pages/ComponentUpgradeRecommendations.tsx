@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -343,7 +344,7 @@ export default function ComponentUpgradeRecommendations() {
               if (selectedCards.length > 0) {
                 navigate('/maintenance/add')
               } else {
-                alert(t('component_upgrades.alert_select_one'))
+                toast.info(t('component_upgrades.alert_select_one'))
               }
             }}
             className={`rounded px-5 py-2.5 text-[10px] font-bold tracking-widest transition-colors cursor-pointer ${

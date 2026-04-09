@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { memo, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useUsers, useRoles, useCreateRole, useDeleteRole, useUpdateRole } from "../hooks/useIdentity";
@@ -192,7 +193,7 @@ function RolesPermissions() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => alert('Emergency: Coming Soon')}
+            onClick={() => toast.info('Emergency: Coming Soon')}
             className="flex items-center gap-2 rounded-lg bg-error-container px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-error transition-colors hover:brightness-125"
           >
             <Icon name="emergency" className="text-base" />
@@ -200,7 +201,7 @@ function RolesPermissions() {
           </button>
           <button
             type="button"
-            onClick={() => alert('Deploy: Coming Soon')}
+            onClick={() => toast.info('Deploy: Coming Soon')}
             className="machined-gradient flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[#001b34] transition-all hover:brightness-110"
           >
             <Icon name="rocket_launch" className="text-base" />

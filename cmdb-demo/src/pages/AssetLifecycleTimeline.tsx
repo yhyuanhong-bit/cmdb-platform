@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -342,7 +343,7 @@ export default function AssetLifecycleTimeline() {
                 </div>
               ))}
             </div>
-            <button onClick={() => alert('Coming Soon')} className="mt-5 w-full rounded bg-surface-container-high py-3 text-[10px] font-bold tracking-widest text-primary transition-colors hover:bg-surface-container-low">
+            <button onClick={() => toast.info('Coming Soon')} className="mt-5 w-full rounded bg-surface-container-high py-3 text-[10px] font-bold tracking-widest text-primary transition-colors hover:bg-surface-container-low">
               {t('asset_lifecycle_timeline.btn_generate_audit_report')}
             </button>
           </div>

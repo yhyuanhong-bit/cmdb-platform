@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -315,7 +316,7 @@ export default function DataCenter3D() {
               />
             ))}
           </div>
-          <button onClick={() => alert('Coming Soon')} className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-surface-container-high text-on-surface-variant text-sm font-medium hover:bg-surface-container-highest transition-colors">
+          <button onClick={() => toast.info('Coming Soon')} className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-surface-container-high text-on-surface-variant text-sm font-medium hover:bg-surface-container-highest transition-colors">
             <span className="material-symbols-outlined text-lg">deployed_code</span>
             {t('datacenter_3d.btn_deploy_agent')}
           </button>
@@ -441,11 +442,11 @@ export default function DataCenter3D() {
 
               {/* Zoom */}
               <div className="flex items-center gap-1">
-                <button onClick={() => alert('Coming Soon')} className="p-1 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest">
+                <button onClick={() => toast.info('Coming Soon')} className="p-1 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest">
                   <span className="material-symbols-outlined text-lg">remove</span>
                 </button>
                 <span className="text-xs text-on-surface-variant px-1">100%</span>
-                <button onClick={() => alert('Coming Soon')} className="p-1 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest">
+                <button onClick={() => toast.info('Coming Soon')} className="p-1 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest">
                   <span className="material-symbols-outlined text-lg">add</span>
                 </button>
               </div>

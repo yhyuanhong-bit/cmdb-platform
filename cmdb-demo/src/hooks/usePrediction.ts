@@ -27,7 +27,7 @@ export function useCreateRCA() {
 export function useVerifyRCA() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => predictionApi.verifyRCA(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => predictionApi.verifyRCA(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['predictions'] }),
   })
 }

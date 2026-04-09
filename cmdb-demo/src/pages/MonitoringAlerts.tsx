@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { memo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -175,7 +176,7 @@ function MonitoringAlerts() {
           </button>
           <button
             type="button"
-            onClick={() => alert('Export: Coming Soon')}
+            onClick={() => toast.info('Export: Coming Soon')}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary-container transition-colors hover:brightness-110"
           >
             <Icon name="download" className="text-base" />
@@ -183,7 +184,7 @@ function MonitoringAlerts() {
           </button>
           <button
             type="button"
-            onClick={() => alert('Silence: Coming Soon')}
+            onClick={() => toast.info('Silence: Coming Soon')}
             className="flex items-center gap-2 rounded-lg bg-transparent px-4 py-2.5 text-sm font-semibold text-error ring-1 ring-error/40 transition-colors hover:bg-error/10"
           >
             <Icon name="notifications_off" className="text-base" />
@@ -268,7 +269,7 @@ function MonitoringAlerts() {
                     </button>
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); alert('Silence: Coming Soon'); }}
+                      onClick={(e) => { e.stopPropagation(); toast.info('Silence: Coming Soon'); }}
                       className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-error"
                       title={t('monitoring.silence')}
                     >

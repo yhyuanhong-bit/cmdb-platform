@@ -14,7 +14,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'))
 
 // Assets (unified)
 const AssetManagement = lazy(() => import('./pages/AssetManagementUnified'))
-const AssetDetail = lazy(() => import('./pages/AssetDetailUnified'))
+const AssetDetail = lazy(() => import('./pages/asset-detail/AssetDetailUnified'))
 const AssetLifecycle = lazy(() => import('./pages/AssetLifecycle'))
 const AssetLifecycleTimeline = lazy(() => import('./pages/AssetLifecycleTimeline'))
 const AutoDiscovery = lazy(() => import('./pages/AutoDiscovery'))

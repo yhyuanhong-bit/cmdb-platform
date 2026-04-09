@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { memo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -19,13 +20,13 @@ function Icon({ name, className = '' }: { name: string; className?: string }) {
 
 type TabKey = 'overview' | 'alerts' | 'insights' | 'recommendations' | 'timeline' | 'forecast'
 
-const TAB_DEFINITIONS: { key: TabKey; labelZh: string; labelEn: string }[] = [
-  { key: 'overview', labelZh: '總覽', labelEn: 'Overview' },
-  { key: 'alerts', labelZh: '預測告警', labelEn: 'Alerts' },
-  { key: 'insights', labelZh: '維護洞察', labelEn: 'Insights' },
-  { key: 'recommendations', labelZh: '建議', labelEn: 'Recommendations' },
-  { key: 'timeline', labelZh: '時間線', labelEn: 'Timeline' },
-  { key: 'forecast', labelZh: '故障預測', labelEn: 'Forecast' },
+const TAB_DEFINITIONS: { key: TabKey; labelKey: string }[] = [
+  { key: 'overview', labelKey: 'predictive_hub.tab_overview' },
+  { key: 'alerts', labelKey: 'predictive_hub.tab_alerts' },
+  { key: 'insights', labelKey: 'predictive_hub.tab_insights' },
+  { key: 'recommendations', labelKey: 'predictive_hub.tab_recommendations' },
+  { key: 'timeline', labelKey: 'predictive_hub.tab_timeline' },
+  { key: 'forecast', labelKey: 'predictive_hub.tab_forecast' },
 ]
 
 /* ──────────────────────────────────────────────
@@ -33,10 +34,10 @@ const TAB_DEFINITIONS: { key: TabKey; labelZh: string; labelEn: string }[] = [
    ────────────────────────────────────────────── */
 
 const AI_MESSAGES = [
-  { role: 'ai' as const, text: '根據最近的遙測數據分析，CORE-SW-A01 的光模塊衰減速率已超出正常閾值 2.3 倍。建議在未來 7 天內安排更換作業。', time: '14:18' },
-  { role: 'ai' as const, text: 'SRV-DB-04 的 SMART 健康指標顯示 Reallocated Sector Count 持續上升。預測硬碟將在 28 天內達到臨界故障閾值，建議立即啟動數據遷移計劃。', time: '14:19' },
-  { role: 'user' as const, text: 'PUMP-MAIN-02 的振動數據是否已納入模型？', time: '14:19' },
-  { role: 'ai' as const, text: '已確認。PUMP-MAIN-02 的振動頻譜已於 03/27 更新至預測模型中。當前振動水平在容許範圍內，但呈緩慢上升趨勢。建議在 30 天內進行預防性軸承潤滑保養。', time: '14:20' },
+  { role: 'ai' as const, textKey: 'predictive_hub.ai_msg_1', time: '14:18' },
+  { role: 'ai' as const, textKey: 'predictive_hub.ai_msg_2', time: '14:19' },
+  { role: 'user' as const, textKey: 'predictive_hub.ai_msg_3', time: '14:19' },
+  { role: 'ai' as const, textKey: 'predictive_hub.ai_msg_4', time: '14:20' },
 ]
 
 /* ──────────────────────────────────────────────
@@ -44,10 +45,10 @@ const AI_MESSAGES = [
    ────────────────────────────────────────────── */
 
 const ALERT_FILTER_TABS = [
-  { key: 'ALL ASSETS', label: 'ALL ASSETS' },
-  { key: 'DATACENTER-A', label: 'DATACENTER-A' },
-  { key: 'DATACENTER-B', label: 'DATACENTER-B' },
-  { key: 'EDGE-NODES', label: 'EDGE-NODES' },
+  { key: 'ALL ASSETS', labelKey: 'predictive_hub.filter_all_assets' },
+  { key: 'DATACENTER-A', labelKey: 'predictive_hub.filter_datacenter_a' },
+  { key: 'DATACENTER-B', labelKey: 'predictive_hub.filter_datacenter_b' },
+  { key: 'EDGE-NODES', labelKey: 'predictive_hub.filter_edge_nodes' },
 ] as const
 
 interface Alert {
@@ -58,12 +59,12 @@ interface Alert {
   failureWindow: string
 }
 
-const FALLBACK_ALERTS_DATA: Alert[] = [
-  { id: 'SRV-PROD-01', asset: 'SRV-PROD-01', issue: 'Fan Bearing Wear', urgency: 'HIGH', failureWindow: '2026-05-15' },
-  { id: 'DB-CLUSTER-04', asset: 'DB-CLUSTER-04', issue: 'SSD Write Endurance Exhaustion', urgency: 'MEDIUM', failureWindow: '2026-05-28' },
-  { id: 'NET-CORE-SWITCH-B', asset: 'NET-CORE-SWITCH-B', issue: 'Capacitor Thermal Degradation', urgency: 'HIGH', failureWindow: '2026-05-18' },
-  { id: 'UPS-ZONE-04', asset: 'UPS-ZONE-04', issue: 'Battery Cell Voltage Drift', urgency: 'LOW', failureWindow: '2026-06-12' },
-  { id: 'HYPER-V-NODE-12', asset: 'HYPER-V-NODE-12', issue: 'Redundant PSU Failure Path', urgency: 'HIGH', failureWindow: '2026-05-16' },
+const FALLBACK_ALERTS_DATA: (Omit<Alert, 'issue'> & { issueKey: string })[] = [
+  { id: 'SRV-PROD-01', asset: 'SRV-PROD-01', issueKey: 'predictive_hub.issue_fan_bearing_wear', urgency: 'HIGH', failureWindow: '2026-05-15' },
+  { id: 'DB-CLUSTER-04', asset: 'DB-CLUSTER-04', issueKey: 'predictive_hub.issue_ssd_write_endurance', urgency: 'MEDIUM', failureWindow: '2026-05-28' },
+  { id: 'NET-CORE-SWITCH-B', asset: 'NET-CORE-SWITCH-B', issueKey: 'predictive_hub.issue_capacitor_thermal', urgency: 'HIGH', failureWindow: '2026-05-18' },
+  { id: 'UPS-ZONE-04', asset: 'UPS-ZONE-04', issueKey: 'predictive_hub.issue_battery_voltage_drift', urgency: 'LOW', failureWindow: '2026-06-12' },
+  { id: 'HYPER-V-NODE-12', asset: 'HYPER-V-NODE-12', issueKey: 'predictive_hub.issue_redundant_psu', urgency: 'HIGH', failureWindow: '2026-05-16' },
 ]
 
 /* ──────────────────────────────────────────────
@@ -77,19 +78,19 @@ interface TimelineAsset {
   bars: { start: number; end: number; type: 'critical' | 'major' | 'minor' }[]
 }
 
-const TIMELINE_ASSETS: TimelineAsset[] = [
-  { id: 'SRV-PROD-001', name: 'SRV-PROD-001', subtitle: 'CORE PRODUCTION SERVER', bars: [{ start: 2, end: 8, type: 'critical' }, { start: 14, end: 18, type: 'minor' }] },
-  { id: 'NET-BORD-RT-01', name: 'NET-BORD-RT-01', subtitle: 'BORDER ROUTER CLUSTER', bars: [{ start: 5, end: 12, type: 'major' }, { start: 20, end: 25, type: 'critical' }] },
-  { id: 'UPS-BAT-04', name: 'UPS-BAT-04', subtitle: 'BATTERY BACKUP SYSTEM', bars: [{ start: 1, end: 4, type: 'minor' }, { start: 10, end: 16, type: 'major' }, { start: 22, end: 26, type: 'critical' }] },
+const TIMELINE_ASSETS: (Omit<TimelineAsset, 'subtitle'> & { subtitleKey: string })[] = [
+  { id: 'SRV-PROD-001', name: 'SRV-PROD-001', subtitleKey: 'predictive_hub.subtitle_core_production', bars: [{ start: 2, end: 8, type: 'critical' }, { start: 14, end: 18, type: 'minor' }] },
+  { id: 'NET-BORD-RT-01', name: 'NET-BORD-RT-01', subtitleKey: 'predictive_hub.subtitle_border_router', bars: [{ start: 5, end: 12, type: 'major' }, { start: 20, end: 25, type: 'critical' }] },
+  { id: 'UPS-BAT-04', name: 'UPS-BAT-04', subtitleKey: 'predictive_hub.subtitle_battery_backup', bars: [{ start: 1, end: 4, type: 'minor' }, { start: 10, end: 16, type: 'major' }, { start: 22, end: 26, type: 'critical' }] },
 ]
 
 const GANTT_BAR_COLORS = { critical: 'bg-error', major: 'bg-tertiary', minor: 'bg-primary' }
 
 const INSIGHT_RECOMMENDATIONS = [
-  { title: 'Replace Fan Module', asset: 'SRV-PROD-001', priority: 'HIGH' as const, description: 'Fan module RPM readings show 22% degradation over the past 72 hours. Predictive model forecasts complete bearing failure within 5 days under current thermal load.' },
-  { title: 'Recalibrate Power Sensor', asset: 'UPS-BAT-04', priority: 'MEDIUM' as const, description: 'Voltage drift detected in battery cells 3 and 7. Sensor recalibration is required to maintain accurate state-of-charge reporting and prevent false alarms.' },
-  { title: 'Optimise Disk Array', asset: 'DB-NODE-A', priority: 'CRITICAL' as const, description: 'Write endurance on SSDs in RAID array has reached 91.4%. Immediate rebalancing and proactive drive replacement recommended to avoid data integrity risk.' },
-  { title: 'Firmware Patch Required', asset: 'NET-BORD-RT-01', priority: 'CRITICAL' as const, description: 'CVE-2024-3892 affects current firmware version. Patch resolves optical transceiver power management bug that may cause intermittent link failures under high load.' },
+  { titleKey: 'predictive_hub.rec_title_replace_fan', asset: 'SRV-PROD-001', priority: 'HIGH' as const, descriptionKey: 'predictive_hub.rec_desc_replace_fan' },
+  { titleKey: 'predictive_hub.rec_title_recalibrate_power', asset: 'UPS-BAT-04', priority: 'MEDIUM' as const, descriptionKey: 'predictive_hub.rec_desc_recalibrate_power' },
+  { titleKey: 'predictive_hub.rec_title_optimise_disk', asset: 'DB-NODE-A', priority: 'CRITICAL' as const, descriptionKey: 'predictive_hub.rec_desc_optimise_disk' },
+  { titleKey: 'predictive_hub.rec_title_firmware_patch', asset: 'NET-BORD-RT-01', priority: 'CRITICAL' as const, descriptionKey: 'predictive_hub.rec_desc_firmware_patch' },
 ]
 
 const INSIGHT_PRIORITY_COLORS: Record<string, string> = {
@@ -111,11 +112,11 @@ interface RecRow {
   action: string
 }
 
-const REC_ROWS: RecRow[] = [
-  { id: 'SRV-PROD-001', asset: 'SRV-PROD-001', failureMode: 'Fan Bearing Degradation', urgency: 'CRITICAL', confidence: 94, action: 'Replace fan module within 48h' },
-  { id: 'UPS-BAT-04', asset: 'UPS-BAT-04', failureMode: 'Battery Cell Voltage Drift', urgency: 'HIGH', confidence: 87, action: 'Schedule cell replacement during next window' },
-  { id: 'DB-NODE-A', asset: 'DB-NODE-A', failureMode: 'SSD Write Endurance Exhaustion', urgency: 'CRITICAL', confidence: 91, action: 'Rebalance RAID array; pre-stage replacement drives' },
-  { id: 'NET-BORD-RT-01', asset: 'NET-BORD-RT-01', failureMode: 'Optical SFP Attenuation', urgency: 'MEDIUM', confidence: 72, action: 'Clean optical path; schedule SFP swap if degradation continues' },
+const REC_ROWS: (Omit<RecRow, 'failureMode' | 'action'> & { failureModeKey: string; actionKey: string })[] = [
+  { id: 'SRV-PROD-001', asset: 'SRV-PROD-001', failureModeKey: 'predictive_hub.failure_fan_bearing', urgency: 'CRITICAL', confidence: 94, actionKey: 'predictive_hub.action_replace_fan_48h' },
+  { id: 'UPS-BAT-04', asset: 'UPS-BAT-04', failureModeKey: 'predictive_hub.failure_battery_voltage', urgency: 'HIGH', confidence: 87, actionKey: 'predictive_hub.action_schedule_cell' },
+  { id: 'DB-NODE-A', asset: 'DB-NODE-A', failureModeKey: 'predictive_hub.failure_ssd_endurance', urgency: 'CRITICAL', confidence: 91, actionKey: 'predictive_hub.action_rebalance_raid' },
+  { id: 'NET-BORD-RT-01', asset: 'NET-BORD-RT-01', failureModeKey: 'predictive_hub.failure_optical_sfp', urgency: 'MEDIUM', confidence: 72, actionKey: 'predictive_hub.action_clean_optical' },
 ]
 
 const HEATMAP_REGIONS = [
@@ -148,10 +149,10 @@ interface TimelineEvent {
   button: { label: string; variant: 'danger' | 'warning' | 'default' }
 }
 
-const TIMELINE_EVENTS: TimelineEvent[] = [
-  { time: '08:00 AM', severity: 'CRITICAL', asset: 'Core Switch A01', description: 'Fan speed degradation in PSU-2; potential bearing failure within 48h.', impact: 'Est. Downtime 2h 15m', recoveryCost: '$3,260', button: { label: 'Execute Emergency', variant: 'danger' } },
-  { time: '10:00 AM', severity: 'POTENTIAL ISSUE', asset: 'UPS Main Battery Bank', description: 'Internal resistance anomaly detected across cells 4-7. Pattern consistent with early-stage electrolyte degradation.', moduleCost: '$4,800', button: { label: 'Dispatch Inspection', variant: 'warning' } },
-  { time: '01:00 PM', severity: 'SCHEDULED', asset: 'HVAC Condenser Unit 04', description: 'Routine filter replacement and condenser coil inspection per quarterly maintenance cycle.', estCost: '$150', button: { label: 'Confirmed', variant: 'default' } },
+const TIMELINE_EVENTS: (Omit<TimelineEvent, 'description' | 'impact' | 'button'> & { descriptionKey: string; impactKey?: string; button: { labelKey: string; variant: 'danger' | 'warning' | 'default' } })[] = [
+  { time: '08:00 AM', severity: 'CRITICAL', asset: 'Core Switch A01', descriptionKey: 'predictive_hub.timeline_desc_fan_speed', impactKey: 'predictive_hub.timeline_impact_downtime', recoveryCost: '$3,260', button: { labelKey: 'predictive_hub.timeline_btn_execute_emergency', variant: 'danger' } },
+  { time: '10:00 AM', severity: 'POTENTIAL ISSUE', asset: 'UPS Main Battery Bank', descriptionKey: 'predictive_hub.timeline_desc_ups_battery', moduleCost: '$4,800', button: { labelKey: 'predictive_hub.timeline_btn_dispatch_inspection', variant: 'warning' } },
+  { time: '01:00 PM', severity: 'SCHEDULED', asset: 'HVAC Condenser Unit 04', descriptionKey: 'predictive_hub.timeline_desc_hvac', estCost: '$150', button: { labelKey: 'predictive_hub.timeline_btn_confirmed', variant: 'default' } },
 ]
 
 const SEVERITY_CONFIG: Record<string, { dot: string; label: string; bg: string }> = {
@@ -191,10 +192,10 @@ interface MaintenanceTask {
   urgency: 'CRITICAL' | 'HIGH' | 'MEDIUM'
 }
 
-const FORECAST_TASKS: MaintenanceTask[] = [
-  { asset: 'Compute-Node-Alpha-09', failure: 'Thermal Degradation (CPU 4)', probability: 91, urgency: 'CRITICAL' },
-  { asset: 'UPS-Central-Bank-4', failure: 'Capacitor Exhaustion', probability: 64, urgency: 'HIGH' },
-  { asset: 'Switch-Fabric-9022', failure: 'Optical SFP Attenuation', probability: 32, urgency: 'MEDIUM' },
+const FORECAST_TASKS: (Omit<MaintenanceTask, 'failure'> & { failureKey: string })[] = [
+  { asset: 'Compute-Node-Alpha-09', failureKey: 'predictive_hub.forecast_thermal_degradation', probability: 91, urgency: 'CRITICAL' },
+  { asset: 'UPS-Central-Bank-4', failureKey: 'predictive_hub.forecast_capacitor_exhaustion', probability: 64, urgency: 'HIGH' },
+  { asset: 'Switch-Fabric-9022', failureKey: 'predictive_hub.forecast_optical_sfp', probability: 32, urgency: 'MEDIUM' },
 ]
 
 const CHART_WIDTH = 720
@@ -235,6 +236,7 @@ function toAreaPath(data: number[]): string {
    ────────────────────────────────────────────── */
 
 function RulBar({ days, max }: { days: number; max: number }) {
+  const { t } = useTranslation()
   const pct = Math.round((days / max) * 100)
   let barColor = 'bg-error'
   if (days > 60) barColor = 'bg-primary'
@@ -249,7 +251,7 @@ function RulBar({ days, max }: { days: number; max: number }) {
         />
       </div>
       <span className="text-xs font-label text-on-surface-variant whitespace-nowrap w-16 text-right">
-        {days} Days
+        {t('predictive_hub.rul_days', { days })}
       </span>
     </div>
   )
@@ -358,7 +360,7 @@ function OverviewTab() {
             onClick={() => navigate('/monitoring')}
             className="ml-auto flex items-center gap-1 text-xs text-primary font-label hover:underline"
           >
-            查看監控
+            {t('predictive_hub.view_monitoring')}
             <Icon name="arrow_forward" className="text-sm" />
           </button>
         </div>
@@ -409,7 +411,7 @@ function OverviewTab() {
             <div className="text-right flex items-center gap-2 justify-end">
               <button onClick={() => verifyRCA.mutate({ id: a.name, data: { verified_by: 'current-user' } })}
                 className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30">
-                {verifyRCA.isPending ? '...' : 'Verify'}
+                {verifyRCA.isPending ? '...' : t('predictive_hub.btn_verify')}
               </button>
               <button className="text-xs text-primary font-label hover:underline flex items-center gap-1">
                 {t('predictive.view_details_zh')}
@@ -480,7 +482,7 @@ function OverviewTab() {
                     </span>
                   </div>
                 )}
-                <p className="text-sm leading-relaxed">{msg.text}</p>
+                <p className="text-sm leading-relaxed">{t(msg.textKey)}</p>
                 <p className="text-[10px] text-on-surface-variant mt-2 text-right tabular-nums">{msg.time}</p>
               </div>
             </div>
@@ -522,7 +524,7 @@ function AlertsTab() {
                   : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
               }`}
             >
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           ))}
         </div>
@@ -555,7 +557,7 @@ function AlertsTab() {
               <Icon name="dns" className="text-primary text-[20px]" />
               <span className="text-sm font-semibold text-on-surface font-headline">{alert.asset}</span>
             </div>
-            <span className="text-sm text-on-surface-variant">{alert.issue}</span>
+            <span className="text-sm text-on-surface-variant">{t(alert.issueKey)}</span>
             <div>
               <StatusBadge status={alert.urgency} />
             </div>
@@ -603,9 +605,9 @@ function InsightsTab() {
   const failureDist: { category: string; count: number }[] = (failDistData as any)?.distribution ?? []
 
   const insightsStats = [
-    { label: 'Critical Maintenance', value: failureDist.filter((d) => d.category === 'Thermal' || d.category === 'Electrical').reduce((s, d) => s + d.count, 0), status: 'UPCOMING', color: 'text-error', bgColor: 'bg-error-container' },
-    { label: 'Major Maintenance', value: failureDist.filter((d) => d.category === 'Mechanical').reduce((s, d) => s + d.count, 0), status: 'PENDING', color: 'text-[#fbbf24]', bgColor: 'bg-[#92400e]' },
-    { label: 'Minor Maintenance', value: failureDist.filter((d) => d.category === 'Software' || d.category === 'Other').reduce((s, d) => s + d.count, 0), status: 'SCHEDULED', color: 'text-primary', bgColor: 'bg-[#1e3a5f]' },
+    { labelKey: 'predictive_hub.insights_critical_maintenance', value: failureDist.filter((d) => d.category === 'Thermal' || d.category === 'Electrical').reduce((s, d) => s + d.count, 0), statusKey: 'predictive_hub.insights_status_upcoming', color: 'text-error', bgColor: 'bg-error-container' },
+    { labelKey: 'predictive_hub.insights_major_maintenance', value: failureDist.filter((d) => d.category === 'Mechanical').reduce((s, d) => s + d.count, 0), statusKey: 'predictive_hub.insights_status_pending', color: 'text-[#fbbf24]', bgColor: 'bg-[#92400e]' },
+    { labelKey: 'predictive_hub.insights_minor_maintenance', value: failureDist.filter((d) => d.category === 'Software' || d.category === 'Other').reduce((s, d) => s + d.count, 0), statusKey: 'predictive_hub.insights_status_scheduled', color: 'text-primary', bgColor: 'bg-[#1e3a5f]' },
   ]
 
   return (
@@ -613,14 +615,14 @@ function InsightsTab() {
       {/* Stats row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {insightsStats.map((s) => (
-          <div key={s.label} className="bg-surface-container-low rounded-lg p-5">
+          <div key={s.labelKey} className="bg-surface-container-low rounded-lg p-5">
             <div className="text-[0.6875rem] font-semibold tracking-wider text-on-surface-variant uppercase mb-2">
-              {s.label}
+              {t(s.labelKey)}
             </div>
             <div className="flex items-end gap-3">
               <span className={`font-headline font-bold text-3xl ${s.color}`}>{s.value}</span>
               <span className={`${s.bgColor} ${s.color} text-[0.625rem] font-semibold tracking-wider uppercase px-2 py-0.5 rounded mb-1`}>
-                {s.status}
+                {t(s.statusKey)}
               </span>
             </div>
           </div>
@@ -641,13 +643,13 @@ function InsightsTab() {
 
         <div className="flex gap-5 mb-5 ml-7">
           {[
-            { label: 'Critical', color: 'bg-error' },
-            { label: 'Major', color: 'bg-tertiary' },
-            { label: 'Minor', color: 'bg-primary' },
+            { labelKey: 'predictive_hub.legend_critical', color: 'bg-error' },
+            { labelKey: 'predictive_hub.legend_major', color: 'bg-tertiary' },
+            { labelKey: 'predictive_hub.legend_minor', color: 'bg-primary' },
           ].map((l) => (
-            <div key={l.label} className="flex items-center gap-1.5">
+            <div key={l.labelKey} className="flex items-center gap-1.5">
               <span className={`w-3 h-3 rounded-sm ${l.color}`} />
-              <span className="text-[0.625rem] text-on-surface-variant uppercase tracking-wider">{l.label}</span>
+              <span className="text-[0.625rem] text-on-surface-variant uppercase tracking-wider">{t(l.labelKey)}</span>
             </div>
           ))}
         </div>
@@ -657,7 +659,7 @@ function InsightsTab() {
             <div key={asset.id} className="flex items-center gap-4">
               <div className="w-44 shrink-0">
                 <div className="text-xs font-semibold text-on-surface font-headline">{asset.name}</div>
-                <div className="text-[0.5625rem] text-on-surface-variant tracking-wider uppercase">{asset.subtitle}</div>
+                <div className="text-[0.5625rem] text-on-surface-variant tracking-wider uppercase">{t(asset.subtitleKey)}</div>
               </div>
               <div className="flex-1 relative h-8 bg-surface-container-low rounded">
                 {asset.bars.map((bar, i) => {
@@ -693,16 +695,16 @@ function InsightsTab() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {INSIGHT_RECOMMENDATIONS.map((rec) => (
-            <div key={rec.title} className="bg-surface-container rounded-xl p-5 flex flex-col gap-3">
+            <div key={rec.titleKey} className="bg-surface-container rounded-xl p-5 flex flex-col gap-3">
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-sm font-semibold text-on-surface font-headline">
-                  {rec.title} &mdash; {rec.asset}
+                  {t(rec.titleKey)} &mdash; {rec.asset}
                 </h3>
                 <span className={`shrink-0 px-2.5 py-1 rounded text-[0.625rem] font-semibold tracking-wider uppercase ${INSIGHT_PRIORITY_COLORS[rec.priority]}`}>
                   {rec.priority}
                 </span>
               </div>
-              <p className="text-on-surface-variant text-xs leading-relaxed">{rec.description}</p>
+              <p className="text-on-surface-variant text-xs leading-relaxed">{t(rec.descriptionKey)}</p>
               <div className="flex gap-2 mt-auto pt-1">
                 <button className="bg-on-primary-container/20 text-on-primary-container text-[0.6875rem] font-semibold tracking-wider uppercase px-4 py-2 rounded-lg hover:bg-on-primary-container/30 transition-colors">
                   {t('predictive_insights.btn_repair_now')}
@@ -755,12 +757,12 @@ function RecommendationsTab() {
               <Icon name="dns" className="text-primary text-[20px]" />
               <span className="text-sm font-semibold text-on-surface font-headline">{row.asset}</span>
             </div>
-            <span className="text-sm text-on-surface-variant">{row.failureMode}</span>
+            <span className="text-sm text-on-surface-variant">{t(row.failureModeKey)}</span>
             <div>
               <StatusBadge status={row.urgency} />
             </div>
             <ConfidenceBar value={row.confidence} />
-            <span className="text-xs text-on-surface-variant leading-relaxed">{row.action}</span>
+            <span className="text-xs text-on-surface-variant leading-relaxed">{t(row.actionKey)}</span>
           </div>
         ))}
       </div>
@@ -930,12 +932,12 @@ function TimelineTab() {
                     </span>
                     <span className="text-sm font-semibold text-on-surface font-headline">{event.asset}</span>
                   </div>
-                  <p className="text-on-surface-variant text-sm leading-relaxed mb-3">{event.description}</p>
+                  <p className="text-on-surface-variant text-sm leading-relaxed mb-3">{t(event.descriptionKey)}</p>
                   <div className="flex flex-wrap gap-4 mb-4">
-                    {event.impact && (
+                    {event.impactKey && (
                       <div className="flex items-center gap-1.5">
                         <Icon name="timer" className="text-error text-[16px]" />
-                        <span className="text-xs text-on-surface-variant">{event.impact}</span>
+                        <span className="text-xs text-on-surface-variant">{t(event.impactKey)}</span>
                       </div>
                     )}
                     {event.recoveryCost && (
@@ -958,7 +960,7 @@ function TimelineTab() {
                     )}
                   </div>
                   <button className={`${BUTTON_STYLES[event.button.variant]} text-[0.6875rem] font-semibold tracking-wider uppercase px-4 py-2 rounded-lg transition-colors`}>
-                    {event.button.label}
+                    {t(event.button.labelKey)}
                   </button>
                 </div>
               </div>
@@ -1076,19 +1078,19 @@ function ForecastTab() {
             <span className="text-[0.6875rem] font-bold tracking-wider text-on-error-container uppercase">{t('failure_forecast.immediate_attention')}</span>
           </div>
           <p className="text-on-error-container text-sm leading-relaxed mb-2">
-            <span className="font-semibold">Storage Node SN-V82</span> has entered a pre-failure state. SMART diagnostics report multiple reallocated sectors and rising read error rates. Predicted total drive failure within 18 hours.
+            {t('predictive_hub.forecast_attention_desc')}
           </p>
           <div className="flex items-center gap-3 mb-4">
             <div className="flex items-center gap-1.5">
               <Icon name="timer" className="text-on-error-container text-[16px]" />
-              <span className="text-xs text-on-error-container">~18h to failure</span>
+              <span className="text-xs text-on-error-container">{t('predictive_hub.forecast_time_to_failure')}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Icon name="database" className="text-on-error-container text-[16px]" />
-              <span className="text-xs text-on-error-container">4.2 TB at risk</span>
+              <span className="text-xs text-on-error-container">{t('predictive_hub.forecast_data_at_risk')}</span>
             </div>
           </div>
-          <button onClick={() => alert('Coming Soon')} className="bg-error text-on-error text-[0.6875rem] font-bold tracking-wider uppercase px-5 py-2.5 rounded-lg hover:bg-error/80 transition-colors w-full">
+          <button onClick={() => toast.info('Coming Soon')} className="bg-error text-on-error text-[0.6875rem] font-bold tracking-wider uppercase px-5 py-2.5 rounded-lg hover:bg-error/80 transition-colors w-full">
             {t('failure_forecast.btn_isolate_node')}
           </button>
         </div>
@@ -1153,7 +1155,7 @@ function ForecastTab() {
                   <line x1={x} y1={y - 8} x2={x} y2={y - 28} stroke="#ffb4ab" strokeWidth="1" strokeDasharray="3,2" />
                   <rect x={x - 70} y={y - 50} width="140" height="20" rx="4" fill="#93000a" />
                   <text x={x} y={y - 36} fill="#ffb4ab" fontSize="8" textAnchor="middle" fontFamily="Inter" fontWeight="600">
-                    Peak-Failure: 84.2% CRITICAL
+                    {t('predictive_hub.chart_peak_failure')}
                   </text>
                 </g>
               )
@@ -1204,7 +1206,7 @@ function ForecastTab() {
                 <Icon name="dns" className="text-primary text-[20px]" />
                 <span className="text-sm font-semibold text-on-surface font-headline">{task.asset}</span>
               </div>
-              <span className="text-sm text-on-surface-variant">{task.failure}</span>
+              <span className="text-sm text-on-surface-variant">{t(task.failureKey)}</span>
               <div className="flex items-center gap-2">
                 <div className="flex-1 h-2 bg-surface-container-low rounded-full overflow-hidden">
                   <div className={`h-full rounded-full ${probColor}`} style={{ width: `${task.probability}%` }} />
@@ -1292,7 +1294,7 @@ const PredictiveHub = memo(function PredictiveHub() {
             {t('predictive.title_zh')}
           </h1>
           <p className="text-on-surface-variant text-sm mt-1 font-label tracking-widest uppercase">
-            Predictive Maintenance Hub
+            {t('predictive_hub.subtitle_predictive_hub')}
           </p>
         </div>
         <div className="flex items-center gap-6">
@@ -1301,14 +1303,14 @@ const PredictiveHub = memo(function PredictiveHub() {
             className="bg-primary/20 hover:bg-primary/30 px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-semibold text-primary transition-colors"
           >
             <Icon name="psychology" className="text-primary text-xl" />
-            New RCA Analysis
+            {t('predictive_hub.btn_new_rca')}
           </button>
           <button
             onClick={() => navigate('/maintenance')}
             className="bg-surface-container-high hover:bg-surface-container-highest px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-semibold text-on-surface transition-colors"
           >
             <Icon name="build" className="text-primary text-xl" />
-            維護管理
+            {t('predictive_hub.btn_maintenance_mgmt')}
           </button>
           <div className="bg-surface-container-high px-4 py-2 rounded-lg flex items-center gap-2">
             <Icon name="model_training" className="text-primary text-xl" />
@@ -1338,23 +1340,23 @@ const PredictiveHub = memo(function PredictiveHub() {
       {/* Stat cards row */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: 'Total Assets at Risk', value: '42', icon: 'warning', delta: '5 since yesterday', deltaColor: 'text-tertiary' },
-          { label: 'High Priority Tasks', value: '12', icon: 'priority_high', delta: '3 critical overdue', deltaColor: 'text-error' },
-          { label: 'Downtime Saved', value: '158h', icon: 'timer', delta: 'Est. $420k saved', deltaColor: 'text-primary' },
+          { labelKey: 'predictive_hub.stat_total_assets_risk', value: '42', icon: 'warning', deltaKey: 'predictive_hub.stat_total_assets_delta', deltaColor: 'text-tertiary' },
+          { labelKey: 'predictive_hub.stat_high_priority', value: '12', icon: 'priority_high', deltaKey: 'predictive_hub.stat_high_priority_delta', deltaColor: 'text-error' },
+          { labelKey: 'predictive_hub.stat_downtime_saved', value: '158h', icon: 'timer', deltaKey: 'predictive_hub.stat_downtime_delta', deltaColor: 'text-primary' },
         ].map((s) => (
-          <div key={s.label} className="bg-surface-container rounded-xl p-5 flex flex-col gap-3">
+          <div key={s.labelKey} className="bg-surface-container rounded-xl p-5 flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <div className="bg-surface-container-high rounded-lg p-2">
                 <Icon name={s.icon} className="text-primary text-xl" />
               </div>
               <span className="text-xs text-on-surface-variant font-label uppercase tracking-widest">
-                {s.label}
+                {t(s.labelKey)}
               </span>
             </div>
             <p className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">
               {s.value}
             </p>
-            <p className={`text-xs font-label ${s.deltaColor}`}>{s.delta}</p>
+            <p className={`text-xs font-label ${s.deltaColor}`}>{t(s.deltaKey)}</p>
           </div>
         ))}
       </div>
@@ -1371,7 +1373,7 @@ const PredictiveHub = memo(function PredictiveHub() {
                 : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
             }`}
           >
-            <span className="block">{tab.labelZh}</span>
+            <span className="block">{t(tab.labelKey)}</span>
             {activeTab === tab.key && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t" />
             )}

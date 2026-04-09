@@ -1,9 +1,12 @@
 import { useMemo } from 'react'
 
-export function useForceLayout(nodes: any[], edges: any[], width: number, height: number) {
+interface ForceNode { id: string; [key: string]: unknown }
+interface ForceEdge { from: string; to: string; [key: string]: unknown }
+
+export function useForceLayout(nodes: ForceNode[], edges: ForceEdge[], width: number, height: number) {
   return useMemo(() => {
     if (!nodes.length) return []
-    const positioned = nodes.map((n: any, i: number) => ({
+    const positioned = nodes.map((n: ForceNode, i: number) => ({
       ...n,
       x: width / 2 + Math.cos((2 * Math.PI * i) / nodes.length) * Math.min(width, height) * 0.35,
       y: height / 2 + Math.sin((2 * Math.PI * i) / nodes.length) * Math.min(width, height) * 0.35,
@@ -21,7 +24,7 @@ export function useForceLayout(nodes: any[], edges: any[], width: number, height
           positioned[j].x += fx; positioned[j].y += fy
         }
       }
-      const idxMap = new Map(positioned.map((n: any, i: number) => [n.id, i]))
+      const idxMap = new Map(positioned.map((n, i) => [n.id, i]))
       for (const edge of edges) {
         const si = idxMap.get(edge.from)
         const ti = idxMap.get(edge.to)

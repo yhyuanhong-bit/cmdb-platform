@@ -45,7 +45,7 @@ export function useWebSocket() {
     if (!token || !isAuthenticated) return
 
     // Derive WS URL from API URL
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://10.134.143.218:8080/api/v1'
+    const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
     const wsProtocol = apiUrl.startsWith('https') ? 'wss' : 'ws'
     const baseUrl = apiUrl.replace(/^https?/, wsProtocol)
     const wsUrl = `${baseUrl}/ws?token=${token}`

@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -159,7 +160,7 @@ function WorkOrderCard({
               <Icon name="rate_review" className="text-[16px]" />
               {t('work_order.btn_review')}
             </span>
-            <span onClick={(e) => { e.stopPropagation(); alert('Coming Soon'); }} className="inline-flex items-center gap-1 text-xs text-primary cursor-pointer hover:underline">
+            <span onClick={(e) => { e.stopPropagation(); toast.info('Coming Soon'); }} className="inline-flex items-center gap-1 text-xs text-primary cursor-pointer hover:underline">
               <Icon name="history" className="text-[16px]" />
               {t('work_order.btn_history')}
             </span>
@@ -271,7 +272,7 @@ function AiPanel({ order }: { order: WorkOrderItem | null }) {
       {/* Action button */}
       <button
         type="button"
-        onClick={() => alert('AI Review: Coming Soon')}
+        onClick={() => toast.info('AI Review: Coming Soon')}
         className="w-full py-3 rounded-lg machined-gradient text-on-primary text-sm font-bold flex items-center justify-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
       >
         <Icon name="auto_fix_high" className="text-[18px]" />

@@ -25,7 +25,7 @@ export function useCreateScanTarget() {
 export function useUpdateScanTarget() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
       ingestionApi.updateScanTarget(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scanTargets'] }),
   })

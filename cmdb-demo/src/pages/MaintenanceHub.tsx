@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -78,60 +79,70 @@ const priorityColors: Record<string, string> = {
 
 interface CalendarBlock {
   day: string
+  dayKey: string
   date: number
-  slots: { label: string; color: string; time: string }[]
+  slots: { labelKey: string; color: string; time: string }[]
 }
 
-const weekData: CalendarBlock[] = [
+const weekDataTemplate: { dayKey: string; date: number; slots: { labelKey: string; color: string; time: string }[] }[] = [
   {
-    day: 'Mon',
+    dayKey: 'maintenance_schedule.calendar_mon',
     date: 23,
     slots: [
-      { label: 'HVAC Inspection', color: 'bg-[#1e3a5f]', time: '09:00-11:00' },
+      { labelKey: 'maintenance_schedule.calendar_hvac_inspection', color: 'bg-[#1e3a5f]', time: '09:00-11:00' },
     ],
   },
   {
-    day: 'Tue',
+    dayKey: 'maintenance_schedule.calendar_tue',
     date: 24,
     slots: [
-      { label: 'Network Audit', color: 'bg-[#92400e]', time: '14:00-18:00' },
+      { labelKey: 'maintenance_schedule.calendar_network_audit', color: 'bg-[#92400e]', time: '14:00-18:00' },
     ],
   },
   {
-    day: 'Wed',
+    dayKey: 'maintenance_schedule.calendar_wed',
     date: 25,
     slots: [
-      { label: 'FW Failover Test', color: 'bg-[#064e3b]', time: '06:00-08:00' },
-      { label: 'PDU Calibration', color: 'bg-[#1e3a5f]', time: '13:00-15:00' },
+      { labelKey: 'maintenance_schedule.calendar_fw_failover_test', color: 'bg-[#064e3b]', time: '06:00-08:00' },
+      { labelKey: 'maintenance_schedule.calendar_pdu_calibration', color: 'bg-[#1e3a5f]', time: '13:00-15:00' },
     ],
   },
   {
-    day: 'Thu',
+    dayKey: 'maintenance_schedule.calendar_thu',
     date: 26,
     slots: [
-      { label: 'Cooling Repair', color: 'bg-error-container', time: '08:00-16:00' },
+      { labelKey: 'maintenance_schedule.calendar_cooling_repair', color: 'bg-error-container', time: '08:00-16:00' },
     ],
   },
   {
-    day: 'Fri',
+    dayKey: 'maintenance_schedule.calendar_fri',
     date: 27,
     slots: [],
   },
   {
-    day: 'Sat',
+    dayKey: 'maintenance_schedule.calendar_sat',
     date: 28,
     slots: [
-      { label: 'UPS Battery Swap', color: 'bg-error-container', time: '02:00-06:00' },
+      { labelKey: 'maintenance_schedule.calendar_ups_battery_swap', color: 'bg-error-container', time: '02:00-06:00' },
     ],
   },
   {
-    day: 'Sun',
+    dayKey: 'maintenance_schedule.calendar_sun',
     date: 29,
     slots: [
-      { label: 'Firmware Update', color: 'bg-[#92400e]', time: '01:00-04:00' },
+      { labelKey: 'maintenance_schedule.calendar_firmware_update', color: 'bg-[#92400e]', time: '01:00-04:00' },
     ],
   },
 ]
+
+function getWeekData(t: ReturnType<typeof useTranslation>['t']): CalendarBlock[] {
+  return weekDataTemplate.map((d) => ({
+    day: t(d.dayKey),
+    dayKey: d.dayKey,
+    date: d.date,
+    slots: d.slots.map((s) => ({ ...s, labelKey: s.labelKey })),
+  }))
+}
 
 function buildSummaryCards(workOrders: WorkOrder[]) {
   const scheduled = workOrders.filter((wo) => wo.status === 'SCHEDULED' || wo.status === 'PENDING').length
@@ -169,6 +180,8 @@ function ScheduleView({
     (task) => !search || task.description.toLowerCase().includes(search.toLowerCase()) || task.id.toLowerCase().includes(search.toLowerCase()),
   )
 
+  const weekData = getWeekData(t)
+
   return (
     <>
       {/* Weekly Calendar View */}
@@ -178,13 +191,13 @@ function ScheduleView({
             {t('maintenance_schedule.week_of')} March 23 - 29, 2026
           </h2>
           <div className="flex items-center gap-2">
-            <button onClick={() => alert('Coming Soon')} className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest transition-colors">
+            <button onClick={() => toast.info(t('common.coming_soon'))} className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest transition-colors">
               <Icon name="chevron_left" className="text-[18px] text-on-surface-variant" />
             </button>
-            <button onClick={() => alert('Coming Soon')} className="px-3 py-1 rounded bg-surface-container-high text-xs text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+            <button onClick={() => toast.info(t('common.coming_soon'))} className="px-3 py-1 rounded bg-surface-container-high text-xs text-on-surface-variant hover:bg-surface-container-highest transition-colors">
               {t('common.today')}
             </button>
-            <button onClick={() => alert('Coming Soon')} className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest transition-colors">
+            <button onClick={() => toast.info(t('common.coming_soon'))} className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest transition-colors">
               <Icon name="chevron_right" className="text-[18px] text-on-surface-variant" />
             </button>
           </div>
@@ -192,7 +205,7 @@ function ScheduleView({
         <div className="grid grid-cols-7 gap-px bg-surface-container-low">
           {weekData.map((day) => (
             <div
-              key={day.day}
+              key={day.dayKey}
               className={`bg-surface-container p-3 min-h-[120px] ${
                 day.date === 28 ? 'bg-surface-container-high' : ''
               }`}
@@ -218,7 +231,7 @@ function ScheduleView({
                     className={`${slot.color} rounded px-2 py-1.5 cursor-pointer hover:brightness-125 transition-all`}
                   >
                     <p className="text-[0.625rem] font-semibold text-white truncate">
-                      {slot.label}
+                      {t(slot.labelKey)}
                     </p>
                     <p className="text-[0.5625rem] text-white/70">{slot.time}</p>
                   </div>
@@ -259,7 +272,7 @@ function ScheduleView({
               <span
                 className={`px-2 py-0.5 rounded text-[0.625rem] font-semibold uppercase tracking-wider ${priorityColors[task.priority]}`}
               >
-                {task.priority}
+                {t(`common.${task.priority.toLowerCase()}`)}
               </span>
             </span>
             <span className="text-on-surface-variant text-xs">{task.scheduledDate}</span>
@@ -358,7 +371,7 @@ export default function MaintenanceHub() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <span className="material-symbols-outlined text-error text-4xl">error</span>
-        <p className="text-error text-sm">Failed to load maintenance data</p>
+        <p className="text-error text-sm">{t('maintenance_schedule.failed_to_load')}</p>
       </div>
     )
   }
@@ -381,21 +394,21 @@ export default function MaintenanceHub() {
             className="flex items-center gap-1 rounded-lg bg-surface-container-high px-4 py-2.5 text-sm text-on-surface-variant hover:text-on-surface transition-colors"
           >
             <span className="material-symbols-outlined text-lg">assessment</span>
-            Impact Analysis
+            {t('maintenance_schedule.impact_analysis')}
           </button>
           <button
             onClick={() => navigate('/maintenance/dispatch')}
             className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"
           >
             <Icon name="group" className="text-[18px]" />
-            任務調度
+            {t('maintenance_schedule.task_dispatch')}
           </button>
           <button
             onClick={() => navigate('/maintenance/workorder')}
             className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"
           >
             <Icon name="assignment" className="text-[18px]" />
-            {t('maintenance_schedule.workorder_management') ?? '\u5de5\u55ae\u7ba1\u7406'}
+            {t('maintenance_schedule.workorder_management')}
           </button>
           <button
             onClick={() => navigate('/maintenance/add')}
@@ -444,7 +457,7 @@ export default function MaintenanceHub() {
             }`}
           >
             <Icon name="calendar_month" className="text-[16px]" />
-            {t('maintenance_schedule.view_schedule') ?? '\u6392\u7a0b'}
+            {t('maintenance_schedule.view_schedule')}
           </button>
           <button
             onClick={() => setViewMode('records')}
@@ -455,7 +468,7 @@ export default function MaintenanceHub() {
             }`}
           >
             <Icon name="history" className="text-[16px]" />
-            {t('maintenance_schedule.view_records') ?? '\u8a18\u9304'}
+            {t('maintenance_schedule.view_records')}
           </button>
         </div>
 
@@ -500,11 +513,11 @@ export default function MaintenanceHub() {
           onChange={(e) => setTypeFilter(e.target.value)}
           className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface rounded appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/40"
         >
-          <option>{t('maintenance_records.all_types') ?? 'All Types'}</option>
-          <option>Firmware Update</option>
-          <option>Disk Replacement</option>
-          <option>Preventive Maintenance</option>
-          <option>Emergency Repair</option>
+          <option value="All Types">{t('maintenance_records.all_types')}</option>
+          <option value="Firmware Update">{t('maintenance_records.type_firmware_update')}</option>
+          <option value="Disk Replacement">{t('maintenance_records.type_disk_replacement')}</option>
+          <option value="Preventive Maintenance">{t('maintenance_records.type_preventive_maintenance')}</option>
+          <option value="Emergency Repair">{t('maintenance_records.type_emergency_repair')}</option>
         </select>
 
         {/* Status Filter */}
@@ -513,11 +526,11 @@ export default function MaintenanceHub() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface rounded appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/40"
         >
-          <option>{t('assets.all_status') ?? 'All Status'}</option>
-          <option>Pending</option>
-          <option>In Progress</option>
-          <option>Completed</option>
-          <option>Overdue</option>
+          <option value="All Status">{t('assets.all_status')}</option>
+          <option value="Pending">{t('maintenance_schedule.filter_pending')}</option>
+          <option value="In Progress">{t('maintenance_schedule.filter_in_progress')}</option>
+          <option value="Completed">{t('maintenance_schedule.filter_completed')}</option>
+          <option value="Overdue">{t('maintenance_schedule.filter_overdue')}</option>
         </select>
       </div>
 

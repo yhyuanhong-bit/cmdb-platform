@@ -81,10 +81,10 @@ const rackHeatmap = [
 ] as [string, number][]
 
 const powerEvents = [
-  { title: '\u96fb\u529b\u6ce2\u52d5\u9810\u8b66', location: 'RACK-B04', desc: 'PDU-A \u7591\u64da\u8df3\u95d8', time: '14:22:08', severity: 'error' },
-  { title: '\u96fb\u6e90\u8d85\u8f09\u8b66\u544a', location: 'UPS-MAIN-01', desc: '\u8ca0\u8f09\u8d85\u904e 85% \u9580\u6abb', time: '13:15:44', severity: 'warning' },
-  { title: '\u505c\u96fb\u5207\u63db\u6e2c\u8a66', location: 'ATS-ROOM-A', desc: '\u81ea\u52d5\u5207\u63db\u6b63\u5e38\u5b8c\u6210', time: '11:30:00', severity: 'info' },
-  { title: '\u5206\u529b\u5668\u6545\u969c', location: 'RACK-A03', desc: 'PDU-B \u8f38\u51fa\u7570\u5e38', time: '09:45:22', severity: 'error' },
+  { titleKey: 'power_load.event_power_fluctuation_warning', location: 'RACK-B04', descKey: 'power_load.event_pdu_a_suspected_trip', time: '14:22:08', severity: 'error' },
+  { titleKey: 'power_load.event_power_overload_alert', location: 'UPS-MAIN-01', descKey: 'power_load.event_load_exceeds_85_threshold', time: '13:15:44', severity: 'warning' },
+  { titleKey: 'power_load.event_outage_switchover_test', location: 'ATS-ROOM-A', descKey: 'power_load.event_auto_switchover_completed', time: '11:30:00', severity: 'info' },
+  { titleKey: 'power_load.event_breaker_fault', location: 'RACK-A03', descKey: 'power_load.event_pdu_b_output_anomaly', time: '09:45:22', severity: 'error' },
 ]
 
 const severityConfig: Record<string, { icon: string; color: string }> = {
@@ -130,7 +130,7 @@ function buildAreaPath(
 /*  Capacity Donut                                                     */
 /* ------------------------------------------------------------------ */
 
-function CapacityDonut({ pct }: { pct: number }) {
+function CapacityDonut({ pct, t }: { pct: number; t: ReturnType<typeof useTranslation>['t'] }) {
   const circumference = 2 * Math.PI * 52
   return (
     <div className="relative h-40 w-40">
@@ -151,7 +151,7 @@ function CapacityDonut({ pct }: { pct: number }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="font-headline text-2xl font-bold text-on-surface">{pct}%</span>
-        <span className="text-[10px] uppercase tracking-wider text-on-surface-variant">capacity</span>
+        <span className="text-[10px] uppercase tracking-wider text-on-surface-variant">{t('facility_energy.capacity')}</span>
       </div>
     </div>
   )
@@ -307,10 +307,10 @@ function FacilityView({
           pct: cat.pct,
         }))
       : [
-          { label: 'IT Equipment', value: '842.1 kW', icon: 'memory', pct: 67.5 },
-          { label: 'Cooling', value: '312.4 kW', icon: 'ac_unit', pct: 25.0 },
-          { label: 'UPS/Power', value: '42.8 kW', icon: 'battery_charging_full', pct: 3.4 },
-          { label: 'Other', value: '51.1 kW', icon: 'more_horiz', pct: 4.1 },
+          { label: t('facility_energy.it_equipment'), value: '842.1 kW', icon: 'memory', pct: 67.5 },
+          { label: t('facility_energy.cooling'), value: '312.4 kW', icon: 'ac_unit', pct: 25.0 },
+          { label: t('facility_energy.ups'), value: '42.8 kW', icon: 'battery_charging_full', pct: 3.4 },
+          { label: t('facility_energy.misc'), value: '51.1 kW', icon: 'more_horiz', pct: 4.1 },
         ]
 
   return (
@@ -343,7 +343,7 @@ function FacilityView({
             </div>
             {/* Donut */}
             <div className="flex flex-col items-center">
-              <CapacityDonut pct={capacityPct} />
+              <CapacityDonut pct={capacityPct} t={t} />
               <span className="mt-2 text-[10px] uppercase tracking-wider text-on-surface-variant">
                 {t('facility_energy.of_rated_capacity')}
               </span>
@@ -385,7 +385,7 @@ function FacilityView({
             <p className="mt-2 font-headline text-3xl font-bold text-on-surface">
               {peakMW} <span className="text-lg text-on-surface-variant">MW</span>
             </p>
-            <span className="text-[10px] text-on-surface-variant">Recorded 2026-01-14</span>
+            <span className="text-[10px] text-on-surface-variant">{t('facility_energy.recorded_date', { date: '2026-01-14' })}</span>
           </div>
         </div>
       </div>
@@ -393,7 +393,7 @@ function FacilityView({
       {/* Historical Consumption Trend */}
       <Section title={t('facility_energy.historical_consumption_trend')} icon="bar_chart">
         <div className="mb-5 flex gap-1">
-          {['Daily', 'Weekly', 'Monthly'].map((tab) => (
+          {(['Daily', 'Weekly', 'Monthly'] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -404,7 +404,7 @@ function FacilityView({
                   : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high'
               }`}
             >
-              {tab}
+              {t(`facility_energy.tab_${tab.toLowerCase()}`)}
             </button>
           ))}
         </div>
@@ -494,14 +494,14 @@ function PowerLoadView({
               ? summaryData.total_kw.toLocaleString(undefined, { maximumFractionDigits: 1 })
               : '1,248.5'}
           </p>
-          <p className="mt-1 text-xs text-on-surface-variant">&#177;0.45 \u77ac\u9593\u4e00\u81f4\u5cf0</p>
+          <p className="mt-1 text-xs text-on-surface-variant">{t('power_load.instant_peak_note')}</p>
         </div>
         <div className="rounded-lg bg-surface-container p-5">
           <p className="text-xs uppercase tracking-wider text-on-surface-variant">{t('power_load.stat_pue_index')}</p>
           <p className="mt-2 font-headline text-3xl font-bold text-[#34d399]">
             {summaryData?.pue != null ? summaryData.pue.toFixed(2) : '1.24'}
           </p>
-          <p className="mt-1 text-xs text-on-surface-variant">\u9ad8\u6548\u4f9b\u8017\u6bd4 12.21 kW</p>
+          <p className="mt-1 text-xs text-on-surface-variant">{t('power_load.efficient_ratio_note')}</p>
         </div>
         <div className="rounded-lg bg-surface-container p-5">
           <p className="text-xs uppercase tracking-wider text-on-surface-variant">{t('power_load.stat_grid_input')}</p>
@@ -627,9 +627,9 @@ function PowerLoadView({
           })}
         </div>
         <div className="mt-2 flex items-center gap-2 text-xs text-on-surface-variant">
-          <span>Low</span>
+          <span>{t('power_load.heatmap_low')}</span>
           <div className="h-2 flex-1 rounded-full bg-gradient-to-r from-[#9ecaff]/30 via-orange-400/50 to-[#ffb4ab]/80" />
-          <span>High</span>
+          <span>{t('power_load.heatmap_high')}</span>
         </div>
       </div>
 
@@ -644,9 +644,9 @@ function PowerLoadView({
                 <div className="flex items-center gap-3">
                   <span className={`material-symbols-outlined text-lg ${sev.color}`}>{sev.icon}</span>
                   <div>
-                    <p className="text-sm font-medium text-on-surface">{ev.title}</p>
+                    <p className="text-sm font-medium text-on-surface">{t(ev.titleKey)}</p>
                     <p className="text-xs text-on-surface-variant">
-                      {ev.location} &mdash; {ev.desc}
+                      {ev.location} &mdash; {t(ev.descKey)}
                     </p>
                   </div>
                 </div>
@@ -721,7 +721,7 @@ function EnergyMonitor() {
           className="cursor-pointer transition-colors hover:text-primary"
           onClick={() => navigate('/monitoring')}
         >
-          監控
+          {t('energy_monitor.breadcrumb_monitoring')}
         </span>
         <IconSpan name="chevron_right" className="text-[14px] opacity-40" />
         {['FACILITY_NODE_09', 'ENERGY_TELEMETRY'].map((crumb, i, arr) => (
@@ -735,7 +735,7 @@ function EnergyMonitor() {
       {/* Title + View Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="font-headline text-2xl font-bold text-on-surface">
-          {t('facility_energy.title_zh') ?? '\u80fd\u8017\u76e3\u63a7'} / {t('facility_energy.title_en') ?? 'Energy Monitor'}
+          {t('facility_energy.title_zh')} / {t('facility_energy.title_en')}
         </h1>
         <div className="flex bg-surface-container-low rounded overflow-hidden">
           <button
@@ -747,7 +747,7 @@ function EnergyMonitor() {
             }`}
           >
             <IconSpan name="domain" className="text-[16px]" />
-            {t('energy_monitor.view_facility') ?? '\u8a2d\u65bd'}
+            {t('energy_monitor.view_facility')}
           </button>
           <button
             onClick={() => setViewMode('powerload')}
@@ -758,7 +758,7 @@ function EnergyMonitor() {
             }`}
           >
             <IconSpan name="bolt" className="text-[16px]" />
-            {t('energy_monitor.view_power_load') ?? '\u96fb\u529b\u8ca0\u8f09'}
+            {t('energy_monitor.view_power_load')}
           </button>
         </div>
       </div>

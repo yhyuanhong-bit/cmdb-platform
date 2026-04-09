@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef } from 'react'
+import { toast } from 'sonner'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
@@ -6,6 +7,7 @@ import StatusBadge from '../components/StatusBadge'
 import CreateAssetModal from '../components/CreateAssetModal'
 import { useAssets } from '../hooks/useAssets'
 import type { Asset } from '../lib/api/assets'
+import { useLocationContext } from '../contexts/LocationContext'
 
 const typeIcons: Record<string, string> = {
   server: 'dns',
@@ -118,15 +120,22 @@ export default function AssetManagementUnified() {
   const [importing, setImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const { path } = useLocationContext()
+  const locationId = path.idc?.id || path.campus?.id || path.city?.id || path.region?.id || path.territory?.id
+
+  // Reset to page 1 when location changes
+  useEffect(() => { setCurrentPage(1) }, [locationId])
+
   // Build query params from filter state
   const queryParams = useMemo(() => {
     const params: Record<string, string> = {}
     if (typeFilter !== 'All') params.type = typeFilter.toLowerCase()
     if (statusFilter !== 'All Status') params.status = statusFilter.toLowerCase()
     if (search) params.search = search
+    if (locationId) params.location_id = locationId
     params.page = String(currentPage)
     return params
-  }, [typeFilter, statusFilter, search, currentPage])
+  }, [typeFilter, statusFilter, search, currentPage, locationId])
 
   // Fetch assets from API
   const { data: apiData, isLoading, error, refetch } = useAssets(queryParams)
@@ -157,17 +166,17 @@ export default function AssetManagementUnified() {
       const data = await resp.json()
 
       if (!resp.ok) {
-        alert(`Import failed: ${data.detail ?? resp.statusText}`)
+        toast.error(`Import failed: ${data.detail ?? resp.statusText}`)
         return
       }
 
       if (data.job_id) {
         await fetch(`/api/v1/ingestion/import/${data.job_id}/confirm`, { method: 'POST' })
-        alert(`Import started!\nJob ID: ${data.job_id}\nTotal rows: ${data.stats?.total_rows ?? 'N/A'}`)
+        toast.success(`Import started!\nJob ID: ${data.job_id}\nTotal rows: ${data.stats?.total_rows ?? 'N/A'}`)
         refetch()
       }
     } catch (err) {
-      alert(`Import error: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(`Import error: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setImporting(false)
     }
@@ -175,7 +184,7 @@ export default function AssetManagementUnified() {
 
   const handleExport = () => {
     if (!assets?.length) {
-      alert(t('assets.no_assets_to_export'))
+      toast.info(t('assets.no_assets_to_export'))
       return
     }
     const headers: (keyof Asset)[] = ['asset_tag', 'name', 'type', 'status', 'vendor', 'model', 'serial_number']
@@ -264,14 +273,6 @@ export default function AssetManagementUnified() {
           <option value="Operational">{t('common.operational')}</option>
           <option value="Maintenance">{t('common.maintenance')}</option>
           <option value="Offline">{t('common.offline')}</option>
-        </select>
-
-        {/* Location Filter */}
-        <select
-          disabled
-          className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface-variant rounded appearance-none cursor-not-allowed focus:outline-none"
-        >
-          <option>{t('assets.location_coming_soon')}</option>
         </select>
 
         {/* View Toggle */}
@@ -406,7 +407,7 @@ export default function AssetManagementUnified() {
                 <button onClick={(e) => { e.stopPropagation(); navigate(`/assets/${asset.id}`); }} className="p-1 rounded hover:bg-surface-container-highest transition-colors">
                   <Icon name="visibility" className="text-[18px] text-on-surface-variant" />
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); alert(t('common.coming_soon')); }} className="p-1 rounded hover:bg-surface-container-highest transition-colors">
+                <button onClick={(e) => { e.stopPropagation(); toast.info(t('common.coming_soon')); }} className="p-1 rounded hover:bg-surface-container-highest transition-colors">
                   <Icon name="more_vert" className="text-[18px] text-on-surface-variant" />
                 </button>
               </span>

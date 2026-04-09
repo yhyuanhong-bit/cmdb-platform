@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -209,7 +210,7 @@ export default function BIAOverview() {
           </button>
 
           <button
-            onClick={() => alert('Coming Soon')}
+            onClick={() => toast.info('Coming Soon')}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-low transition-colors"
           >
             <Icon name="download" className="text-[20px]" />

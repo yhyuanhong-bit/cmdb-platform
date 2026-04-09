@@ -43,7 +43,7 @@ export function useCompleteTask() {
 export function useScanItem() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ taskId, itemId, data }: { taskId: string; itemId: string; data: any }) =>
+    mutationFn: ({ taskId, itemId, data }: { taskId: string; itemId: string; data: Record<string, unknown> }) =>
       inventoryApi.scanItem(taskId, itemId, data),
     onSuccess: (_data, variables) =>
       qc.invalidateQueries({ queryKey: ['inventoryTasks', variables.taskId, 'items'] }),
@@ -53,7 +53,7 @@ export function useScanItem() {
 export function useImportInventoryItems() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ taskId, items }: { taskId: string; items: any[] }) =>
+    mutationFn: ({ taskId, items }: { taskId: string; items: Record<string, unknown>[] }) =>
       inventoryApi.importItems(taskId, items),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['inventoryTasks'] }) }
   })
@@ -86,7 +86,7 @@ export function useItemNotes(taskId: string, itemId: string) {
 export function useCreateItemScanRecord() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ taskId, itemId, data }: { taskId: string; itemId: string; data: any }) =>
+    mutationFn: ({ taskId, itemId, data }: { taskId: string; itemId: string; data: Record<string, unknown> }) =>
       inventoryApi.createScanRecord(taskId, itemId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['itemScanHistory'] }),
   })
@@ -95,7 +95,7 @@ export function useCreateItemScanRecord() {
 export function useCreateItemNote() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ taskId, itemId, data }: { taskId: string; itemId: string; data: any }) =>
+    mutationFn: ({ taskId, itemId, data }: { taskId: string; itemId: string; data: Record<string, unknown> }) =>
       inventoryApi.createItemNote(taskId, itemId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['itemNotes'] }),
   })

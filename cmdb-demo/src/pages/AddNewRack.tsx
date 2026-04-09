@@ -1,3 +1,4 @@
+import { toast } from 'sonner'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -266,7 +267,7 @@ export default function AddNewRack() {
                   },
                   {
                     onSuccess: () => navigate('/racks'),
-                    onError: () => alert(t('add_new_rack.error_create_failed')),
+                    onError: () => toast.error(t('add_new_rack.error_create_failed')),
                   },
                 )
               }}

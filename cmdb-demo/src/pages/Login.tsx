@@ -83,12 +83,16 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-xs text-on-surface-variant text-center mt-6">
-          Local: admin / admin123
-        </p>
-        <p className="text-xs text-on-surface-variant text-center mt-1">
-          AD: username@domain (e.g. john@tw.company.com)
-        </p>
+        {import.meta.env.DEV && (
+          <>
+            <p className="text-xs text-on-surface-variant text-center mt-6">
+              Local: admin / admin123
+            </p>
+            <p className="text-xs text-on-surface-variant text-center mt-1">
+              AD: username@domain
+            </p>
+          </>
+        )}
       </div>
     </div>
   )
