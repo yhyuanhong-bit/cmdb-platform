@@ -204,9 +204,6 @@ func main() {
 	v1.DELETE("/sensors/:id", apiServer.DeleteSensor)
 	v1.POST("/sensors/:id/heartbeat", apiServer.SensorHeartbeat)
 
-	// Protected sub-group for non-API routes that need auth (e.g. WebSocket)
-	protected := v1.Group("", authMW)
-
 	// MCP Server
 	if cfg.MCPEnabled {
 		mcpSrv := cmdbmcp.New(queries)
@@ -241,8 +238,9 @@ func main() {
 		wsHub = cmdbws.NewHub()
 		go wsHub.Run(ctx)
 
-		// Register WS endpoint (needs auth)
-		protected.GET("/ws", cmdbws.HandleWS(wsHub))
+		// Register WS endpoint with WSAuth (supports Sec-WebSocket-Protocol auth)
+		wsAuthMW := middleware.WSAuth(cfg.JWTSecret)
+		v1.GET("/ws", wsAuthMW, cmdbws.HandleWS(wsHub))
 		zap.L().Info("WebSocket hub started")
 	}
 

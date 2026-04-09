@@ -48,9 +48,9 @@ export function useWebSocket() {
     const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
     const wsProtocol = apiUrl.startsWith('https') ? 'wss' : 'ws'
     const baseUrl = apiUrl.replace(/^https?/, wsProtocol)
-    const wsUrl = `${baseUrl}/ws?token=${token}`
+    const wsUrl = `${baseUrl}/ws`
 
-    const ws = new WebSocket(wsUrl)
+    const ws = new WebSocket(wsUrl, [`access_token.${token}`])
     wsRef.current = ws
 
     ws.onmessage = (event) => {
