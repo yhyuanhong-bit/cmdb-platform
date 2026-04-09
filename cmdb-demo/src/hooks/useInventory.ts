@@ -110,6 +110,18 @@ export function useUpdateInventoryTask() {
   })
 }
 
+export function useResolveDiscrepancy() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, itemId, data }: { taskId: string; itemId: string; data: { action: string; note?: string } }) =>
+      inventoryApi.resolve(taskId, itemId, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inventoryTasks'] })
+      qc.invalidateQueries({ queryKey: ['inventoryDiscrepancies'] })
+    },
+  })
+}
+
 export function useDeleteInventoryTask() {
   const qc = useQueryClient()
   return useMutation({

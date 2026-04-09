@@ -22,7 +22,7 @@ function ScoringRules() {
   const { t } = useTranslation()
   const { data: rulesResp, isLoading } = useBIAScoringRules()
   const updateRule = useUpdateBIAScoringRule()
-  const rules = (rulesResp?.data as any)?.data || []
+  const rules = (rulesResp as any)?.data || []
 
   const [selectedRuleId, setSelectedRuleId] = useState<string>('')
   const [editData, setEditData] = useState<Record<string, any>>({})
@@ -37,14 +37,14 @@ function ScoringRules() {
 
   // Sync edit data when selection changes
   useEffect(() => {
-    const rule = rules.find((r) => r.id === selectedRuleId)
+    const rule = rules.find((r: any) => r.id === selectedRuleId)
     if (rule) {
       setEditData({ ...rule })
       setDirty(false)
     }
   }, [selectedRuleId, rules])
 
-  const selectedRule = rules.find((r) => r.id === selectedRuleId)
+  const selectedRule = rules.find((r: any) => r.id === selectedRuleId)
 
   function handleFieldChange(field: string, value: string | number) {
     setEditData((prev) => ({ ...prev, [field]: value }))
@@ -88,7 +88,7 @@ function ScoringRules() {
               {t('bia_rules.panel_tier_rules')}
             </h3>
             <div className="space-y-1">
-              {rules.map((rule) => (
+              {rules.map((rule: any) => (
                 <button
                   key={rule.id}
                   type="button"

@@ -9,16 +9,16 @@ const tabs = [
   { key: 'Navigation', i18n: 'video_player.tab_navigation' },
 ];
 
-const VIDEO_DATA: Record<string, { title: string; chapters: { title: string; duration: string }[] }> = {
-  '1': { title: 'Asset Management & Tracking', chapters: [{ title: 'Introduction', duration: '3:20' }, { title: 'Creating Assets', duration: '5:10' }, { title: 'Asset Lifecycle', duration: '8:45' }] },
-  '2': { title: 'Rack Inventory Operations', chapters: [{ title: 'Scanning Basics', duration: '4:00' }, { title: 'QR Code Scanning', duration: '6:30' }, { title: 'Discrepancy Handling', duration: '7:15' }] },
-  '3': { title: 'Network Topology Mapping', chapters: [{ title: 'Overview', duration: '3:45' }, { title: 'Connection Mapping', duration: '5:20' }] },
-  '4': { title: 'Predictive Maintenance', chapters: [{ title: 'AI Models', duration: '4:30' }, { title: 'RCA Analysis', duration: '6:00' }] },
-  '5': { title: 'BIA Impact Analysis', chapters: [{ title: 'Scoring Rules', duration: '5:15' }, { title: 'Dependencies', duration: '7:00' }] },
-  '6': { title: 'System Administration', chapters: [{ title: 'User Management', duration: '4:45' }, { title: 'Role Permissions', duration: '6:20' }] },
+const VIDEO_DATA: Record<string, { titleKey: string; chapters: { titleKey: string; duration: string }[] }> = {
+  '1': { titleKey: 'video_player.video_title_1', chapters: [{ titleKey: 'video_player.chapter_introduction', duration: '3:20' }, { titleKey: 'video_player.chapter_creating_assets', duration: '5:10' }, { titleKey: 'video_player.chapter_asset_lifecycle', duration: '8:45' }] },
+  '2': { titleKey: 'video_player.video_title_2', chapters: [{ titleKey: 'video_player.chapter_scanning_basics', duration: '4:00' }, { titleKey: 'video_player.chapter_qr_code_scanning', duration: '6:30' }, { titleKey: 'video_player.chapter_discrepancy_handling', duration: '7:15' }] },
+  '3': { titleKey: 'video_player.video_title_3', chapters: [{ titleKey: 'video_player.chapter_overview', duration: '3:45' }, { titleKey: 'video_player.chapter_connection_mapping', duration: '5:20' }] },
+  '4': { titleKey: 'video_player.video_title_4', chapters: [{ titleKey: 'video_player.chapter_ai_models', duration: '4:30' }, { titleKey: 'video_player.chapter_rca_analysis', duration: '6:00' }] },
+  '5': { titleKey: 'video_player.video_title_5', chapters: [{ titleKey: 'video_player.chapter_scoring_rules', duration: '5:15' }, { titleKey: 'video_player.chapter_dependencies', duration: '7:00' }] },
+  '6': { titleKey: 'video_player.video_title_6', chapters: [{ titleKey: 'video_player.chapter_user_management', duration: '4:45' }, { titleKey: 'video_player.chapter_role_permissions', duration: '6:20' }] },
 };
 
-const tags = ['HARDWARE MAINTENANCE', 'SOP COMPLIANCE', 'TIER 3 TRAINING'];
+const TAG_KEYS = ['video_player.tag_hardware_maintenance', 'video_player.tag_sop_compliance', 'video_player.tag_tier3_training'];
 
 export default function VideoPlayer() {
   const { t } = useTranslation();
@@ -80,10 +80,10 @@ export default function VideoPlayer() {
           {/* Module Label */}
           <div>
             <p className="text-xs text-on-surface-variant tracking-widest uppercase font-semibold mb-2">
-              {t('video_player.section_rack_operations')} <span className="text-primary">&bull;</span> Module 04
+              {t('video_player.section_rack_operations')} <span className="text-primary">&bull;</span> {t('video_player.module_label', { num: '04' })}
             </p>
             <h2 className="font-headline font-bold text-3xl text-on-surface leading-tight mb-4">
-              {currentVideo.title}
+              {t(currentVideo.titleKey)}
             </h2>
             <p className="text-on-surface-variant text-sm leading-relaxed max-w-2xl mb-6">
               {t('video_player.video_description')}
@@ -102,12 +102,12 @@ export default function VideoPlayer() {
 
             {/* Tags */}
             <div className="flex flex-wrap gap-2 mb-6">
-              {tags.map((tag) => (
+              {TAG_KEYS.map((tagKey) => (
                 <span
-                  key={tag}
+                  key={tagKey}
                   className="bg-surface-container-high px-3 py-1.5 rounded-lg text-[0.625rem] font-semibold tracking-widest text-on-surface-variant uppercase"
                 >
-                  {tag}
+                  {t(tagKey)}
                 </span>
               ))}
             </div>
@@ -143,10 +143,10 @@ export default function VideoPlayer() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-[0.625rem] text-on-surface-variant tracking-widest uppercase mb-0.5">
-                          Chapter {String(idx + 1).padStart(2, '0')}
+                          {t('video_player.chapter_label', { num: String(idx + 1).padStart(2, '0') })}
                         </p>
                         <p className="text-sm font-medium truncate text-on-surface">
-                          {ch.title}
+                          {t(ch.titleKey)}
                         </p>
                       </div>
                     </div>
@@ -161,7 +161,7 @@ export default function VideoPlayer() {
           <div className="bg-surface-container rounded-2xl p-6">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-on-surface-variant tracking-wider uppercase font-semibold">{t('video_player.section_course_completion')}</p>
-              <span className="text-on-surface-variant text-sm font-bold">Not Started</span>
+              <span className="text-on-surface-variant text-sm font-bold">{t('video_player.status_not_started')}</span>
             </div>
             <div className="h-2 bg-surface-container-low rounded-full overflow-hidden">
               <div className="h-full bg-primary rounded-full transition-all" style={{ width: '0%' }} />

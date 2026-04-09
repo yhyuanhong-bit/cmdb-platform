@@ -8,7 +8,11 @@ import { useAuditEvents } from "../hooks/useAudit";
    Constants
    ────────────────────────────────────────────── */
 
-const TABS = ["Real-time", "Historical", "Archived"] as const;
+const TAB_KEYS = [
+  { key: "Real-time", i18n: "audit.tabs_realtime" },
+  { key: "Historical", i18n: "audit.tabs_historical" },
+  { key: "Archived", i18n: "audit.tabs_archived" },
+] as const;
 
 const ACTION_COLORS: Record<string, string> = {
   create: "bg-[#69db7c]/20 text-[#69db7c]",
@@ -17,8 +21,12 @@ const ACTION_COLORS: Record<string, string> = {
   default: "bg-[#ffa94d]/20 text-[#ffa94d]",
 };
 
-const EVENT_TYPES = ["All Events", "Maintenance", "Resource Alert", "Tag Update", "Deploy"];
-const USERS = ["All Users"];
+const EVENT_TYPE_KEYS = [
+  { value: "Maintenance", i18n: "audit.filter_maintenance" },
+  { value: "Resource Alert", i18n: "audit.filter_resource_alert" },
+  { value: "Tag Update", i18n: "audit.filter_tag_update" },
+  { value: "Deploy", i18n: "audit.filter_deploy" },
+];
 
 /* ──────────────────────────────────────────────
    Small reusable pieces
@@ -131,7 +139,7 @@ function AuditHistory() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <span className="material-symbols-outlined text-error text-4xl">error</span>
-        <p className="text-error text-sm">Failed to load audit events</p>
+        <p className="text-error text-sm">{t('audit.failed_to_load')}</p>
       </div>
     );
   }
@@ -143,15 +151,15 @@ function AuditHistory() {
         aria-label="Breadcrumb"
         className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-on-surface-variant"
       >
-        {["ASSETS", "AUDIT HISTORY"].map((crumb, i, arr) => (
-          <span key={crumb} className="flex items-center gap-1.5">
+        {[{ label: t('audit.breadcrumb_assets'), nav: '/assets' }, { label: t('audit.breadcrumb_audit_history'), nav: '' }].map((crumb, i, arr) => (
+          <span key={crumb.label} className="flex items-center gap-1.5">
             <span
               className="cursor-pointer transition-colors hover:text-primary"
               onClick={() => {
-                if (crumb === "ASSETS") navigate('/assets');
+                if (crumb.nav) navigate(crumb.nav);
               }}
             >
-              {crumb}
+              {crumb.label}
             </span>
             {i < arr.length - 1 && (
               <Icon name="chevron_right" className="text-[14px] opacity-40" />
@@ -162,18 +170,18 @@ function AuditHistory() {
 
       {/* ── Tabs ── */}
       <div className="flex gap-1 rounded-lg bg-surface-container-low p-1">
-        {TABS.map((tab) => (
+        {TAB_KEYS.map((tab) => (
           <button
-            key={tab}
+            key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => setActiveTab(tab.key)}
             className={`rounded-md px-5 py-2 text-xs font-semibold uppercase tracking-wider transition-colors ${
-              activeTab === tab
+              activeTab === tab.key
                 ? "bg-surface-container-highest text-on-surface"
                 : "text-on-surface-variant hover:text-on-surface"
             }`}
           >
-            {tab}
+            {t(tab.i18n)}
           </button>
         ))}
       </div>
@@ -191,7 +199,7 @@ function AuditHistory() {
             <div className="mt-1 flex items-center gap-3">
               <span className="inline-flex items-center gap-1.5 rounded bg-[#69db7c]/15 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[#69db7c]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#69db7c]" />
-                Operational
+                {t('audit.status_operational')}
               </span>
               <span className="text-xs text-on-surface-variant">
                 {t('audit.last_heartbeat')}: <span className="font-semibold text-on-surface">2m {t('audit.ago')}</span>
@@ -247,9 +255,9 @@ function AuditHistory() {
           onChange={e => setEventTypeFilter(e.target.value)}
           className="appearance-none rounded-md bg-surface-container-low px-3 py-2 text-xs font-medium text-on-surface-variant outline-none"
         >
-          <option value="">All Events</option>
-          {EVENT_TYPES.filter(t => t !== 'All Events').map((t) => (
-            <option key={t} value={t}>{t}</option>
+          <option value="">{t('audit.all_events')}</option>
+          {EVENT_TYPE_KEYS.map((et) => (
+            <option key={et.value} value={et.value}>{t(et.i18n)}</option>
           ))}
         </select>
 
@@ -259,10 +267,7 @@ function AuditHistory() {
           onChange={e => setUserFilter(e.target.value)}
           className="appearance-none rounded-md bg-surface-container-low px-3 py-2 text-xs font-medium text-on-surface-variant outline-none"
         >
-          <option value="">All Users</option>
-          {USERS.filter(u => u !== 'All Users').map((u) => (
-            <option key={u} value={u}>{u}</option>
-          ))}
+          <option value="">{t('audit.all_users')}</option>
         </select>
 
         {/* Date range */}
@@ -380,22 +385,22 @@ function AuditHistory() {
         <InfoBlock
           icon="memory"
           title={t('audit.cpu_architecture')}
-          lines={["Intel Xeon E5-2690 v4", "2 Sockets / 28 Cores / 56 Threads", "Base Clock: 2.60 GHz"]}
+          lines={[t('audit.info_cpu_line1'), t('audit.info_cpu_line2'), t('audit.info_cpu_line3')]}
         />
         <InfoBlock
           icon="storage"
           title={t('audit.storage_metrics')}
-          lines={["4x 1.8TB SAS 10K RPM", "RAID-10 Configuration", "Usable Capacity: 3.2 TB (62% used)"]}
+          lines={[t('audit.info_storage_line1'), t('audit.info_storage_line2'), t('audit.info_storage_line3')]}
         />
         <InfoBlock
           icon="lan"
           title={t('audit.network_stack')}
-          lines={["2x 10GbE Bonded (LACP)", "VLAN 220 — Production Tier", "MTU: 9000 (Jumbo Frames)"]}
+          lines={[t('audit.info_network_line1'), t('audit.info_network_line2'), t('audit.info_network_line3')]}
         />
         <InfoBlock
           icon="verified_user"
           title={t('audit.compliance')}
-          lines={["SOC2 Type II — Compliant", "PCI-DSS v3.2.1 — Scope: Yes", "Last Audit: 2023-09-14"]}
+          lines={[t('audit.info_compliance_line1'), t('audit.info_compliance_line2'), t('audit.info_compliance_line3')]}
         />
       </div>
 

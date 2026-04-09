@@ -1,4 +1,3 @@
-import { toast } from 'sonner'
 import { memo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -423,11 +422,11 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
             />
             <div className="flex items-center justify-between mt-3">
               <div className="flex items-center gap-3">
-                <button onClick={() => toast.info('Upload: Coming Soon')} className="text-xs text-on-surface-variant font-label flex items-center gap-1 hover:text-primary transition-colors">
+                <button disabled title="File upload coming in next release" className="text-xs text-on-surface-variant font-label flex items-center gap-1 opacity-50 cursor-not-allowed">
                   <Icon name="attach_file" className="text-sm" />
                   {t('inventory_detail.attach')}
                 </button>
-                <button onClick={() => toast.info('Upload: Coming Soon')} className="text-xs text-on-surface-variant font-label flex items-center gap-1 hover:text-primary transition-colors">
+                <button disabled title="File upload coming in next release" className="text-xs text-on-surface-variant font-label flex items-center gap-1 opacity-50 cursor-not-allowed">
                   <Icon name="photo_camera" className="text-sm" />
                   {t('inventory_detail.photo')}
                 </button>

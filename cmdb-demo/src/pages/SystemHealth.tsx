@@ -103,10 +103,10 @@ function SystemHealth() {
   const { data: alertsResponse, isLoading: alertsLoading } = useAlerts({ severity: 'critical' });
   const criticalAlerts = alertsResponse?.data ?? [];
   const { data: healthResponse } = useSystemHealth();
-  const health = healthResponse?.data;
+  const health = (healthResponse as any)?.data;
   const dbStatus = health?.database?.status ?? 'unknown';
-  const dbLatency = health?.database?.latency_ms;
-  const { data: assetsResp } = useAssets({ page_size: 1 });
+  const dbLatency = String(health?.database?.latency_ms ?? '');
+  const { data: assetsResp } = useAssets({ page_size: '1' });
   const totalAssets = (assetsResp as any)?.pagination?.total || 0;
 
   const criticalCount = criticalAlerts.length;

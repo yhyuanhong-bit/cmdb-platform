@@ -57,13 +57,21 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*dbgen.InventoryTa
 	return &task, nil
 }
 
-// ListItems returns all items for a given inventory task.
-func (s *Service) ListItems(ctx context.Context, taskID uuid.UUID) ([]dbgen.InventoryItem, error) {
-	items, err := s.queries.ListInventoryItems(ctx, taskID)
+// ListItems returns a paginated list of items for a given inventory task and the total count.
+func (s *Service) ListItems(ctx context.Context, taskID uuid.UUID, limit, offset int32) ([]dbgen.InventoryItem, int64, error) {
+	items, err := s.queries.ListInventoryItems(ctx, dbgen.ListInventoryItemsParams{
+		TaskID: taskID,
+		Limit:  limit,
+		Offset: offset,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("list inventory items: %w", err)
+		return nil, 0, fmt.Errorf("list inventory items: %w", err)
 	}
-	return items, nil
+	total, err := s.queries.CountInventoryItems(ctx, taskID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count inventory items: %w", err)
+	}
+	return items, total, nil
 }
 
 // Create creates a new inventory task.

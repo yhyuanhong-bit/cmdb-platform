@@ -7,36 +7,36 @@ import { useTranslation } from "react-i18next";
    ────────────────────────────────────────────── */
 
 const ONBOARDING_TABS = [
-  { id: "welcome", label: "Welcome" },
-  { id: "connect", label: "Connect" },
-  { id: "analyze", label: "Analyze" },
-  { id: "secure", label: "Secure" },
-  { id: "finish", label: "Finish" },
+  { id: "welcome", i18n: "welcome.tabs_welcome" },
+  { id: "connect", i18n: "welcome.tabs_connect" },
+  { id: "analyze", i18n: "welcome.tabs_analyze" },
+  { id: "secure", i18n: "welcome.tabs_secure" },
+  { id: "finish", i18n: "welcome.tabs_finish" },
 ];
 
-const TAB_CONTENT: Record<string, { title: string; desc: string; icon: string }[]> = {
+const TAB_CONTENT: Record<string, { titleKey: string; descKey: string; icon: string }[]> = {
   welcome: [
-    { title: 'Enterprise CMDB', desc: 'Unified asset management across all data centers', icon: 'dns' },
-    { title: 'AIOps Intelligence', desc: 'AI-driven root cause analysis and predictive maintenance', icon: 'psychology' },
-    { title: 'Real-time Monitoring', desc: 'WebSocket-powered live dashboards and alerts', icon: 'monitoring' },
+    { titleKey: 'welcome.card_enterprise_cmdb', descKey: 'welcome.card_enterprise_cmdb_desc', icon: 'dns' },
+    { titleKey: 'welcome.card_aiops_intelligence', descKey: 'welcome.card_aiops_intelligence_desc', icon: 'psychology' },
+    { titleKey: 'welcome.card_realtime_monitoring', descKey: 'welcome.card_realtime_monitoring_desc', icon: 'monitoring' },
   ],
   connect: [
-    { title: 'Auto-Discovery', desc: 'VMware, SNMP, and manual import support', icon: 'cable' },
-    { title: 'API Integration', desc: 'REST API + Webhook for external system connections', icon: 'api' },
-    { title: 'MCP Server', desc: 'AI tool integration via Model Context Protocol', icon: 'smart_toy' },
+    { titleKey: 'welcome.card_auto_discovery', descKey: 'welcome.card_auto_discovery_desc', icon: 'cable' },
+    { titleKey: 'welcome.card_api_integration', descKey: 'welcome.card_api_integration_desc', icon: 'api' },
+    { titleKey: 'welcome.card_mcp_server', descKey: 'welcome.card_mcp_server_desc', icon: 'smart_toy' },
   ],
   analyze: [
-    { title: 'BIA Impact Analysis', desc: 'Business system tier scoring with RTO/RPO tracking', icon: 'assessment' },
-    { title: 'Data Quality', desc: 'Four-dimension automated quality scoring engine', icon: 'verified' },
-    { title: 'Predictive AI', desc: 'Failure prediction and root cause analysis models', icon: 'analytics' },
+    { titleKey: 'welcome.card_bia_impact', descKey: 'welcome.card_bia_impact_desc', icon: 'assessment' },
+    { titleKey: 'welcome.card_data_quality', descKey: 'welcome.card_data_quality_desc', icon: 'verified' },
+    { titleKey: 'welcome.card_predictive_ai', descKey: 'welcome.card_predictive_ai_desc', icon: 'analytics' },
   ],
   secure: [
-    { title: 'RBAC Access Control', desc: 'Role-based permission management for all operations', icon: 'admin_panel_settings' },
-    { title: 'Audit Trail', desc: 'Automatic logging of every write operation', icon: 'history' },
-    { title: 'Change Audit', desc: 'Critical asset changes auto-create review work orders', icon: 'fact_check' },
+    { titleKey: 'welcome.card_rbac', descKey: 'welcome.card_rbac_desc', icon: 'admin_panel_settings' },
+    { titleKey: 'welcome.card_audit_trail', descKey: 'welcome.card_audit_trail_desc', icon: 'history' },
+    { titleKey: 'welcome.card_change_audit', descKey: 'welcome.card_change_audit_desc', icon: 'fact_check' },
   ],
   finish: [
-    { title: 'Ready to Go', desc: 'Your CMDB platform is fully configured', icon: 'rocket_launch' },
+    { titleKey: 'welcome.card_ready_to_go', descKey: 'welcome.card_ready_to_go_desc', icon: 'rocket_launch' },
   ],
 };
 
@@ -86,7 +86,7 @@ const Welcome = memo(function Welcome() {
                     : "text-[#6b7b8d] hover:text-[#2a2f32]"
                 }`}
               >
-                {tab.label}
+                {t(tab.i18n)}
                 {tab.id === activeTab && (
                   <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-[#005f98] rounded-full" />
                 )}
@@ -154,10 +154,10 @@ const Welcome = memo(function Welcome() {
                   />
                 </div>
                 <h3 className="text-sm font-semibold text-[#2a2f32] font-[Manrope]">
-                  {card.title}
+                  {t(card.titleKey)}
                 </h3>
                 <p className="text-xs text-[#6b7b8d] leading-relaxed">
-                  {card.desc}
+                  {t(card.descKey)}
                 </p>
               </div>
             ))}

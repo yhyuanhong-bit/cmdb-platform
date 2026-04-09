@@ -1577,6 +1577,8 @@ paths:
       summary: List items in an inventory task
       parameters:
         - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
       responses:
         '200':
           description: Inventory items
@@ -1589,6 +1591,8 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/InventoryItem'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
                   meta:
                     $ref: '#/components/schemas/Meta'
         '401':

@@ -320,7 +320,7 @@ export default function BIAOverview() {
                     { labelKey: 'bia_overview.audit_compliant', count: stats.audit_compliant, icon: 'verified_user' },
                   ].map((item) => (
                     <div
-                      key={item.label}
+                      key={item.labelKey}
                       className="flex items-center justify-between rounded-lg bg-surface-container-low px-3 py-2"
                     >
                       <div className="flex items-center gap-2">

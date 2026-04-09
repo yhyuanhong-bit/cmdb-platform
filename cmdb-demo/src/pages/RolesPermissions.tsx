@@ -25,7 +25,7 @@ const ROLE_ICONS: Record<string, string> = {
 
 interface PermissionRow {
   key: string;
-  label: string;
+  i18n: string;
   icon: string;
   view: boolean;
   edit: boolean;
@@ -34,14 +34,19 @@ interface PermissionRow {
 }
 
 const PERM_SCOPES = [
-  { key: "asset", label: "Asset Management", icon: "dns" },
-  { key: "stock", label: "Stock & Inventory", icon: "inventory_2" },
-  { key: "monitor", label: "System Monitoring", icon: "monitor_heart" },
-  { key: "config", label: "System Configuration", icon: "settings" },
-  { key: "compliance", label: "Compliance Audit", icon: "verified_user" },
+  { key: "asset", i18n: "roles.asset_management", icon: "dns" },
+  { key: "stock", i18n: "roles.stock_inventory", icon: "inventory_2" },
+  { key: "monitor", i18n: "roles.system_monitoring", icon: "monitor_heart" },
+  { key: "config", i18n: "roles.system_configuration", icon: "settings" },
+  { key: "compliance", i18n: "roles.compliance_audit", icon: "verified_user" },
 ];
 
-const PERM_COLS = ["View", "Edit", "Delete", "Export"] as const;
+const PERM_COL_KEYS = [
+  { key: "view" as const, i18n: "roles.perm_view" },
+  { key: "edit" as const, i18n: "roles.perm_edit" },
+  { key: "delete" as const, i18n: "roles.perm_delete" },
+  { key: "export" as const, i18n: "roles.perm_export" },
+];
 
 /* ──────────────────────────────────────────────
    Small reusable pieces
@@ -132,7 +137,7 @@ function RolesPermissions() {
         const perms = apiRole.permissions[scope.key] ?? [];
         return {
           key: scope.key,
-          label: scope.label,
+          i18n: scope.i18n,
           icon: scope.icon,
           view: perms.includes('read') || perms.includes('view') || perms.includes('*'),
           edit: perms.includes('write') || perms.includes('edit') || perms.includes('*'),
@@ -144,7 +149,7 @@ function RolesPermissions() {
     // Fallback: all view enabled
     return PERM_SCOPES.map((scope) => ({
       key: scope.key,
-      label: scope.label,
+      i18n: scope.i18n,
       icon: scope.icon,
       view: true,
       edit: false,
@@ -258,7 +263,7 @@ function RolesPermissions() {
                   <p className="text-sm font-semibold text-on-surface flex items-center">
                     {role.name}
                     {!((role as any).is_system || role.id === 'c0000000-0000-0000-0000-000000000001') && (
-                      <button onClick={(e) => { e.stopPropagation(); if(confirm('Delete this role?')) deleteRole.mutate(role.id) }}
+                      <button onClick={(e) => { e.stopPropagation(); if(confirm(t('roles.confirm_delete_role'))) deleteRole.mutate(role.id) }}
                         className="text-red-400 hover:text-red-300 text-xs ml-2">&#x2715;</button>
                     )}
                   </p>
@@ -339,12 +344,12 @@ function RolesPermissions() {
               <span className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
                 {t('roles.permission_scope')}
               </span>
-              {PERM_COLS.map((col) => (
+              {PERM_COL_KEYS.map((col) => (
                 <span
-                  key={col}
+                  key={col.key}
                   className="text-center text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant"
                 >
-                  {col}
+                  {t(col.i18n)}
                 </span>
               ))}
             </div>
@@ -359,14 +364,14 @@ function RolesPermissions() {
               >
                 <div className="flex items-center gap-3">
                   <Icon name={row.icon} className="text-lg text-on-surface-variant" />
-                  <span className="text-sm font-medium text-on-surface">{row.label}</span>
+                  <span className="text-sm font-medium text-on-surface">{t(row.i18n)}</span>
                 </div>
                 {(["view", "edit", "delete", "export"] as const).map((col) => (
                   <div key={col} className="flex justify-center">
                     <Toggle
                       checked={row[col]}
                       onChange={() => togglePerm(row.key, col)}
-                      label={`${col} ${row.label}`}
+                      label={`${col} ${t(row.i18n)}`}
                     />
                   </div>
                 ))}
@@ -410,18 +415,18 @@ function RolesPermissions() {
       {showRoleModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowRoleModal(false)}>
           <div className="bg-surface-container p-6 rounded-xl w-96 space-y-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-on-surface">Create Role</h3>
-            <input placeholder="Role Name" value={newRoleData.name}
+            <h3 className="text-lg font-bold text-on-surface">{t('roles.create_role_title')}</h3>
+            <input placeholder={t('roles.placeholder_role_name')} value={newRoleData.name}
               onChange={e => setNewRoleData(p => ({...p, name: e.target.value}))}
               className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
-            <input placeholder="Description" value={newRoleData.description}
+            <input placeholder={t('roles.placeholder_description')} value={newRoleData.description}
               onChange={e => setNewRoleData(p => ({...p, description: e.target.value}))}
               className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowRoleModal(false)} className="px-4 py-2 rounded bg-surface-container-high text-on-surface-variant">Cancel</button>
+              <button onClick={() => setShowRoleModal(false)} className="px-4 py-2 rounded bg-surface-container-high text-on-surface-variant">{t('roles.btn_cancel')}</button>
               <button onClick={() => createRole.mutate(newRoleData, { onSuccess: () => { setShowRoleModal(false); setNewRoleData({ name: '', description: '' }) } })}
                 disabled={createRole.isPending} className="px-4 py-2 rounded bg-primary text-[#001b34] font-bold disabled:opacity-50">
-                {createRole.isPending ? 'Creating...' : 'Create'}
+                {createRole.isPending ? t('roles.btn_creating') : t('roles.btn_create')}
               </button>
             </div>
           </div>

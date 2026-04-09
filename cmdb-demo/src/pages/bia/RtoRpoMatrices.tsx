@@ -112,8 +112,8 @@ function RtoRpoMatrices() {
   const { data: assessResp, isLoading: assessLoading } = useBIAAssessments()
   const { data: rulesResp, isLoading: rulesLoading } = useBIAScoringRules()
 
-  const assessments = (assessResp?.data as any)?.data || []
-  const rules = (rulesResp?.data as any)?.data || []
+  const assessments = (assessResp as any)?.data || []
+  const rules = (rulesResp as any)?.data || []
   const isLoading = assessLoading || rulesLoading
 
   return (

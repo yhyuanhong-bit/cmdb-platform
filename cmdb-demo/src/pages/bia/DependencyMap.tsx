@@ -35,21 +35,21 @@ function getBadge(tier: string) {
 function DependencyMap() {
   const { t } = useTranslation()
   const { data: assessResp, isLoading: assessLoading } = useBIAAssessments()
-  const assessments = (assessResp?.data as any)?.data || []
+  const assessments = (assessResp as any)?.data || []
 
   const [selectedId, setSelectedId] = useState('')
   const { data: depsResp, isLoading: depsLoading } = useBIADependencies(selectedId)
-  const deps = (depsResp?.data as any)?.data || []
+  const deps = (depsResp as any)?.data || []
 
   const { data: assetsResp } = useAssets()
-  const assets = (assetsResp?.data as any)?.data || []
+  const assets = (assetsResp as any)?.data || []
 
   const createDep = useCreateBIADependency()
 
   const [showModal, setShowModal] = useState(false)
   const [newDep, setNewDep] = useState({ asset_id: '', dependency_type: 'runs_on', criticality: 'medium' })
 
-  const selectedAssessment = assessments.find((a) => a.id === selectedId)
+  const selectedAssessment = assessments.find((a: any) => a.id === selectedId)
 
   function handleAddDependency() {
     if (!selectedId || !newDep.asset_id) return
@@ -65,7 +65,7 @@ function DependencyMap() {
   }
 
   // Map asset IDs to names for display
-  const assetNameMap = new Map(assets.map((a) => [a.id, a.name || a.id]))
+  const assetNameMap = new Map(assets.map((a: any) => [a.id, a.name || a.id]))
 
   return (
     <div className="space-y-6">
@@ -93,7 +93,7 @@ function DependencyMap() {
           {assessLoading ? (
             <option disabled>{t('bia_deps.loading')}</option>
           ) : (
-            assessments.map((a) => (
+            assessments.map((a: any) => (
               <option key={a.id} value={a.id}>
                 {a.system_name} ({a.tier})
               </option>
@@ -164,7 +164,7 @@ function DependencyMap() {
                   </tr>
                 </thead>
                 <tbody>
-                  {deps.map((dep) => (
+                  {deps.map((dep: any) => (
                     <tr key={dep.id} className="border-b border-outline-variant/30 hover:bg-surface-container-high/40 transition-colors">
                       <td className="py-2.5 px-3 text-on-surface font-medium">
                         {assetNameMap.get(dep.asset_id) || dep.asset_id}
@@ -212,7 +212,7 @@ function DependencyMap() {
                   className="w-full rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary"
                 >
                   <option value="">{t('bia_deps.placeholder_select_asset')}</option>
-                  {assets.map((a) => (
+                  {assets.map((a: any) => (
                     <option key={a.id} value={a.id}>{a.name || a.id}</option>
                   ))}
                 </select>

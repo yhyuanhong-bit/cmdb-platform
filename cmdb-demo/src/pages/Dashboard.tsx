@@ -179,7 +179,7 @@ function Dashboard() {
 
   // Fetch BIA stats for compliance card and distribution chart
   const { data: biaResp } = useBIAStats();
-  const biaStats = biaResp?.data;
+  const biaStats = (biaResp as any)?.data;
 
   // Derive BIA distribution from aggregated /bia/stats endpoint (by_tier counts)
   // instead of fetching all assets and counting client-side.

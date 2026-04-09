@@ -1524,15 +1524,28 @@ func (s *APIServer) GetInventoryTask(c *gin.Context, id IdPath) {
 	response.OK(c, toAPIInventoryTask(*task))
 }
 
-// ListInventoryItems returns all items in an inventory task.
+// ListInventoryItems returns a paginated list of items in an inventory task.
 // (GET /inventory/tasks/{id}/items)
 func (s *APIServer) ListInventoryItems(c *gin.Context, id IdPath) {
-	items, err := s.inventorySvc.ListItems(c.Request.Context(), uuid.UUID(id))
+	var pg, pgs *int
+	if p := c.Query("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil {
+			pg = &v
+		}
+	}
+	if ps := c.Query("page_size"); ps != "" {
+		if v, err := strconv.Atoi(ps); err == nil {
+			pgs = &v
+		}
+	}
+	page, pageSize, limit, offset := paginationDefaults(pg, pgs)
+
+	items, total, err := s.inventorySvc.ListItems(c.Request.Context(), uuid.UUID(id), limit, offset)
 	if err != nil {
 		response.InternalError(c, "failed to list inventory items")
 		return
 	}
-	response.OK(c, convertSlice(items, toAPIInventoryItem))
+	response.OKList(c, convertSlice(items, toAPIInventoryItem), page, pageSize, int(total))
 }
 
 // CreateInventoryTask creates a new inventory task.

@@ -150,14 +150,32 @@ func (q *Queries) GetInventoryTask(ctx context.Context, id uuid.UUID) (Inventory
 	return i, err
 }
 
+const countInventoryItems = `-- name: CountInventoryItems :one
+SELECT count(*) FROM inventory_items WHERE task_id = $1
+`
+
+func (q *Queries) CountInventoryItems(ctx context.Context, taskID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countInventoryItems, taskID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const listInventoryItems = `-- name: ListInventoryItems :many
 SELECT id, task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by FROM inventory_items
 WHERE task_id = $1
 ORDER BY status, scanned_at
+LIMIT $2 OFFSET $3
 `
 
-func (q *Queries) ListInventoryItems(ctx context.Context, taskID uuid.UUID) ([]InventoryItem, error) {
-	rows, err := q.db.Query(ctx, listInventoryItems, taskID)
+type ListInventoryItemsParams struct {
+	TaskID uuid.UUID `json:"task_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
+}
+
+func (q *Queries) ListInventoryItems(ctx context.Context, arg ListInventoryItemsParams) ([]InventoryItem, error) {
+	rows, err := q.db.Query(ctx, listInventoryItems, arg.TaskID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

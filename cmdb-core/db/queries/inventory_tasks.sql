@@ -18,7 +18,11 @@ SELECT * FROM inventory_tasks WHERE id = $1;
 -- name: ListInventoryItems :many
 SELECT * FROM inventory_items
 WHERE task_id = $1
-ORDER BY status, scanned_at;
+ORDER BY status, scanned_at
+LIMIT $2 OFFSET $3;
+
+-- name: CountInventoryItems :one
+SELECT count(*) FROM inventory_items WHERE task_id = $1;
 
 -- name: CreateInventoryTask :one
 INSERT INTO inventory_tasks (tenant_id, code, name, scope_location_id, status, method, planned_date, assigned_to)

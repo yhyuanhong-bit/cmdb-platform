@@ -28,4 +28,6 @@ export const inventoryApi = {
   update: (id: string, data: Record<string, unknown>) =>
     apiClient.put<ApiResponse<InventoryTask>>(`/inventory/tasks/${id}`, data),
   delete: (id: string) => apiClient.del(`/inventory/tasks/${id}`),
+  resolve: (taskId: string, itemId: string, data: { action: string; note?: string }) =>
+    apiClient.post(`/inventory/tasks/${taskId}/items/${itemId}/resolve`, data),
 }

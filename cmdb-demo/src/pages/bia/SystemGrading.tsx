@@ -23,9 +23,9 @@ function SystemGrading() {
   const { data: statsResp, isLoading: statsLoading } = useBIAStats()
   const { data: assessResp, isLoading: assessLoading } = useBIAAssessments()
 
-  const stats = (statsResp?.data as any)?.data
+  const stats = (statsResp as any)?.data
   const assessments = useMemo(() => {
-    const list = (assessResp?.data as any)?.data || []
+    const list = (assessResp as any)?.data || []
     return [...list].sort((a, b) => b.bia_score - a.bia_score)
   }, [assessResp])
 
@@ -56,7 +56,7 @@ function SystemGrading() {
       {/* Stats Row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => (
-          <div key={card.label} className="rounded-lg bg-surface-container p-5">
+          <div key={card.labelKey} className="rounded-lg bg-surface-container p-5">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant">{t(card.labelKey)}</span>
               <Icon name={card.icon} className={`text-xl ${card.color}`} />
@@ -85,10 +85,10 @@ function SystemGrading() {
                 <div className="flex-1 h-6 rounded bg-surface-container-low">
                   <div
                     className={`h-6 rounded ${getTierStyle(tier).bg}`}
-                    style={{ width: `${total > 0 ? (count / total) * 100 : 0}%` }}
+                    style={{ width: `${total > 0 ? ((count as number) / total) * 100 : 0}%` }}
                   />
                 </div>
-                <span className="w-8 text-sm font-bold text-on-surface">{count}</span>
+                <span className="w-8 text-sm font-bold text-on-surface">{String(count)}</span>
               </div>
             ))}
           </div>

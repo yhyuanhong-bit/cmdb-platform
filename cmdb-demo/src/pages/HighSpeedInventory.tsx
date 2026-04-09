@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx'
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { useInventoryTasks, useCompleteTask, useImportInventoryItems, useDeleteInventoryTask } from "../hooks/useInventory";
+import { useInventoryTasks, useCompleteTask, useImportInventoryItems, useDeleteInventoryTask, useResolveDiscrepancy } from "../hooks/useInventory";
 import CreateInventoryTaskModal from "../components/CreateInventoryTaskModal";
 import { apiClient } from "../lib/api/client";
 import { useLocationContext } from "../contexts/LocationContext";
@@ -64,6 +64,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   const completeTask = useCompleteTask()
   const importItems = useImportInventoryItems()
   const deleteTask = useDeleteInventoryTask()
+  const resolveDiscrepancy = useResolveDiscrepancy()
   const { data: tasksResponse, isLoading } = useInventoryTasks(
     locationId ? { scope_location_id: locationId } : undefined
   );
@@ -167,6 +168,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   const discrepanciesRaw = (discrepancyData as any)?.discrepancies ?? [];
   // Map API discrepancy data to display format
   const DISCREPANCIES = discrepanciesRaw.map((d: any) => ({
+    itemId: d.id,
     id: d.asset_name ?? d.asset_tag ?? d.id,
     location: [d.rack_name, d.location_name].filter(Boolean).join(" / "),
     issue: `Serial: ${d.serial_number ?? "—"} · Tag: ${d.asset_tag ?? "—"}`,
@@ -231,7 +233,36 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
             <Icon name="edit" className="text-lg" />
             {t('inventory.manual_qr')}
           </button>
-          <button onClick={() => toast.info('Report: Coming Soon')} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
+          <button onClick={() => {
+            if (!currentTask) { toast.info(t('inventory.no_active_task')); return }
+            fetch(`/api/v1/inventory/tasks/${currentTask.id}/items?page_size=10000`)
+              .then(r => r.json())
+              .then(json => {
+                const items = json.data ?? []
+                if (items.length === 0) { toast.info(t('inventory.no_items_to_export')); return }
+                const headers = ['asset_tag', 'serial_number', 'status', 'scanned_at', 'rack_id']
+                const rows = items.map((item: any) => {
+                  const exp = item.expected ?? {}
+                  return [
+                    exp.asset_tag ?? '',
+                    exp.serial_number ?? '',
+                    item.status ?? '',
+                    item.scanned_at ?? '',
+                    item.rack_id ?? '',
+                  ].join(',')
+                })
+                const csv = [headers.join(','), ...rows].join('\n')
+                const blob = new Blob([csv], { type: 'text/csv' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `inventory-report-${currentTask.code}.csv`
+                a.click()
+                URL.revokeObjectURL(url)
+                toast.success(t('inventory.report_exported'))
+              })
+              .catch(() => toast.error(t('inventory.export_failed')))
+          }} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
             <Icon name="summarize" className="text-lg" />
             {t('inventory.generate_report')}
           </button>
@@ -508,7 +539,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
                   </div>
                   <div className="shrink-0">
                     {d.type === "status_mismatch" && !d.resolved && (
-                      <button onClick={(e) => { e.stopPropagation(); toast.info('Coming Soon'); }} className="bg-tertiary-container text-tertiary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
+                      <button onClick={(e) => { e.stopPropagation(); if (currentTaskId && d.itemId) { resolveDiscrepancy.mutate({ taskId: currentTaskId, itemId: d.itemId, data: { action: 'verify' } }, { onSuccess: () => toast.success(t('inventory.discrepancy_resolved')) }); } }} disabled={resolveDiscrepancy.isPending} className="bg-tertiary-container text-tertiary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap disabled:opacity-50">
                         {t('inventory.verify_volume')}
                       </button>
                     )}
@@ -518,12 +549,12 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
                       </span>
                     )}
                     {d.type === "scan_mismatch" && !d.resolved && (
-                      <button onClick={(e) => { e.stopPropagation(); toast.info('Coming Soon'); }} className="bg-error-container text-error text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
+                      <button onClick={(e) => { e.stopPropagation(); if (currentTaskId && d.itemId) { resolveDiscrepancy.mutate({ taskId: currentTaskId, itemId: d.itemId, data: { action: 'add_findings' } }, { onSuccess: () => toast.success(t('inventory.discrepancy_resolved')) }); } }} disabled={resolveDiscrepancy.isPending} className="bg-error-container text-error text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap disabled:opacity-50">
                         {t('inventory.add_to_findings')}
                       </button>
                     )}
                     {d.type === "unregistered" && !d.resolved && (
-                      <button onClick={(e) => { e.stopPropagation(); toast.info('Coming Soon'); }} className="bg-primary-container text-primary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap">
+                      <button onClick={(e) => { e.stopPropagation(); if (currentTaskId && d.itemId) { resolveDiscrepancy.mutate({ taskId: currentTaskId, itemId: d.itemId, data: { action: 'register' } }, { onSuccess: () => toast.success(t('inventory.discrepancy_resolved')) }); } }} disabled={resolveDiscrepancy.isPending} className="bg-primary-container text-primary text-[10px] font-label font-bold tracking-wider px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap disabled:opacity-50">
                         {t('inventory.register_asset')}
                       </button>
                     )}

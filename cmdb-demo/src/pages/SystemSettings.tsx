@@ -30,20 +30,20 @@ export default function SystemSettings() {
   const { data: credentialsResp } = useCredentials()
   const deleteCredential = useDeleteCredential()
 
-  const apiUsers = usersResp?.data ?? []
-  const apiRoles = rolesResp?.data ?? []
-  const health = healthResp?.data
-  const adapters = adaptersResp?.data ?? []
-  const webhooks = webhooksResp?.data ?? []
-  const credentials = credentialsResp?.data ?? []
+  const apiUsers = (usersResp as any)?.data ?? []
+  const apiRoles = (rolesResp as any)?.data ?? []
+  const health = (healthResp as any)?.data
+  const adapters = (adaptersResp as any)?.data ?? []
+  const webhooks = (webhooksResp as any)?.data ?? []
+  const credentials = (credentialsResp as any)?.data ?? []
 
   // Map API users to display format
-  const users = apiUsers.map(u => ({
+  const users = apiUsers.map((u: any) => ({
     name: u.display_name,
     role: u.source ?? 'local',
     region: 'TW',
     status: u.status === 'active' ? 'Active' : 'Inactive',
-    avatar: u.display_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+    avatar: u.display_name.split(' ').map((w: any) => w[0]).join('').slice(0, 2).toUpperCase(),
   }))
 
   // Map health check to display format
@@ -65,7 +65,7 @@ export default function SystemSettings() {
           className="cursor-pointer transition-colors hover:text-primary"
           onClick={() => navigate('/system')}
         >
-          系統
+          {t('system_settings.breadcrumb_system')}
         </span>
         <span className="text-[10px] opacity-40" aria-hidden="true">›</span>
         <span className="text-on-surface font-semibold">{t('system_settings.title_zh')}</span>
@@ -104,7 +104,7 @@ export default function SystemSettings() {
               ? t('system_settings.tab_security')
               : tab === 'integrations'
               ? t('system_settings.tab_integrations')
-              : 'Credentials'}
+              : t('system_settings.tab_credentials')}
           </button>
         ))}
       </div>
@@ -112,26 +112,26 @@ export default function SystemSettings() {
       {activeTab === 'credentials' ? (
         <div className="bg-surface-container rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-headline font-bold text-lg text-on-surface">Credentials</h2>
+            <h2 className="font-headline font-bold text-lg text-on-surface">{t('system_settings.section_credentials')}</h2>
             <button
               onClick={() => { setEditingCredential(null); setShowCreateCredential(true) }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
-              Add Credential
+              {t('system_settings.btn_add_credential')}
             </button>
           </div>
 
           {/* Table header */}
           <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-3 px-3 py-2 mb-1">
-            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">Name</span>
-            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">Type</span>
-            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">Created</span>
-            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">Actions</span>
+            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.col_name')}</span>
+            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.col_type')}</span>
+            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.col_created')}</span>
+            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.col_actions')}</span>
           </div>
 
           {credentials.length === 0 && (
-            <p className="text-sm text-on-surface-variant px-3 py-4">No credentials configured.</p>
+            <p className="text-sm text-on-surface-variant px-3 py-4">{t('system_settings.no_credentials')}</p>
           )}
 
           {credentials.map((cred: any, i: number) => (
@@ -155,7 +155,7 @@ export default function SystemSettings() {
                 </button>
                 <button
                   onClick={() => {
-                    if (confirm(`Delete credential "${cred.name}"?`)) {
+                    if (confirm(t('system_settings.confirm_delete_credential', { name: cred.name }))) {
                       deleteCredential.mutate(cred.id)
                     }
                   }}
@@ -172,23 +172,23 @@ export default function SystemSettings() {
           {/* Adapters */}
           <div className="bg-surface-container rounded-lg p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-headline font-bold text-lg text-on-surface">Adapters</h2>
+              <h2 className="font-headline font-bold text-lg text-on-surface">{t('system_settings.section_adapters')}</h2>
               <button
                 onClick={() => setShowCreateAdapter(true)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
               >
                 <span className="material-symbols-outlined text-[16px]">add</span>
-                Add Adapter
+                {t('system_settings.btn_add_adapter')}
               </button>
             </div>
             <div className="flex flex-col gap-2">
-              {adapters.length === 0 && <p className="text-sm text-on-surface-variant">No adapters configured.</p>}
-              {adapters.map(a => (
+              {adapters.length === 0 && <p className="text-sm text-on-surface-variant">{t('system_settings.no_adapters')}</p>}
+              {adapters.map((a: any) => (
                 <div key={a.id} className="flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3">
                   <span className="text-sm text-on-surface font-semibold">{a.name}</span>
                   <span className="text-xs text-on-surface-variant">{a.type} / {a.direction}</span>
                   <span className={`px-2.5 py-1 rounded text-[0.6875rem] font-semibold tracking-wider ${a.enabled ? 'bg-[#064e3b] text-[#34d399]' : 'bg-surface-container-highest text-on-surface-variant'}`}>
-                    {a.enabled ? 'Enabled' : 'Disabled'}
+                    {a.enabled ? t('system_settings.status_enabled') : t('system_settings.status_disabled')}
                   </span>
                 </div>
               ))}
@@ -198,18 +198,18 @@ export default function SystemSettings() {
           {/* Webhooks */}
           <div className="bg-surface-container rounded-lg p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-headline font-bold text-lg text-on-surface">Webhooks</h2>
+              <h2 className="font-headline font-bold text-lg text-on-surface">{t('system_settings.section_webhooks')}</h2>
               <button
                 onClick={() => setShowCreateWebhook(true)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
               >
                 <span className="material-symbols-outlined text-[16px]">add</span>
-                Add Webhook
+                {t('system_settings.btn_add_webhook')}
               </button>
             </div>
             <div className="flex flex-col gap-2">
-              {webhooks.length === 0 && <p className="text-sm text-on-surface-variant">No webhooks configured.</p>}
-              {webhooks.map(w => (
+              {webhooks.length === 0 && <p className="text-sm text-on-surface-variant">{t('system_settings.no_webhooks')}</p>}
+              {webhooks.map((w: any) => (
                 <div key={w.id} className="flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3">
                   <span className="text-sm text-on-surface font-semibold">{w.name}</span>
                   <span className="text-xs text-on-surface-variant truncate max-w-[200px]">{w.url}</span>
@@ -255,7 +255,7 @@ export default function SystemSettings() {
           </div>
 
           {/* Table Rows */}
-          {users.map((user, i) => (
+          {users.map((user: any, i: number) => (
             <div
               key={i}
               className={`grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 items-center px-3 py-3 rounded-lg ${
@@ -368,7 +368,7 @@ export default function SystemSettings() {
             <span className="text-xs text-on-surface-variant">{t('system_settings.footer_ldap_sync')}</span>
           </div>
         </div>
-        <span className="text-xs text-on-surface-variant">Last Sync: 2 min ago | IRONGRID V5 21.6</span>
+        <span className="text-xs text-on-surface-variant">{t('system_settings.footer_last_sync', { time: '2 min ago' })}</span>
       </div>
 
       <CreateAdapterModal open={showCreateAdapter} onClose={() => setShowCreateAdapter(false)} />
@@ -382,24 +382,24 @@ export default function SystemSettings() {
       {showUserModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowUserModal(false)}>
           <div className="bg-surface-container p-6 rounded-xl w-96 space-y-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-on-surface">Create User</h3>
-            <input placeholder="Username" value={newUserData.username}
+            <h3 className="text-lg font-bold text-on-surface">{t('system_settings.create_user_title')}</h3>
+            <input placeholder={t('system_settings.placeholder_username')} value={newUserData.username}
               onChange={e => setNewUserData(p => ({...p, username: e.target.value}))}
               className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
-            <input placeholder="Display Name" value={newUserData.display_name}
+            <input placeholder={t('system_settings.placeholder_display_name')} value={newUserData.display_name}
               onChange={e => setNewUserData(p => ({...p, display_name: e.target.value}))}
               className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
-            <input placeholder="Email" value={newUserData.email}
+            <input placeholder={t('system_settings.placeholder_email')} value={newUserData.email}
               onChange={e => setNewUserData(p => ({...p, email: e.target.value}))}
               className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
-            <input type="password" placeholder="Password" value={newUserData.password}
+            <input type="password" placeholder={t('system_settings.placeholder_password')} value={newUserData.password}
               onChange={e => setNewUserData(p => ({...p, password: e.target.value}))}
               className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowUserModal(false)} className="px-4 py-2 rounded bg-surface-container-high text-on-surface-variant">Cancel</button>
+              <button onClick={() => setShowUserModal(false)} className="px-4 py-2 rounded bg-surface-container-high text-on-surface-variant">{t('system_settings.btn_cancel')}</button>
               <button onClick={() => createUser.mutate(newUserData, { onSuccess: () => { setShowUserModal(false); setNewUserData({ username: '', display_name: '', email: '', password: '' }) } })}
                 disabled={createUser.isPending} className="px-4 py-2 rounded bg-on-primary-container text-white disabled:opacity-50">
-                {createUser.isPending ? 'Creating...' : 'Create'}
+                {createUser.isPending ? t('system_settings.btn_creating') : t('system_settings.btn_create')}
               </button>
             </div>
           </div>

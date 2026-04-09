@@ -10,7 +10,7 @@ type Category = "Surveillance" | "Training" | "Security" | "Audit" | "Testing";
 
 interface Video {
   id: number;
-  title: string;
+  titleKey: string;
   duration: string;
   date: string;
   category: Category;
@@ -20,7 +20,7 @@ interface Video {
 const VIDEOS: Video[] = [
   {
     id: 1,
-    title: "Rack A01 - Thermal Event 10/24",
+    titleKey: "video_library.video_title_1",
     duration: "02:34",
     date: "2025-10-24",
     category: "Surveillance",
@@ -28,7 +28,7 @@ const VIDEOS: Video[] = [
   },
   {
     id: 2,
-    title: "Quarterly Maintenance SOP",
+    titleKey: "video_library.video_title_2",
     duration: "15:42",
     date: "2025-11-02",
     category: "Training",
@@ -36,7 +36,7 @@ const VIDEOS: Video[] = [
   },
   {
     id: 3,
-    title: "Server Room B - Access Log",
+    titleKey: "video_library.video_title_3",
     duration: "01:15",
     date: "2025-12-08",
     category: "Security",
@@ -44,7 +44,7 @@ const VIDEOS: Video[] = [
   },
   {
     id: 4,
-    title: "Emergency Procedure Walkthrough",
+    titleKey: "video_library.video_title_4",
     duration: "08:20",
     date: "2026-01-15",
     category: "Training",
@@ -52,7 +52,7 @@ const VIDEOS: Video[] = [
   },
   {
     id: 5,
-    title: "Network Closet Inspection",
+    titleKey: "video_library.video_title_5",
     duration: "03:45",
     date: "2026-02-20",
     category: "Audit",
@@ -60,7 +60,7 @@ const VIDEOS: Video[] = [
   },
   {
     id: 6,
-    title: "UPS Failover Test Recording",
+    titleKey: "video_library.video_title_6",
     duration: "05:12",
     date: "2026-03-10",
     category: "Testing",
@@ -107,7 +107,16 @@ function Icon({ name, className = "" }: { name: string; className?: string }) {
    Video Card Components
    ────────────────────────────────────────────── */
 
+const CATEGORY_I18N: Record<Category, string> = {
+  Surveillance: "video_library.category_surveillance",
+  Training: "video_library.category_training",
+  Security: "video_library.category_security",
+  Audit: "video_library.category_audit",
+  Testing: "video_library.category_testing",
+};
+
 function VideoCardGrid({ video, index }: { video: Video; index: number }) {
+  const { t } = useTranslation();
   return (
     <div className="group rounded-lg bg-surface-container transition-colors hover:bg-surface-container-high">
       {/* Thumbnail */}
@@ -127,7 +136,7 @@ function VideoCardGrid({ video, index }: { video: Video; index: number }) {
       {/* Info */}
       <div className="p-4">
         <h3 className="mb-2 text-sm font-semibold leading-tight text-on-surface line-clamp-2">
-          {video.title}
+          {t(video.titleKey)}
         </h3>
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-on-surface-variant">
@@ -136,7 +145,7 @@ function VideoCardGrid({ video, index }: { video: Video; index: number }) {
           <span
             className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${CATEGORY_COLORS[video.category]}`}
           >
-            {video.category}
+            {t(CATEGORY_I18N[video.category])}
           </span>
         </div>
       </div>
@@ -145,6 +154,7 @@ function VideoCardGrid({ video, index }: { video: Video; index: number }) {
 }
 
 function VideoCardList({ video, index }: { video: Video; index: number }) {
+  const { t } = useTranslation();
   return (
     <div className="group flex rounded-lg bg-surface-container transition-colors hover:bg-surface-container-high">
       {/* Thumbnail */}
@@ -164,7 +174,7 @@ function VideoCardList({ video, index }: { video: Video; index: number }) {
       <div className="flex flex-1 items-center justify-between gap-4 px-5 py-3">
         <div className="min-w-0 flex-1">
           <h3 className="mb-1 truncate text-sm font-semibold text-on-surface">
-            {video.title}
+            {t(video.titleKey)}
           </h3>
           <span className="text-[10px] text-on-surface-variant">
             {video.date}
@@ -174,7 +184,7 @@ function VideoCardList({ video, index }: { video: Video; index: number }) {
           <span
             className={`rounded px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${CATEGORY_COLORS[video.category]}`}
           >
-            {video.category}
+            {t(CATEGORY_I18N[video.category])}
           </span>
           <Icon
             name={video.icon}
@@ -201,12 +211,12 @@ function VideoLibrary() {
     return VIDEOS.filter((v) => {
       const matchesSearch =
         search === "" ||
-        v.title.toLowerCase().includes(search.toLowerCase());
+        t(v.titleKey).toLowerCase().includes(search.toLowerCase());
       const matchesCategory =
         activeCategory === "All" || v.category === activeCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [search, activeCategory]);
+  }, [search, activeCategory, t]);
 
   return (
     <div className="min-h-screen space-y-6 bg-surface px-6 py-5 font-body">
@@ -215,7 +225,7 @@ function VideoLibrary() {
         aria-label="Breadcrumb"
         className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-on-surface-variant"
       >
-        {["RESOURCES", "VIDEO_LIBRARY"].map((crumb, i, arr) => (
+        {[t('video_library.breadcrumb_resources'), t('video_library.breadcrumb_video_library')].map((crumb, i, arr) => (
           <span key={crumb} className="flex items-center gap-1.5">
             <span className="cursor-pointer transition-colors hover:text-primary">
               {crumb}
@@ -309,7 +319,7 @@ function VideoLibrary() {
                 : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
             }`}
           >
-            {cat}
+            {t(CATEGORY_I18N[cat])}
           </button>
         ))}
       </div>
