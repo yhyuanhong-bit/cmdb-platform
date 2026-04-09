@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatCard from '../components/StatCard'
 import StatusBadge from '../components/StatusBadge'
-import { useWorkOrders, useTransitionWorkOrder } from '../hooks/useMaintenance'
+import { useWorkOrders, useTransitionWorkOrder, useDeleteWorkOrder } from '../hooks/useMaintenance'
 import type { WorkOrder as ApiWorkOrder } from '../lib/api/maintenance'
 
 /* ------------------------------------------------------------------ */
@@ -90,11 +90,13 @@ function WorkOrderCard({
   isSelected,
   onSelect,
   onTransition,
+  onDelete,
 }: {
   order: WorkOrderItem
   isSelected: boolean
   onSelect: () => void
   onTransition?: (id: string, status: string) => void
+  onDelete?: (id: string) => void
 }) {
   const { t } = useTranslation()
   const cardNavigate = useNavigate()
@@ -182,6 +184,20 @@ function WorkOrderCard({
           <span className="inline-flex items-center gap-1 text-xs text-error">
             <Icon name="block" className="text-[16px]" />
             {t('work_order.status_rejected')}
+          </span>
+        )}
+        {(order.status === 'WAIT' || order.status === 'REJECT') && onDelete && (
+          <span
+            className="inline-flex items-center gap-1 text-xs text-error cursor-pointer hover:underline ml-auto"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (confirm(t('work_order.confirm_delete', { id: order.id }))) {
+                onDelete(order.id)
+              }
+            }}
+          >
+            <Icon name="delete" className="text-[16px]" />
+            {t('work_order.btn_delete')}
           </span>
         )}
       </div>
@@ -291,6 +307,7 @@ export default function WorkOrder() {
   const navigate = useNavigate()
   const { data: woResponse, isLoading, error } = useWorkOrders()
   const transition = useTransitionWorkOrder()
+  const deleteWO = useDeleteWorkOrder()
   const apiOrders: ApiWorkOrder[] = woResponse?.data ?? []
   const WORK_ORDERS = useMemo(() => apiOrders.map(toWorkOrderItem), [apiOrders])
   const [activeTab, setActiveTab] = useState('all')
@@ -409,6 +426,14 @@ export default function WorkOrder() {
                 const apiOrder = apiOrders.find((o) => o.code === id || o.id === id)
                 if (apiOrder) {
                   transition.mutate({ id: apiOrder.id, data: { status, comment: '' } })
+                }
+              }}
+              onDelete={(id) => {
+                const apiOrder = apiOrders.find((o) => o.code === id || o.id === id)
+                if (apiOrder) {
+                  deleteWO.mutate(apiOrder.id, {
+                    onSuccess: () => toast.success(t('work_order.delete_success')),
+                  })
                 }
               }}
             />

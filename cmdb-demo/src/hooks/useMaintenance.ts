@@ -66,3 +66,11 @@ export function useCreateWorkOrderComment() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrderComments'] }),
   })
 }
+
+export function useDeleteWorkOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => maintenanceApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrders'] }),
+  })
+}

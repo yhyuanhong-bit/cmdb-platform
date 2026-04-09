@@ -25,4 +25,7 @@ export const inventoryApi = {
   createScanRecord: (taskId: string, itemId: string, data: any) => apiClient.post(`/inventory/tasks/${taskId}/items/${itemId}/scan-history`, data),
   listItemNotes: (taskId: string, itemId: string) => apiClient.get(`/inventory/tasks/${taskId}/items/${itemId}/notes`),
   createItemNote: (taskId: string, itemId: string, data: any) => apiClient.post(`/inventory/tasks/${taskId}/items/${itemId}/notes`, data),
+  update: (id: string, data: Record<string, unknown>) =>
+    apiClient.put<ApiResponse<InventoryTask>>(`/inventory/tasks/${id}`, data),
+  delete: (id: string) => apiClient.del(`/inventory/tasks/${id}`),
 }

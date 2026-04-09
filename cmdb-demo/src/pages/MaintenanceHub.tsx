@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
 import { useWorkOrders } from '../hooks/useMaintenance'
+import { useLocationContext } from '../contexts/LocationContext'
 import type { WorkOrder } from '../lib/api/maintenance'
 
 /* ------------------------------------------------------------------ */
@@ -340,7 +341,11 @@ function RecordsView({ search, t, records }: { search: string; t: ReturnType<typ
 export default function MaintenanceHub() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { data: woResponse, isLoading, error } = useWorkOrders()
+  const { path } = useLocationContext()
+  const locationId = path.idc?.id || path.campus?.id || path.city?.id || path.region?.id || path.territory?.id
+  const { data: woResponse, isLoading, error } = useWorkOrders(
+    locationId ? { location_id: locationId } : undefined
+  )
   const workOrders: WorkOrder[] = woResponse?.data ?? []
 
   const tasks = useMemo(() =>

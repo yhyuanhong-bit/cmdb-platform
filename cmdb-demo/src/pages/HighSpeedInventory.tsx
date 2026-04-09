@@ -4,9 +4,10 @@ import * as XLSX from 'xlsx'
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { useInventoryTasks, useCompleteTask, useImportInventoryItems } from "../hooks/useInventory";
+import { useInventoryTasks, useCompleteTask, useImportInventoryItems, useDeleteInventoryTask } from "../hooks/useInventory";
 import CreateInventoryTaskModal from "../components/CreateInventoryTaskModal";
 import { apiClient } from "../lib/api/client";
+import { useLocationContext } from "../contexts/LocationContext";
 
 const IMPORT_ERRORS = [
   { row: 23, field: "Serial Number", error: "Duplicate entry" },
@@ -57,9 +58,15 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   const [showErrors, setShowErrors] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
 
+  const { path } = useLocationContext()
+  const locationId = path.idc?.id || path.campus?.id || path.city?.id || path.region?.id || path.territory?.id
+
   const completeTask = useCompleteTask()
   const importItems = useImportInventoryItems()
-  const { data: tasksResponse, isLoading } = useInventoryTasks();
+  const deleteTask = useDeleteInventoryTask()
+  const { data: tasksResponse, isLoading } = useInventoryTasks(
+    locationId ? { scope_location_id: locationId } : undefined
+  );
   const tasks = tasksResponse?.data ?? [];
   // The current task (first active) - used for header display
   const currentTask = tasks.find((t) => t.status === 'in_progress') ?? tasks[0];
@@ -235,6 +242,19 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
               className="px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 text-sm hover:bg-green-500/30 transition-colors font-label font-bold flex items-center gap-2">
               <Icon name="check_circle" className="text-lg" />
               {completeTask.isPending ? 'Completing...' : 'Complete Task'}
+            </button>
+          )}
+          {currentTask && currentTask.status === 'planned' && (
+            <button onClick={() => {
+              if (confirm(t('inventory.confirm_delete_task'))) {
+                deleteTask.mutate(currentTask.id, {
+                  onSuccess: () => toast.success(t('inventory.delete_task_success')),
+                })
+              }
+            }} disabled={deleteTask.isPending}
+              className="px-3 py-1.5 rounded-lg bg-error/20 text-error text-sm hover:bg-error/30 transition-colors font-label font-bold flex items-center gap-2">
+              <Icon name="delete" className="text-lg" />
+              {deleteTask.isPending ? t('common.deleting') : t('inventory.btn_delete_task')}
             </button>
           )}
         </div>

@@ -100,3 +100,20 @@ export function useCreateItemNote() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['itemNotes'] }),
   })
 }
+
+export function useUpdateInventoryTask() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      inventoryApi.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['inventoryTasks'] }),
+  })
+}
+
+export function useDeleteInventoryTask() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => inventoryApi.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['inventoryTasks'] }),
+  })
+}
