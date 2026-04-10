@@ -3,12 +3,13 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
 // parseJSONAttributes unmarshals JSONB bytes into a map[string]string,
@@ -35,7 +36,7 @@ func parseJSONAttributes(data []byte) map[string]string {
 func (s *APIServer) GetAssetRUL(c *gin.Context) {
 	assetID := c.Param("id")
 	if assetID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing asset id"})
+		response.BadRequest(c, "missing asset id")
 		return
 	}
 
@@ -51,7 +52,7 @@ func (s *APIServer) GetAssetRUL(c *gin.Context) {
 		WHERE id = $1
 	`, assetID).Scan(&name, &assetType, &attrBytes, &createdAt)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+		response.NotFound(c, "asset not found")
 		return
 	}
 
@@ -115,7 +116,7 @@ func (s *APIServer) GetAssetRUL(c *gin.Context) {
 		rulStatus = "critical"
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response.OK(c, gin.H{
 		"asset_id":                assetID,
 		"asset_name":              name,
 		"purchase_date":           purchaseDate,
@@ -166,7 +167,7 @@ func (s *APIServer) GetFailureDistribution(c *gin.Context) {
 		  AND fired_at > now() - INTERVAL '90 days'
 	`, tenantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query alert events"})
+		response.InternalError(c, "failed to query alert events")
 		return
 	}
 	defer alertRows.Close()
@@ -189,7 +190,7 @@ func (s *APIServer) GetFailureDistribution(c *gin.Context) {
 		  AND created_at > now() - INTERVAL '90 days'
 	`, tenantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query work orders"})
+		response.InternalError(c, "failed to query work orders")
 		return
 	}
 	defer woRows.Close()
@@ -237,7 +238,7 @@ func (s *APIServer) GetFailureDistribution(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response.OK(c, gin.H{
 		"distribution": distribution,
 		"total":        total,
 		"period_days":  90,
@@ -257,7 +258,7 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 		SELECT type, attributes FROM assets WHERE id = $1 AND tenant_id = $2
 	`, assetID, tenantID).Scan(&assetType, &attrBytes)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+		response.NotFound(c, "asset not found")
 		return
 	}
 	attrs := parseJSONAttributes(attrBytes)
@@ -269,7 +270,7 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 		WHERE tenant_id = $1 AND asset_type = $2 AND enabled = true
 	`, tenantID, assetType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query upgrade rules"})
+		response.InternalError(c, "failed to query upgrade rules")
 		return
 	}
 	defer ruleRows.Close()
@@ -358,7 +359,7 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 		recommendations = []recommendation{}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"recommendations": recommendations})
+	response.OK(c, gin.H{"recommendations": recommendations})
 }
 
 // AcceptUpgradeRecommendation handles POST /assets/:id/upgrade-recommendations/:category/accept
@@ -380,7 +381,7 @@ func (s *APIServer) AcceptUpgradeRecommendation(c *gin.Context) {
 		LIMIT 1
 	`, assetID, category, tenantID).Scan(&ruleRecommendation, &assetType)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no matching upgrade rule found"})
+		response.NotFound(c, "no matching upgrade rule found")
 		return
 	}
 
@@ -408,11 +409,11 @@ func (s *APIServer) AcceptUpgradeRecommendation(c *gin.Context) {
 		VALUES ($1, $2, $3, $4, $5, 'upgrade', 'draft', 'medium', $6, now(), now())
 	`, woID, tenantID, assetID, woCode, title, userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create work order"})
+		response.InternalError(c, "failed to create work order")
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	response.Created(c, gin.H{
 		"work_order_id": woID.String(),
 		"code":          woCode,
 	})
@@ -430,7 +431,7 @@ func (s *APIServer) GetUpgradeRules(c *gin.Context) {
 		ORDER BY asset_type, category
 	`, tenantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query upgrade rules"})
+		response.InternalError(c, "failed to query upgrade rules")
 		return
 	}
 	defer rows.Close()
@@ -456,11 +457,11 @@ func (s *APIServer) GetUpgradeRules(c *gin.Context) {
 		rules = append(rules, r)
 	}
 	if err := rows.Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "error reading upgrade rules"})
+		response.InternalError(c, "error reading upgrade rules")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"rules": rules})
+	response.OK(c, gin.H{"rules": rules})
 }
 
 // CreateUpgradeRule handles POST /upgrade-rules
@@ -479,7 +480,7 @@ func (s *APIServer) CreateUpgradeRule(c *gin.Context) {
 		Enabled        *bool   `json:"enabled"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
@@ -501,9 +502,9 @@ func (s *APIServer) CreateUpgradeRule(c *gin.Context) {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
 	`, newID, tenantID, body.AssetType, body.Category, body.MetricName, body.Threshold, body.DurationDays, body.Priority, body.Recommendation, enabled)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create upgrade rule"})
+		response.InternalError(c, "failed to create upgrade rule")
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"id": newID.String()})
+	response.Created(c, gin.H{"id": newID.String()})
 }

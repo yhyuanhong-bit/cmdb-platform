@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
 // GetEnergyBreakdown returns average power consumption grouped by asset type category
@@ -31,7 +33,7 @@ func (s *APIServer) GetEnergyBreakdown(c *gin.Context) {
 		GROUP BY category
 	`, tenantID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		response.InternalError(c, err.Error())
 		return
 	}
 	defer rows.Close()
@@ -48,14 +50,14 @@ func (s *APIServer) GetEnergyBreakdown(c *gin.Context) {
 	for rows.Next() {
 		var row categoryRow
 		if err := rows.Scan(&row.Name, &row.AvgKW); err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
+			response.InternalError(c, err.Error())
 			return
 		}
 		categories = append(categories, row)
 		totalKW += row.AvgKW
 	}
 	if err := rows.Err(); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		response.InternalError(c, err.Error())
 		return
 	}
 
@@ -70,7 +72,7 @@ func (s *APIServer) GetEnergyBreakdown(c *gin.Context) {
 		categories = []categoryRow{}
 	}
 
-	c.JSON(200, gin.H{
+	response.OK(c, gin.H{
 		"categories": categories,
 		"total_kw":   math.Round(totalKW*100) / 100,
 	})
@@ -111,7 +113,7 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 	// Carbon footprint estimate: kW * 24h * 30days * emission_factor (tCO2/kWh)
 	carbonMT := totalKW * 24 * 30 * 0.0005 // rough monthly estimate in metric tonnes
 
-	c.JSON(200, gin.H{
+	response.OK(c, gin.H{
 		"pue":               math.Round(pue*1000) / 1000,
 		"total_kw":          math.Round(totalKW*100) / 100,
 		"peak_kw":           math.Round(peakKW*100) / 100,
@@ -135,7 +137,7 @@ func (s *APIServer) GetEnergyTrend(c *gin.Context) {
 		ORDER BY hour
 	`, tenantID, hours)
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		response.InternalError(c, err.Error())
 		return
 	}
 	defer rows.Close()
@@ -149,14 +151,14 @@ func (s *APIServer) GetEnergyTrend(c *gin.Context) {
 	for rows.Next() {
 		var p trendPoint
 		if err := rows.Scan(&p.Hour, &p.TotalKW); err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
+			response.InternalError(c, err.Error())
 			return
 		}
 		p.TotalKW = math.Round(p.TotalKW*100) / 100
 		points = append(points, p)
 	}
 	if err := rows.Err(); err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		response.InternalError(c, err.Error())
 		return
 	}
 
@@ -164,5 +166,5 @@ func (s *APIServer) GetEnergyTrend(c *gin.Context) {
 		points = []trendPoint{}
 	}
 
-	c.JSON(200, gin.H{"trend": points})
+	response.OK(c, gin.H{"trend": points})
 }

@@ -6,6 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
 // GetRackNetworkConnections handles GET /racks/:id/network-connections
@@ -13,7 +15,7 @@ import (
 func (s *APIServer) GetRackNetworkConnections(c *gin.Context) {
 	rackID := c.Param("id")
 	if rackID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing rack id"})
+		response.BadRequest(c, "missing rack id")
 		return
 	}
 
@@ -34,7 +36,7 @@ func (s *APIServer) GetRackNetworkConnections(c *gin.Context) {
 		ORDER BY rnc.source_port
 	`, rackID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query network connections"})
+		response.InternalError(c, "failed to query network connections")
 		return
 	}
 	defer rows.Close()
@@ -65,7 +67,7 @@ func (s *APIServer) GetRackNetworkConnections(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"connections": connections})
+	response.OK(c, gin.H{"connections": connections})
 }
 
 // CreateRackNetworkConnection handles POST /racks/:id/network-connections
@@ -73,7 +75,7 @@ func (s *APIServer) GetRackNetworkConnections(c *gin.Context) {
 func (s *APIServer) CreateRackNetworkConnection(c *gin.Context) {
 	rackID := c.Param("id")
 	if rackID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing rack id"})
+		response.BadRequest(c, "missing rack id")
 		return
 	}
 
@@ -89,16 +91,16 @@ func (s *APIServer) CreateRackNetworkConnection(c *gin.Context) {
 		ConnectionType   *string  `json:"connection_type"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		response.BadRequest(c, "invalid request body")
 		return
 	}
 	if body.SourcePort == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "source_port is required"})
+		response.BadRequest(c, "source_port is required")
 		return
 	}
 	if body.ConnectedAssetID != nil && *body.ConnectedAssetID != "" &&
 		body.ExternalDevice != nil && *body.ExternalDevice != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "connected_asset_id and external_device are mutually exclusive"})
+		response.BadRequest(c, "connected_asset_id and external_device are mutually exclusive")
 		return
 	}
 
@@ -113,14 +115,14 @@ func (s *APIServer) CreateRackNetworkConnection(c *gin.Context) {
 	if err != nil {
 		errStr := err.Error()
 		if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique") {
-			c.JSON(http.StatusConflict, gin.H{"error": "connection already exists"})
+			response.Err(c, http.StatusConflict, "CONFLICT", "connection already exists")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create network connection"})
+		response.InternalError(c, "failed to create network connection")
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"id": newID})
+	response.Created(c, gin.H{"id": newID})
 }
 
 // DeleteRackNetworkConnection handles DELETE /racks/:id/network-connections/:connectionId
@@ -128,7 +130,7 @@ func (s *APIServer) CreateRackNetworkConnection(c *gin.Context) {
 func (s *APIServer) DeleteRackNetworkConnection(c *gin.Context) {
 	connectionID := c.Param("connectionId")
 	if connectionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing connection id"})
+		response.BadRequest(c, "missing connection id")
 		return
 	}
 
@@ -136,11 +138,11 @@ func (s *APIServer) DeleteRackNetworkConnection(c *gin.Context) {
 		DELETE FROM rack_network_connections WHERE id = $1
 	`, connectionID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete network connection"})
+		response.InternalError(c, "failed to delete network connection")
 		return
 	}
 	if tag.RowsAffected() == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "connection not found"})
+		response.NotFound(c, "connection not found")
 		return
 	}
 

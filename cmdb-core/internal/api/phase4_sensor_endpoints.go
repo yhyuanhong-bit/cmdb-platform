@@ -8,6 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
 // sensorRecord represents one sensor row in list/create responses.
@@ -61,7 +63,7 @@ func (s *APIServer) ListSensors(c *gin.Context) {
 		ORDER BY s.name
 	`, tenantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query sensors"})
+		response.InternalError(c, "failed to query sensors")
 		return
 	}
 	defer rows.Close()
@@ -109,7 +111,7 @@ func (s *APIServer) ListSensors(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"sensors": sensors})
+	response.OK(c, gin.H{"sensors": sensors})
 }
 
 // CreateSensor handles POST /sensors
@@ -126,11 +128,11 @@ func (s *APIServer) CreateSensor(c *gin.Context) {
 		Enabled         *bool   `json:"enabled"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if body.Name == "" || body.Type == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name and type are required"})
+		response.BadRequest(c, "name and type are required")
 		return
 	}
 
@@ -149,11 +151,11 @@ func (s *APIServer) CreateSensor(c *gin.Context) {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'offline', now(), now())
 	`, newID, tenantID, body.AssetID, body.Name, body.Type, body.Location, pollingInterval, enabled)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create sensor"})
+		response.InternalError(c, "failed to create sensor")
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"id": newID.String()})
+	response.Created(c, gin.H{"id": newID.String()})
 }
 
 // UpdateSensor handles PUT /sensors/:id
@@ -162,13 +164,13 @@ func (s *APIServer) UpdateSensor(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 	sensorID := c.Param("id")
 	if _, err := uuid.Parse(sensorID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid sensor ID"})
+		response.BadRequest(c, "invalid sensor ID")
 		return
 	}
 
 	var body map[string]interface{}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
@@ -195,7 +197,7 @@ func (s *APIServer) UpdateSensor(c *gin.Context) {
 	}
 
 	if len(setClauses) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "no fields to update"})
+		response.BadRequest(c, "no fields to update")
 		return
 	}
 
@@ -210,15 +212,15 @@ func (s *APIServer) UpdateSensor(c *gin.Context) {
 
 	result, err := s.pool.Exec(c.Request.Context(), query, args...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update sensor"})
+		response.InternalError(c, "failed to update sensor")
 		return
 	}
 	if result.RowsAffected() == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "sensor not found"})
+		response.NotFound(c, "sensor not found")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "sensor updated"})
+	response.OK(c, gin.H{"message": "sensor updated"})
 }
 
 // DeleteSensor handles DELETE /sensors/:id
@@ -227,7 +229,7 @@ func (s *APIServer) DeleteSensor(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 	sensorID := c.Param("id")
 	if _, err := uuid.Parse(sensorID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid sensor ID"})
+		response.BadRequest(c, "invalid sensor ID")
 		return
 	}
 
@@ -235,11 +237,11 @@ func (s *APIServer) DeleteSensor(c *gin.Context) {
 		DELETE FROM sensors WHERE id = $1 AND tenant_id = $2
 	`, sensorID, tenantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete sensor"})
+		response.InternalError(c, "failed to delete sensor")
 		return
 	}
 	if result.RowsAffected() == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "sensor not found"})
+		response.NotFound(c, "sensor not found")
 		return
 	}
 
@@ -252,7 +254,7 @@ func (s *APIServer) SensorHeartbeat(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 	sensorID := c.Param("id")
 	if _, err := uuid.Parse(sensorID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid sensor ID"})
+		response.BadRequest(c, "invalid sensor ID")
 		return
 	}
 
@@ -270,9 +272,9 @@ func (s *APIServer) SensorHeartbeat(c *gin.Context) {
 		WHERE id = $2 AND tenant_id = $3
 	`, body.Status, sensorID, tenantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update sensor heartbeat"})
+		response.InternalError(c, "failed to update sensor heartbeat")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "ok"})
+	response.OK(c, gin.H{"message": "ok"})
 }

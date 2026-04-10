@@ -4,6 +4,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
 // ---------------------------------------------------------------------------
@@ -54,7 +56,7 @@ func (s *APIServer) GetInventoryRacksSummary(c *gin.Context) {
 		ORDER BY r.name
 	`, taskID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "failed to query racks summary"})
+		response.InternalError(c, "failed to query racks summary")
 		return
 	}
 	defer rows.Close()
@@ -70,7 +72,7 @@ func (s *APIServer) GetInventoryRacksSummary(c *gin.Context) {
 			discrepancy int64
 		)
 		if err := rows.Scan(&rackName, &rackID, &total, &scanned, &pending, &discrepancy); err != nil {
-			c.JSON(500, gin.H{"error": "failed to scan rack summary row"})
+			response.InternalError(c, "failed to scan rack summary row")
 			return
 		}
 
@@ -95,11 +97,11 @@ func (s *APIServer) GetInventoryRacksSummary(c *gin.Context) {
 		results = append(results, row)
 	}
 	if err := rows.Err(); err != nil {
-		c.JSON(500, gin.H{"error": "error reading rack summary rows"})
+		response.InternalError(c, "error reading rack summary rows")
 		return
 	}
 
-	c.JSON(200, gin.H{"racks": results})
+	response.OK(c, gin.H{"racks": results})
 }
 
 // GetInventoryDiscrepancies returns inventory items with status discrepancy or missing.
@@ -119,7 +121,7 @@ func (s *APIServer) GetInventoryDiscrepancies(c *gin.Context) {
 		ORDER BY ii.scanned_at DESC
 	`, taskID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "failed to query discrepancies"})
+		response.InternalError(c, "failed to query discrepancies")
 		return
 	}
 	defer rows.Close()
@@ -137,7 +139,7 @@ func (s *APIServer) GetInventoryDiscrepancies(c *gin.Context) {
 			locationName pgtype.Text
 		)
 		if err := rows.Scan(&id, &status, &scannedAt, &assetName, &assetTag, &serialNumber, &rackName, &locationName); err != nil {
-			c.JSON(500, gin.H{"error": "failed to scan discrepancy row"})
+			response.InternalError(c, "failed to scan discrepancy row")
 			return
 		}
 
@@ -173,9 +175,9 @@ func (s *APIServer) GetInventoryDiscrepancies(c *gin.Context) {
 		results = append(results, row)
 	}
 	if err := rows.Err(); err != nil {
-		c.JSON(500, gin.H{"error": "error reading discrepancy rows"})
+		response.InternalError(c, "error reading discrepancy rows")
 		return
 	}
 
-	c.JSON(200, gin.H{"discrepancies": results})
+	response.OK(c, gin.H{"discrepancies": results})
 }

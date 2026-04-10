@@ -1,10 +1,10 @@
 package api
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
 // ResolveInventoryDiscrepancy handles POST /inventory/tasks/:id/items/:itemId/resolve
@@ -18,18 +18,18 @@ func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context) {
 		Note   string `json:"note"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		response.BadRequest(c, "invalid request body")
 		return
 	}
 
 	itemID, err := uuid.Parse(itemIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid item ID"})
+		response.BadRequest(c, "invalid item ID")
 		return
 	}
 	taskID, err := uuid.Parse(taskIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task ID"})
+		response.BadRequest(c, "invalid task ID")
 		return
 	}
 
@@ -42,7 +42,7 @@ func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context) {
 	case "register":
 		newStatus = "scanned"
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid action: must be verify, add_findings, register, or clear"})
+		response.BadRequest(c, "invalid action: must be verify, add_findings, register, or clear")
 		return
 	}
 
@@ -53,11 +53,11 @@ func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context) {
 		"UPDATE inventory_items SET status = $1, scanned_at = now() WHERE id = $2",
 		newStatus, itemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve discrepancy"})
+		response.InternalError(c, "failed to resolve discrepancy")
 		return
 	}
 	if tag.RowsAffected() == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "inventory item not found"})
+		response.NotFound(c, "inventory item not found")
 		return
 	}
 
@@ -84,5 +84,5 @@ func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context) {
 		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND status = 'planned'",
 		taskID)
 
-	c.JSON(http.StatusOK, gin.H{"status": newStatus, "action": req.Action})
+	response.OK(c, gin.H{"status": newStatus, "action": req.Action})
 }

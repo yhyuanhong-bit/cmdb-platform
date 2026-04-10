@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
 // GetRackStats handles GET /racks/stats
@@ -24,7 +26,7 @@ func (s *APIServer) GetRackStats(c *gin.Context) {
 
 	var totalRacks, totalU, usedSlots int64
 	if err := row.Scan(&totalRacks, &totalU, &usedSlots); err != nil {
-		c.JSON(500, gin.H{"error": "failed to query rack stats"})
+		response.InternalError(c, "failed to query rack stats")
 		return
 	}
 
@@ -33,7 +35,7 @@ func (s *APIServer) GetRackStats(c *gin.Context) {
 		occupancyPct = float64(usedSlots) / float64(totalU) * 100
 	}
 
-	c.JSON(200, gin.H{
+	response.OK(c, gin.H{
 		"total_racks":   totalRacks,
 		"total_u":       totalU,
 		"used_u":        usedSlots,
@@ -53,7 +55,7 @@ func (s *APIServer) GetAssetLifecycleStats(c *gin.Context) {
 		GROUP BY status
 	`, tenantID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "failed to query lifecycle stats"})
+		response.InternalError(c, "failed to query lifecycle stats")
 		return
 	}
 	defer rows.Close()
@@ -68,7 +70,7 @@ func (s *APIServer) GetAssetLifecycleStats(c *gin.Context) {
 		stats[status] = cnt
 	}
 
-	c.JSON(200, gin.H{"by_status": stats})
+	response.OK(c, gin.H{"by_status": stats})
 }
 
 // alertTrendPoint represents one hourly bucket in the alerts trend response.
@@ -99,7 +101,7 @@ func (s *APIServer) GetAlertsTrend(c *gin.Context) {
 		ORDER BY hour
 	`, tenantID, hours)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "failed to query alerts trend"})
+		response.InternalError(c, "failed to query alerts trend")
 		return
 	}
 	defer rows.Close()
@@ -113,7 +115,7 @@ func (s *APIServer) GetAlertsTrend(c *gin.Context) {
 		trend = append(trend, p)
 	}
 
-	c.JSON(200, gin.H{"trend": trend})
+	response.OK(c, gin.H{"trend": trend})
 }
 
 // rackMaintenanceRecord holds a single work-order row for rack maintenance history.
@@ -135,7 +137,7 @@ type rackMaintenanceRecord struct {
 func (s *APIServer) GetRackMaintenance(c *gin.Context) {
 	rackID := c.Param("id")
 	if rackID == "" {
-		c.JSON(400, gin.H{"error": "missing rack id"})
+		response.BadRequest(c, "missing rack id")
 		return
 	}
 
@@ -150,7 +152,7 @@ func (s *APIServer) GetRackMaintenance(c *gin.Context) {
 		LIMIT 20
 	`, rackID)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "failed to query rack maintenance"})
+		response.InternalError(c, "failed to query rack maintenance")
 		return
 	}
 	defer rows.Close()
@@ -185,5 +187,5 @@ func (s *APIServer) GetRackMaintenance(c *gin.Context) {
 		records = append(records, r)
 	}
 
-	c.JSON(200, gin.H{"maintenance": records})
+	response.OK(c, gin.H{"maintenance": records})
 }
