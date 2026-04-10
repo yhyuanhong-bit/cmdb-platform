@@ -876,10 +876,23 @@
     "btn_creating": "Creating...",
     "btn_cancel": "Cancel",
     "confirm_delete_role": "Delete this role?",
+    "perm_read": "Read",
+    "perm_write": "Write",
     "perm_view": "View",
     "perm_edit": "Edit",
     "perm_delete": "Delete",
-    "perm_export": "Export"
+    "perm_export": "Export",
+    "scope_assets": "Assets",
+    "scope_topology": "Topology",
+    "scope_maintenance": "Maintenance",
+    "scope_monitoring": "Monitoring",
+    "scope_inventory": "Inventory",
+    "scope_audit": "Audit Log",
+    "scope_dashboard": "Dashboard",
+    "scope_identity": "Identity & Access",
+    "scope_prediction": "AI Prediction",
+    "scope_integration": "Integration",
+    "scope_system": "System Settings"
   },
   "scan_target_modal": {
     "title_create": "Add Scan Target",
@@ -1973,7 +1986,14 @@
     "btn_create": "Create",
     "btn_creating": "Creating...",
     "btn_cancel": "Cancel",
-    "confirm_delete_credential": "Delete credential \"{{name}}\"?"
+    "confirm_delete_credential": "Delete credential \"{{name}}\"?",
+    "edit_user_title": "Edit User",
+    "user_updated": "User updated successfully",
+    "user_deleted": "User deleted successfully",
+    "confirm_delete_user": "Delete user \"{{name}}\"?",
+    "table_assigned_role": "Assigned Role",
+    "select_role": "-- Select Role --",
+    "role_assigned": "Role assigned successfully"
   },
   "user_profile": {
     "role_badge": "Senior Administrator L2",

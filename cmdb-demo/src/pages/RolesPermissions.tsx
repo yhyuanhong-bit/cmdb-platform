@@ -2,6 +2,7 @@ import { toast } from 'sonner'
 import { memo, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useUsers, useRoles, useCreateRole, useDeleteRole, useUpdateRole } from "../hooks/useIdentity";
+import { usePermission } from "../hooks/usePermission";
 
 /* ──────────────────────────────────────────────
    Types & constants
@@ -27,23 +28,29 @@ interface PermissionRow {
   key: string;
   i18n: string;
   icon: string;
-  view: boolean;
-  edit: boolean;
+  read: boolean;
+  write: boolean;
   delete: boolean;
   export: boolean;
 }
 
 const PERM_SCOPES = [
-  { key: "asset", i18n: "roles.asset_management", icon: "dns" },
-  { key: "stock", i18n: "roles.stock_inventory", icon: "inventory_2" },
-  { key: "monitor", i18n: "roles.system_monitoring", icon: "monitor_heart" },
-  { key: "config", i18n: "roles.system_configuration", icon: "settings" },
-  { key: "compliance", i18n: "roles.compliance_audit", icon: "verified_user" },
+  { key: "assets", i18n: "roles.scope_assets", icon: "dns" },
+  { key: "topology", i18n: "roles.scope_topology", icon: "lan" },
+  { key: "maintenance", i18n: "roles.scope_maintenance", icon: "build" },
+  { key: "monitoring", i18n: "roles.scope_monitoring", icon: "monitor_heart" },
+  { key: "inventory", i18n: "roles.scope_inventory", icon: "inventory_2" },
+  { key: "audit", i18n: "roles.scope_audit", icon: "history" },
+  { key: "dashboard", i18n: "roles.scope_dashboard", icon: "dashboard" },
+  { key: "identity", i18n: "roles.scope_identity", icon: "people" },
+  { key: "prediction", i18n: "roles.scope_prediction", icon: "auto_awesome" },
+  { key: "integration", i18n: "roles.scope_integration", icon: "extension" },
+  { key: "system", i18n: "roles.scope_system", icon: "settings" },
 ];
 
 const PERM_COL_KEYS = [
-  { key: "view" as const, i18n: "roles.perm_view" },
-  { key: "edit" as const, i18n: "roles.perm_edit" },
+  { key: "read" as const, i18n: "roles.perm_read" },
+  { key: "write" as const, i18n: "roles.perm_write" },
   { key: "delete" as const, i18n: "roles.perm_delete" },
   { key: "export" as const, i18n: "roles.perm_export" },
 ];
@@ -62,10 +69,12 @@ function Toggle({
   checked,
   onChange,
   label,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: () => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -73,10 +82,11 @@ function Toggle({
       role="switch"
       aria-checked={checked}
       aria-label={label}
-      onClick={onChange}
+      onClick={disabled ? undefined : onChange}
+      disabled={disabled}
       className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
         checked ? "bg-primary" : "bg-surface-container-highest"
-      }`}
+      } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
     >
       <span
         className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full transition-transform ${
@@ -95,6 +105,7 @@ function Toggle({
 
 function RolesPermissions() {
   const { t } = useTranslation();
+  const canManageRoles = usePermission('identity', 'write');
   const { data: usersResponse, isLoading: usersLoading } = useUsers();
   const { data: rolesResponse, isLoading: rolesLoading } = useRoles();
   const apiUsers = usersResponse?.data ?? [];
@@ -139,20 +150,20 @@ function RolesPermissions() {
           key: scope.key,
           i18n: scope.i18n,
           icon: scope.icon,
-          view: perms.includes('read') || perms.includes('view') || perms.includes('*'),
-          edit: perms.includes('write') || perms.includes('edit') || perms.includes('*'),
+          read: perms.includes('read') || perms.includes('*'),
+          write: perms.includes('write') || perms.includes('*'),
           delete: perms.includes('delete') || perms.includes('*'),
           export: perms.includes('export') || perms.includes('*'),
         };
       });
     }
-    // Fallback: all view enabled
+    // Fallback: all read enabled
     return PERM_SCOPES.map((scope) => ({
       key: scope.key,
       i18n: scope.i18n,
       icon: scope.icon,
-      view: true,
-      edit: false,
+      read: true,
+      write: false,
       delete: false,
       export: false,
     }));
@@ -162,7 +173,7 @@ function RolesPermissions() {
   const activePerms = permOverrides[effectiveSelectedRole] ?? buildPermsForRole(effectiveSelectedRole);
   const activeRole = ROLES.find((r) => r.id === effectiveSelectedRole) ?? ROLES[0];
 
-  function togglePerm(key: string, col: "view" | "edit" | "delete" | "export") {
+  function togglePerm(key: string, col: "read" | "write" | "delete" | "export") {
     const currentPerms = permOverrides[effectiveSelectedRole] ?? buildPermsForRole(effectiveSelectedRole);
     setPermOverrides((prev) => ({
       ...prev,
@@ -223,14 +234,16 @@ function RolesPermissions() {
             <h2 className="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
               {t('roles.defined_roles')}
             </h2>
-            <button
-              type="button"
-              onClick={() => setShowRoleModal(true)}
-              className="flex items-center gap-1.5 rounded-md bg-surface-container-high px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-surface-container-highest"
-            >
-              <Icon name="add" className="text-sm" />
-              {t('roles.add_new_role')}
-            </button>
+            {canManageRoles && (
+              <button
+                type="button"
+                onClick={() => setShowRoleModal(true)}
+                className="flex items-center gap-1.5 rounded-md bg-surface-container-high px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-surface-container-highest"
+              >
+                <Icon name="add" className="text-sm" />
+                {t('roles.add_new_role')}
+              </button>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -262,7 +275,7 @@ function RolesPermissions() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-on-surface flex items-center">
                     {role.name}
-                    {!((role as any).is_system || role.id === 'c0000000-0000-0000-0000-000000000001') && (
+                    {canManageRoles && !((role as any).is_system || role.id === 'c0000000-0000-0000-0000-000000000001') && (
                       <button onClick={(e) => { e.stopPropagation(); if(confirm(t('roles.confirm_delete_role'))) deleteRole.mutate(role.id) }}
                         className="text-red-400 hover:text-red-300 text-xs ml-2">&#x2715;</button>
                     )}
@@ -304,7 +317,7 @@ function RolesPermissions() {
                 {t('roles.configuring')}: <span className="font-bold text-primary">{activeRole.name}</span>
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            {canManageRoles && <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setPermOverrides({})}
@@ -320,8 +333,8 @@ function RolesPermissions() {
                     const permissions: Record<string, string[]> = {};
                     currentPerms.forEach((row) => {
                       const actions: string[] = [];
-                      if (row.view) actions.push('read');
-                      if (row.edit) actions.push('write');
+                      if (row.read) actions.push('read');
+                      if (row.write) actions.push('write');
                       if (row.delete) actions.push('delete');
                       if (row.export) actions.push('export');
                       if (actions.length > 0) permissions[row.key] = actions;
@@ -334,7 +347,7 @@ function RolesPermissions() {
               >
                 {updateRole.isPending ? t('common.saving', 'Saving...') : t('common.save_changes')}
               </button>
-            </div>
+            </div>}
           </div>
 
           {/* Matrix Table */}
@@ -366,12 +379,13 @@ function RolesPermissions() {
                   <Icon name={row.icon} className="text-lg text-on-surface-variant" />
                   <span className="text-sm font-medium text-on-surface">{t(row.i18n)}</span>
                 </div>
-                {(["view", "edit", "delete", "export"] as const).map((col) => (
+                {(["read", "write", "delete", "export"] as const).map((col) => (
                   <div key={col} className="flex justify-center">
                     <Toggle
                       checked={row[col]}
                       onChange={() => togglePerm(row.key, col)}
                       label={`${col} ${t(row.i18n)}`}
+                      disabled={!canManageRoles}
                     />
                   </div>
                 ))}

@@ -2106,6 +2106,96 @@ func (s *APIServer) DeleteRole(c *gin.Context, id IdPath) {
 }
 
 // ---------------------------------------------------------------------------
+// Role Assignment + User Deletion endpoints
+// ---------------------------------------------------------------------------
+
+// AssignRoleToUser assigns a role to a user.
+// (POST /users/{id}/roles)
+func (s *APIServer) AssignRoleToUser(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid user ID")
+		return
+	}
+	var req struct {
+		RoleID string `json:"role_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "role_id is required")
+		return
+	}
+	roleID, err := uuid.Parse(req.RoleID)
+	if err != nil {
+		response.BadRequest(c, "invalid role_id")
+		return
+	}
+	if err := s.identitySvc.AssignRole(c.Request.Context(), userID, roleID); err != nil {
+		response.InternalError(c, "failed to assign role")
+		return
+	}
+	s.recordAudit(c, "role.assigned", "identity", "user", userID, map[string]any{
+		"role_id": roleID.String(),
+	})
+	response.OK(c, gin.H{"assigned": true})
+}
+
+// RemoveRoleFromUser removes a role from a user.
+// (DELETE /users/{id}/roles/{roleId})
+func (s *APIServer) RemoveRoleFromUser(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid user ID")
+		return
+	}
+	roleID, err := uuid.Parse(c.Param("roleId"))
+	if err != nil {
+		response.BadRequest(c, "invalid role ID")
+		return
+	}
+	if err := s.identitySvc.RemoveRole(c.Request.Context(), userID, roleID); err != nil {
+		response.InternalError(c, "failed to remove role")
+		return
+	}
+	s.recordAudit(c, "role.removed", "identity", "user", userID, map[string]any{
+		"role_id": roleID.String(),
+	})
+	c.Status(204)
+}
+
+// ListUserRoles returns roles assigned to a user.
+// (GET /users/{id}/roles)
+func (s *APIServer) ListUserRoles(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid user ID")
+		return
+	}
+	roleIDs, err := s.identitySvc.ListUserRoleIDs(c.Request.Context(), userID)
+	if err != nil {
+		response.InternalError(c, "failed to list user roles")
+		return
+	}
+	response.OK(c, roleIDs)
+}
+
+// DeleteUser soft-deletes (deactivates) a user.
+// (DELETE /users/{id})
+func (s *APIServer) DeleteUser(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid user ID")
+		return
+	}
+	if err := s.identitySvc.Deactivate(c.Request.Context(), tenantID, userID); err != nil {
+		response.InternalError(c, "failed to delete user")
+		return
+	}
+	s.recordAudit(c, "user.deleted", "identity", "user", userID, nil)
+	c.Status(204)
+}
+
+// ---------------------------------------------------------------------------
 // Prediction endpoints
 // ---------------------------------------------------------------------------
 

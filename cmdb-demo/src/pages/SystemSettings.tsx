@@ -2,7 +2,8 @@ import { toast } from 'sonner'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { useUsers, useRoles, useCreateUser } from '../hooks/useIdentity'
+import { useUsers, useRoles, useCreateUser, useUpdateUser, useDeleteUser, useAssignRole } from '../hooks/useIdentity'
+import { usePermission } from '../hooks/usePermission'
 import { useSystemHealth } from '../hooks/useSystemHealth'
 import { useAdapters, useWebhooks } from '../hooks/useIntegration'
 import { useCredentials, useDeleteCredential } from '../hooks/useCredentials'
@@ -13,10 +14,15 @@ import CreateCredentialModal from '../components/CreateCredentialModal'
 export default function SystemSettings() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const canManageUsers = usePermission('identity', 'write')
   const [activeTab, setActiveTab] = useState('permissions')
   const [showUserModal, setShowUserModal] = useState(false)
+  const [editingUser, setEditingUser] = useState<any>(null)
   const [newUserData, setNewUserData] = useState({ username: '', display_name: '', email: '', password: '' })
   const createUser = useCreateUser()
+  const updateUser = useUpdateUser()
+  const deleteUser = useDeleteUser()
+  const assignRole = useAssignRole()
   const [showCreateAdapter, setShowCreateAdapter] = useState(false)
   const [showCreateWebhook, setShowCreateWebhook] = useState(false)
   const [showCreateCredential, setShowCreateCredential] = useState(false)
@@ -39,11 +45,16 @@ export default function SystemSettings() {
 
   // Map API users to display format
   const users = apiUsers.map((u: any) => ({
+    id: u.id,
     name: u.display_name,
-    role: u.source ?? 'local',
+    email: u.email,
+    username: u.username,
+    role: u.roles?.[0]?.name ?? u.source ?? 'local',
+    roleId: u.roles?.[0]?.id ?? '',
     region: 'TW',
     status: u.status === 'active' ? 'Active' : 'Inactive',
-    avatar: u.display_name.split(' ').map((w: any) => w[0]).join('').slice(0, 2).toUpperCase(),
+    avatar: u.display_name?.split(' ').map((w: any) => w[0]).join('').slice(0, 2).toUpperCase() ?? '??',
+    _raw: u,
   }))
 
   // Map health check to display format
@@ -77,13 +88,15 @@ export default function SystemSettings() {
           <h1 className="font-headline font-bold text-2xl text-on-surface">{t('system_settings.title_zh')}</h1>
           <p className="text-on-surface-variant text-sm mt-1">{t('system_settings.title')}</p>
         </div>
-        <button
-          onClick={() => setShowUserModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
-        >
-          <span className="material-symbols-outlined text-[18px]">person_add</span>
-          {t('system_settings.btn_new_user')}
-        </button>
+        {canManageUsers && (
+          <button
+            onClick={() => { setEditingUser(null); setNewUserData({ username: '', display_name: '', email: '', password: '' }); setShowUserModal(true) }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px]">person_add</span>
+            {t('system_settings.btn_new_user')}
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -246,19 +259,20 @@ export default function SystemSettings() {
           <h2 className="font-headline font-bold text-lg text-on-surface mb-4">{t('system_settings.section_user_management')}</h2>
 
           {/* Table Header */}
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 px-3 py-2 mb-1">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-3 px-3 py-2 mb-1">
             <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.table_name')}</span>
             <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.table_role')}</span>
-            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.table_region')}</span>
+            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.table_assigned_role')}</span>
             <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.table_status')}</span>
+            <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.table_region')}</span>
             <span className="text-[0.6875rem] uppercase tracking-[0.05rem] text-on-surface-variant font-label">{t('system_settings.table_actions')}</span>
           </div>
 
           {/* Table Rows */}
           {users.map((user: any, i: number) => (
             <div
-              key={i}
-              className={`grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 items-center px-3 py-3 rounded-lg ${
+              key={user.id ?? i}
+              className={`grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-3 items-center px-3 py-3 rounded-lg ${
                 i % 2 === 0 ? 'bg-surface-container-low' : ''
               }`}
             >
@@ -269,7 +283,31 @@ export default function SystemSettings() {
                 <span className="text-sm text-on-surface">{user.name}</span>
               </div>
               <span className="text-sm text-on-surface-variant">{user.role}</span>
-              <span className="text-sm text-on-surface-variant">{user.region}</span>
+              {/* Role Assignment */}
+              <div>
+                {canManageUsers ? (
+                  <select
+                    value={user.roleId}
+                    onChange={(e) => {
+                      if (e.target.value && user.id) {
+                        assignRole.mutate({ userId: user.id, roleId: e.target.value }, {
+                          onSuccess: () => toast.success(t('system_settings.role_assigned'))
+                        })
+                      }
+                    }}
+                    className="bg-surface-container-low border border-surface-container-highest rounded px-2 py-1 text-xs text-on-surface"
+                  >
+                    <option value="">{t('system_settings.select_role')}</option>
+                    {apiRoles.map((r: any) => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="inline-block px-2 py-0.5 rounded bg-surface-container-high text-[0.6875rem] text-on-surface-variant">
+                    {user.role}
+                  </span>
+                )}
+              </div>
               <span
                 className={`inline-block w-fit px-2.5 py-1 rounded text-[0.6875rem] font-semibold tracking-wider ${
                   user.status === 'Active'
@@ -279,14 +317,25 @@ export default function SystemSettings() {
               >
                 {user.status}
               </span>
-              <div className="flex gap-1">
-                <button onClick={() => toast.info('Edit User: Coming Soon')} className="p-1.5 rounded hover:bg-surface-container-high transition-colors">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[18px]">edit</span>
-                </button>
-                <button onClick={() => toast.info('Delete User: Coming Soon')} className="p-1.5 rounded hover:bg-error-container transition-colors">
-                  <span className="material-symbols-outlined text-on-surface-variant text-[18px]">delete</span>
-                </button>
-              </div>
+              <span className="text-sm text-on-surface-variant">{user.region}</span>
+              {canManageUsers && (
+                <div className="flex gap-1">
+                  <button onClick={() => {
+                    setEditingUser(user)
+                    setNewUserData({ username: user.username ?? '', display_name: user.name ?? '', email: user.email ?? '', password: '' })
+                    setShowUserModal(true)
+                  }} className="p-1.5 rounded hover:bg-surface-container-high transition-colors">
+                    <span className="material-symbols-outlined text-on-surface-variant text-[18px]">edit</span>
+                  </button>
+                  <button onClick={() => {
+                    if (confirm(t('system_settings.confirm_delete_user', { name: user.name }))) {
+                      deleteUser.mutate(user.id, { onSuccess: () => toast.success(t('system_settings.user_deleted')) })
+                    }
+                  }} className="p-1.5 rounded hover:bg-error-container transition-colors">
+                    <span className="material-symbols-outlined text-on-surface-variant text-[18px]">delete</span>
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -380,27 +429,42 @@ export default function SystemSettings() {
       />
 
       {showUserModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowUserModal(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowUserModal(false); setEditingUser(null) }}>
           <div className="bg-surface-container p-6 rounded-xl w-96 space-y-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-on-surface">{t('system_settings.create_user_title')}</h3>
-            <input placeholder={t('system_settings.placeholder_username')} value={newUserData.username}
-              onChange={e => setNewUserData(p => ({...p, username: e.target.value}))}
-              className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
+            <h3 className="text-lg font-bold text-on-surface">
+              {editingUser ? t('system_settings.edit_user_title') : t('system_settings.create_user_title')}
+            </h3>
+            {!editingUser && (
+              <input placeholder={t('system_settings.placeholder_username')} value={newUserData.username}
+                onChange={e => setNewUserData(p => ({...p, username: e.target.value}))}
+                className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
+            )}
             <input placeholder={t('system_settings.placeholder_display_name')} value={newUserData.display_name}
               onChange={e => setNewUserData(p => ({...p, display_name: e.target.value}))}
               className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
             <input placeholder={t('system_settings.placeholder_email')} value={newUserData.email}
               onChange={e => setNewUserData(p => ({...p, email: e.target.value}))}
               className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
-            <input type="password" placeholder={t('system_settings.placeholder_password')} value={newUserData.password}
-              onChange={e => setNewUserData(p => ({...p, password: e.target.value}))}
-              className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
+            {!editingUser && (
+              <input type="password" placeholder={t('system_settings.placeholder_password')} value={newUserData.password}
+                onChange={e => setNewUserData(p => ({...p, password: e.target.value}))}
+                className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
+            )}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowUserModal(false)} className="px-4 py-2 rounded bg-surface-container-high text-on-surface-variant">{t('system_settings.btn_cancel')}</button>
-              <button onClick={() => createUser.mutate(newUserData, { onSuccess: () => { setShowUserModal(false); setNewUserData({ username: '', display_name: '', email: '', password: '' }) } })}
-                disabled={createUser.isPending} className="px-4 py-2 rounded bg-on-primary-container text-white disabled:opacity-50">
-                {createUser.isPending ? t('system_settings.btn_creating') : t('system_settings.btn_create')}
-              </button>
+              <button onClick={() => { setShowUserModal(false); setEditingUser(null) }} className="px-4 py-2 rounded bg-surface-container-high text-on-surface-variant">{t('system_settings.btn_cancel')}</button>
+              {editingUser ? (
+                <button onClick={() => updateUser.mutate({ id: editingUser.id, data: { display_name: newUserData.display_name, email: newUserData.email } }, {
+                  onSuccess: () => { setShowUserModal(false); setEditingUser(null); toast.success(t('system_settings.user_updated')) }
+                })}
+                  disabled={updateUser.isPending} className="px-4 py-2 rounded bg-on-primary-container text-white disabled:opacity-50">
+                  {updateUser.isPending ? t('common.saving') : t('common.save_changes')}
+                </button>
+              ) : (
+                <button onClick={() => createUser.mutate(newUserData, { onSuccess: () => { setShowUserModal(false); setNewUserData({ username: '', display_name: '', email: '', password: '' }) } })}
+                  disabled={createUser.isPending} className="px-4 py-2 rounded bg-on-primary-container text-white disabled:opacity-50">
+                  {createUser.isPending ? t('system_settings.btn_creating') : t('system_settings.btn_create')}
+                </button>
+              )}
             </div>
           </div>
         </div>

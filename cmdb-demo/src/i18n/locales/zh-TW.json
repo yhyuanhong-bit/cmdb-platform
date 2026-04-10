@@ -876,10 +876,23 @@
     "btn_creating": "建立中...",
     "btn_cancel": "取消",
     "confirm_delete_role": "確定刪除此角色？",
+    "perm_read": "讀取",
+    "perm_write": "寫入",
     "perm_view": "檢視",
     "perm_edit": "編輯",
     "perm_delete": "刪除",
-    "perm_export": "匯出"
+    "perm_export": "匯出",
+    "scope_assets": "資產",
+    "scope_topology": "拓撲",
+    "scope_maintenance": "維護",
+    "scope_monitoring": "監控",
+    "scope_inventory": "庫存",
+    "scope_audit": "稽核日誌",
+    "scope_dashboard": "儀表板",
+    "scope_identity": "身分與存取",
+    "scope_prediction": "AI 預測",
+    "scope_integration": "整合",
+    "scope_system": "系統設定"
   },
   "scan_target_modal": {
     "title_create": "新增掃描目標",
@@ -1973,7 +1986,14 @@
     "btn_create": "建立",
     "btn_creating": "建立中...",
     "btn_cancel": "取消",
-    "confirm_delete_credential": "刪除憑證 \"{{name}}\"？"
+    "confirm_delete_credential": "刪除憑證 \"{{name}}\"？",
+    "edit_user_title": "編輯使用者",
+    "user_updated": "使用者更新成功",
+    "user_deleted": "使用者刪除成功",
+    "confirm_delete_user": "確定刪除使用者 \"{{name}}\"？",
+    "table_assigned_role": "指派角色",
+    "select_role": "-- 選擇角色 --",
+    "role_assigned": "角色指派成功"
   },
   "user_profile": {
     "role_badge": "高級管理員 L2",

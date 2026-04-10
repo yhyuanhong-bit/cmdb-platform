@@ -29,6 +29,44 @@ func (q *Queries) AssignRole(ctx context.Context, arg AssignRoleParams) error {
 	return err
 }
 
+const listUserRoleIDs = `-- name: ListUserRoleIDs :many
+SELECT role_id FROM user_roles WHERE user_id = $1
+`
+
+func (q *Queries) ListUserRoleIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listUserRoleIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var roleID uuid.UUID
+		if err := rows.Scan(&roleID); err != nil {
+			return nil, err
+		}
+		items = append(items, roleID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const removeRole = `-- name: RemoveRole :exec
+DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2
+`
+
+type RemoveRoleParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	RoleID uuid.UUID `json:"role_id"`
+}
+
+func (q *Queries) RemoveRole(ctx context.Context, arg RemoveRoleParams) error {
+	_, err := q.db.Exec(ctx, removeRole, arg.UserID, arg.RoleID)
+	return err
+}
+
 const createRole = `-- name: CreateRole :one
 INSERT INTO roles (
     tenant_id, name, description, permissions, is_system

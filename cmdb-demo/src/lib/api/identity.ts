@@ -22,6 +22,14 @@ export const identityApi = {
     apiClient.put<ApiResponse<Role>>(`/roles/${id}`, data),
   deleteRole: (id: string) =>
     apiClient.del(`/roles/${id}`),
+  assignRole: (userId: string, roleId: string) =>
+    apiClient.post(`/users/${userId}/roles`, { role_id: roleId }),
+  removeRole: (userId: string, roleId: string) =>
+    apiClient.del(`/users/${userId}/roles/${roleId}`),
+  listUserRoles: (userId: string) =>
+    apiClient.get(`/users/${userId}/roles`),
+  deleteUser: (userId: string) =>
+    apiClient.del(`/users/${userId}`),
   listSessions: (userId: string) => apiClient.get(`/users/${userId}/sessions`),
   changePassword: (data: { current_password: string; new_password: string }) =>
     apiClient.post('/auth/change-password', data),

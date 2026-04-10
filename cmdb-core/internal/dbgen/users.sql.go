@@ -12,6 +12,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deactivateUser = `-- name: DeactivateUser :exec
+UPDATE users SET status = 'deleted', updated_at = now() WHERE id = $1 AND tenant_id = $2
+`
+
+type DeactivateUserParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeactivateUser(ctx context.Context, arg DeactivateUserParams) error {
+	_, err := q.db.Exec(ctx, deactivateUser, arg.ID, arg.TenantID)
+	return err
+}
+
 const countUsers = `-- name: CountUsers :one
 SELECT count(*) FROM users WHERE tenant_id = $1
 `

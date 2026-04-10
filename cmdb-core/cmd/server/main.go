@@ -196,6 +196,12 @@ func main() {
 	v1.GET("/upgrade-rules", apiServer.GetUpgradeRules)
 	v1.POST("/upgrade-rules", apiServer.CreateUpgradeRule)
 
+	// Role assignment + user deletion routes
+	v1.GET("/users/:id/roles", apiServer.ListUserRoles)
+	v1.POST("/users/:id/roles", apiServer.AssignRoleToUser)
+	v1.DELETE("/users/:id/roles/:roleId", apiServer.RemoveRoleFromUser)
+	v1.DELETE("/users/:id", apiServer.DeleteUser)
+
 	// Phase 4 Group 2 routes
 	v1.GET("/users/:id/sessions", apiServer.GetUserSessions)
 	v1.POST("/auth/change-password", apiServer.ChangePassword)

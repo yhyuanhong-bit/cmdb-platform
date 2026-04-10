@@ -33,3 +33,6 @@ UPDATE users SET
     updated_at    = now()
 WHERE id = sqlc.arg('id')
 RETURNING *;
+
+-- name: DeactivateUser :exec
+UPDATE users SET status = 'deleted', updated_at = now() WHERE id = $1 AND tenant_id = $2;

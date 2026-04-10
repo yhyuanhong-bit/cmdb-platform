@@ -876,10 +876,23 @@
     "btn_creating": "创建中...",
     "btn_cancel": "取消",
     "confirm_delete_role": "确定删除此角色？",
+    "perm_read": "读取",
+    "perm_write": "写入",
     "perm_view": "查看",
     "perm_edit": "编辑",
     "perm_delete": "删除",
-    "perm_export": "导出"
+    "perm_export": "导出",
+    "scope_assets": "资产",
+    "scope_topology": "拓扑",
+    "scope_maintenance": "维护",
+    "scope_monitoring": "监控",
+    "scope_inventory": "库存",
+    "scope_audit": "审计日志",
+    "scope_dashboard": "仪表板",
+    "scope_identity": "身份与访问",
+    "scope_prediction": "AI 预测",
+    "scope_integration": "集成",
+    "scope_system": "系统设置"
   },
   "scan_target_modal": {
     "title_create": "添加扫描目标",
@@ -1973,7 +1986,14 @@
     "btn_create": "创建",
     "btn_creating": "创建中...",
     "btn_cancel": "取消",
-    "confirm_delete_credential": "删除凭据 \"{{name}}\"？"
+    "confirm_delete_credential": "删除凭据 \"{{name}}\"？",
+    "edit_user_title": "编辑用户",
+    "user_updated": "用户更新成功",
+    "user_deleted": "用户删除成功",
+    "confirm_delete_user": "确定删除用户 \"{{name}}\"？",
+    "table_assigned_role": "指派角色",
+    "select_role": "-- 选择角色 --",
+    "role_assigned": "角色指派成功"
   },
   "user_profile": {
     "role_badge": "高级管理员 L2",

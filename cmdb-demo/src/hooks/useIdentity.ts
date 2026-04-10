@@ -65,6 +65,40 @@ export function useDeleteRole() {
   })
 }
 
+export function useAssignRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
+      identityApi.assignRole(userId, roleId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  })
+}
+
+export function useRemoveRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
+      identityApi.removeRole(userId, roleId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  })
+}
+
+export function useUserRoles(userId: string) {
+  return useQuery({
+    queryKey: ['userRoles', userId],
+    queryFn: () => identityApi.listUserRoles(userId),
+    enabled: !!userId,
+  })
+}
+
+export function useDeleteUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (userId: string) => identityApi.deleteUser(userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  })
+}
+
 export function useUserSessions(userId: string) {
   return useQuery({
     queryKey: ['userSessions', userId],

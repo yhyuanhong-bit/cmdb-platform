@@ -30,3 +30,9 @@ WHERE ur.user_id = $1;
 INSERT INTO user_roles (user_id, role_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING;
+
+-- name: RemoveRole :exec
+DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2;
+
+-- name: ListUserRoleIDs :many
+SELECT role_id FROM user_roles WHERE user_id = $1;

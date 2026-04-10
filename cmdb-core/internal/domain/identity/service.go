@@ -99,6 +99,42 @@ func (s *Service) UpdateRole(ctx context.Context, params dbgen.UpdateRoleParams)
 	return &role, nil
 }
 
+// AssignRole assigns a role to a user.
+func (s *Service) AssignRole(ctx context.Context, userID, roleID uuid.UUID) error {
+	err := s.queries.AssignRole(ctx, dbgen.AssignRoleParams{UserID: userID, RoleID: roleID})
+	if err != nil {
+		return fmt.Errorf("assign role: %w", err)
+	}
+	return nil
+}
+
+// RemoveRole removes a role from a user.
+func (s *Service) RemoveRole(ctx context.Context, userID, roleID uuid.UUID) error {
+	err := s.queries.RemoveRole(ctx, dbgen.RemoveRoleParams{UserID: userID, RoleID: roleID})
+	if err != nil {
+		return fmt.Errorf("remove role: %w", err)
+	}
+	return nil
+}
+
+// ListUserRoleIDs returns the role IDs assigned to a user.
+func (s *Service) ListUserRoleIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	ids, err := s.queries.ListUserRoleIDs(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list user role IDs: %w", err)
+	}
+	return ids, nil
+}
+
+// Deactivate soft-deletes a user by setting status to 'deleted'.
+func (s *Service) Deactivate(ctx context.Context, tenantID, userID uuid.UUID) error {
+	err := s.queries.DeactivateUser(ctx, dbgen.DeactivateUserParams{ID: userID, TenantID: tenantID})
+	if err != nil {
+		return fmt.Errorf("deactivate user: %w", err)
+	}
+	return nil
+}
+
 // DeleteRole deletes a non-system role by ID, scoped to the given tenant.
 func (s *Service) DeleteRole(ctx context.Context, tenantID, id uuid.UUID) error {
 	err := s.queries.DeleteRole(ctx, dbgen.DeleteRoleParams{ID: id, TenantID: pgtype.UUID{Bytes: tenantID, Valid: true}})
