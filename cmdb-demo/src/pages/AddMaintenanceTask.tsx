@@ -2,26 +2,29 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useCreateWorkOrder } from '../hooks/useMaintenance'
-
-const assignees = [
-  { id: 1, name: 'Chen Wei', nameCn: '陳偉', initials: 'CW' },
-  { id: 2, name: 'Elena Rossi', nameCn: '', initials: 'ER' },
-]
+import { useUsers } from '../hooks/useIdentity'
 
 export default function AddMaintenanceTask() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const createWorkOrder = useCreateWorkOrder()
+  const { data: usersResp } = useUsers()
+  const apiUsers = (usersResp as any)?.data ?? []
+  const assignees = apiUsers.map((u: any) => ({
+    id: u.id,
+    name: u.display_name,
+    initials: u.display_name?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() ?? '??',
+  }))
 
   const [assetName, setAssetName] = useState('')
   const [taskType, setTaskType] = useState('repair')
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('low')
   const [scheduledDate, setScheduledDate] = useState('')
   const [scheduledTime, setScheduledTime] = useState('')
-  const [selectedAssignees, setSelectedAssignees] = useState<number[]>([])
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([])
   const [description, setDescription] = useState('')
 
-  const toggleAssignee = (id: number) => {
+  const toggleAssignee = (id: string) => {
     setSelectedAssignees((prev) =>
       prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]
     )
@@ -164,7 +167,6 @@ export default function AddMaintenanceTask() {
                   </div>
                   <div className="text-left">
                     <p className="text-sm text-on-surface">{a.name}</p>
-                    {a.nameCn && <p className="text-xs text-on-surface-variant">{a.nameCn}</p>}
                   </div>
                 </button>
               ))}
