@@ -152,7 +152,7 @@ export default function AddMaintenanceTask() {
               {t('add_maintenance_task.label_assigned_to_zh')} <span className="normal-case">({t('add_maintenance_task.label_assigned_to')})</span>
             </label>
             <div className="flex gap-3">
-              {assignees.map((a) => (
+              {assignees.map((a: any) => (
                 <button
                   key={a.id}
                   onClick={() => toggleAssignee(a.id)}

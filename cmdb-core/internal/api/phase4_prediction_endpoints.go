@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -385,37 +386,28 @@ func (s *APIServer) AcceptUpgradeRecommendation(c *gin.Context) {
 		return
 	}
 
-	// Generate work order code: WO-{year}-{incremented}
-	year := time.Now().Year()
-	prefix := fmt.Sprintf("WO-%d-", year)
-	var maxCode *string
-	_ = s.pool.QueryRow(c.Request.Context(), `
-		SELECT max(code) FROM work_orders WHERE code LIKE $1
-	`, prefix+"%").Scan(&maxCode)
-
-	nextNum := 1
-	if maxCode != nil {
-		var n int
-		_, _ = fmt.Sscanf(*maxCode, prefix+"%d", &n)
-		nextNum = n + 1
-	}
-	woCode := fmt.Sprintf("%s%04d", prefix, nextNum)
-
-	// Create work order
-	woID := uuid.New()
+	// Create work order via service layer
 	title := fmt.Sprintf("Upgrade %s %s: %s", assetType, category, ruleRecommendation)
-	_, err = s.pool.Exec(c.Request.Context(), `
-		INSERT INTO work_orders (id, tenant_id, asset_id, code, title, type, status, priority, created_by, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, 'upgrade', 'draft', 'medium', $6, now(), now())
-	`, woID, tenantID, assetID, woCode, title, userID)
+	assetUUID, err := uuid.Parse(assetID)
+	if err != nil {
+		response.BadRequest(c, "invalid asset ID")
+		return
+	}
+
+	order, err := s.maintenanceSvc.Create(c.Request.Context(), tenantID, userID, maintenance.CreateOrderRequest{
+		Title:    title,
+		Type:     "upgrade",
+		Priority: "medium",
+		AssetID:  &assetUUID,
+	})
 	if err != nil {
 		response.InternalError(c, "failed to create work order")
 		return
 	}
 
 	response.Created(c, gin.H{
-		"work_order_id": woID.String(),
-		"code":          woCode,
+		"work_order_id": order.ID.String(),
+		"code":          order.Code,
 	})
 }
 
