@@ -177,6 +177,36 @@ INSERT INTO assets (id, tenant_id, asset_tag, name, type, sub_type, status, bia_
 ON CONFLICT (asset_tag) DO NOTHING;
 
 -- ============================================================
+-- Asset Dependencies (Neihu campus topology)
+-- Represents real infrastructure dependency chains:
+--   UPS → PDU → Servers/Storage
+--   Firewall → Core Switches → Servers
+--   Servers → Storage (data dependency)
+-- ============================================================
+INSERT INTO asset_dependencies (tenant_id, source_asset_id, target_asset_id, dependency_type, description) VALUES
+    -- Power chain: UPS powers PDU, PDU powers racks
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000013', 'f0000000-0000-0000-0000-000000000012', 'powered_by', 'PDU powered by UPS Main'),
+    -- Network chain: Servers → Switches → Firewall
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000003', 'depends_on', 'Prod Server 01 connected to Core Switch A01'),
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000003', 'depends_on', 'Prod Server 02 connected to Core Switch A01'),
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000009', 'depends_on', 'DB Server connected to Core Switch A02'),
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000006', 'f0000000-0000-0000-0000-000000000009', 'depends_on', 'App Server connected to Core Switch A02'),
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000010', 'depends_on', 'Core Switch A01 uplinks to Firewall'),
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000009', 'f0000000-0000-0000-0000-000000000010', 'depends_on', 'Core Switch A02 uplinks to Firewall'),
+    -- Storage dependencies: Servers → Storage
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000011', 'depends_on', 'Prod Server 01 uses SAN Storage'),
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000011', 'depends_on', 'DB Server uses SAN Storage'),
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000008', 'f0000000-0000-0000-0000-000000000004', 'depends_on', 'Backup Server uses NAS Storage'),
+    -- Dev/Backup → Switch
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000007', 'f0000000-0000-0000-0000-000000000003', 'depends_on', 'Dev Server connected to Core Switch A01'),
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000008', 'f0000000-0000-0000-0000-000000000009', 'depends_on', 'Backup Server connected to Core Switch A02'),
+    -- HSIP dependencies
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000014', 'f0000000-0000-0000-0000-000000000016', 'depends_on', 'HSIP Server 01 connected to HSIP Switch'),
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000015', 'f0000000-0000-0000-0000-000000000016', 'depends_on', 'HSIP Server 02 connected to HSIP Switch'),
+    ('a0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000017', 'f0000000-0000-0000-0000-000000000016', 'depends_on', 'HSIP Storage connected to HSIP Switch')
+ON CONFLICT (source_asset_id, target_asset_id, dependency_type) DO NOTHING;
+
+-- ============================================================
 -- Alert Events (8 alerts)
 -- ============================================================
 INSERT INTO alert_events (id, tenant_id, asset_id, status, severity, message, fired_at) VALUES

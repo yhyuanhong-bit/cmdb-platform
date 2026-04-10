@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback, useEffect } from "react";
+import { memo, useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -213,14 +213,10 @@ function AlertTopologyAnalysis() {
     return crit?.id ?? null;
   }, [apiNodes]);
 
-  // Convert API data → ReactFlow nodes with grid layout
-  const flowNodes: Node[] = useMemo(() => {
-    const cols = Math.max(3, Math.ceil(Math.sqrt(apiNodes.length)));
-    const spacingX = 240;
-    const spacingY = 120;
-
-    return apiNodes
-      .filter((n: any) => {
+  // Filter API nodes by current filters
+  const filteredApiNodes = useMemo(
+    () =>
+      apiNodes.filter((n: any) => {
         if (biaFilter !== "all" && String(n.bia_level || 3) !== biaFilter) return false;
         if (domainFilter !== "all") {
           const domainMap: Record<string, string[]> = {
@@ -231,48 +227,43 @@ function AlertTopologyAnalysis() {
           if (domainMap[domainFilter] && !domainMap[domainFilter].includes(n.type)) return false;
         }
         return true;
-      })
-      .map((n: any, i: number) => ({
-        id: n.id,
-        type: "asset",
-        position: {
-          x: (i % cols) * spacingX + 40,
-          y: Math.floor(i / cols) * spacingY + 40,
-        },
-        data: {
-          label: n.name,
-          type: n.type,
-          icon:
-            n.type === "server" ? "dns" : n.type === "network" ? "router" : n.type === "storage" ? "storage" : "bolt",
-          status: n.has_active_alert ? "critical" : n.status === "operational" ? "normal" : "warning",
-          ip: n.ip_address || "",
-          model: n.model || "",
-          rack: n.rack_name || "",
-          biaLevel: n.bia_level || 3,
-          cpu: n.metrics?.cpu ?? 0,
-          memory: n.metrics?.memory ?? 0,
-          diskIO: n.metrics?.disk_io ?? 0,
-          tags: n.tags || [],
-          isRootCause: n.id === firstCriticalId,
-        } as TopologyNodeData,
-      }));
-  }, [apiNodes, biaFilter, domainFilter, firstCriticalId]);
+      }),
+    [apiNodes, biaFilter, domainFilter]
+  );
 
-  // Convert API data → ReactFlow edges
+  // Map API node → data payload (stable ref)
+  const buildNodeData = useCallback(
+    (n: any): TopologyNodeData => ({
+      label: n.name,
+      type: n.type,
+      icon: n.type === "server" ? "dns" : n.type === "network" ? "router" : n.type === "storage" ? "storage" : "bolt",
+      status: n.has_active_alert ? "critical" : n.status === "operational" ? "normal" : "warning",
+      ip: n.ip_address || "",
+      model: n.model || "",
+      rack: n.rack_name || "",
+      biaLevel: n.bia_level || 3,
+      cpu: n.metrics?.cpu ?? 0,
+      memory: n.metrics?.memory ?? 0,
+      diskIO: n.metrics?.disk_io ?? 0,
+      tags: n.tags || [],
+      isRootCause: n.id === firstCriticalId,
+    }),
+    [firstCriticalId]
+  );
+
+  // Convert API edges → ReactFlow edges
   const flowEdges: Edge[] = useMemo(
     () =>
       apiEdges.map((e: any) => {
         const isFault = e.isFaultPath || e.is_fault_path || false;
         return {
-          id: `${e.from}-${e.to}`,
-          source: e.from,
-          target: e.to,
+          id: `${e.source || e.from}-${e.target || e.to}`,
+          source: e.source || e.from,
+          target: e.target || e.to,
           animated: isFault,
           style: {
-            stroke: isFault ? "#ffb4ab" : "#44474c",
+            stroke: isFault ? "#ffb4ab" : "#555",
             strokeWidth: isFault ? 2.5 : 1.5,
-            strokeDasharray: isFault ? undefined : "6 4",
-            opacity: isFault ? 0.9 : 0.5,
           },
           label: isFault ? t("alert_topology.failure_path") : undefined,
           labelStyle: isFault ? { fill: "#ffb4ab", fontSize: 10, fontWeight: 600 } : undefined,
@@ -282,14 +273,87 @@ function AlertTopologyAnalysis() {
     [apiEdges, t]
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
-  const [edges, , onEdgesChange] = useEdgesState(flowEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const layoutDoneRef = useRef(false);
 
-  // Sync when API data changes
+  // ELK layout: compute positions based on dependency edges
   useEffect(() => {
-    setNodes(flowNodes);
+    if (filteredApiNodes.length === 0) {
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
+
+    const NODE_WIDTH = 190;
+    const NODE_HEIGHT = 72;
+
+    // Build initial nodes with grid fallback positions
+    const initialNodes: Node[] = filteredApiNodes.map((n: any, i: number) => ({
+      id: n.id,
+      type: "asset",
+      position: { x: (i % 4) * 230 + 30, y: Math.floor(i / 4) * 110 + 30 },
+      data: buildNodeData(n),
+    }));
+
+    // If no edges, just use grid layout
+    if (apiEdges.length === 0) {
+      setNodes(initialNodes);
+      setEdges(flowEdges);
+      layoutDoneRef.current = true;
+      return;
+    }
+
+    // Use elkjs for auto-layout
+    import("elkjs/lib/elk.bundled.js").then((ELK) => {
+      const elk = new ELK.default();
+
+      const graph = {
+        id: "root",
+        layoutOptions: {
+          "elk.algorithm": "layered",
+          "elk.direction": "DOWN",
+          "elk.spacing.nodeNode": "60",
+          "elk.layered.spacing.nodeNodeBetweenLayers": "80",
+          "elk.edgeRouting": "ORTHOGONAL",
+        },
+        children: filteredApiNodes.map((n: any) => ({
+          id: n.id,
+          width: NODE_WIDTH,
+          height: NODE_HEIGHT,
+        })),
+        edges: apiEdges.map((e: any) => ({
+          id: `e-${e.source || e.from}-${e.target || e.to}`,
+          sources: [e.source || e.from],
+          targets: [e.target || e.to],
+        })),
+      };
+
+      elk
+        .layout(graph)
+        .then((result: any) => {
+          const layoutedNodes: Node[] = (result.children || []).map((elkNode: any) => {
+            const apiNode = filteredApiNodes.find((n: any) => n.id === elkNode.id);
+            return {
+              id: elkNode.id,
+              type: "asset",
+              position: { x: elkNode.x ?? 0, y: elkNode.y ?? 0 },
+              data: apiNode ? buildNodeData(apiNode) : {},
+            };
+          });
+          setNodes(layoutedNodes);
+          setEdges(flowEdges);
+          layoutDoneRef.current = true;
+        })
+        .catch(() => {
+          // Fallback to grid
+          setNodes(initialNodes);
+          setEdges(flowEdges);
+          layoutDoneRef.current = true;
+        });
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiNodes.length, biaFilter, domainFilter]);
+  }, [filteredApiNodes.length, apiEdges.length, biaFilter, domainFilter]);
 
   // Handle node click
   const onNodeClick = useCallback((_: any, node: Node) => {
