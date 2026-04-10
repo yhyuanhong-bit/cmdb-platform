@@ -241,10 +241,22 @@ function WorkOrderCard({
           </span>
         )}
         {displayStatus === 'REJECTED' && (
-          <span className="inline-flex items-center gap-1 text-xs text-error">
-            <Icon name="block" className="text-[16px]" />
-            {t('work_order.status_rejected')}
-          </span>
+          <>
+            <span className="inline-flex items-center gap-1 text-xs text-error">
+              <Icon name="block" className="text-[16px]" />
+              {t('work_order.status_rejected')}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onTransition?.(order.apiId, 'submitted')
+              }}
+              className="text-xs text-primary font-semibold hover:underline"
+            >
+              {t('work_order.btn_resubmit')}
+            </button>
+          </>
         )}
         {(displayStatus === 'SUBMITTED' || displayStatus === 'REJECTED') && onDelete && (
           <span
@@ -377,6 +389,15 @@ export default function WorkOrder() {
   const [approvalAction, setApprovalAction] = useState<'approved' | 'rejected'>('approved')
   const [approvalComment, setApprovalComment] = useState('')
   const [approvalTargetId, setApprovalTargetId] = useState<string>('')
+  const stats = useMemo(() => {
+    const all = apiOrders ?? []
+    return {
+      submitted: all.filter(o => o.status === 'submitted').length,
+      inProgress: all.filter(o => ['approved', 'in_progress'].includes(o.status)).length,
+      completed: all.filter(o => o.status === 'completed').length,
+      overdue: all.filter(o => (o as any).sla_breached).length,
+    }
+  }, [apiOrders])
   const totalPages = woResponse?.pagination?.total_pages ?? 4
   const totalItems = woResponse?.pagination?.total ?? 64
 
@@ -430,10 +451,10 @@ export default function WorkOrder() {
 
       {/* ---- Stats row ---- */}
       <div className="grid grid-cols-5 gap-4">
-        <StatCard icon="pending_actions" label={t('work_order.stat_wait')} value="12" sub="+3 since yesterday" subColor="text-primary" />
-        <StatCard icon="sync" label={t('work_order.stat_change')} value="28" sub="6 high priority" subColor="text-[#fbbf24]" />
-        <StatCard icon="build" label={t('work_order.stat_repair')} value="05" sub="2 overdue" subColor="text-error" />
-        <StatCard icon="task_alt" label={t('work_order.stat_done')} value="19" sub="92% on-time rate" subColor="text-[#34d399]" />
+        <StatCard icon="pending_actions" label={t('work_order.stat_wait')} value={String(stats.submitted).padStart(2, '0')} sub={`${stats.submitted} pending`} subColor="text-primary" />
+        <StatCard icon="sync" label={t('work_order.stat_change')} value={String(stats.inProgress).padStart(2, '0')} sub={`${stats.inProgress} active`} subColor="text-[#fbbf24]" />
+        <StatCard icon="build" label={t('work_order.stat_repair')} value={String(stats.overdue).padStart(2, '0')} sub={`${stats.overdue} overdue`} subColor="text-error" />
+        <StatCard icon="task_alt" label={t('work_order.stat_done')} value={String(stats.completed).padStart(2, '0')} sub={`${apiOrders.length} total`} subColor="text-[#34d399]" />
 
         {/* System Health card */}
         <div className="bg-surface-container-low rounded-lg p-5 flex flex-col justify-between gap-2">
@@ -521,7 +542,7 @@ export default function WorkOrder() {
               >
                 <Icon name="chevron_left" className="text-[18px]" />
               </button>
-              {[1, 2, 3, 4].map((page) => (
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => i + 1).map((page) => (
                 <button
                   key={page}
                   type="button"

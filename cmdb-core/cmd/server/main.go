@@ -277,7 +277,7 @@ func main() {
 
 	// Workflow subscribers (cross-module reactions)
 	if bus != nil {
-		wfSub := workflows.New(pool, queries, bus)
+		wfSub := workflows.New(pool, queries, bus, maintenanceSvc)
 		wfSub.Register()
 		wfSub.StartSLAChecker(ctx)
 	}

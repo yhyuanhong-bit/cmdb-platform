@@ -18,6 +18,7 @@ var validTransitions = map[string][]string{
 	StatusApproved:   {StatusInProgress},
 	StatusInProgress: {StatusCompleted},
 	StatusCompleted:  {StatusVerified},
+	StatusRejected:  {StatusSubmitted},
 }
 
 // approvalTransitions are transitions that require approval permissions.

@@ -2126,7 +2126,9 @@
     "btn_reject": "Reject",
     "btn_verify": "Verify & Close",
     "confirm_delete": "Are you sure you want to delete work order {{id}}?",
-    "delete_success": "Work order deleted"
+    "delete_success": "Work order deleted",
+    "btn_resubmit": "Resubmit",
+    "resubmitted": "Work order resubmitted"
   },
   "quality": {
     "title": "Data Quality Governance",

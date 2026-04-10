@@ -196,6 +196,11 @@ func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.
 
 // validateApproval checks that the operator has approval permissions and is not self-approving.
 func validateApproval(operatorID uuid.UUID, requestorID pgtype.UUID, operatorRoles []string) error {
+	// System operations (uuid.Nil) bypass approval checks
+	if operatorID == uuid.Nil {
+		return nil
+	}
+
 	// Check role
 	hasApprovalRole := false
 	for _, role := range operatorRoles {

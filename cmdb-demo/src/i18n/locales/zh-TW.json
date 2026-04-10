@@ -2126,7 +2126,9 @@
     "btn_reject": "駁回",
     "btn_verify": "驗收關閉",
     "confirm_delete": "確定要刪除工單 {{id}} 嗎？",
-    "delete_success": "工單已刪除"
+    "delete_success": "工單已刪除",
+    "btn_resubmit": "重新提交",
+    "resubmitted": "工單已重新提交"
   },
   "quality": {
     "title": "數據質量治理",

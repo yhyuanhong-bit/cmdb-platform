@@ -11,6 +11,7 @@ func TestValidateTransition(t *testing.T) {
 		{StatusApproved, StatusInProgress},
 		{StatusInProgress, StatusCompleted},
 		{StatusCompleted, StatusVerified},
+		{StatusRejected, StatusSubmitted},
 	}
 
 	for _, tt := range validTransitions {
@@ -30,7 +31,6 @@ func TestValidateTransition_Invalid(t *testing.T) {
 		{StatusApproved, StatusCompleted},
 		{StatusInProgress, StatusSubmitted},
 		{StatusCompleted, StatusInProgress},
-		{StatusRejected, StatusSubmitted},
 		{StatusVerified, StatusSubmitted},
 	}
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -16,14 +17,15 @@ import (
 
 // WorkflowSubscriber handles cross-module reactions to domain events.
 type WorkflowSubscriber struct {
-	pool    *pgxpool.Pool
-	queries *dbgen.Queries
-	bus     eventbus.Bus
+	pool           *pgxpool.Pool
+	queries        *dbgen.Queries
+	bus            eventbus.Bus
+	maintenanceSvc *maintenance.Service
 }
 
 // New creates a WorkflowSubscriber.
-func New(pool *pgxpool.Pool, queries *dbgen.Queries, bus eventbus.Bus) *WorkflowSubscriber {
-	return &WorkflowSubscriber{pool: pool, queries: queries, bus: bus}
+func New(pool *pgxpool.Pool, queries *dbgen.Queries, bus eventbus.Bus, maintenanceSvc *maintenance.Service) *WorkflowSubscriber {
+	return &WorkflowSubscriber{pool: pool, queries: queries, bus: bus, maintenanceSvc: maintenanceSvc}
 }
 
 // Register subscribes to all relevant event subjects.
@@ -130,23 +132,34 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 		return nil // already has an open work order
 	}
 
-	// Create emergency work order
-	assetID, _ := uuid.Parse(payload.AssetID)
-	code := fmt.Sprintf("WO-EMG-%d", uuid.New().ID())
-
-	_, insertErr := w.pool.Exec(ctx, `
-		INSERT INTO work_orders (tenant_id, code, title, type, status, priority, asset_id, description, created_at, updated_at)
-		VALUES ($1, $2, $3, 'emergency', 'submitted', 'critical', $4, $5, now(), now())
-	`, tenantID, code, fmt.Sprintf("Emergency: %s", payload.Message), assetID, payload.Message)
-	if insertErr != nil {
-		// Likely duplicate or constraint violation — safe to skip
-		zap.L().Debug("workflow: emergency WO insert skipped (likely duplicate)", zap.Error(insertErr))
+	// Create emergency work order via service layer
+	assetUUID, _ := uuid.Parse(payload.AssetID)
+	order, createErr := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		Title:       fmt.Sprintf("Emergency: %s", payload.Message),
+		Type:        "emergency",
+		Priority:    "critical",
+		AssetID:     &assetUUID,
+		Description: payload.Message,
+	})
+	if createErr != nil {
+		zap.L().Debug("workflow: emergency WO creation skipped", zap.Error(createErr))
 		return nil
 	}
 
+	// Auto-advance to in_progress (skip approval for emergencies)
+	// uuid.Nil as operatorID signals a system operation, bypassing self-approval checks
+	_, _ = w.maintenanceSvc.Transition(ctx, tenantID, order.ID, uuid.Nil, []string{"super-admin"}, maintenance.TransitionRequest{
+		Status:  "approved",
+		Comment: "Auto-approved: emergency work order",
+	})
+	_, _ = w.maintenanceSvc.Transition(ctx, tenantID, order.ID, uuid.Nil, nil, maintenance.TransitionRequest{
+		Status:  "in_progress",
+		Comment: "Auto-started: emergency work order",
+	})
+
 	zap.L().Info("workflow: auto-created emergency work order",
 		zap.String("asset_id", payload.AssetID),
-		zap.String("code", code))
+		zap.String("order_id", order.ID.String()))
 
 	return nil
 }
