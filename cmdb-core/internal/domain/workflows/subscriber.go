@@ -204,7 +204,7 @@ func (w *WorkflowSubscriber) checkSLABreaches(ctx context.Context) {
 		if rows.Scan(&id, &tenantID, &code, &assigneeID) != nil {
 			continue
 		}
-		w.pool.Exec(ctx, "UPDATE work_orders SET sla_breached = true WHERE id = $1", id)
+		w.pool.Exec(ctx, "UPDATE work_orders SET sla_breached = true WHERE id = $1 AND tenant_id = $2", id, tenantID)
 		if assigneeID.Valid {
 			w.createNotification(ctx, tenantID, uuid.UUID(assigneeID.Bytes),
 				"sla_breach",
@@ -231,7 +231,7 @@ func (w *WorkflowSubscriber) checkSLAWarnings(ctx context.Context) {
 		if rows.Scan(&id, &tenantID, &code, &assigneeID) != nil {
 			continue
 		}
-		w.pool.Exec(ctx, "UPDATE work_orders SET sla_warning_sent = true WHERE id = $1", id)
+		w.pool.Exec(ctx, "UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2", id, tenantID)
 		if assigneeID.Valid {
 			w.createNotification(ctx, tenantID, uuid.UUID(assigneeID.Bytes),
 				"sla_warning",

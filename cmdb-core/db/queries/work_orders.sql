@@ -81,14 +81,15 @@ WHERE id = $1 AND tenant_id = $4
 RETURNING *;
 
 -- name: MarkSLAWarning :exec
-UPDATE work_orders SET sla_warning_sent = true WHERE id = $1;
+UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2;
 
 -- name: MarkSLABreached :exec
-UPDATE work_orders SET sla_breached = true WHERE id = $1;
+UPDATE work_orders SET sla_breached = true WHERE id = $1 AND tenant_id = $2;
 
 -- name: ListOverdueSLAOrders :many
 SELECT * FROM work_orders
-WHERE status = 'in_progress'
+WHERE tenant_id = $1
+  AND status IN ('approved', 'in_progress')
   AND sla_deadline IS NOT NULL
   AND sla_deadline < now()
   AND sla_breached = false
@@ -96,8 +97,10 @@ WHERE status = 'in_progress'
 
 -- name: ListSLAWarningOrders :many
 SELECT * FROM work_orders
-WHERE status IN ('approved', 'in_progress')
+WHERE tenant_id = $1
+  AND status IN ('approved', 'in_progress')
   AND sla_deadline IS NOT NULL
   AND sla_warning_sent = false
+  AND approved_at IS NOT NULL
   AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now()
   AND deleted_at IS NULL;

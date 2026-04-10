@@ -489,34 +489,45 @@ func (q *Queries) StampWorkOrderApproval(ctx context.Context, arg StampWorkOrder
 }
 
 const markSLAWarning = `-- name: MarkSLAWarning :exec
-UPDATE work_orders SET sla_warning_sent = true WHERE id = $1
+UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) MarkSLAWarning(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markSLAWarning, id)
+type MarkSLAWarningParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) MarkSLAWarning(ctx context.Context, arg MarkSLAWarningParams) error {
+	_, err := q.db.Exec(ctx, markSLAWarning, arg.ID, arg.TenantID)
 	return err
 }
 
 const markSLABreached = `-- name: MarkSLABreached :exec
-UPDATE work_orders SET sla_breached = true WHERE id = $1
+UPDATE work_orders SET sla_breached = true WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) MarkSLABreached(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markSLABreached, id)
+type MarkSLABreachedParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) MarkSLABreached(ctx context.Context, arg MarkSLABreachedParams) error {
+	_, err := q.db.Exec(ctx, markSLABreached, arg.ID, arg.TenantID)
 	return err
 }
 
 const listOverdueSLAOrders = `-- name: ListOverdueSLAOrders :many
 SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders
-WHERE status = 'in_progress'
+WHERE tenant_id = $1
+  AND status IN ('approved', 'in_progress')
   AND sla_deadline IS NOT NULL
   AND sla_deadline < now()
   AND sla_breached = false
   AND deleted_at IS NULL
 `
 
-func (q *Queries) ListOverdueSLAOrders(ctx context.Context) ([]WorkOrder, error) {
-	rows, err := q.db.Query(ctx, listOverdueSLAOrders)
+func (q *Queries) ListOverdueSLAOrders(ctx context.Context, tenantID uuid.UUID) ([]WorkOrder, error) {
+	rows, err := q.db.Query(ctx, listOverdueSLAOrders, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -563,15 +574,17 @@ func (q *Queries) ListOverdueSLAOrders(ctx context.Context) ([]WorkOrder, error)
 
 const listSLAWarningOrders = `-- name: ListSLAWarningOrders :many
 SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders
-WHERE status IN ('approved', 'in_progress')
+WHERE tenant_id = $1
+  AND status IN ('approved', 'in_progress')
   AND sla_deadline IS NOT NULL
   AND sla_warning_sent = false
+  AND approved_at IS NOT NULL
   AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now()
   AND deleted_at IS NULL
 `
 
-func (q *Queries) ListSLAWarningOrders(ctx context.Context) ([]WorkOrder, error) {
-	rows, err := q.db.Query(ctx, listSLAWarningOrders)
+func (q *Queries) ListSLAWarningOrders(ctx context.Context, tenantID uuid.UUID) ([]WorkOrder, error) {
+	rows, err := q.db.Query(ctx, listSLAWarningOrders, tenantID)
 	if err != nil {
 		return nil, err
 	}
