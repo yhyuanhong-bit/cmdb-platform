@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
-import { useWorkOrder, useTransitionWorkOrder, useWorkOrderLogs, useWorkOrderComments, useCreateWorkOrderComment } from '../hooks/useMaintenance'
+import { useWorkOrder, useUpdateWorkOrder, useTransitionWorkOrder, useWorkOrderLogs, useWorkOrderComments, useCreateWorkOrderComment } from '../hooks/useMaintenance'
 
 const taskSteps = [
   'Execute standard hot-swap procedure for battery modules UPS-BAT-01 and UPS-BAT-02',
@@ -70,6 +70,9 @@ export default function MaintenanceTaskView() {
   const comments = (commentsData as any)?.comments ?? []
   const createComment = useCreateWorkOrderComment()
   const [comment, setComment] = useState('')
+  const updateWO = useUpdateWorkOrder()
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editData, setEditData] = useState({ title: '', description: '', priority: '' })
 
   const handleCommentSubmit = () => {
     if (!comment.trim()) return
@@ -146,7 +149,22 @@ export default function MaintenanceTaskView() {
               <Icon name="group" className="text-[18px]" />
               調度人員
             </button>
-            <button onClick={() => toast.info('Edit: Coming Soon')} className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all">
+            <button
+              onClick={() => {
+                const status = workOrder?.status?.toLowerCase()
+                if (status && status !== 'submitted' && status !== 'rejected') {
+                  toast.error(t('work_order.edit_blocked'))
+                  return
+                }
+                setEditData({
+                  title: workOrder?.title ?? '',
+                  description: workOrder?.description ?? '',
+                  priority: workOrder?.priority ?? 'medium',
+                })
+                setShowEditModal(true)
+              }}
+              className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"
+            >
               <Icon name="edit" className="text-[18px]" />
               {t('maintenance_task.edit_task')}
             </button>
@@ -341,6 +359,67 @@ export default function MaintenanceTaskView() {
           </div>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEditModal(false)}>
+          <div className="bg-surface-container p-6 rounded-xl w-[480px] space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-on-surface">{t('maintenance_task.edit_task')}</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-on-surface-variant uppercase tracking-wider block mb-1">{t('common.title')}</label>
+                <input
+                  value={editData.title}
+                  onChange={e => setEditData(p => ({ ...p, title: e.target.value }))}
+                  className="w-full p-2.5 bg-surface-container-low rounded-lg border border-surface-container-highest text-on-surface text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-on-surface-variant uppercase tracking-wider block mb-1">{t('common.description')}</label>
+                <textarea
+                  value={editData.description}
+                  onChange={e => setEditData(p => ({ ...p, description: e.target.value }))}
+                  rows={3}
+                  className="w-full p-2.5 bg-surface-container-low rounded-lg border border-surface-container-highest text-on-surface text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-on-surface-variant uppercase tracking-wider block mb-1">{t('common.priority')}</label>
+                <select
+                  value={editData.priority}
+                  onChange={e => setEditData(p => ({ ...p, priority: e.target.value }))}
+                  className="w-full p-2.5 bg-surface-container-low rounded-lg border border-surface-container-highest text-on-surface text-sm"
+                >
+                  <option value="critical">{t('common.critical')}</option>
+                  <option value="high">{t('common.high')}</option>
+                  <option value="medium">{t('common.medium')}</option>
+                  <option value="low">{t('common.low')}</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button onClick={() => setShowEditModal(false)} className="px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant text-sm">
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={() => {
+                  if (!taskId) return
+                  updateWO.mutate({ id: taskId, data: editData }, {
+                    onSuccess: () => {
+                      setShowEditModal(false)
+                      toast.success(t('work_order.updated_success'))
+                    }
+                  })
+                }}
+                disabled={updateWO.isPending}
+                className="px-4 py-2 rounded-lg bg-on-primary-container text-white text-sm font-semibold disabled:opacity-50"
+              >
+                {updateWO.isPending ? t('common.saving') : t('common.save_changes')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

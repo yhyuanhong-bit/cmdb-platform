@@ -2128,7 +2128,9 @@
     "confirm_delete": "Are you sure you want to delete work order {{id}}?",
     "delete_success": "Work order deleted",
     "btn_resubmit": "Resubmit",
-    "resubmitted": "Work order resubmitted"
+    "resubmitted": "Work order resubmitted",
+    "edit_blocked": "Only submitted or rejected orders can be edited",
+    "updated_success": "Work order updated"
   },
   "quality": {
     "title": "Data Quality Governance",

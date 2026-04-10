@@ -2128,7 +2128,9 @@
     "confirm_delete": "确定要删除工单 {{id}} 吗？",
     "delete_success": "工单已删除",
     "btn_resubmit": "重新提交",
-    "resubmitted": "工单已重新提交"
+    "resubmitted": "工单已重新提交",
+    "edit_blocked": "仅提交中或已驳回的工单可编辑",
+    "updated_success": "工单更新成功"
   },
   "quality": {
     "title": "数据质量治理",
