@@ -367,8 +367,10 @@ function AlertTopologyAnalysis() {
           <div className="relative w-full" style={{ height: "520px" }}>
             {/* SVG layer for connections */}
             <svg
-              className="absolute inset-0 w-full h-full pointer-events-none"
-              style={{ zIndex: 0 }}
+              className="absolute inset-0 pointer-events-none"
+              style={{ zIndex: 0, width: '100%', height: '100%' }}
+              viewBox="0 0 960 520"
+              preserveAspectRatio="xMidYMid meet"
             >
               <defs>
                 <marker

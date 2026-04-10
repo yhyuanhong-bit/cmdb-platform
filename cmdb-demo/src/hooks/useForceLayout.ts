@@ -29,7 +29,7 @@ export function useForceLayout(
     const idealEdgeLen = Math.max(minSep * 1.3, 250)
 
     // Repulsion strength scales with node area
-    const repulsionK = nw > 0 ? minSep * minSep * 2 : 5000
+    const repulsionK = nw > 0 ? minSep * minSep * 3 : 5000
 
     const positioned = nodes.map((n, i) => ({
       ...n,
