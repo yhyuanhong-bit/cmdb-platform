@@ -17,6 +17,7 @@
   "license": "ISC",
   "dependencies": {
     "@tanstack/react-query": "^5.95.2",
+    "@xyflow/react": "^12.10.2",
     "i18next": "^26.0.1",
     "i18next-browser-languagedetector": "^8.2.1",
     "react": "^19.2.4",

@@ -90,7 +90,7 @@ export default function SystemSettings() {
         </div>
         {canManageUsers && (
           <button
-            onClick={() => { setEditingUser(null); setNewUserData({ username: '', display_name: '', email: '', password: '' }); setShowUserModal(true) }}
+            onClick={() => { setEditingUser(null); setNewUserData({ username: '', display_name: '', email: '', password: '', role_id: '' }); setShowUserModal(true) }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-on-primary-container text-white text-sm font-semibold hover:bg-on-primary-container/90 transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">person_add</span>
@@ -322,7 +322,7 @@ export default function SystemSettings() {
                 <div className="flex gap-1">
                   <button onClick={() => {
                     setEditingUser(user)
-                    setNewUserData({ username: user.username ?? '', display_name: user.name ?? '', email: user.email ?? '', password: '' })
+                    setNewUserData({ username: user.username ?? '', display_name: user.name ?? '', email: user.email ?? '', password: '', role_id: '' })
                     setShowUserModal(true)
                   }} className="p-1.5 rounded hover:bg-surface-container-high transition-colors">
                     <span className="material-symbols-outlined text-on-surface-variant text-[18px]">edit</span>
