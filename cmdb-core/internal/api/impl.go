@@ -1047,6 +1047,10 @@ func (s *APIServer) TransitionWorkOrder(c *gin.Context, id IdPath) {
 	}
 
 	operatorID := userIDFromContext(c)
+	if operatorID == uuid.Nil {
+		response.Err(c, 401, "INVALID_TOKEN", "invalid user identity")
+		return
+	}
 	comment := ""
 	if req.Comment != nil {
 		comment = *req.Comment

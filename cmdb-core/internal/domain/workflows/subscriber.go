@@ -148,14 +148,18 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 
 	// Auto-advance to in_progress (skip approval for emergencies)
 	// uuid.Nil as operatorID signals a system operation, bypassing self-approval checks
-	_, _ = w.maintenanceSvc.Transition(ctx, tenantID, order.ID, uuid.Nil, []string{"super-admin"}, maintenance.TransitionRequest{
+	if _, err := w.maintenanceSvc.Transition(ctx, tenantID, order.ID, uuid.Nil, []string{"super-admin"}, maintenance.TransitionRequest{
 		Status:  "approved",
 		Comment: "Auto-approved: emergency work order",
-	})
-	_, _ = w.maintenanceSvc.Transition(ctx, tenantID, order.ID, uuid.Nil, nil, maintenance.TransitionRequest{
+	}); err != nil {
+		zap.L().Error("workflow: failed to auto-approve emergency WO", zap.String("order_id", order.ID.String()), zap.Error(err))
+	}
+	if _, err := w.maintenanceSvc.Transition(ctx, tenantID, order.ID, uuid.Nil, nil, maintenance.TransitionRequest{
 		Status:  "in_progress",
 		Comment: "Auto-started: emergency work order",
-	})
+	}); err != nil {
+		zap.L().Error("workflow: failed to auto-start emergency WO", zap.String("order_id", order.ID.String()), zap.Error(err))
+	}
 
 	zap.L().Info("workflow: auto-created emergency work order",
 		zap.String("asset_id", payload.AssetID),
