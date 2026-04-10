@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback } from "react";
+import { memo, useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -286,9 +286,10 @@ function AlertTopologyAnalysis() {
   const [edges, , onEdgesChange] = useEdgesState(flowEdges);
 
   // Sync when API data changes
-  useMemo(() => {
+  useEffect(() => {
     setNodes(flowNodes);
-  }, [flowNodes, setNodes]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiNodes.length, biaFilter, domainFilter]);
 
   // Handle node click
   const onNodeClick = useCallback((_: any, node: Node) => {
