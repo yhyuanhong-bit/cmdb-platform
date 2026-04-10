@@ -197,6 +197,13 @@ func main() {
 	v1.GET("/upgrade-rules", apiServer.GetUpgradeRules)
 	v1.POST("/upgrade-rules", apiServer.CreateUpgradeRule)
 
+	// One-time data migration: draft/pending → submitted
+	v1.POST("/admin/migrate-statuses", func(c *gin.Context) {
+		res1, _ := pool.Exec(c.Request.Context(), "UPDATE work_orders SET status = 'submitted' WHERE status IN ('draft', 'pending')")
+		res2, _ := pool.Exec(c.Request.Context(), "UPDATE work_orders SET status = 'verified' WHERE status = 'closed'")
+		c.JSON(200, gin.H{"migrated_to_submitted": res1.RowsAffected(), "migrated_to_verified": res2.RowsAffected()})
+	})
+
 	// Role assignment + user deletion routes
 	v1.GET("/users/:id/roles", apiServer.ListUserRoles)
 	v1.POST("/users/:id/roles", apiServer.AssignRoleToUser)

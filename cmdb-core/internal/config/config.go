@@ -37,7 +37,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		Port:        port,
-		DatabaseURL: envOrDefault("DATABASE_URL", "postgres://localhost:5432/cmdb?sslmode=disable"),
+		DatabaseURL: envOrDefault("DATABASE_URL", "postgres://cmdb:changeme@localhost:5432/cmdb?sslmode=disable"),
 		RedisURL:    envOrDefault("REDIS_URL", "redis://localhost:6379/0"),
 		NatsURL:     envOrDefault("NATS_URL", "nats://localhost:4222"),
 		JWTSecret:   envOrDefault("JWT_SECRET", "dev-secret-change-me"),
