@@ -279,6 +279,7 @@ func main() {
 	if bus != nil {
 		wfSub := workflows.New(pool, queries, bus)
 		wfSub.Register()
+		wfSub.StartSLAChecker(ctx)
 	}
 
 	// Webhook dispatcher

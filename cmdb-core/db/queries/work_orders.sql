@@ -17,7 +17,7 @@ WHERE tenant_id = $1
   AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'));
 
 -- name: GetWorkOrder :one
-SELECT * FROM work_orders WHERE id = $1 AND tenant_id = $2;
+SELECT * FROM work_orders WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
 
 -- name: CreateWorkOrder :one
 INSERT INTO work_orders (
@@ -36,7 +36,7 @@ INSERT INTO work_orders (
 UPDATE work_orders SET
     status     = $2,
     updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $3
 RETURNING *;
 
 -- name: CreateWorkOrderLog :one
@@ -57,7 +57,7 @@ UPDATE work_orders SET
     scheduled_start = COALESCE(sqlc.narg('scheduled_start'), scheduled_start),
     scheduled_end   = COALESCE(sqlc.narg('scheduled_end'), scheduled_end),
     updated_at      = now()
-WHERE id = sqlc.arg('id')
+WHERE id = sqlc.arg('id') AND tenant_id = sqlc.arg('tenant_id')
 RETURNING *;
 
 -- name: ListWorkOrderLogs :many
@@ -77,7 +77,7 @@ UPDATE work_orders SET
     sla_deadline = $3,
     status = 'approved',
     updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $4
 RETURNING *;
 
 -- name: MarkSLAWarning :exec

@@ -1076,7 +1076,7 @@ func (s *APIServer) TransitionWorkOrder(c *gin.Context, id IdPath) {
 		"comment": comment,
 	})
 	s.publishEvent(c.Request.Context(), eventbus.SubjectOrderTransitioned, tenantIDFromContext(c).String(), map[string]any{
-		"order_id": uuid.UUID(id).String(), "status": req.Status,
+		"order_id": uuid.UUID(id).String(), "status": req.Status, "tenant_id": tenantIDFromContext(c).String(), "type": order.Type, "priority": order.Priority, "asset_id": "",
 	})
 	response.OK(c, toAPIWorkOrder(*order))
 }
@@ -1090,8 +1090,10 @@ func (s *APIServer) UpdateWorkOrder(c *gin.Context, id IdPath) {
 		return
 	}
 
+	tenantID := tenantIDFromContext(c)
 	params := dbgen.UpdateWorkOrderParams{
-		ID: uuid.UUID(id),
+		ID:       uuid.UUID(id),
+		TenantID: tenantID,
 	}
 	if req.Title != nil {
 		params.Title = pgtype.Text{String: *req.Title, Valid: true}
@@ -1146,6 +1148,13 @@ func (s *APIServer) DeleteWorkOrder(c *gin.Context, id openapi_types.UUID) {
 // ListWorkOrderLogs returns the audit trail for a work order.
 // (GET /maintenance/orders/{id}/logs)
 func (s *APIServer) ListWorkOrderLogs(c *gin.Context, id IdPath) {
+	tenantID := tenantIDFromContext(c)
+	// Verify the work order belongs to the current tenant before listing logs
+	_, err := s.maintenanceSvc.GetByID(c.Request.Context(), tenantID, uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "work order not found")
+		return
+	}
 	logs, err := s.maintenanceSvc.ListLogs(c.Request.Context(), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "work order not found")

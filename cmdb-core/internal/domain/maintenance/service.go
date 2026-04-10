@@ -2,8 +2,10 @@ package maintenance
 
 import (
 	"context"
+	crand "crypto/rand"
+	"encoding/binary"
 	"fmt"
-	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
@@ -66,11 +68,15 @@ func (s *Service) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.W
 	return &order, nil
 }
 
-// generateCode produces a work order code like "WO-2026-0042".
+// generateCode produces a work order code like "WO-2026-A1B2C3D4".
 func generateCode() string {
 	year := time.Now().Year()
-	seq := rand.Intn(9000) + 1000
-	return fmt.Sprintf("WO-%d-%04d", year, seq)
+	b := make([]byte, 4)
+	if _, err := crand.Read(b); err != nil {
+		// fallback
+		return fmt.Sprintf("WO-%d-%08X", year, time.Now().UnixNano()&0xFFFFFFFF)
+	}
+	return fmt.Sprintf("WO-%d-%08X", year, binary.BigEndian.Uint32(b))
 }
 
 // Create creates a new work order in submitted status.
@@ -79,6 +85,7 @@ func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, r
 	if priority == "" {
 		priority = "medium"
 	}
+	priority = strings.ToLower(priority)
 
 	params := dbgen.CreateWorkOrderParams{
 		TenantID:    tenantID,
@@ -159,11 +166,13 @@ func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.
 			ID:          id,
 			ApprovedBy:  pgtype.UUID{Bytes: operatorID, Valid: true},
 			SlaDeadline: pgtype.Timestamptz{Time: deadline, Valid: true},
+			TenantID:    tenantID,
 		})
 	} else {
 		updated, err = s.queries.UpdateWorkOrderStatus(ctx, dbgen.UpdateWorkOrderStatusParams{
-			ID:     id,
-			Status: req.Status,
+			ID:       id,
+			Status:   req.Status,
+			TenantID: tenantID,
 		})
 	}
 	if err != nil {

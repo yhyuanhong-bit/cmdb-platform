@@ -146,13 +146,13 @@ function getWeekData(t: ReturnType<typeof useTranslation>['t']): CalendarBlock[]
 }
 
 function buildSummaryCards(workOrders: WorkOrder[]) {
-  const scheduled = workOrders.filter((wo) => wo.status === 'SCHEDULED' || wo.status === 'PENDING').length
-  const inProgress = workOrders.filter((wo) => wo.status === 'IN_PROGRESS').length
+  const scheduled = workOrders.filter((wo) => wo.status === 'submitted' || wo.status === 'approved').length
+  const inProgress = workOrders.filter((wo) => wo.status === 'in_progress').length
   const overdue = workOrders.filter((wo) => {
-    if (wo.status === 'COMPLETED' || wo.status === 'CANCELLED') return false
+    if (wo.status === 'completed' || wo.status === 'verified' || wo.status === 'rejected') return false
     return wo.scheduled_end && new Date(wo.scheduled_end) < new Date()
   }).length
-  const completed = workOrders.filter((wo) => wo.status === 'COMPLETED').length
+  const completed = workOrders.filter((wo) => wo.status === 'completed' || wo.status === 'verified').length
   return [
     { label: 'Scheduled', labelKey: 'maintenance_schedule.scheduled_tasks', value: String(scheduled ?? 18), icon: 'calendar_month', color: 'text-primary' },
     { label: 'In Progress', labelKey: 'maintenance_schedule.in_progress', value: String(inProgress ?? 5), icon: 'pending_actions', color: 'text-[#fbbf24]' },

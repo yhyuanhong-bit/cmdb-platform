@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -132,10 +134,15 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 	assetID, _ := uuid.Parse(payload.AssetID)
 	code := fmt.Sprintf("WO-EMG-%d", uuid.New().ID())
 
-	w.pool.Exec(ctx, `
+	_, insertErr := w.pool.Exec(ctx, `
 		INSERT INTO work_orders (tenant_id, code, title, type, status, priority, asset_id, description, created_at, updated_at)
 		VALUES ($1, $2, $3, 'emergency', 'submitted', 'critical', $4, $5, now(), now())
 	`, tenantID, code, fmt.Sprintf("Emergency: %s", payload.Message), assetID, payload.Message)
+	if insertErr != nil {
+		// Likely duplicate or constraint violation — safe to skip
+		zap.L().Debug("workflow: emergency WO insert skipped (likely duplicate)", zap.Error(insertErr))
+		return nil
+	}
 
 	zap.L().Info("workflow: auto-created emergency work order",
 		zap.String("asset_id", payload.AssetID),
@@ -161,5 +168,76 @@ func (w *WorkflowSubscriber) createNotification(ctx context.Context, tenantID, u
 			TenantID: tenantID.String(),
 			Payload:  payload,
 		})
+	}
+}
+
+// StartSLAChecker runs a background ticker that checks for SLA warnings and breaches.
+func (w *WorkflowSubscriber) StartSLAChecker(ctx context.Context) {
+	ticker := time.NewTicker(60 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				w.checkSLABreaches(ctx)
+				w.checkSLAWarnings(ctx)
+			}
+		}
+	}()
+	zap.L().Info("SLA checker started (60s interval)")
+}
+
+func (w *WorkflowSubscriber) checkSLABreaches(ctx context.Context) {
+	rows, err := w.pool.Query(ctx,
+		"SELECT id, tenant_id, code, assignee_id FROM work_orders WHERE status IN ('approved','in_progress') AND sla_deadline IS NOT NULL AND sla_deadline < now() AND sla_breached = false AND deleted_at IS NULL")
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id, tenantID uuid.UUID
+		var code string
+		var assigneeID pgtype.UUID
+		if rows.Scan(&id, &tenantID, &code, &assigneeID) != nil {
+			continue
+		}
+		w.pool.Exec(ctx, "UPDATE work_orders SET sla_breached = true WHERE id = $1", id)
+		if assigneeID.Valid {
+			w.createNotification(ctx, tenantID, uuid.UUID(assigneeID.Bytes),
+				"sla_breach",
+				fmt.Sprintf("SLA Breached: %s", code),
+				fmt.Sprintf("Work order %s has exceeded its SLA deadline.", code),
+				"work_order", id)
+		}
+		zap.L().Warn("SLA breached", zap.String("order", code))
+	}
+}
+
+func (w *WorkflowSubscriber) checkSLAWarnings(ctx context.Context) {
+	rows, err := w.pool.Query(ctx,
+		"SELECT id, tenant_id, code, assignee_id FROM work_orders WHERE status IN ('approved','in_progress') AND sla_deadline IS NOT NULL AND sla_warning_sent = false AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now() AND approved_at IS NOT NULL AND deleted_at IS NULL")
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id, tenantID uuid.UUID
+		var code string
+		var assigneeID pgtype.UUID
+		if rows.Scan(&id, &tenantID, &code, &assigneeID) != nil {
+			continue
+		}
+		w.pool.Exec(ctx, "UPDATE work_orders SET sla_warning_sent = true WHERE id = $1", id)
+		if assigneeID.Valid {
+			w.createNotification(ctx, tenantID, uuid.UUID(assigneeID.Bytes),
+				"sla_warning",
+				fmt.Sprintf("SLA Warning: %s", code),
+				fmt.Sprintf("Work order %s is approaching its SLA deadline.", code),
+				"work_order", id)
+		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -275,22 +276,27 @@ func toAPIRack(db dbgen.Rack) Rack {
 // 4. toAPIWorkOrder
 // ---------------------------------------------------------------------------
 
-func toAPIWorkOrder(db dbgen.WorkOrder) WorkOrder {
-	return WorkOrder{
-		Id:             db.ID,
-		Code:           db.Code,
-		Title:          db.Title,
-		Type:           db.Type,
-		Status:         db.Status,
-		Priority:       db.Priority,
-		LocationId:     pgUUIDToUUID(db.LocationID),
-		AssigneeId:     pguuidToUUIDPtr(db.AssigneeID),
-		Description:    pgtextToStr(db.Description),
-		ScheduledStart: pgtsToTime(db.ScheduledStart),
-		ScheduledEnd:   pgtsToTime(db.ScheduledEnd),
-		ActualStart:    pgtsToTimePtr(db.ActualStart),
-		ActualEnd:      pgtsToTimePtr(db.ActualEnd),
-		CreatedAt:      db.CreatedAt,
+func toAPIWorkOrder(db dbgen.WorkOrder) gin.H {
+	return gin.H{
+		"id":               db.ID,
+		"code":             db.Code,
+		"title":            db.Title,
+		"type":             db.Type,
+		"status":           db.Status,
+		"priority":         db.Priority,
+		"location_id":      pgUUIDToUUID(db.LocationID),
+		"assignee_id":      pguuidToUUIDPtr(db.AssigneeID),
+		"description":      pgtextToStr(db.Description),
+		"scheduled_start":  pgtsToTime(db.ScheduledStart),
+		"scheduled_end":    pgtsToTime(db.ScheduledEnd),
+		"actual_start":     pgtsToTimePtr(db.ActualStart),
+		"actual_end":       pgtsToTimePtr(db.ActualEnd),
+		"created_at":       db.CreatedAt,
+		"approved_at":      pgtsToTimePtr(db.ApprovedAt),
+		"approved_by":      pguuidToUUIDPtr(db.ApprovedBy),
+		"sla_deadline":     pgtsToTimePtr(db.SlaDeadline),
+		"sla_warning_sent": db.SlaWarningSent,
+		"sla_breached":     db.SlaBreached,
 	}
 }
 

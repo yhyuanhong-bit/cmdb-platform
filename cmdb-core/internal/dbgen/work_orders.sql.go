@@ -15,6 +15,7 @@ import (
 const countWorkOrders = `-- name: CountWorkOrders :one
 SELECT count(*) FROM work_orders
 WHERE tenant_id = $1
+  AND deleted_at IS NULL
   AND ($2::varchar IS NULL OR status = $2)
   AND ($3::uuid IS NULL OR asset_id = $3)
   AND ($4::uuid IS NULL OR location_id = $4)
@@ -158,7 +159,7 @@ func (q *Queries) CreateWorkOrderLog(ctx context.Context, arg CreateWorkOrderLog
 }
 
 const getWorkOrder = `-- name: GetWorkOrder :one
-SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 `
 
 type GetWorkOrderParams struct {
@@ -237,6 +238,7 @@ func (q *Queries) ListWorkOrderLogs(ctx context.Context, orderID uuid.UUID) ([]W
 const listWorkOrders = `-- name: ListWorkOrders :many
 SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders
 WHERE tenant_id = $1
+  AND deleted_at IS NULL
   AND ($4::varchar IS NULL OR status = $4)
   AND ($5::uuid IS NULL OR asset_id = $5)
   AND ($6::uuid IS NULL OR location_id = $6)
@@ -315,7 +317,7 @@ UPDATE work_orders SET
     scheduled_start = COALESCE($5, scheduled_start),
     scheduled_end   = COALESCE($6, scheduled_end),
     updated_at      = now()
-WHERE id = $7
+WHERE id = $7 AND tenant_id = $8
 RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
 `
 
@@ -327,6 +329,7 @@ type UpdateWorkOrderParams struct {
 	ScheduledStart pgtype.Timestamptz `json:"scheduled_start"`
 	ScheduledEnd   pgtype.Timestamptz `json:"scheduled_end"`
 	ID             uuid.UUID          `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
 }
 
 func (q *Queries) UpdateWorkOrder(ctx context.Context, arg UpdateWorkOrderParams) (WorkOrder, error) {
@@ -338,6 +341,7 @@ func (q *Queries) UpdateWorkOrder(ctx context.Context, arg UpdateWorkOrderParams
 		arg.ScheduledStart,
 		arg.ScheduledEnd,
 		arg.ID,
+		arg.TenantID,
 	)
 	var i WorkOrder
 	err := row.Scan(
@@ -374,17 +378,18 @@ const updateWorkOrderStatus = `-- name: UpdateWorkOrderStatus :one
 UPDATE work_orders SET
     status     = $2,
     updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $3
 RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
 `
 
 type UpdateWorkOrderStatusParams struct {
-	ID     uuid.UUID `json:"id"`
-	Status string    `json:"status"`
+	ID       uuid.UUID `json:"id"`
+	Status   string    `json:"status"`
+	TenantID uuid.UUID `json:"tenant_id"`
 }
 
 func (q *Queries) UpdateWorkOrderStatus(ctx context.Context, arg UpdateWorkOrderStatusParams) (WorkOrder, error) {
-	row := q.db.QueryRow(ctx, updateWorkOrderStatus, arg.ID, arg.Status)
+	row := q.db.QueryRow(ctx, updateWorkOrderStatus, arg.ID, arg.Status, arg.TenantID)
 	var i WorkOrder
 	err := row.Scan(
 		&i.ID,
@@ -417,7 +422,9 @@ func (q *Queries) UpdateWorkOrderStatus(ctx context.Context, arg UpdateWorkOrder
 }
 
 const softDeleteWorkOrder = `-- name: SoftDeleteWorkOrder :exec
-DELETE FROM work_orders WHERE id = $1 AND tenant_id = $2
+UPDATE work_orders
+SET deleted_at = NOW(), updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 `
 
 type SoftDeleteWorkOrderParams struct {
@@ -437,7 +444,7 @@ UPDATE work_orders SET
     sla_deadline = $3,
     status = 'approved',
     updated_at = now()
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $4
 RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
 `
 
@@ -445,10 +452,11 @@ type StampWorkOrderApprovalParams struct {
 	ID          uuid.UUID          `json:"id"`
 	ApprovedBy  pgtype.UUID        `json:"approved_by"`
 	SlaDeadline pgtype.Timestamptz `json:"sla_deadline"`
+	TenantID    uuid.UUID          `json:"tenant_id"`
 }
 
 func (q *Queries) StampWorkOrderApproval(ctx context.Context, arg StampWorkOrderApprovalParams) (WorkOrder, error) {
-	row := q.db.QueryRow(ctx, stampWorkOrderApproval, arg.ID, arg.ApprovedBy, arg.SlaDeadline)
+	row := q.db.QueryRow(ctx, stampWorkOrderApproval, arg.ID, arg.ApprovedBy, arg.SlaDeadline, arg.TenantID)
 	var i WorkOrder
 	err := row.Scan(
 		&i.ID,
