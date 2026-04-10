@@ -13,7 +13,7 @@ WHERE tenant_id = $1
   AND (sqlc.narg('scope_location_id')::uuid IS NULL OR scope_location_id = sqlc.narg('scope_location_id'));
 
 -- name: GetInventoryTask :one
-SELECT * FROM inventory_tasks WHERE id = $1;
+SELECT * FROM inventory_tasks WHERE id = $1 AND tenant_id = $2;
 
 -- name: ListInventoryItems :many
 SELECT * FROM inventory_items

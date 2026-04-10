@@ -73,11 +73,18 @@ func (q *Queries) CreateRackSlot(ctx context.Context, arg CreateRackSlotParams) 
 }
 
 const deleteRackSlot = `-- name: DeleteRackSlot :exec
-DELETE FROM rack_slots WHERE id = $1
+DELETE FROM rack_slots
+WHERE id = $1
+  AND rack_id IN (SELECT r.id FROM racks r WHERE r.tenant_id = $2)
 `
 
-func (q *Queries) DeleteRackSlot(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteRackSlot, id)
+type DeleteRackSlotParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeleteRackSlot(ctx context.Context, arg DeleteRackSlotParams) error {
+	_, err := q.db.Exec(ctx, deleteRackSlot, arg.ID, arg.TenantID)
 	return err
 }
 

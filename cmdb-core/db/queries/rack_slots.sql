@@ -12,7 +12,9 @@ VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: DeleteRackSlot :exec
-DELETE FROM rack_slots WHERE id = $1;
+DELETE FROM rack_slots
+WHERE id = $1
+  AND rack_id IN (SELECT r.id FROM racks r WHERE r.tenant_id = $2);
 
 -- name: CheckSlotConflict :one
 SELECT count(*) FROM rack_slots

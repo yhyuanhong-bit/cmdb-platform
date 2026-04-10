@@ -11,7 +11,7 @@ WHERE tenant_id = $1
   AND (sqlc.narg('status')::varchar IS NULL OR status = sqlc.narg('status'));
 
 -- name: GetDiscoveredAsset :one
-SELECT * FROM discovered_assets WHERE id = $1;
+SELECT * FROM discovered_assets WHERE id = $1 AND tenant_id = $2;
 
 -- name: CreateDiscoveredAsset :one
 INSERT INTO discovered_assets (tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details)

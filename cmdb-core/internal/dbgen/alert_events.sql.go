@@ -16,12 +16,17 @@ const acknowledgeAlert = `-- name: AcknowledgeAlert :one
 UPDATE alert_events SET
     status   = 'acknowledged',
     acked_at = now()
-WHERE id = $1 AND status = 'firing'
+WHERE id = $1 AND tenant_id = $2 AND status = 'firing'
 RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at
 `
 
-func (q *Queries) AcknowledgeAlert(ctx context.Context, id uuid.UUID) (AlertEvent, error) {
-	row := q.db.QueryRow(ctx, acknowledgeAlert, id)
+type AcknowledgeAlertParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) AcknowledgeAlert(ctx context.Context, arg AcknowledgeAlertParams) (AlertEvent, error) {
+	row := q.db.QueryRow(ctx, acknowledgeAlert, arg.ID, arg.TenantID)
 	var i AlertEvent
 	err := row.Scan(
 		&i.ID,
@@ -150,12 +155,17 @@ const resolveAlert = `-- name: ResolveAlert :one
 UPDATE alert_events SET
     status      = 'resolved',
     resolved_at = now()
-WHERE id = $1 AND status IN ('firing', 'acknowledged')
+WHERE id = $1 AND tenant_id = $2 AND status IN ('firing', 'acknowledged')
 RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at
 `
 
-func (q *Queries) ResolveAlert(ctx context.Context, id uuid.UUID) (AlertEvent, error) {
-	row := q.db.QueryRow(ctx, resolveAlert, id)
+type ResolveAlertParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) ResolveAlert(ctx context.Context, arg ResolveAlertParams) (AlertEvent, error) {
+	row := q.db.QueryRow(ctx, resolveAlert, arg.ID, arg.TenantID)
 	var i AlertEvent
 	err := row.Scan(
 		&i.ID,

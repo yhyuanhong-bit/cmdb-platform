@@ -222,12 +222,18 @@ func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]Webho
 
 const listWebhooksByEvent = `-- name: ListWebhooksByEvent :many
 SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia FROM webhook_subscriptions
-WHERE enabled = true
-  AND $1::text = ANY(events)
+WHERE tenant_id = $1
+  AND enabled = true
+  AND $2::text = ANY(events)
 `
 
-func (q *Queries) ListWebhooksByEvent(ctx context.Context, dollar_1 string) ([]WebhookSubscription, error) {
-	rows, err := q.db.Query(ctx, listWebhooksByEvent, dollar_1)
+type ListWebhooksByEventParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Event    string    `json:"event"`
+}
+
+func (q *Queries) ListWebhooksByEvent(ctx context.Context, arg ListWebhooksByEventParams) ([]WebhookSubscription, error) {
+	rows, err := q.db.Query(ctx, listWebhooksByEvent, arg.TenantID, arg.Event)
 	if err != nil {
 		return nil, err
 	}

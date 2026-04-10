@@ -69,11 +69,16 @@ func (q *Queries) CreateIncident(ctx context.Context, arg CreateIncidentParams) 
 }
 
 const getIncident = `-- name: GetIncident :one
-SELECT id, tenant_id, title, status, severity, started_at, resolved_at FROM incidents WHERE id = $1
+SELECT id, tenant_id, title, status, severity, started_at, resolved_at FROM incidents WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetIncident(ctx context.Context, id uuid.UUID) (Incident, error) {
-	row := q.db.QueryRow(ctx, getIncident, id)
+type GetIncidentParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetIncident(ctx context.Context, arg GetIncidentParams) (Incident, error) {
+	row := q.db.QueryRow(ctx, getIncident, arg.ID, arg.TenantID)
 	var i Incident
 	err := row.Scan(
 		&i.ID,

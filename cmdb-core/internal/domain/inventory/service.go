@@ -48,9 +48,9 @@ func (s *Service) List(ctx context.Context, tenantID uuid.UUID, scopeLocationID 
 	return tasks, total, nil
 }
 
-// GetByID returns a single inventory task by its ID.
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*dbgen.InventoryTask, error) {
-	task, err := s.queries.GetInventoryTask(ctx, id)
+// GetByID returns a single inventory task by its ID, scoped to the given tenant.
+func (s *Service) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.InventoryTask, error) {
+	task, err := s.queries.GetInventoryTask(ctx, dbgen.GetInventoryTaskParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("get inventory task: %w", err)
 	}
@@ -112,7 +112,7 @@ func (s *Service) GetSummary(ctx context.Context, taskID uuid.UUID) (*dbgen.GetI
 
 // Update applies partial updates to an inventory task. Only planned/in_progress tasks can be updated.
 func (s *Service) Update(ctx context.Context, tenantID, taskID uuid.UUID, name *string, plannedDate *string, assignedTo *uuid.UUID) (*dbgen.InventoryTask, error) {
-	task, err := s.queries.GetInventoryTask(ctx, taskID)
+	task, err := s.queries.GetInventoryTask(ctx, dbgen.GetInventoryTaskParams{ID: taskID, TenantID: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("inventory task not found: %w", err)
 	}
@@ -143,7 +143,7 @@ func (s *Service) Update(ctx context.Context, tenantID, taskID uuid.UUID, name *
 
 // Delete soft-deletes an inventory task. Only planned tasks can be deleted.
 func (s *Service) Delete(ctx context.Context, tenantID, taskID uuid.UUID) error {
-	task, err := s.queries.GetInventoryTask(ctx, taskID)
+	task, err := s.queries.GetInventoryTask(ctx, dbgen.GetInventoryTaskParams{ID: taskID, TenantID: tenantID})
 	if err != nil {
 		return fmt.Errorf("inventory task not found: %w", err)
 	}

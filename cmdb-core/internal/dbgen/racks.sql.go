@@ -81,20 +81,30 @@ func (q *Queries) CreateRack(ctx context.Context, arg CreateRackParams) (Rack, e
 }
 
 const deleteRack = `-- name: DeleteRack :exec
-DELETE FROM racks WHERE id = $1
+DELETE FROM racks WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) DeleteRack(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteRack, id)
+type DeleteRackParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeleteRack(ctx context.Context, arg DeleteRackParams) error {
+	_, err := q.db.Exec(ctx, deleteRack, arg.ID, arg.TenantID)
 	return err
 }
 
 const getRack = `-- name: GetRack :one
-SELECT id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at FROM racks WHERE id = $1
+SELECT id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at FROM racks WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetRack(ctx context.Context, id uuid.UUID) (Rack, error) {
-	row := q.db.QueryRow(ctx, getRack, id)
+type GetRackParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetRack(ctx context.Context, arg GetRackParams) (Rack, error) {
+	row := q.db.QueryRow(ctx, getRack, arg.ID, arg.TenantID)
 	var i Rack
 	err := row.Scan(
 		&i.ID,

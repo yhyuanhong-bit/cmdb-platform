@@ -121,9 +121,9 @@ func (s *Service) ListIncidents(ctx context.Context, tenantID uuid.UUID, status,
 	return incidents, total, nil
 }
 
-// GetIncident returns a single incident by ID.
-func (s *Service) GetIncident(ctx context.Context, id uuid.UUID) (*dbgen.Incident, error) {
-	incident, err := s.queries.GetIncident(ctx, id)
+// GetIncident returns a single incident by ID, scoped to the given tenant.
+func (s *Service) GetIncident(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.Incident, error) {
+	incident, err := s.queries.GetIncident(ctx, dbgen.GetIncidentParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("get incident: %w", err)
 	}
@@ -148,18 +148,18 @@ func (s *Service) UpdateIncident(ctx context.Context, params dbgen.UpdateInciden
 	return &incident, nil
 }
 
-// Acknowledge marks a firing alert as acknowledged.
-func (s *Service) Acknowledge(ctx context.Context, id uuid.UUID) (*dbgen.AlertEvent, error) {
-	alert, err := s.queries.AcknowledgeAlert(ctx, id)
+// Acknowledge marks a firing alert as acknowledged, scoped to the given tenant.
+func (s *Service) Acknowledge(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.AlertEvent, error) {
+	alert, err := s.queries.AcknowledgeAlert(ctx, dbgen.AcknowledgeAlertParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("acknowledge alert: %w", err)
 	}
 	return &alert, nil
 }
 
-// Resolve marks a firing or acknowledged alert as resolved.
-func (s *Service) Resolve(ctx context.Context, id uuid.UUID) (*dbgen.AlertEvent, error) {
-	alert, err := s.queries.ResolveAlert(ctx, id)
+// Resolve marks a firing or acknowledged alert as resolved, scoped to the given tenant.
+func (s *Service) Resolve(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.AlertEvent, error) {
+	alert, err := s.queries.ResolveAlert(ctx, dbgen.ResolveAlertParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("resolve alert: %w", err)
 	}

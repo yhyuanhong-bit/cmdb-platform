@@ -21,7 +21,7 @@ WHERE tenant_id = $1
   AND (sqlc.narg('search')::varchar IS NULL OR (name ILIKE '%' || sqlc.narg('search') || '%' OR asset_tag ILIKE '%' || sqlc.narg('search') || '%'));
 
 -- name: GetAsset :one
-SELECT * FROM assets WHERE id = $1;
+SELECT * FROM assets WHERE id = $1 AND tenant_id = $2;
 
 -- name: GetAssetByTag :one
 SELECT * FROM assets WHERE asset_tag = $1;
@@ -59,7 +59,7 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: DeleteAsset :exec
-DELETE FROM assets WHERE id = $1;
+DELETE FROM assets WHERE id = $1 AND tenant_id = $2;
 
 -- name: FindAssetBySerialOrTag :one
 SELECT * FROM assets

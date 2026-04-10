@@ -18,8 +18,9 @@ VALUES ($1, $2, $3, $4, $5);
 
 -- name: ListWebhooksByEvent :many
 SELECT * FROM webhook_subscriptions
-WHERE enabled = true
-  AND $1::text = ANY(events);
+WHERE tenant_id = $1
+  AND enabled = true
+  AND $2::text = ANY(events);
 
 -- name: ListDeliveries :many
 SELECT * FROM webhook_deliveries WHERE subscription_id = $1 ORDER BY delivered_at DESC LIMIT $2;

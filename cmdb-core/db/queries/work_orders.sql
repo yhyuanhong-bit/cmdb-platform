@@ -17,7 +17,7 @@ WHERE tenant_id = $1
   AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'));
 
 -- name: GetWorkOrder :one
-SELECT * FROM work_orders WHERE id = $1;
+SELECT * FROM work_orders WHERE id = $1 AND tenant_id = $2;
 
 -- name: CreateWorkOrder :one
 INSERT INTO work_orders (

@@ -136,13 +136,18 @@ func (s *MCPServer) handleSearchAssets(ctx context.Context, req mcp.CallToolRequ
 func (s *MCPServer) handleGetAssetDetail(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
 
+	tid, err := s.defaultTenantID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("resolve tenant: %w", err)
+	}
+
 	// Try by UUID first.
 	if idStr, ok := args["id"]; ok && idStr != nil && idStr != "" {
 		parsed, err := uuid.Parse(fmt.Sprint(idStr))
 		if err != nil {
 			return nil, fmt.Errorf("invalid UUID: %w", err)
 		}
-		asset, err := s.queries.GetAsset(ctx, parsed)
+		asset, err := s.queries.GetAsset(ctx, dbgen.GetAssetParams{ID: parsed, TenantID: tid})
 		if err != nil {
 			return nil, fmt.Errorf("get asset: %w", err)
 		}

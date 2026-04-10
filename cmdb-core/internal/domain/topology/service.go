@@ -23,9 +23,9 @@ func (s *Service) ListRootLocations(ctx context.Context, tenantID uuid.UUID) ([]
 	return s.queries.ListRootLocations(ctx, tenantID)
 }
 
-// GetLocation returns a single location by ID.
-func (s *Service) GetLocation(ctx context.Context, id uuid.UUID) (dbgen.Location, error) {
-	return s.queries.GetLocation(ctx, id)
+// GetLocation returns a single location by ID, scoped to the given tenant.
+func (s *Service) GetLocation(ctx context.Context, tenantID, id uuid.UUID) (dbgen.Location, error) {
+	return s.queries.GetLocation(ctx, dbgen.GetLocationParams{ID: id, TenantID: tenantID})
 }
 
 // ListChildren returns direct children of a location.
@@ -43,8 +43,8 @@ func (s *Service) ListAncestors(ctx context.Context, tenantID uuid.UUID, path st
 
 // GetLocationStats computes aggregate statistics for a location
 // including ALL descendant locations (recursive via ltree).
-func (s *Service) GetLocationStats(ctx context.Context, locationID uuid.UUID) (LocationStats, error) {
-	loc, err := s.queries.GetLocation(ctx, locationID)
+func (s *Service) GetLocationStats(ctx context.Context, tenantID, locationID uuid.UUID) (LocationStats, error) {
+	loc, err := s.queries.GetLocation(ctx, dbgen.GetLocationParams{ID: locationID, TenantID: tenantID})
 	if err != nil {
 		return LocationStats{}, err
 	}
@@ -102,9 +102,9 @@ func (s *Service) ListRacksByLocation(ctx context.Context, locationID uuid.UUID)
 	return s.queries.ListRacksByLocation(ctx, locationID)
 }
 
-// GetRack returns a single rack by ID.
-func (s *Service) GetRack(ctx context.Context, id uuid.UUID) (dbgen.Rack, error) {
-	return s.queries.GetRack(ctx, id)
+// GetRack returns a single rack by ID, scoped to the given tenant.
+func (s *Service) GetRack(ctx context.Context, tenantID, id uuid.UUID) (dbgen.Rack, error) {
+	return s.queries.GetRack(ctx, dbgen.GetRackParams{ID: id, TenantID: tenantID})
 }
 
 // ListAssetsByRack returns all assets mounted in a rack.
@@ -130,9 +130,9 @@ func (s *Service) UpdateLocation(ctx context.Context, params dbgen.UpdateLocatio
 	return &loc, nil
 }
 
-// DeleteLocation removes a location by ID.
-func (s *Service) DeleteLocation(ctx context.Context, id uuid.UUID) error {
-	return s.queries.DeleteLocation(ctx, id)
+// DeleteLocation removes a location by ID, scoped to the given tenant.
+func (s *Service) DeleteLocation(ctx context.Context, tenantID, id uuid.UUID) error {
+	return s.queries.DeleteLocation(ctx, dbgen.DeleteLocationParams{ID: id, TenantID: tenantID})
 }
 
 // ListDescendants returns all descendant locations under a path.
@@ -161,9 +161,9 @@ func (s *Service) UpdateRack(ctx context.Context, params dbgen.UpdateRackParams)
 	return &rack, nil
 }
 
-// DeleteRack removes a rack by ID.
-func (s *Service) DeleteRack(ctx context.Context, id uuid.UUID) error {
-	return s.queries.DeleteRack(ctx, id)
+// DeleteRack removes a rack by ID, scoped to the given tenant.
+func (s *Service) DeleteRack(ctx context.Context, tenantID, id uuid.UUID) error {
+	return s.queries.DeleteRack(ctx, dbgen.DeleteRackParams{ID: id, TenantID: tenantID})
 }
 
 // ListRackSlots returns all slot assignments for a rack.
@@ -190,7 +190,7 @@ func (s *Service) CreateRackSlot(ctx context.Context, params dbgen.CreateRackSlo
 	return &slot, nil
 }
 
-// DeleteRackSlot removes a rack slot assignment by ID.
-func (s *Service) DeleteRackSlot(ctx context.Context, id uuid.UUID) error {
-	return s.queries.DeleteRackSlot(ctx, id)
+// DeleteRackSlot removes a rack slot assignment by ID, scoped to the given tenant.
+func (s *Service) DeleteRackSlot(ctx context.Context, tenantID, id uuid.UUID) error {
+	return s.queries.DeleteRackSlot(ctx, dbgen.DeleteRackSlotParams{ID: id, TenantID: tenantID})
 }

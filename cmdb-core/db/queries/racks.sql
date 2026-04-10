@@ -1,5 +1,5 @@
 -- name: GetRack :one
-SELECT * FROM racks WHERE id = $1;
+SELECT * FROM racks WHERE id = $1 AND tenant_id = $2;
 
 -- name: ListRacksByLocation :many
 -- Returns racks at this location AND all descendant locations (via ltree)
@@ -29,7 +29,7 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: DeleteRack :exec
-DELETE FROM racks WHERE id = $1;
+DELETE FROM racks WHERE id = $1 AND tenant_id = $2;
 
 -- name: ListAssetsByRack :many
 SELECT a.* FROM assets a

@@ -211,29 +211,44 @@ func (q *Queries) CreateBIAScoringRule(ctx context.Context, arg CreateBIAScoring
 }
 
 const deleteBIAAssessment = `-- name: DeleteBIAAssessment :exec
-DELETE FROM bia_assessments WHERE id = $1
+DELETE FROM bia_assessments WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) DeleteBIAAssessment(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteBIAAssessment, id)
+type DeleteBIAAssessmentParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeleteBIAAssessment(ctx context.Context, arg DeleteBIAAssessmentParams) error {
+	_, err := q.db.Exec(ctx, deleteBIAAssessment, arg.ID, arg.TenantID)
 	return err
 }
 
 const deleteBIADependency = `-- name: DeleteBIADependency :exec
-DELETE FROM bia_dependencies WHERE id = $1
+DELETE FROM bia_dependencies WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) DeleteBIADependency(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteBIADependency, id)
+type DeleteBIADependencyParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeleteBIADependency(ctx context.Context, arg DeleteBIADependencyParams) error {
+	_, err := q.db.Exec(ctx, deleteBIADependency, arg.ID, arg.TenantID)
 	return err
 }
 
 const getBIAAssessment = `-- name: GetBIAAssessment :one
-SELECT id, tenant_id, system_name, system_code, owner, bia_score, tier, rto_hours, rpo_minutes, mtpd_hours, data_compliance, asset_compliance, audit_compliance, description, last_assessed, assessed_by, created_at, updated_at FROM bia_assessments WHERE id = $1
+SELECT id, tenant_id, system_name, system_code, owner, bia_score, tier, rto_hours, rpo_minutes, mtpd_hours, data_compliance, asset_compliance, audit_compliance, description, last_assessed, assessed_by, created_at, updated_at FROM bia_assessments WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetBIAAssessment(ctx context.Context, id uuid.UUID) (BiaAssessment, error) {
-	row := q.db.QueryRow(ctx, getBIAAssessment, id)
+type GetBIAAssessmentParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetBIAAssessment(ctx context.Context, arg GetBIAAssessmentParams) (BiaAssessment, error) {
+	row := q.db.QueryRow(ctx, getBIAAssessment, arg.ID, arg.TenantID)
 	var i BiaAssessment
 	err := row.Scan(
 		&i.ID,

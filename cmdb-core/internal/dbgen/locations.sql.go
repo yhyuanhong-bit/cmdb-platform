@@ -69,20 +69,30 @@ func (q *Queries) CreateLocation(ctx context.Context, arg CreateLocationParams) 
 }
 
 const deleteLocation = `-- name: DeleteLocation :exec
-DELETE FROM locations WHERE id = $1
+DELETE FROM locations WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) DeleteLocation(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteLocation, id)
+type DeleteLocationParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeleteLocation(ctx context.Context, arg DeleteLocationParams) error {
+	_, err := q.db.Exec(ctx, deleteLocation, arg.ID, arg.TenantID)
 	return err
 }
 
 const getLocation = `-- name: GetLocation :one
-SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at FROM locations WHERE id = $1
+SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at FROM locations WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetLocation(ctx context.Context, id uuid.UUID) (Location, error) {
-	row := q.db.QueryRow(ctx, getLocation, id)
+type GetLocationParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetLocation(ctx context.Context, arg GetLocationParams) (Location, error) {
+	row := q.db.QueryRow(ctx, getLocation, arg.ID, arg.TenantID)
 	var i Location
 	err := row.Scan(
 		&i.ID,

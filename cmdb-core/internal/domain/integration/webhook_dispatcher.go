@@ -36,8 +36,12 @@ func NewWebhookDispatcher(queries *dbgen.Queries) *WebhookDispatcher {
 
 // HandleEvent processes an event and delivers it to matching webhook subscriptions.
 func (d *WebhookDispatcher) HandleEvent(ctx context.Context, event eventbus.Event) error {
-	// Find subscriptions matching this event type
-	subs, err := d.queries.ListWebhooksByEvent(ctx, event.Subject)
+	// Find subscriptions matching this event type (scoped to tenant)
+	tenantUUID, _ := uuid.Parse(event.TenantID)
+	subs, err := d.queries.ListWebhooksByEvent(ctx, dbgen.ListWebhooksByEventParams{
+		TenantID: tenantUUID,
+		Event:    event.Subject,
+	})
 	if err != nil {
 		zap.L().Error("failed to list webhooks for event", zap.String("subject", event.Subject), zap.Error(err))
 		return nil // don't fail the event pipeline
@@ -55,7 +59,7 @@ func (d *WebhookDispatcher) HandleEvent(ctx context.Context, event eventbus.Even
 				if assetID, ok := payload["asset_id"]; ok {
 					parsed, err := uuid.Parse(assetID)
 					if err == nil {
-						asset, err := d.queries.GetAsset(ctx, parsed)
+						asset, err := d.queries.GetAsset(ctx, dbgen.GetAssetParams{ID: parsed, TenantID: tenantUUID})
 						if err != nil {
 							zap.L().Warn("webhook BIA filter: asset lookup failed",
 								zap.String("asset_id", assetID), zap.Error(err))

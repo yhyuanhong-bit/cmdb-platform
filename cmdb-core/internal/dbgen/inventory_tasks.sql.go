@@ -128,11 +128,16 @@ func (q *Queries) GetInventorySummary(ctx context.Context, taskID uuid.UUID) (Ge
 }
 
 const getInventoryTask = `-- name: GetInventoryTask :one
-SELECT id, tenant_id, code, name, scope_location_id, status, method, planned_date, completed_date, assigned_to, created_at FROM inventory_tasks WHERE id = $1
+SELECT id, tenant_id, code, name, scope_location_id, status, method, planned_date, completed_date, assigned_to, created_at FROM inventory_tasks WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetInventoryTask(ctx context.Context, id uuid.UUID) (InventoryTask, error) {
-	row := q.db.QueryRow(ctx, getInventoryTask, id)
+type GetInventoryTaskParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetInventoryTask(ctx context.Context, arg GetInventoryTaskParams) (InventoryTask, error) {
+	row := q.db.QueryRow(ctx, getInventoryTask, arg.ID, arg.TenantID)
 	var i InventoryTask
 	err := row.Scan(
 		&i.ID,

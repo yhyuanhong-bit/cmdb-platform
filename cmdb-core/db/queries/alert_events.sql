@@ -18,14 +18,14 @@ WHERE tenant_id = $1
 UPDATE alert_events SET
     status   = 'acknowledged',
     acked_at = now()
-WHERE id = $1 AND status = 'firing'
+WHERE id = $1 AND tenant_id = $2 AND status = 'firing'
 RETURNING *;
 
 -- name: ResolveAlert :one
 UPDATE alert_events SET
     status      = 'resolved',
     resolved_at = now()
-WHERE id = $1 AND status IN ('firing', 'acknowledged')
+WHERE id = $1 AND tenant_id = $2 AND status IN ('firing', 'acknowledged')
 RETURNING *;
 
 -- name: CountAlertsUnderLocation :one

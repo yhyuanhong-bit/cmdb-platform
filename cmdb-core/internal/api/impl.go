@@ -334,7 +334,7 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 // GetAsset returns a single asset by ID.
 // (GET /assets/{id})
 func (s *APIServer) GetAsset(c *gin.Context, id IdPath) {
-	a, err := s.assetSvc.GetByID(c.Request.Context(), uuid.UUID(id))
+	a, err := s.assetSvc.GetByID(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "asset not found")
 		return
@@ -464,7 +464,7 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 // DeleteAsset deletes an asset.
 // (DELETE /assets/{id})
 func (s *APIServer) DeleteAsset(c *gin.Context, id IdPath) {
-	err := s.assetSvc.Delete(c.Request.Context(), uuid.UUID(id))
+	err := s.assetSvc.Delete(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "asset not found")
 		return
@@ -506,7 +506,7 @@ func (s *APIServer) ListLocations(c *gin.Context, params ListLocationsParams) {
 // GetLocation returns a single location by ID.
 // (GET /locations/{id})
 func (s *APIServer) GetLocation(c *gin.Context, id IdPath) {
-	loc, err := s.topologySvc.GetLocation(c.Request.Context(), uuid.UUID(id))
+	loc, err := s.topologySvc.GetLocation(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "location not found")
 		return
@@ -519,7 +519,7 @@ func (s *APIServer) GetLocation(c *gin.Context, id IdPath) {
 func (s *APIServer) ListLocationAncestors(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
 
-	loc, err := s.topologySvc.GetLocation(c.Request.Context(), uuid.UUID(id))
+	loc, err := s.topologySvc.GetLocation(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "location not found")
 		return
@@ -559,7 +559,7 @@ func (s *APIServer) ListLocationRacks(c *gin.Context, id IdPath) {
 // GetLocationStats returns aggregate statistics for a location.
 // (GET /locations/{id}/stats)
 func (s *APIServer) GetLocationStats(c *gin.Context, id IdPath) {
-	stats, err := s.topologySvc.GetLocationStats(c.Request.Context(), uuid.UUID(id))
+	stats, err := s.topologySvc.GetLocationStats(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.InternalError(c, "failed to get location stats")
 		return
@@ -596,7 +596,7 @@ func (s *APIServer) CreateLocation(c *gin.Context) {
 	// Build ltree path: for root locations use slug, for children use parent.path + "." + slug
 	path := req.Slug
 	if req.ParentId != nil {
-		parent, err := s.topologySvc.GetLocation(c.Request.Context(), uuid.UUID(*req.ParentId))
+		parent, err := s.topologySvc.GetLocation(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(*req.ParentId))
 		if err != nil {
 			response.BadRequest(c, "parent location not found")
 			return
@@ -698,7 +698,7 @@ func (s *APIServer) UpdateLocation(c *gin.Context, id IdPath) {
 // DeleteLocation deletes a location.
 // (DELETE /locations/{id})
 func (s *APIServer) DeleteLocation(c *gin.Context, id IdPath) {
-	err := s.topologySvc.DeleteLocation(c.Request.Context(), uuid.UUID(id))
+	err := s.topologySvc.DeleteLocation(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "location not found")
 		return
@@ -715,7 +715,7 @@ func (s *APIServer) DeleteLocation(c *gin.Context, id IdPath) {
 func (s *APIServer) ListLocationDescendants(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
 
-	loc, err := s.topologySvc.GetLocation(c.Request.Context(), uuid.UUID(id))
+	loc, err := s.topologySvc.GetLocation(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "location not found")
 		return
@@ -788,7 +788,7 @@ func (s *APIServer) CreateRack(c *gin.Context) {
 // GetRack returns a single rack by ID.
 // (GET /racks/{id})
 func (s *APIServer) GetRack(c *gin.Context, id IdPath) {
-	rack, err := s.topologySvc.GetRack(c.Request.Context(), uuid.UUID(id))
+	rack, err := s.topologySvc.GetRack(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "rack not found")
 		return
@@ -864,7 +864,7 @@ func (s *APIServer) UpdateRack(c *gin.Context, id IdPath) {
 // DeleteRack deletes a rack.
 // (DELETE /racks/{id})
 func (s *APIServer) DeleteRack(c *gin.Context, id IdPath) {
-	err := s.topologySvc.DeleteRack(c.Request.Context(), uuid.UUID(id))
+	err := s.topologySvc.DeleteRack(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "rack not found")
 		return
@@ -943,7 +943,7 @@ func (s *APIServer) CreateRackSlot(c *gin.Context, id IdPath) {
 // DeleteRackSlot removes an asset from a rack slot.
 // (DELETE /racks/{id}/slots/{slotId})
 func (s *APIServer) DeleteRackSlot(c *gin.Context, id IdPath, slotId openapi_types.UUID) {
-	err := s.topologySvc.DeleteRackSlot(c.Request.Context(), uuid.UUID(slotId))
+	err := s.topologySvc.DeleteRackSlot(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(slotId))
 	if err != nil {
 		response.NotFound(c, "rack slot not found")
 		return
@@ -1029,7 +1029,7 @@ func (s *APIServer) CreateWorkOrder(c *gin.Context) {
 // GetWorkOrder returns a single work order by ID.
 // (GET /maintenance/orders/{id})
 func (s *APIServer) GetWorkOrder(c *gin.Context, id IdPath) {
-	order, err := s.maintenanceSvc.GetByID(c.Request.Context(), uuid.UUID(id))
+	order, err := s.maintenanceSvc.GetByID(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "work order not found")
 		return
@@ -1052,7 +1052,7 @@ func (s *APIServer) TransitionWorkOrder(c *gin.Context, id IdPath) {
 		comment = *req.Comment
 	}
 
-	order, err := s.maintenanceSvc.Transition(c.Request.Context(), uuid.UUID(id), operatorID, maintenance.TransitionRequest{
+	order, err := s.maintenanceSvc.Transition(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id), operatorID, maintenance.TransitionRequest{
 		Status:  req.Status,
 		Comment: comment,
 	})
@@ -1170,7 +1170,7 @@ func (s *APIServer) ListAlerts(c *gin.Context, params ListAlertsParams) {
 // AcknowledgeAlert acknowledges an alert event.
 // (POST /monitoring/alerts/{id}/ack)
 func (s *APIServer) AcknowledgeAlert(c *gin.Context, id IdPath) {
-	alert, err := s.monitoringSvc.Acknowledge(c.Request.Context(), uuid.UUID(id))
+	alert, err := s.monitoringSvc.Acknowledge(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "alert not found")
 		return
@@ -1187,7 +1187,7 @@ func (s *APIServer) AcknowledgeAlert(c *gin.Context, id IdPath) {
 // ResolveAlert resolves an alert event.
 // (POST /monitoring/alerts/{id}/resolve)
 func (s *APIServer) ResolveAlert(c *gin.Context, id IdPath) {
-	alert, err := s.monitoringSvc.Resolve(c.Request.Context(), uuid.UUID(id))
+	alert, err := s.monitoringSvc.Resolve(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "alert not found")
 		return
@@ -1364,7 +1364,7 @@ func (s *APIServer) CreateIncident(c *gin.Context) {
 // GetIncident returns a single incident.
 // (GET /monitoring/incidents/{id})
 func (s *APIServer) GetIncident(c *gin.Context, id IdPath) {
-	incident, err := s.monitoringSvc.GetIncident(c.Request.Context(), uuid.UUID(id))
+	incident, err := s.monitoringSvc.GetIncident(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "incident not found")
 		return
@@ -1516,7 +1516,7 @@ func (s *APIServer) ListInventoryTasks(c *gin.Context, params ListInventoryTasks
 // GetInventoryTask returns a single inventory task by ID.
 // (GET /inventory/tasks/{id})
 func (s *APIServer) GetInventoryTask(c *gin.Context, id IdPath) {
-	task, err := s.inventorySvc.GetByID(c.Request.Context(), uuid.UUID(id))
+	task, err := s.inventorySvc.GetByID(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "inventory task not found")
 		return
@@ -1723,7 +1723,7 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 				tenantID, *item.PropertyNumber)
 			var assetID uuid.UUID
 			if row.Scan(&assetID) == nil {
-				a, e := s.assetSvc.GetByID(ctx, assetID)
+				a, e := s.assetSvc.GetByID(ctx, tenantID, assetID)
 				if e == nil {
 					asset = a
 					err = nil
@@ -1738,7 +1738,7 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 				tenantID, *item.ControlNumber)
 			var assetID uuid.UUID
 			if row.Scan(&assetID) == nil {
-				a, e := s.assetSvc.GetByID(ctx, assetID)
+				a, e := s.assetSvc.GetByID(ctx, tenantID, assetID)
 				if e == nil {
 					asset = a
 					err = nil
@@ -2055,7 +2055,7 @@ func (s *APIServer) UpdateRole(c *gin.Context, id IdPath) {
 // DeleteRole deletes a non-system role.
 // (DELETE /roles/{id})
 func (s *APIServer) DeleteRole(c *gin.Context, id IdPath) {
-	err := s.identitySvc.DeleteRole(c.Request.Context(), uuid.UUID(id))
+	err := s.identitySvc.DeleteRole(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "role not found or is a system role")
 		return
@@ -2381,7 +2381,7 @@ func (s *APIServer) CreateBIAAssessment(c *gin.Context) {
 // GetBIAAssessment returns a single BIA assessment by ID.
 // (GET /bia/assessments/{id})
 func (s *APIServer) GetBIAAssessment(c *gin.Context, id IdPath) {
-	a, err := s.biaSvc.GetAssessment(c.Request.Context(), uuid.UUID(id))
+	a, err := s.biaSvc.GetAssessment(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "BIA assessment not found")
 		return
@@ -2471,7 +2471,7 @@ func (s *APIServer) UpdateBIAAssessment(c *gin.Context, id IdPath) {
 // DeleteBIAAssessment deletes a BIA assessment.
 // (DELETE /bia/assessments/{id})
 func (s *APIServer) DeleteBIAAssessment(c *gin.Context, id IdPath) {
-	err := s.biaSvc.DeleteAssessment(c.Request.Context(), uuid.UUID(id))
+	err := s.biaSvc.DeleteAssessment(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "BIA assessment not found")
 		return

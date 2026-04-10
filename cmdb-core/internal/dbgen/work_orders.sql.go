@@ -153,11 +153,16 @@ func (q *Queries) CreateWorkOrderLog(ctx context.Context, arg CreateWorkOrderLog
 }
 
 const getWorkOrder = `-- name: GetWorkOrder :one
-SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at FROM work_orders WHERE id = $1
+SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at FROM work_orders WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetWorkOrder(ctx context.Context, id uuid.UUID) (WorkOrder, error) {
-	row := q.db.QueryRow(ctx, getWorkOrder, id)
+type GetWorkOrderParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetWorkOrder(ctx context.Context, arg GetWorkOrderParams) (WorkOrder, error) {
+	row := q.db.QueryRow(ctx, getWorkOrder, arg.ID, arg.TenantID)
 	var i WorkOrder
 	err := row.Scan(
 		&i.ID,

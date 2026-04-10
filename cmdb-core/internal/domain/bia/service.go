@@ -47,9 +47,9 @@ func (s *Service) ListAssessments(ctx context.Context, tenantID uuid.UUID, limit
 	return assessments, total, nil
 }
 
-// GetAssessment returns a single BIA assessment by ID.
-func (s *Service) GetAssessment(ctx context.Context, id uuid.UUID) (*dbgen.BiaAssessment, error) {
-	a, err := s.queries.GetBIAAssessment(ctx, id)
+// GetAssessment returns a single BIA assessment by ID, scoped to the given tenant.
+func (s *Service) GetAssessment(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.BiaAssessment, error) {
+	a, err := s.queries.GetBIAAssessment(ctx, dbgen.GetBIAAssessmentParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("get bia assessment: %w", err)
 	}
@@ -74,9 +74,9 @@ func (s *Service) UpdateAssessment(ctx context.Context, params dbgen.UpdateBIAAs
 	return &a, nil
 }
 
-// DeleteAssessment removes a BIA assessment by ID.
-func (s *Service) DeleteAssessment(ctx context.Context, id uuid.UUID) error {
-	if err := s.queries.DeleteBIAAssessment(ctx, id); err != nil {
+// DeleteAssessment removes a BIA assessment by ID, scoped to the given tenant.
+func (s *Service) DeleteAssessment(ctx context.Context, tenantID, id uuid.UUID) error {
+	if err := s.queries.DeleteBIAAssessment(ctx, dbgen.DeleteBIAAssessmentParams{ID: id, TenantID: tenantID}); err != nil {
 		return fmt.Errorf("delete bia assessment: %w", err)
 	}
 	return nil
@@ -118,9 +118,9 @@ func (s *Service) CreateDependency(ctx context.Context, params dbgen.CreateBIADe
 	return &d, nil
 }
 
-// DeleteDependency removes a dependency by ID.
-func (s *Service) DeleteDependency(ctx context.Context, id uuid.UUID) error {
-	if err := s.queries.DeleteBIADependency(ctx, id); err != nil {
+// DeleteDependency removes a dependency by ID, scoped to the given tenant.
+func (s *Service) DeleteDependency(ctx context.Context, tenantID, id uuid.UUID) error {
+	if err := s.queries.DeleteBIADependency(ctx, dbgen.DeleteBIADependencyParams{ID: id, TenantID: tenantID}); err != nil {
 		return fmt.Errorf("delete bia dependency: %w", err)
 	}
 	return nil

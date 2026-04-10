@@ -128,7 +128,7 @@ func main() {
 
 	// Tracing middleware first so spans wrap everything
 	router.Use(telemetry.TracingMiddleware("cmdb-core"))
-	router.Use(middleware.Recovery(), middleware.CORS(), middleware.RequestID())
+	router.Use(middleware.Recovery(), middleware.CORS(), middleware.SecurityHeaders(), middleware.RequestID())
 	router.Use(telemetry.PrometheusMiddleware())
 
 	// Health check
@@ -276,8 +276,12 @@ func main() {
 	// 11. Start HTTP server with graceful shutdown
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: router,
+		Addr:           addr,
+		Handler:        router,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   60 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
 	go func() {

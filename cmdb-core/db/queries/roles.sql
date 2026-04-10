@@ -19,7 +19,7 @@ WHERE id = sqlc.arg('id') AND is_system = false
 RETURNING *;
 
 -- name: DeleteRole :exec
-DELETE FROM roles WHERE id = $1 AND is_system = false;
+DELETE FROM roles WHERE id = $1 AND tenant_id = $2 AND is_system = false;
 
 -- name: ListUserRoles :many
 SELECT r.* FROM roles r

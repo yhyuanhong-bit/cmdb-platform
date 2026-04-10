@@ -57,9 +57,9 @@ func (s *Service) List(ctx context.Context, tenantID uuid.UUID, status *string, 
 	return orders, total, nil
 }
 
-// GetByID returns a single work order by its ID.
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*dbgen.WorkOrder, error) {
-	order, err := s.queries.GetWorkOrder(ctx, id)
+// GetByID returns a single work order by its ID, scoped to the given tenant.
+func (s *Service) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.WorkOrder, error) {
+	order, err := s.queries.GetWorkOrder(ctx, dbgen.GetWorkOrderParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("get work order: %w", err)
 	}
@@ -129,8 +129,8 @@ func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, r
 }
 
 // Transition moves a work order from one status to another after validation.
-func (s *Service) Transition(ctx context.Context, id, operatorID uuid.UUID, req TransitionRequest) (*dbgen.WorkOrder, error) {
-	order, err := s.queries.GetWorkOrder(ctx, id)
+func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.UUID, req TransitionRequest) (*dbgen.WorkOrder, error) {
+	order, err := s.queries.GetWorkOrder(ctx, dbgen.GetWorkOrderParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("get work order: %w", err)
 	}
@@ -173,7 +173,7 @@ func (s *Service) Update(ctx context.Context, params dbgen.UpdateWorkOrderParams
 
 // Delete soft-deletes a work order. Only draft/rejected orders can be deleted.
 func (s *Service) Delete(ctx context.Context, tenantID, orderID uuid.UUID) error {
-	order, err := s.queries.GetWorkOrder(ctx, orderID)
+	order, err := s.queries.GetWorkOrder(ctx, dbgen.GetWorkOrderParams{ID: orderID, TenantID: tenantID})
 	if err != nil {
 		return fmt.Errorf("work order not found: %w", err)
 	}

@@ -32,7 +32,7 @@ INSERT INTO rca_analyses (
 ) RETURNING *;
 
 -- name: GetRCA :one
-SELECT * FROM rca_analyses WHERE id = $1;
+SELECT * FROM rca_analyses WHERE id = $1 AND tenant_id = $2;
 
 -- name: VerifyRCA :one
 UPDATE rca_analyses SET

@@ -99,9 +99,9 @@ func (s *Service) UpdateRole(ctx context.Context, params dbgen.UpdateRoleParams)
 	return &role, nil
 }
 
-// DeleteRole deletes a non-system role by ID.
-func (s *Service) DeleteRole(ctx context.Context, id uuid.UUID) error {
-	err := s.queries.DeleteRole(ctx, id)
+// DeleteRole deletes a non-system role by ID, scoped to the given tenant.
+func (s *Service) DeleteRole(ctx context.Context, tenantID, id uuid.UUID) error {
+	err := s.queries.DeleteRole(ctx, dbgen.DeleteRoleParams{ID: id, TenantID: pgtype.UUID{Bytes: tenantID, Valid: true}})
 	if err != nil {
 		return fmt.Errorf("delete role: %w", err)
 	}

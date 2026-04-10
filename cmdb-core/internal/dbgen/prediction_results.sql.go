@@ -118,11 +118,16 @@ func (q *Queries) CreateRCA(ctx context.Context, arg CreateRCAParams) (RcaAnalys
 }
 
 const getRCA = `-- name: GetRCA :one
-SELECT id, tenant_id, incident_id, model_id, reasoning, conclusion_asset_id, confidence, human_verified, verified_by, created_at FROM rca_analyses WHERE id = $1
+SELECT id, tenant_id, incident_id, model_id, reasoning, conclusion_asset_id, confidence, human_verified, verified_by, created_at FROM rca_analyses WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetRCA(ctx context.Context, id uuid.UUID) (RcaAnalysis, error) {
-	row := q.db.QueryRow(ctx, getRCA, id)
+type GetRCAParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetRCA(ctx context.Context, arg GetRCAParams) (RcaAnalysis, error) {
+	row := q.db.QueryRow(ctx, getRCA, arg.ID, arg.TenantID)
 	var i RcaAnalysis
 	err := row.Scan(
 		&i.ID,

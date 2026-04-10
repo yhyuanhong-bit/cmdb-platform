@@ -28,20 +28,28 @@ var publicPaths = map[string]bool{
 
 // resourceMap maps the first path segment after /api/v1/ to a resource name.
 var resourceMap = map[string]string{
-	"assets":      "assets",
-	"locations":   "topology",
-	"racks":       "topology",
-	"maintenance": "maintenance",
-	"monitoring":  "monitoring",
-	"inventory":   "inventory",
-	"audit":       "audit",
-	"dashboard":   "dashboard",
-	"users":       "identity",
-	"roles":       "identity",
-	"auth":        "identity",
-	"prediction":  "prediction",
-	"integration": "integration",
-	"system":      "system",
+	"assets":        "assets",
+	"locations":     "topology",
+	"racks":         "topology",
+	"maintenance":   "maintenance",
+	"monitoring":    "monitoring",
+	"inventory":     "inventory",
+	"audit":         "audit",
+	"dashboard":     "dashboard",
+	"users":         "identity",
+	"roles":         "identity",
+	"auth":          "identity",
+	"prediction":    "prediction",
+	"integration":   "integration",
+	"system":        "system",
+	"energy":        "monitoring",
+	"sensors":       "monitoring",
+	"topology":      "topology",
+	"activity-feed": "audit",
+	"quality":       "system",
+	"bia":           "system",
+	"discovery":     "assets",
+	"upgrade-rules": "assets",
 }
 
 // methodToAction converts an HTTP method to an RBAC action.
@@ -72,7 +80,9 @@ func RBAC(queries *dbgen.Queries, redisClient *redis.Client) gin.HandlerFunc {
 		// Extract resource from path.
 		resource := extractResource(c.Request.URL.Path)
 		if resource == "" {
-			c.Next()
+			// Default deny: unknown resource paths are blocked
+			response.Forbidden(c, "access denied: unknown resource")
+			c.Abort()
 			return
 		}
 

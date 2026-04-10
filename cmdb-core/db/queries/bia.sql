@@ -8,7 +8,7 @@ LIMIT $2 OFFSET $3;
 SELECT count(*) FROM bia_assessments WHERE tenant_id = $1;
 
 -- name: GetBIAAssessment :one
-SELECT * FROM bia_assessments WHERE id = $1;
+SELECT * FROM bia_assessments WHERE id = $1 AND tenant_id = $2;
 
 -- name: CreateBIAAssessment :one
 INSERT INTO bia_assessments (
@@ -38,7 +38,7 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: DeleteBIAAssessment :exec
-DELETE FROM bia_assessments WHERE id = $1;
+DELETE FROM bia_assessments WHERE id = $1 AND tenant_id = $2;
 
 -- name: ListBIAScoringRules :many
 SELECT * FROM bia_scoring_rules
@@ -72,7 +72,7 @@ VALUES ($1,$2,$3,$4,$5)
 RETURNING *;
 
 -- name: DeleteBIADependency :exec
-DELETE FROM bia_dependencies WHERE id = $1;
+DELETE FROM bia_dependencies WHERE id = $1 AND tenant_id = $2;
 
 -- name: CountBIAByTier :many
 SELECT tier, count(*) as count FROM bia_assessments

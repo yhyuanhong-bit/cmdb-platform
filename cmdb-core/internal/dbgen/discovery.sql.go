@@ -149,11 +149,16 @@ func (q *Queries) FindAssetByIP(ctx context.Context, arg FindAssetByIPParams) (A
 }
 
 const getDiscoveredAsset = `-- name: GetDiscoveredAsset :one
-SELECT id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at FROM discovered_assets WHERE id = $1
+SELECT id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at FROM discovered_assets WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetDiscoveredAsset(ctx context.Context, id uuid.UUID) (DiscoveredAsset, error) {
-	row := q.db.QueryRow(ctx, getDiscoveredAsset, id)
+type GetDiscoveredAssetParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetDiscoveredAsset(ctx context.Context, arg GetDiscoveredAssetParams) (DiscoveredAsset, error) {
+	row := q.db.QueryRow(ctx, getDiscoveredAsset, arg.ID, arg.TenantID)
 	var i DiscoveredAsset
 	err := row.Scan(
 		&i.ID,

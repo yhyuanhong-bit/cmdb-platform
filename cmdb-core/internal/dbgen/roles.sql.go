@@ -67,11 +67,16 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 }
 
 const deleteRole = `-- name: DeleteRole :exec
-DELETE FROM roles WHERE id = $1 AND is_system = false
+DELETE FROM roles WHERE id = $1 AND tenant_id = $2 AND is_system = false
 `
 
-func (q *Queries) DeleteRole(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteRole, id)
+type DeleteRoleParams struct {
+	ID       uuid.UUID   `json:"id"`
+	TenantID pgtype.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeleteRole(ctx context.Context, arg DeleteRoleParams) error {
+	_, err := q.db.Exec(ctx, deleteRole, arg.ID, arg.TenantID)
 	return err
 }
 

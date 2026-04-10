@@ -13,7 +13,7 @@ WHERE tenant_id = $1
   AND (sqlc.narg('severity')::varchar IS NULL OR severity = sqlc.narg('severity'));
 
 -- name: GetIncident :one
-SELECT * FROM incidents WHERE id = $1;
+SELECT * FROM incidents WHERE id = $1 AND tenant_id = $2;
 
 -- name: CreateIncident :one
 INSERT INTO incidents (tenant_id, title, status, severity, started_at)

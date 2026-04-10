@@ -37,7 +37,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		Port:        port,
-		DatabaseURL: envOrDefault("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/cmdb?sslmode=disable"),
+		DatabaseURL: envOrDefault("DATABASE_URL", "postgres://localhost:5432/cmdb?sslmode=disable"),
 		RedisURL:    envOrDefault("REDIS_URL", "redis://localhost:6379/0"),
 		NatsURL:     envOrDefault("NATS_URL", "nats://localhost:4222"),
 		JWTSecret:   envOrDefault("JWT_SECRET", "dev-secret-change-me"),
@@ -60,6 +60,17 @@ func Load() (*Config, error) {
 
 	if cfg.DeployMode == "edge" && cfg.TenantID == "" {
 		return nil, fmt.Errorf("TENANT_ID is required in edge deploy mode")
+	}
+
+	// Reject insecure JWT secret in non-development mode
+	if cfg.JWTSecret == "dev-secret-change-me" && cfg.DeployMode != "edge" {
+		if os.Getenv("DEPLOY_MODE") != "" {
+			// Explicit non-dev deploy mode — reject default secret
+			return nil, fmt.Errorf("JWT_SECRET must be set to a secure value (minimum 32 characters) in %s mode", cfg.DeployMode)
+		}
+	}
+	if len(cfg.JWTSecret) < 32 {
+		fmt.Fprintf(os.Stderr, "WARNING: JWT_SECRET is shorter than 32 characters — this is insecure for production\n")
 	}
 
 	return cfg, nil

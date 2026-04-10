@@ -83,9 +83,9 @@ func (s *Service) List(ctx context.Context, p ListParams) ([]dbgen.Asset, int64,
 	return assets, total, nil
 }
 
-// GetByID returns a single asset by its ID.
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*dbgen.Asset, error) {
-	asset, err := s.queries.GetAsset(ctx, id)
+// GetByID returns a single asset by its ID, scoped to the given tenant.
+func (s *Service) GetByID(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.Asset, error) {
+	asset, err := s.queries.GetAsset(ctx, dbgen.GetAssetParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("get asset: %w", err)
 	}
@@ -123,9 +123,9 @@ func (s *Service) FindBySerialOrTag(ctx context.Context, tenantID uuid.UUID, ser
 	return &asset, nil
 }
 
-// Delete removes an asset by ID.
-func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
-	if err := s.queries.DeleteAsset(ctx, id); err != nil {
+// Delete removes an asset by ID, scoped to the given tenant.
+func (s *Service) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
+	if err := s.queries.DeleteAsset(ctx, dbgen.DeleteAssetParams{ID: id, TenantID: tenantID}); err != nil {
 		return fmt.Errorf("delete asset: %w", err)
 	}
 	return nil

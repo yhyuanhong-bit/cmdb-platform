@@ -145,11 +145,16 @@ func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset
 }
 
 const deleteAsset = `-- name: DeleteAsset :exec
-DELETE FROM assets WHERE id = $1
+DELETE FROM assets WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) DeleteAsset(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteAsset, id)
+type DeleteAssetParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeleteAsset(ctx context.Context, arg DeleteAssetParams) error {
+	_, err := q.db.Exec(ctx, deleteAsset, arg.ID, arg.TenantID)
 	return err
 }
 
@@ -194,11 +199,16 @@ func (q *Queries) FindAssetBySerialOrTag(ctx context.Context, arg FindAssetBySer
 }
 
 const getAsset = `-- name: GetAsset :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at FROM assets WHERE id = $1
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at FROM assets WHERE id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) GetAsset(ctx context.Context, id uuid.UUID) (Asset, error) {
-	row := q.db.QueryRow(ctx, getAsset, id)
+type GetAssetParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, error) {
+	row := q.db.QueryRow(ctx, getAsset, arg.ID, arg.TenantID)
 	var i Asset
 	err := row.Scan(
 		&i.ID,

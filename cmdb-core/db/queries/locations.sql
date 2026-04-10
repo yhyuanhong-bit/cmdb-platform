@@ -4,7 +4,7 @@ WHERE tenant_id = $1 AND parent_id IS NULL
 ORDER BY sort_order, name;
 
 -- name: GetLocation :one
-SELECT * FROM locations WHERE id = $1;
+SELECT * FROM locations WHERE id = $1 AND tenant_id = $2;
 
 -- name: ListChildren :many
 SELECT * FROM locations
@@ -44,7 +44,7 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: DeleteLocation :exec
-DELETE FROM locations WHERE id = $1;
+DELETE FROM locations WHERE id = $1 AND tenant_id = $2;
 
 -- name: GetLocationBySlug :one
 SELECT * FROM locations
