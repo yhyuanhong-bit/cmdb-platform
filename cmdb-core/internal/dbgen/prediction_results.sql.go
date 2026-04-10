@@ -190,6 +190,7 @@ func (q *Queries) ListPredictionsByAsset(ctx context.Context, arg ListPrediction
 const listPredictionsByTenant = `-- name: ListPredictionsByTenant :many
 SELECT id, tenant_id, model_id, asset_id, prediction_type, result, severity, recommended_action, expires_at, created_at FROM prediction_results
 WHERE tenant_id = $1
+ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
 `
 

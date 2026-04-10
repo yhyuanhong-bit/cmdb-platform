@@ -16,6 +16,7 @@ import (
 const countAssets = `-- name: CountAssets :one
 SELECT count(*) FROM assets
 WHERE tenant_id = $1
+  AND deleted_at IS NULL
   AND ($2::varchar IS NULL OR type = $2)
   AND ($3::varchar IS NULL OR status = $3)
   AND ($4::uuid IS NULL OR location_id = $4)
@@ -268,6 +269,7 @@ func (q *Queries) GetAssetByTag(ctx context.Context, assetTag string) (Asset, er
 const listAssets = `-- name: ListAssets :many
 SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at FROM assets
 WHERE tenant_id = $1
+  AND deleted_at IS NULL
   AND ($4::varchar IS NULL OR type = $4)
   AND ($5::varchar IS NULL OR status = $5)
   AND ($6::uuid IS NULL OR location_id = $6)

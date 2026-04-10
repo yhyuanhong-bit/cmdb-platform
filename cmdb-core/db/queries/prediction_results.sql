@@ -7,6 +7,7 @@ LIMIT $2;
 -- name: ListPredictionsByTenant :many
 SELECT * FROM prediction_results
 WHERE tenant_id = $1
+ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CountPredictionsByTenant :one

@@ -1,6 +1,7 @@
 -- name: ListAssets :many
 SELECT * FROM assets
 WHERE tenant_id = $1
+  AND deleted_at IS NULL
   AND (sqlc.narg('type')::varchar IS NULL OR type = sqlc.narg('type'))
   AND (sqlc.narg('status')::varchar IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'))
@@ -13,6 +14,7 @@ LIMIT $2 OFFSET $3;
 -- name: CountAssets :one
 SELECT count(*) FROM assets
 WHERE tenant_id = $1
+  AND deleted_at IS NULL
   AND (sqlc.narg('type')::varchar IS NULL OR type = sqlc.narg('type'))
   AND (sqlc.narg('status')::varchar IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'))
