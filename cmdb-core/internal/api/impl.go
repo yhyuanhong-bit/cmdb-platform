@@ -1416,6 +1416,11 @@ func (s *APIServer) UpdateIncident(c *gin.Context, id IdPath) {
 }
 
 // QueryMetrics queries time-series metric data for an asset.
+// It selects the optimal TimescaleDB source based on requested time range:
+//   - <= 1h  : raw metrics hypertable (full resolution)
+//   - <= 24h : metrics_5min continuous aggregate
+//   - > 24h  : metrics_1hour continuous aggregate
+//
 // (GET /monitoring/metrics)
 func (s *APIServer) QueryMetrics(c *gin.Context, params QueryMetricsParams) {
 	assetID := uuid.UUID(params.AssetId)
@@ -1429,18 +1434,42 @@ func (s *APIServer) QueryMetrics(c *gin.Context, params QueryMetricsParams) {
 		return
 	}
 
+	// Select the appropriate table/view based on the requested time range.
+	// Continuous aggregates use "bucket" and "avg_value" columns instead of
+	// "time" and "value".
+	var tableName, timeCol, valueCol string
+	switch {
+	case cutoff > 24*time.Hour:
+		tableName = "metrics_1hour"
+		timeCol = "bucket"
+		valueCol = "avg_value"
+	case cutoff > time.Hour:
+		tableName = "metrics_5min"
+		timeCol = "bucket"
+		valueCol = "avg_value"
+	default:
+		tableName = "metrics"
+		timeCol = "time"
+		valueCol = "value"
+	}
+
 	since := time.Now().Add(-cutoff)
 
-	rows, err := s.pool.Query(c.Request.Context(),
-		`SELECT time, name, value
-		 FROM metrics
+	// Table and column names are selected from our own constants above
+	// (not from user input), so fmt.Sprintf is safe here.  Bind parameters
+	// are still used for all user-supplied values.
+	query := fmt.Sprintf(
+		`SELECT %s AS time, name, %s AS value
+		 FROM %s
 		 WHERE asset_id = $1
 		   AND name = $2
-		   AND time > $3
-		 ORDER BY time DESC
+		   AND %s > $3
+		 ORDER BY %s DESC
 		 LIMIT 500`,
-		assetID, metricName, since,
+		timeCol, valueCol, tableName, timeCol, timeCol,
 	)
+
+	rows, err := s.pool.Query(c.Request.Context(), query, assetID, metricName, since)
 	if err != nil {
 		response.InternalError(c, "failed to query metrics")
 		return
@@ -1703,6 +1732,13 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 
 	stats := map[string]int{"matched": 0, "discrepancy": 0, "not_found": 0, "total": 0}
 
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		response.InternalError(c, "failed to start transaction")
+		return
+	}
+	defer tx.Rollback(ctx)
+
 	for _, item := range req.Items {
 		stats["total"]++
 		tag := ""
@@ -1768,7 +1804,7 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 		if err != nil || asset == nil {
 			stats["not_found"]++
 			// Insert as missing item (no asset_id)
-			s.pool.Exec(ctx,
+			tx.Exec(ctx,
 				"INSERT INTO inventory_items (task_id, expected, status) VALUES ($1, $2, 'missing')",
 				taskID, expectedJSON)
 			continue
@@ -1776,15 +1812,20 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 
 		stats["matched"]++
 		// Insert matched item
-		s.pool.Exec(ctx,
+		tx.Exec(ctx,
 			"INSERT INTO inventory_items (task_id, asset_id, rack_id, expected, status) VALUES ($1, $2, $3, $4, 'pending')",
 			taskID, asset.ID, asset.RackID, expectedJSON)
 	}
 
-	// Auto-transition task: planned → in_progress
-	s.pool.Exec(ctx,
+	// Auto-transition task: planned → in_progress (inside transaction)
+	tx.Exec(ctx,
 		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND status = 'planned'",
 		taskID)
+
+	if err := tx.Commit(ctx); err != nil {
+		response.InternalError(c, "failed to commit import")
+		return
+	}
 
 	s.recordAudit(c, "inventory.imported", "inventory", "inventory_task", taskID, map[string]any{
 		"matched":   stats["matched"],

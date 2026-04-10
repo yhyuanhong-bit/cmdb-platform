@@ -99,7 +99,7 @@ func main() {
 	monitoringSvc := monitoring.NewService(queries)
 	inventorySvc := inventory.NewService(queries)
 	auditSvc := audit.NewService(queries)
-	dashboardSvc := dashboard.NewService(queries, pool)
+	dashboardSvc := dashboard.NewService(queries, pool, redisClient)
 
 	integrationSvc := integration.NewService(queries)
 	biaSvc := bia.NewService(queries)
@@ -131,10 +131,10 @@ func main() {
 	router.Use(middleware.Recovery(), middleware.CORS(), middleware.SecurityHeaders(), middleware.RequestID())
 	router.Use(telemetry.PrometheusMiddleware())
 
-	// Health check
-	router.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
+	// Health & readiness probes
+	healthHandler := api.NewHealthHandler(pool, redisClient)
+	router.GET("/healthz", healthHandler.Liveness)
+	router.GET("/readyz", healthHandler.Readiness)
 
 	// Prometheus metrics endpoint (no auth)
 	router.GET("/metrics", telemetry.MetricsHandler())
