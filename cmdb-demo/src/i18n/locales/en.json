@@ -1993,7 +1993,9 @@
     "confirm_delete_user": "Delete user \"{{name}}\"?",
     "table_assigned_role": "Assigned Role",
     "select_role": "-- Select Role --",
-    "role_assigned": "Role assigned successfully"
+    "role_assigned": "Role assigned successfully",
+    "role_required": "Please select a role for the new user",
+    "user_created": "User created successfully"
   },
   "user_profile": {
     "role_badge": "Senior Administrator L2",

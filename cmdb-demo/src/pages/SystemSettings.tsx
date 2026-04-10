@@ -18,7 +18,7 @@ export default function SystemSettings() {
   const [activeTab, setActiveTab] = useState('permissions')
   const [showUserModal, setShowUserModal] = useState(false)
   const [editingUser, setEditingUser] = useState<any>(null)
-  const [newUserData, setNewUserData] = useState({ username: '', display_name: '', email: '', password: '' })
+  const [newUserData, setNewUserData] = useState({ username: '', display_name: '', email: '', password: '', role_id: '' })
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
   const deleteUser = useDeleteUser()
@@ -450,6 +450,19 @@ export default function SystemSettings() {
                 onChange={e => setNewUserData(p => ({...p, password: e.target.value}))}
                 className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface" />
             )}
+            {!editingUser && (
+              <select
+                value={newUserData.role_id}
+                onChange={e => setNewUserData(p => ({...p, role_id: e.target.value}))}
+                className="w-full p-2 bg-surface-container-low rounded border border-surface-container-highest text-on-surface"
+                required
+              >
+                <option value="">{t('system_settings.select_role')}</option>
+                {apiRoles.map((r: any) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            )}
             <div className="flex gap-2 justify-end">
               <button onClick={() => { setShowUserModal(false); setEditingUser(null) }} className="px-4 py-2 rounded bg-surface-container-high text-on-surface-variant">{t('system_settings.btn_cancel')}</button>
               {editingUser ? (
@@ -460,7 +473,21 @@ export default function SystemSettings() {
                   {updateUser.isPending ? t('common.saving') : t('common.save_changes')}
                 </button>
               ) : (
-                <button onClick={() => createUser.mutate(newUserData, { onSuccess: () => { setShowUserModal(false); setNewUserData({ username: '', display_name: '', email: '', password: '' }) } })}
+                <button onClick={() => {
+                  if (!newUserData.role_id) { toast.error(t('system_settings.role_required')); return }
+                  const { role_id, ...userData } = newUserData
+                  createUser.mutate(userData, {
+                    onSuccess: (resp: any) => {
+                      const userId = resp?.data?.id
+                      if (userId && role_id) {
+                        assignRole.mutate({ userId, roleId: role_id })
+                      }
+                      setShowUserModal(false)
+                      setNewUserData({ username: '', display_name: '', email: '', password: '', role_id: '' })
+                      toast.success(t('system_settings.user_created'))
+                    }
+                  })
+                }}
                   disabled={createUser.isPending} className="px-4 py-2 rounded bg-on-primary-container text-white disabled:opacity-50">
                   {createUser.isPending ? t('system_settings.btn_creating') : t('system_settings.btn_create')}
                 </button>

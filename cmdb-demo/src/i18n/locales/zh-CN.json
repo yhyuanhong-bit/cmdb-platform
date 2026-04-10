@@ -1993,7 +1993,9 @@
     "confirm_delete_user": "确定删除用户 \"{{name}}\"？",
     "table_assigned_role": "指派角色",
     "select_role": "-- 选择角色 --",
-    "role_assigned": "角色指派成功"
+    "role_assigned": "角色指派成功",
+    "role_required": "请为新用户选择一个角色",
+    "user_created": "用户创建成功"
   },
   "user_profile": {
     "role_badge": "高级管理员 L2",
