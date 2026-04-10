@@ -343,10 +343,13 @@ export default function MaintenanceHub() {
   const navigate = useNavigate()
   const { path } = useLocationContext()
   const locationId = path.idc?.id || path.campus?.id || path.city?.id || path.region?.id || path.territory?.id
+  const [currentPage, setCurrentPage] = useState(1)
   const { data: woResponse, isLoading, error } = useWorkOrders(
-    locationId ? { location_id: locationId } : undefined
+    locationId ? { location_id: locationId, page: String(currentPage), page_size: '20' }
+               : { page: String(currentPage), page_size: '20' }
   )
   const workOrders: WorkOrder[] = woResponse?.data ?? []
+  const totalPages = woResponse?.pagination?.total_pages ?? 1
 
   const tasks = useMemo(() =>
     workOrders.filter((wo) => wo.status.toLowerCase() !== 'completed').map(toTask),
@@ -563,23 +566,46 @@ export default function MaintenanceHub() {
             : `${t('common.showing')} 1-${records.length} ${t('common.of')} ${records.length} ${t('common.records')}`}
         </span>
         <div className="flex items-center gap-1">
-          <button className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+          <button
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors disabled:opacity-40"
+          >
             <Icon name="chevron_left" className="text-[18px]" />
           </button>
-          <button className="px-3 py-1.5 rounded bg-on-primary-container text-white text-xs font-semibold min-w-[32px]">
-            1
-          </button>
-          <button className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors min-w-[32px]">
-            2
-          </button>
-          <button className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors min-w-[32px]">
-            3
-          </button>
-          <span className="px-2 text-on-surface-variant">...</span>
-          <button className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant text-xs hover:bg-surface-container-highest transition-colors min-w-[32px]">
-            {viewMode === 'records' ? '156' : '3'}
-          </button>
-          <button className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors">
+          {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((page) => (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`px-3 py-1.5 rounded text-xs font-semibold min-w-[32px] transition-colors ${
+                page === currentPage
+                  ? 'bg-on-primary-container text-white'
+                  : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
+              }`}
+            >
+              {page}
+            </button>
+          ))}
+          {totalPages > 5 && (
+            <>
+              <span className="px-2 text-on-surface-variant">...</span>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                className={`px-3 py-1.5 rounded text-xs font-semibold min-w-[32px] transition-colors ${
+                  currentPage === totalPages
+                    ? 'bg-on-primary-container text-white'
+                    : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
+                }`}
+              >
+                {totalPages}
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors disabled:opacity-40"
+          >
             <Icon name="chevron_right" className="text-[18px]" />
           </button>
         </div>

@@ -317,7 +317,7 @@ UPDATE work_orders SET
     scheduled_start = COALESCE($5, scheduled_start),
     scheduled_end   = COALESCE($6, scheduled_end),
     updated_at      = now()
-WHERE id = $7 AND tenant_id = $8
+WHERE id = $7 AND tenant_id = $8 AND deleted_at IS NULL
 RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
 `
 
@@ -378,18 +378,19 @@ const updateWorkOrderStatus = `-- name: UpdateWorkOrderStatus :one
 UPDATE work_orders SET
     status     = $2,
     updated_at = now()
-WHERE id = $1 AND tenant_id = $3
+WHERE id = $1 AND tenant_id = $3 AND status = $4 AND deleted_at IS NULL
 RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
 `
 
 type UpdateWorkOrderStatusParams struct {
-	ID       uuid.UUID `json:"id"`
-	Status   string    `json:"status"`
-	TenantID uuid.UUID `json:"tenant_id"`
+	ID         uuid.UUID `json:"id"`
+	Status     string    `json:"status"`
+	TenantID   uuid.UUID `json:"tenant_id"`
+	FromStatus string    `json:"from_status"`
 }
 
 func (q *Queries) UpdateWorkOrderStatus(ctx context.Context, arg UpdateWorkOrderStatusParams) (WorkOrder, error) {
-	row := q.db.QueryRow(ctx, updateWorkOrderStatus, arg.ID, arg.Status, arg.TenantID)
+	row := q.db.QueryRow(ctx, updateWorkOrderStatus, arg.ID, arg.Status, arg.TenantID, arg.FromStatus)
 	var i WorkOrder
 	err := row.Scan(
 		&i.ID,
@@ -444,7 +445,7 @@ UPDATE work_orders SET
     sla_deadline = $3,
     status = 'approved',
     updated_at = now()
-WHERE id = $1 AND tenant_id = $4
+WHERE id = $1 AND tenant_id = $4 AND status = 'submitted' AND deleted_at IS NULL
 RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
 `
 
@@ -489,7 +490,7 @@ func (q *Queries) StampWorkOrderApproval(ctx context.Context, arg StampWorkOrder
 }
 
 const markSLAWarning = `-- name: MarkSLAWarning :exec
-UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2
+UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 `
 
 type MarkSLAWarningParams struct {
@@ -503,7 +504,7 @@ func (q *Queries) MarkSLAWarning(ctx context.Context, arg MarkSLAWarningParams) 
 }
 
 const markSLABreached = `-- name: MarkSLABreached :exec
-UPDATE work_orders SET sla_breached = true WHERE id = $1 AND tenant_id = $2
+UPDATE work_orders SET sla_breached = true WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 `
 
 type MarkSLABreachedParams struct {

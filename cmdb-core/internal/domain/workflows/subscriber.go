@@ -122,18 +122,28 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 
 	tenantID, _ := uuid.Parse(event.TenantID)
 
+	// Validate asset ID first
+	assetUUID, err := uuid.Parse(payload.AssetID)
+	if err != nil {
+		zap.L().Warn("workflow: invalid asset_id in alert", zap.String("asset_id", payload.AssetID))
+		return nil
+	}
+
 	// Dedup: check if an open work order already exists for this asset
 	var existingCount int
-	w.pool.QueryRow(ctx,
+	err = w.pool.QueryRow(ctx,
 		"SELECT count(*) FROM work_orders WHERE asset_id = $1 AND status NOT IN ('completed','verified','rejected') AND deleted_at IS NULL AND tenant_id = $2",
-		payload.AssetID, tenantID).Scan(&existingCount)
+		assetUUID, tenantID).Scan(&existingCount)
+	if err != nil {
+		zap.L().Warn("workflow: dedup check failed", zap.Error(err))
+		return nil
+	}
 
 	if existingCount > 0 {
 		return nil // already has an open work order
 	}
 
 	// Create emergency work order via service layer
-	assetUUID, _ := uuid.Parse(payload.AssetID)
 	order, createErr := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
 		Title:       fmt.Sprintf("Emergency: %s", payload.Message),
 		Type:        "emergency",

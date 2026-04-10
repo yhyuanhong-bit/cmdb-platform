@@ -190,14 +190,14 @@ function WorkOrderCard({
           <>
             <span
               className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg machined-gradient text-on-primary text-xs font-bold cursor-pointer"
-              onClick={(e) => { e.stopPropagation(); onApprove?.(order.id); }}
+              onClick={(e) => { e.stopPropagation(); onApprove?.(order.apiId); }}
             >
               <Icon name="check_circle" className="text-[16px]" />
               {t('work_order.btn_approve')}
             </span>
             <span
               className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-error text-white text-xs font-bold cursor-pointer"
-              onClick={(e) => { e.stopPropagation(); onReject?.(order.id); }}
+              onClick={(e) => { e.stopPropagation(); onReject?.(order.apiId); }}
             >
               <Icon name="block" className="text-[16px]" />
               {t('work_order.btn_reject')}
@@ -228,7 +228,7 @@ function WorkOrderCard({
             </span>
             <span
               className="text-xs text-[#34d399] font-semibold cursor-pointer hover:underline"
-              onClick={(e) => { e.stopPropagation(); onTransition?.(order.id, 'verified'); }}
+              onClick={(e) => { e.stopPropagation(); onTransition?.(order.apiId, 'verified'); }}
             >
               {t('work_order.btn_verify')}
             </span>
@@ -264,7 +264,7 @@ function WorkOrderCard({
             onClick={(e) => {
               e.stopPropagation()
               if (confirm(t('work_order.confirm_delete', { id: order.id }))) {
-                onDelete(order.id)
+                onDelete(order.apiId)
               }
             }}
           >
@@ -377,14 +377,14 @@ function AiPanel({ order }: { order: WorkOrderItem | null }) {
 export default function WorkOrder() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { data: woResponse, isLoading, error } = useWorkOrders()
+  const [activeTab, setActiveTab] = useState('all')
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const { data: woResponse, isLoading, error } = useWorkOrders({ page: String(currentPage), page_size: '20' })
   const transitionWO = useTransitionWorkOrder()
   const deleteWO = useDeleteWorkOrder()
   const apiOrders: ApiWorkOrder[] = woResponse?.data ?? []
   const WORK_ORDERS = useMemo(() => apiOrders.map(toWorkOrderItem), [apiOrders])
-  const [activeTab, setActiveTab] = useState('all')
-  const [selectedOrderId, setSelectedOrderId] = useState<string>('')
-  const [currentPage, setCurrentPage] = useState(1)
   const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [approvalAction, setApprovalAction] = useState<'approved' | 'rejected'>('approved')
   const [approvalComment, setApprovalComment] = useState('')
@@ -508,20 +508,20 @@ export default function WorkOrder() {
               isSelected={order.id === effectiveSelectedId}
               onSelect={() => setSelectedOrderId(order.id)}
               onApprove={(id) => {
-                setApprovalTargetId(order.apiId)
+                setApprovalTargetId(id)
                 setApprovalAction('approved')
                 setShowApprovalModal(true)
               }}
               onReject={(id) => {
-                setApprovalTargetId(order.apiId)
+                setApprovalTargetId(id)
                 setApprovalAction('rejected')
                 setShowApprovalModal(true)
               }}
               onTransition={(id, status) => {
-                transitionWO.mutate({ id: order.apiId, data: { status, comment: 'Verified' } })
+                transitionWO.mutate({ id, data: { status, comment: 'Verified' } })
               }}
               onDelete={(id) => {
-                deleteWO.mutate(order.apiId, {
+                deleteWO.mutate(id, {
                   onSuccess: () => toast.success(t('work_order.delete_success')),
                 })
               }}

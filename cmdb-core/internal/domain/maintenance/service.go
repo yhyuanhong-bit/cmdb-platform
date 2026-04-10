@@ -87,6 +87,11 @@ func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, r
 	}
 	priority = strings.ToLower(priority)
 
+	validPriorities := map[string]bool{"critical": true, "high": true, "medium": true, "low": true}
+	if !validPriorities[priority] {
+		return nil, fmt.Errorf("invalid priority %q; must be critical, high, medium, or low", priority)
+	}
+
 	params := dbgen.CreateWorkOrderParams{
 		TenantID:    tenantID,
 		Code:        generateCode(),
@@ -170,12 +175,16 @@ func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.
 		})
 	} else {
 		updated, err = s.queries.UpdateWorkOrderStatus(ctx, dbgen.UpdateWorkOrderStatusParams{
-			ID:       id,
-			Status:   req.Status,
-			TenantID: tenantID,
+			ID:         id,
+			Status:     req.Status,
+			TenantID:   tenantID,
+			FromStatus: order.Status, // optimistic lock
 		})
 	}
 	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, fmt.Errorf("work order status has changed concurrently, please retry")
+		}
 		return nil, fmt.Errorf("update work order status: %w", err)
 	}
 
@@ -222,12 +231,25 @@ func validateApproval(operatorID uuid.UUID, requestorID pgtype.UUID, operatorRol
 }
 
 // Update applies partial updates to a work order.
-func (s *Service) Update(ctx context.Context, params dbgen.UpdateWorkOrderParams) (*dbgen.WorkOrder, error) {
-	order, err := s.queries.UpdateWorkOrder(ctx, params)
+// Only submitted or rejected orders can be edited.
+func (s *Service) Update(ctx context.Context, tenantID uuid.UUID, params dbgen.UpdateWorkOrderParams) (*dbgen.WorkOrder, error) {
+	// Check current status - only allow edits on submitted or rejected orders
+	order, err := s.queries.GetWorkOrder(ctx, dbgen.GetWorkOrderParams{
+		ID:       params.ID,
+		TenantID: tenantID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("work order not found: %w", err)
+	}
+	if order.Status != StatusSubmitted && order.Status != StatusRejected {
+		return nil, fmt.Errorf("cannot modify work order in '%s' status; only submitted or rejected orders can be edited", order.Status)
+	}
+
+	updated, err := s.queries.UpdateWorkOrder(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("update work order: %w", err)
 	}
-	return &order, nil
+	return &updated, nil
 }
 
 // Delete soft-deletes a work order. Only draft/rejected orders can be deleted.

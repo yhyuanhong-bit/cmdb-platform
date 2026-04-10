@@ -30,6 +30,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"go.uber.org/zap"
 )
 
 // Ensure APIServer implements ServerInterface at compile time.
@@ -1072,7 +1073,8 @@ func (s *APIServer) TransitionWorkOrder(c *gin.Context, id IdPath) {
 		Comment: comment,
 	})
 	if err != nil {
-		response.BadRequest(c, err.Error())
+		zap.L().Warn("transition rejected", zap.String("order_id", uuid.UUID(id).String()), zap.Error(err))
+		response.BadRequest(c, "transition not allowed")
 		return
 	}
 	s.recordAudit(c, "order.transitioned", "maintenance", "work_order", uuid.UUID(id), map[string]any{
@@ -1106,7 +1108,13 @@ func (s *APIServer) UpdateWorkOrder(c *gin.Context, id IdPath) {
 		params.Description = pgtype.Text{String: *req.Description, Valid: true}
 	}
 	if req.Priority != nil {
-		params.Priority = pgtype.Text{String: *req.Priority, Valid: true}
+		p := strings.ToLower(*req.Priority)
+		validPriorities := map[string]bool{"critical": true, "high": true, "medium": true, "low": true}
+		if !validPriorities[p] {
+			response.BadRequest(c, fmt.Sprintf("invalid priority %q; must be critical, high, medium, or low", *req.Priority))
+			return
+		}
+		params.Priority = pgtype.Text{String: p, Valid: true}
 	}
 	if req.AssigneeId != nil {
 		params.AssigneeID = pgtype.UUID{Bytes: uuid.UUID(*req.AssigneeId), Valid: true}
@@ -1118,8 +1126,12 @@ func (s *APIServer) UpdateWorkOrder(c *gin.Context, id IdPath) {
 		params.ScheduledEnd = pgtype.Timestamptz{Time: *req.ScheduledEnd, Valid: true}
 	}
 
-	order, err := s.maintenanceSvc.Update(c.Request.Context(), params)
+	order, err := s.maintenanceSvc.Update(c.Request.Context(), tenantID, params)
 	if err != nil {
+		if strings.Contains(err.Error(), "cannot modify") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.NotFound(c, "work order not found")
 		return
 	}

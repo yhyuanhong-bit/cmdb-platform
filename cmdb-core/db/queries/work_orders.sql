@@ -36,7 +36,7 @@ INSERT INTO work_orders (
 UPDATE work_orders SET
     status     = $2,
     updated_at = now()
-WHERE id = $1 AND tenant_id = $3
+WHERE id = $1 AND tenant_id = $3 AND status = $4 AND deleted_at IS NULL
 RETURNING *;
 
 -- name: CreateWorkOrderLog :one
@@ -57,7 +57,7 @@ UPDATE work_orders SET
     scheduled_start = COALESCE(sqlc.narg('scheduled_start'), scheduled_start),
     scheduled_end   = COALESCE(sqlc.narg('scheduled_end'), scheduled_end),
     updated_at      = now()
-WHERE id = sqlc.arg('id') AND tenant_id = sqlc.arg('tenant_id')
+WHERE id = sqlc.arg('id') AND tenant_id = sqlc.arg('tenant_id') AND deleted_at IS NULL
 RETURNING *;
 
 -- name: ListWorkOrderLogs :many
@@ -77,14 +77,14 @@ UPDATE work_orders SET
     sla_deadline = $3,
     status = 'approved',
     updated_at = now()
-WHERE id = $1 AND tenant_id = $4
+WHERE id = $1 AND tenant_id = $4 AND status = 'submitted' AND deleted_at IS NULL
 RETURNING *;
 
 -- name: MarkSLAWarning :exec
-UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2;
+UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
 
 -- name: MarkSLABreached :exec
-UPDATE work_orders SET sla_breached = true WHERE id = $1 AND tenant_id = $2;
+UPDATE work_orders SET sla_breached = true WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
 
 -- name: ListOverdueSLAOrders :many
 SELECT * FROM work_orders
