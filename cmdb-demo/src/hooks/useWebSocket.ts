@@ -46,9 +46,16 @@ export function useWebSocket() {
 
     // Derive WS URL from API URL
     const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
-    const wsProtocol = apiUrl.startsWith('https') ? 'wss' : 'ws'
-    const baseUrl = apiUrl.replace(/^https?/, wsProtocol)
-    const wsUrl = `${baseUrl}/ws`
+    let wsUrl: string
+    if (apiUrl.startsWith('http')) {
+      // Absolute URL: replace protocol
+      const wsProtocol = apiUrl.startsWith('https') ? 'wss' : 'ws'
+      wsUrl = apiUrl.replace(/^https?/, wsProtocol) + '/ws'
+    } else {
+      // Relative URL: build from current window location
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+      wsUrl = `${proto}://${window.location.host}${apiUrl}/ws`
+    }
 
     const ws = new WebSocket(wsUrl, [`access_token.${token}`])
     wsRef.current = ws

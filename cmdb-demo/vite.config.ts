@@ -14,6 +14,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path: string) => path.replace('/api/v1/ingestion', ''),
       },
+      '/api/v1/ws': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true,
+      },
       '/api/v1': {
         target: 'http://localhost:8080',
         changeOrigin: true,

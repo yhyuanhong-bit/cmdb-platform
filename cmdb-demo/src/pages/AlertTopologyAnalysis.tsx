@@ -538,11 +538,12 @@ function AlertTopologyAnalysis() {
 
       {/* ── Bottom panel: Selected asset detail ── */}
       <section className="bg-surface-container rounded-lg p-5">
-        {!selectedNode && (
+        {!selectedNode ? (
           <div className="flex items-center justify-center py-6 text-sm text-on-surface-variant">
             {graphLoading ? 'Loading topology…' : 'Select a node to view details'}
           </div>
-        )}
+        ) : (
+        <>
         <div className="flex flex-wrap gap-6 items-start">
           {/* Asset identity */}
           <div className="flex items-start gap-4 min-w-[280px]">
@@ -650,7 +651,7 @@ function AlertTopologyAnalysis() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {selectedNode.tags.map((tag) => (
+            {selectedNode.tags.map((tag: string) => (
               <span
                 key={tag}
                 className="bg-surface-container-high text-on-surface-variant text-[0.625rem] px-2 py-0.5 rounded tracking-wide"
@@ -660,6 +661,8 @@ function AlertTopologyAnalysis() {
             ))}
           </div>
         </div>
+        </>
+        )}
       </section>
     </div>
   );
