@@ -26,6 +26,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/workflows"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	cmdbmcp "github.com/cmdb-platform/cmdb-core/internal/mcp"
 	"github.com/cmdb-platform/cmdb-core/internal/middleware"
@@ -253,7 +254,7 @@ func main() {
 
 	// NATS -> WebSocket bridge
 	if bus != nil && wsHub != nil {
-		subjects := []string{"alert.>", "asset.>", "maintenance.>", "import.>"}
+		subjects := []string{"alert.>", "asset.>", "maintenance.>", "import.>", "notification.>"}
 		for _, subj := range subjects {
 			subj := subj // capture
 			bus.Subscribe(subj, func(ctx context.Context, event eventbus.Event) error {
@@ -266,6 +267,12 @@ func main() {
 			})
 		}
 		zap.L().Info("NATS -> WebSocket bridge active")
+	}
+
+	// Workflow subscribers (cross-module reactions)
+	if bus != nil {
+		wfSub := workflows.New(pool, queries, bus)
+		wfSub.Register()
 	}
 
 	// Webhook dispatcher

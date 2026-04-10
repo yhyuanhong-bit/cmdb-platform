@@ -2,13 +2,28 @@ package maintenance
 
 import "fmt"
 
+// Status constants for the work order lifecycle.
+const (
+	StatusSubmitted  = "submitted"
+	StatusApproved   = "approved"
+	StatusRejected   = "rejected"
+	StatusInProgress = "in_progress"
+	StatusCompleted  = "completed"
+	StatusVerified   = "verified"
+)
+
 // validTransitions defines the allowed status transitions for work orders.
 var validTransitions = map[string][]string{
-	"draft":       {"pending"},
-	"pending":     {"approved", "rejected"},
-	"approved":    {"in_progress"},
-	"in_progress": {"completed"},
-	"completed":   {"closed"},
+	StatusSubmitted:  {StatusApproved, StatusRejected},
+	StatusApproved:   {StatusInProgress},
+	StatusInProgress: {StatusCompleted},
+	StatusCompleted:  {StatusVerified},
+}
+
+// approvalTransitions are transitions that require approval permissions.
+var approvalTransitions = map[string]bool{
+	StatusApproved: true,
+	StatusRejected: true,
 }
 
 // ValidateTransition checks whether a transition from one status to another is allowed.
@@ -23,4 +38,9 @@ func ValidateTransition(from, to string) error {
 		}
 	}
 	return fmt.Errorf("invalid transition from %q to %q", from, to)
+}
+
+// RequiresApproval returns true if the target status requires approval permissions.
+func RequiresApproval(toStatus string) bool {
+	return approvalTransitions[toStatus]
 }

@@ -1052,7 +1052,18 @@ func (s *APIServer) TransitionWorkOrder(c *gin.Context, id IdPath) {
 		comment = *req.Comment
 	}
 
-	order, err := s.maintenanceSvc.Transition(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id), operatorID, maintenance.TransitionRequest{
+	// Fetch operator role names for approval permission checks
+	var roleNames []string
+	if maintenance.RequiresApproval(req.Status) {
+		roles, roleErr := dbgen.New(s.pool).ListUserRoles(c.Request.Context(), operatorID)
+		if roleErr == nil {
+			for _, r := range roles {
+				roleNames = append(roleNames, r.Name)
+			}
+		}
+	}
+
+	order, err := s.maintenanceSvc.Transition(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id), operatorID, roleNames, maintenance.TransitionRequest{
 		Status:  req.Status,
 		Comment: comment,
 	})

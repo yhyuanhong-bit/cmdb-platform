@@ -73,7 +73,7 @@ func generateCode() string {
 	return fmt.Sprintf("WO-%d-%04d", year, seq)
 }
 
-// Create creates a new work order in draft status.
+// Create creates a new work order in submitted status.
 func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, req CreateOrderRequest) (*dbgen.WorkOrder, error) {
 	priority := req.Priority
 	if priority == "" {
@@ -85,7 +85,7 @@ func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, r
 		Code:        generateCode(),
 		Title:       req.Title,
 		Type:        req.Type,
-		Status:      "draft",
+		Status:      StatusSubmitted,
 		Priority:    priority,
 		RequestorID: pgtype.UUID{Bytes: requestorID, Valid: true},
 	}
@@ -121,7 +121,7 @@ func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, r
 	_, _ = s.queries.CreateWorkOrderLog(ctx, dbgen.CreateWorkOrderLogParams{
 		OrderID:    order.ID,
 		Action:     "created",
-		ToStatus:   pgtype.Text{String: "draft", Valid: true},
+		ToStatus:   pgtype.Text{String: StatusSubmitted, Valid: true},
 		OperatorID: pgtype.UUID{Bytes: requestorID, Valid: true},
 	})
 
@@ -129,7 +129,7 @@ func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, r
 }
 
 // Transition moves a work order from one status to another after validation.
-func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.UUID, req TransitionRequest) (*dbgen.WorkOrder, error) {
+func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.UUID, operatorRoles []string, req TransitionRequest) (*dbgen.WorkOrder, error) {
 	order, err := s.queries.GetWorkOrder(ctx, dbgen.GetWorkOrderParams{ID: id, TenantID: tenantID})
 	if err != nil {
 		return nil, fmt.Errorf("get work order: %w", err)
@@ -139,10 +139,33 @@ func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.
 		return nil, err
 	}
 
-	updated, err := s.queries.UpdateWorkOrderStatus(ctx, dbgen.UpdateWorkOrderStatusParams{
-		ID:     id,
-		Status: req.Status,
-	})
+	// Check approval permissions
+	if RequiresApproval(req.Status) {
+		if err := validateApproval(operatorID, order.RequestorID, operatorRoles); err != nil {
+			return nil, err
+		}
+		if req.Comment == "" {
+			return nil, fmt.Errorf("approval/rejection requires a comment")
+		}
+	}
+
+	var updated dbgen.WorkOrder
+
+	if req.Status == StatusApproved {
+		// Use StampWorkOrderApproval to set approved_at, approved_by, sla_deadline in one shot
+		now := time.Now()
+		deadline := SLADeadline(order.Priority, now)
+		updated, err = s.queries.StampWorkOrderApproval(ctx, dbgen.StampWorkOrderApprovalParams{
+			ID:          id,
+			ApprovedBy:  pgtype.UUID{Bytes: operatorID, Valid: true},
+			SlaDeadline: pgtype.Timestamptz{Time: deadline, Valid: true},
+		})
+	} else {
+		updated, err = s.queries.UpdateWorkOrderStatus(ctx, dbgen.UpdateWorkOrderStatusParams{
+			ID:     id,
+			Status: req.Status,
+		})
+	}
 	if err != nil {
 		return nil, fmt.Errorf("update work order status: %w", err)
 	}
@@ -162,6 +185,28 @@ func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.
 	return &updated, nil
 }
 
+// validateApproval checks that the operator has approval permissions and is not self-approving.
+func validateApproval(operatorID uuid.UUID, requestorID pgtype.UUID, operatorRoles []string) error {
+	// Check role
+	hasApprovalRole := false
+	for _, role := range operatorRoles {
+		if role == "super-admin" || role == "ops-admin" {
+			hasApprovalRole = true
+			break
+		}
+	}
+	if !hasApprovalRole {
+		return fmt.Errorf("insufficient permissions: only ops-admin or super-admin can approve/reject work orders")
+	}
+
+	// Block self-approval
+	if requestorID.Valid && operatorID == requestorID.Bytes {
+		return fmt.Errorf("self-approval is not allowed: the creator cannot approve their own work order")
+	}
+
+	return nil
+}
+
 // Update applies partial updates to a work order.
 func (s *Service) Update(ctx context.Context, params dbgen.UpdateWorkOrderParams) (*dbgen.WorkOrder, error) {
 	order, err := s.queries.UpdateWorkOrder(ctx, params)
@@ -178,8 +223,8 @@ func (s *Service) Delete(ctx context.Context, tenantID, orderID uuid.UUID) error
 		return fmt.Errorf("work order not found: %w", err)
 	}
 
-	if order.Status != "draft" && order.Status != "rejected" {
-		return fmt.Errorf("cannot delete work order in '%s' status; only draft or rejected orders can be deleted", order.Status)
+	if order.Status != StatusSubmitted && order.Status != StatusRejected {
+		return fmt.Errorf("cannot delete work order in '%s' status; only submitted or rejected orders can be deleted", order.Status)
 	}
 
 	return s.queries.SoftDeleteWorkOrder(ctx, dbgen.SoftDeleteWorkOrderParams{

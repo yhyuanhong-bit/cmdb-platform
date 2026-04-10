@@ -45,7 +45,7 @@ INSERT INTO work_orders (
     $7, $8, $9, $10,
     $11, $12, $13,
     $14, $15
-) RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at
+) RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
 `
 
 type CreateWorkOrderParams struct {
@@ -106,6 +106,11 @@ func (q *Queries) CreateWorkOrder(ctx context.Context, arg CreateWorkOrderParams
 		&i.ActualEnd,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+		&i.SlaDeadline,
+		&i.SlaWarningSent,
+		&i.SlaBreached,
 	)
 	return i, err
 }
@@ -153,7 +158,7 @@ func (q *Queries) CreateWorkOrderLog(ctx context.Context, arg CreateWorkOrderLog
 }
 
 const getWorkOrder = `-- name: GetWorkOrder :one
-SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at FROM work_orders WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders WHERE id = $1 AND tenant_id = $2
 `
 
 type GetWorkOrderParams struct {
@@ -185,6 +190,11 @@ func (q *Queries) GetWorkOrder(ctx context.Context, arg GetWorkOrderParams) (Wor
 		&i.ActualEnd,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+		&i.SlaDeadline,
+		&i.SlaWarningSent,
+		&i.SlaBreached,
 	)
 	return i, err
 }
@@ -225,7 +235,7 @@ func (q *Queries) ListWorkOrderLogs(ctx context.Context, orderID uuid.UUID) ([]W
 }
 
 const listWorkOrders = `-- name: ListWorkOrders :many
-SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at FROM work_orders
+SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders
 WHERE tenant_id = $1
   AND ($4::varchar IS NULL OR status = $4)
   AND ($5::uuid IS NULL OR asset_id = $5)
@@ -280,6 +290,11 @@ func (q *Queries) ListWorkOrders(ctx context.Context, arg ListWorkOrdersParams) 
 			&i.ActualEnd,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ApprovedAt,
+			&i.ApprovedBy,
+			&i.SlaDeadline,
+			&i.SlaWarningSent,
+			&i.SlaBreached,
 		); err != nil {
 			return nil, err
 		}
@@ -301,7 +316,7 @@ UPDATE work_orders SET
     scheduled_end   = COALESCE($6, scheduled_end),
     updated_at      = now()
 WHERE id = $7
-RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
 `
 
 type UpdateWorkOrderParams struct {
@@ -346,6 +361,11 @@ func (q *Queries) UpdateWorkOrder(ctx context.Context, arg UpdateWorkOrderParams
 		&i.ActualEnd,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+		&i.SlaDeadline,
+		&i.SlaWarningSent,
+		&i.SlaBreached,
 	)
 	return i, err
 }
@@ -355,7 +375,7 @@ UPDATE work_orders SET
     status     = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
 `
 
 type UpdateWorkOrderStatusParams struct {
@@ -387,6 +407,11 @@ func (q *Queries) UpdateWorkOrderStatus(ctx context.Context, arg UpdateWorkOrder
 		&i.ActualEnd,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+		&i.SlaDeadline,
+		&i.SlaWarningSent,
+		&i.SlaBreached,
 	)
 	return i, err
 }
@@ -403,4 +428,182 @@ type SoftDeleteWorkOrderParams struct {
 func (q *Queries) SoftDeleteWorkOrder(ctx context.Context, arg SoftDeleteWorkOrderParams) error {
 	_, err := q.db.Exec(ctx, softDeleteWorkOrder, arg.ID, arg.TenantID)
 	return err
+}
+
+const stampWorkOrderApproval = `-- name: StampWorkOrderApproval :one
+UPDATE work_orders SET
+    approved_at = now(),
+    approved_by = $2,
+    sla_deadline = $3,
+    status = 'approved',
+    updated_at = now()
+WHERE id = $1
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
+`
+
+type StampWorkOrderApprovalParams struct {
+	ID          uuid.UUID          `json:"id"`
+	ApprovedBy  pgtype.UUID        `json:"approved_by"`
+	SlaDeadline pgtype.Timestamptz `json:"sla_deadline"`
+}
+
+func (q *Queries) StampWorkOrderApproval(ctx context.Context, arg StampWorkOrderApprovalParams) (WorkOrder, error) {
+	row := q.db.QueryRow(ctx, stampWorkOrderApproval, arg.ID, arg.ApprovedBy, arg.SlaDeadline)
+	var i WorkOrder
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Title,
+		&i.Type,
+		&i.Status,
+		&i.Priority,
+		&i.LocationID,
+		&i.AssetID,
+		&i.RequestorID,
+		&i.AssigneeID,
+		&i.Description,
+		&i.Reason,
+		&i.PredictionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.ActualStart,
+		&i.ActualEnd,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+		&i.SlaDeadline,
+		&i.SlaWarningSent,
+		&i.SlaBreached,
+	)
+	return i, err
+}
+
+const markSLAWarning = `-- name: MarkSLAWarning :exec
+UPDATE work_orders SET sla_warning_sent = true WHERE id = $1
+`
+
+func (q *Queries) MarkSLAWarning(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markSLAWarning, id)
+	return err
+}
+
+const markSLABreached = `-- name: MarkSLABreached :exec
+UPDATE work_orders SET sla_breached = true WHERE id = $1
+`
+
+func (q *Queries) MarkSLABreached(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markSLABreached, id)
+	return err
+}
+
+const listOverdueSLAOrders = `-- name: ListOverdueSLAOrders :many
+SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders
+WHERE status = 'in_progress'
+  AND sla_deadline IS NOT NULL
+  AND sla_deadline < now()
+  AND sla_breached = false
+  AND deleted_at IS NULL
+`
+
+func (q *Queries) ListOverdueSLAOrders(ctx context.Context) ([]WorkOrder, error) {
+	rows, err := q.db.Query(ctx, listOverdueSLAOrders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkOrder{}
+	for rows.Next() {
+		var i WorkOrder
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Code,
+			&i.Title,
+			&i.Type,
+			&i.Status,
+			&i.Priority,
+			&i.LocationID,
+			&i.AssetID,
+			&i.RequestorID,
+			&i.AssigneeID,
+			&i.Description,
+			&i.Reason,
+			&i.PredictionID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.ActualStart,
+			&i.ActualEnd,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ApprovedAt,
+			&i.ApprovedBy,
+			&i.SlaDeadline,
+			&i.SlaWarningSent,
+			&i.SlaBreached,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSLAWarningOrders = `-- name: ListSLAWarningOrders :many
+SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders
+WHERE status IN ('approved', 'in_progress')
+  AND sla_deadline IS NOT NULL
+  AND sla_warning_sent = false
+  AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now()
+  AND deleted_at IS NULL
+`
+
+func (q *Queries) ListSLAWarningOrders(ctx context.Context) ([]WorkOrder, error) {
+	rows, err := q.db.Query(ctx, listSLAWarningOrders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkOrder{}
+	for rows.Next() {
+		var i WorkOrder
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Code,
+			&i.Title,
+			&i.Type,
+			&i.Status,
+			&i.Priority,
+			&i.LocationID,
+			&i.AssetID,
+			&i.RequestorID,
+			&i.AssigneeID,
+			&i.Description,
+			&i.Reason,
+			&i.PredictionID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.ActualStart,
+			&i.ActualEnd,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ApprovedAt,
+			&i.ApprovedBy,
+			&i.SlaDeadline,
+			&i.SlaWarningSent,
+			&i.SlaBreached,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

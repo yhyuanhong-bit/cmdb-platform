@@ -31,4 +31,6 @@ const (
 	SubjectPredictionCreated = "prediction.created"
 
 	SubjectAuditRecorded = "audit.recorded"
+
+	SubjectNotificationCreated = "notification.created"
 )

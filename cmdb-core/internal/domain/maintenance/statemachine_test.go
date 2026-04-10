@@ -6,12 +6,11 @@ func TestValidateTransition(t *testing.T) {
 	validTransitions := []struct {
 		from, to string
 	}{
-		{"draft", "pending"},
-		{"pending", "approved"},
-		{"pending", "rejected"},
-		{"approved", "in_progress"},
-		{"in_progress", "completed"},
-		{"completed", "closed"},
+		{StatusSubmitted, StatusApproved},
+		{StatusSubmitted, StatusRejected},
+		{StatusApproved, StatusInProgress},
+		{StatusInProgress, StatusCompleted},
+		{StatusCompleted, StatusVerified},
 	}
 
 	for _, tt := range validTransitions {
@@ -25,13 +24,14 @@ func TestValidateTransition_Invalid(t *testing.T) {
 	invalidTransitions := []struct {
 		from, to string
 	}{
-		{"draft", "completed"},
-		{"draft", "in_progress"},
-		{"pending", "in_progress"},
-		{"approved", "rejected"},
-		{"in_progress", "draft"},
-		{"completed", "in_progress"},
-		{"closed", "draft"},
+		{StatusSubmitted, StatusInProgress},
+		{StatusSubmitted, StatusCompleted},
+		{StatusApproved, StatusRejected},
+		{StatusApproved, StatusCompleted},
+		{StatusInProgress, StatusSubmitted},
+		{StatusCompleted, StatusInProgress},
+		{StatusRejected, StatusSubmitted},
+		{StatusVerified, StatusSubmitted},
 	}
 
 	for _, tt := range invalidTransitions {
@@ -42,7 +42,22 @@ func TestValidateTransition_Invalid(t *testing.T) {
 }
 
 func TestValidateTransition_UnknownStatus(t *testing.T) {
-	if err := ValidateTransition("nonexistent", "draft"); err == nil {
+	if err := ValidateTransition("nonexistent", "submitted"); err == nil {
 		t.Error("expected error for unknown status")
+	}
+}
+
+func TestRequiresApproval(t *testing.T) {
+	if !RequiresApproval(StatusApproved) {
+		t.Error("approved should require approval")
+	}
+	if !RequiresApproval(StatusRejected) {
+		t.Error("rejected should require approval")
+	}
+	if RequiresApproval(StatusInProgress) {
+		t.Error("in_progress should not require approval")
+	}
+	if RequiresApproval(StatusCompleted) {
+		t.Error("completed should not require approval")
 	}
 }

@@ -405,6 +405,24 @@ type WorkOrder struct {
 	ActualEnd      pgtype.Timestamptz `json:"actual_end"`
 	CreatedAt      time.Time          `json:"created_at"`
 	UpdatedAt      time.Time          `json:"updated_at"`
+	ApprovedAt     pgtype.Timestamptz `json:"approved_at"`
+	ApprovedBy     pgtype.UUID        `json:"approved_by"`
+	SlaDeadline    pgtype.Timestamptz `json:"sla_deadline"`
+	SlaWarningSent bool               `json:"sla_warning_sent"`
+	SlaBreached    bool               `json:"sla_breached"`
+}
+
+type Notification struct {
+	ID           uuid.UUID   `json:"id"`
+	TenantID     uuid.UUID   `json:"tenant_id"`
+	UserID       uuid.UUID   `json:"user_id"`
+	Type         string      `json:"type"`
+	Title        string      `json:"title"`
+	Body         pgtype.Text `json:"body"`
+	ResourceType pgtype.Text `json:"resource_type"`
+	ResourceID   pgtype.UUID `json:"resource_id"`
+	IsRead       bool        `json:"is_read"`
+	CreatedAt    time.Time   `json:"created_at"`
 }
 
 type WorkOrderLog struct {

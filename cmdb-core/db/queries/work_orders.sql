@@ -69,3 +69,35 @@ ORDER BY created_at;
 UPDATE work_orders
 SET deleted_at = NOW(), updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
+
+-- name: StampWorkOrderApproval :one
+UPDATE work_orders SET
+    approved_at = now(),
+    approved_by = $2,
+    sla_deadline = $3,
+    status = 'approved',
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: MarkSLAWarning :exec
+UPDATE work_orders SET sla_warning_sent = true WHERE id = $1;
+
+-- name: MarkSLABreached :exec
+UPDATE work_orders SET sla_breached = true WHERE id = $1;
+
+-- name: ListOverdueSLAOrders :many
+SELECT * FROM work_orders
+WHERE status = 'in_progress'
+  AND sla_deadline IS NOT NULL
+  AND sla_deadline < now()
+  AND sla_breached = false
+  AND deleted_at IS NULL;
+
+-- name: ListSLAWarningOrders :many
+SELECT * FROM work_orders
+WHERE status IN ('approved', 'in_progress')
+  AND sla_deadline IS NOT NULL
+  AND sla_warning_sent = false
+  AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now()
+  AND deleted_at IS NULL;
