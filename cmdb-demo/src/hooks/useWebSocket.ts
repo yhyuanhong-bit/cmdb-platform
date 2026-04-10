@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../stores/authStore'
 
 const WS_RECONNECT_DELAY = 3000
+const WS_MAX_RETRIES = 5
 
 export function useWebSocket() {
   const token = useAuthStore((s) => s.accessToken)
@@ -10,6 +11,7 @@ export function useWebSocket() {
   const queryClient = useQueryClient()
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const retriesRef = useRef(0)
 
   const invalidateByEvent = useCallback(
     (type: string) => {
@@ -57,30 +59,39 @@ export function useWebSocket() {
       wsUrl = `${proto}://${window.location.host}${apiUrl}/ws`
     }
 
-    const ws = new WebSocket(wsUrl, [`access_token.${token}`])
-    wsRef.current = ws
+    try {
+      const ws = new WebSocket(wsUrl, [`access_token.${token}`])
+      wsRef.current = ws
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data)
-        if (msg.type) {
-          invalidateByEvent(msg.type)
+      ws.onopen = () => {
+        retriesRef.current = 0 // reset on successful connection
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data)
+          if (msg.type) {
+            invalidateByEvent(msg.type)
+          }
+        } catch {
+          // ignore malformed messages
         }
-      } catch {
-        // ignore malformed messages
       }
-    }
 
-    ws.onclose = () => {
-      wsRef.current = null
-      // Auto-reconnect if still authenticated
-      if (useAuthStore.getState().isAuthenticated) {
-        reconnectTimerRef.current = setTimeout(connect, WS_RECONNECT_DELAY)
+      ws.onclose = () => {
+        wsRef.current = null
+        // Auto-reconnect with max retries
+        if (useAuthStore.getState().isAuthenticated && retriesRef.current < WS_MAX_RETRIES) {
+          retriesRef.current++
+          reconnectTimerRef.current = setTimeout(connect, WS_RECONNECT_DELAY * retriesRef.current)
+        }
       }
-    }
 
-    ws.onerror = () => {
-      ws.close()
+      ws.onerror = () => {
+        ws.close()
+      }
+    } catch {
+      // WebSocket constructor can throw in some environments
     }
   }, [token, isAuthenticated, invalidateByEvent])
 
