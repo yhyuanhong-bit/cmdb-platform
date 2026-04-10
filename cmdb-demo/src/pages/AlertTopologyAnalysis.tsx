@@ -6,6 +6,7 @@ import StatusBadge from "../components/StatusBadge";
 import { useAlerts } from "../hooks/useMonitoring";
 import { useTopologyGraph } from "../hooks/useTopology";
 import { useForceLayout } from "../hooks/useForceLayout";
+import { FALLBACK_ALERTS } from '../data/fallbacks/alerts'
 
 /* ──────────────────────────────────────────────
    Types
@@ -207,11 +208,7 @@ function AlertTopologyAnalysis() {
         timestamp: a.fired_at ? new Date(a.fired_at).toLocaleString() : '—',
         nodeId: 'node-1', // topology node mapping not available in API
       }))
-    : [
-        // Fallback static data when API returns empty
-        { id: 'ALT-001', severity: 'CRITICAL' as const, assetName: 'DB-PROD-SQL-01', description: 'CPU utilization exceeded 85% threshold for over 15 minutes.', timestamp: '2026-03-28 09:14:22', nodeId: 'node-1' },
-        { id: 'ALT-002', severity: 'WARNING' as const, assetName: 'APP-PORTAL-WEB-04', description: 'HTTP response time degraded to 4.2s (SLA threshold: 2s).', timestamp: '2026-03-28 09:15:41', nodeId: 'node-2' },
-      ];
+    : FALLBACK_ALERTS;
 
   const selectedNode = useMemo(
     () => mappedNodes.find((n) => n.id === selectedNodeId) ?? mappedNodes[0] ?? null,

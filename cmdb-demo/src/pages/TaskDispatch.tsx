@@ -6,6 +6,7 @@ import { useWorkOrders, useUpdateWorkOrder } from "../hooks/useMaintenance";
 import { useUsers } from "../hooks/useIdentity";
 import type { WorkOrder } from "../lib/api/maintenance";
 import type { User } from "../lib/api/identity";
+import { FALLBACK_ZONES } from '../data/fallbacks/dispatch'
 
 /* ──────────────────────────────────────────────
    Types & mapping
@@ -111,13 +112,7 @@ function buildZoneData(workOrders: WorkOrder[]): ZoneData[] {
 
   const entries = Object.entries(locationCounts);
   if (entries.length === 0) {
-    // fallback static zones when no data
-    return [
-      { label: "Zone A", pct: 0, color: ZONE_COLORS[0] },
-      { label: "Zone B", pct: 0, color: ZONE_COLORS[1] },
-      { label: "Zone C", pct: 0, color: ZONE_COLORS[2] },
-      { label: "Zone D", pct: 0, color: ZONE_COLORS[3] },
-    ];
+    return FALLBACK_ZONES(ZONE_COLORS);
   }
 
   const maxCount = Math.max(...entries.map(([, c]) => c), 1);

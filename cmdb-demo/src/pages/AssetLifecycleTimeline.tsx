@@ -3,118 +3,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAsset } from '../hooks/useAssets'
-
-/* ------------------------------------------------------------------ */
-/*  API-driven asset header                                            */
-/* ------------------------------------------------------------------ */
-
-// Default values for fields not available in the API Asset schema
-const assetFallback = {
-  id: '-',
-  status: 'UNKNOWN',
-  lastSync: '-',
-  serial: '-',
-  primaryIp: '-',
-  avgLatency: '-',
-  uptime: '-',
-}
-
-const timelineStages = [
-  {
-    id: 1,
-    phaseKey: 'asset_lifecycle_timeline.phase_procurement',
-    statusKey: 'asset_lifecycle_timeline.status_completed',
-    statusColor: 'text-[#69db7c]',
-    dotColor: 'bg-[#69db7c]',
-    lineColor: 'bg-[#69db7c]/40',
-    date: '2023.01.12',
-    technician: 'M. Sterling',
-    description:
-      'Approved vendor bid accepted. Hardware order placed with Dell Technologies under PO-2023-8842.',
-    hasDetail: true,
-  },
-  {
-    id: 2,
-    phaseKey: 'asset_lifecycle_timeline.phase_installation_deployment',
-    statusKey: 'asset_lifecycle_timeline.status_completed',
-    statusColor: 'text-[#69db7c]',
-    dotColor: 'bg-[#69db7c]',
-    lineColor: 'bg-[#69db7c]/40',
-    date: '2023.01.20',
-    technician: 'K. Vance',
-    description:
-      'Physical rack installation at IDC-NORTH-01. OS provisioning and network configuration completed.',
-    hasDetail: true,
-  },
-  {
-    id: 3,
-    phaseKey: 'asset_lifecycle_timeline.phase_maintenance_cycle',
-    statusKey: 'asset_lifecycle_timeline.status_ongoing',
-    statusColor: 'text-[#ffa94d]',
-    dotColor: 'bg-[#ffa94d]',
-    lineColor: 'bg-[#ffa94d]/40',
-    date: '2023.09.15',
-    technician: 'J. Thorne',
-    description:
-      'Scheduled firmware update v4.2.1 applied. Cooling unit inspection flagged for follow-up.',
-    hasDetail: false,
-    highlighted: true,
-  },
-  {
-    id: 4,
-    phaseKey: 'asset_lifecycle_timeline.phase_infrastructure_upgrade',
-    statusKey: 'asset_lifecycle_timeline.status_planned',
-    statusColor: 'text-on-surface-variant',
-    dotColor: 'bg-on-surface-variant/50',
-    lineColor: 'bg-on-surface-variant/20',
-    date: 'Expected: Q1 2024',
-    technician: 'SysOps Alpha',
-    description:
-      'NVMe storage tier migration and memory expansion to 512GB. Budget allocated under CAPEX-2024-Q1.',
-    hasDetail: false,
-    costEstimate: '$14,200.00',
-  },
-  {
-    id: 5,
-    phaseKey: 'asset_lifecycle_timeline.phase_decommission_recycle',
-    statusKey: 'asset_lifecycle_timeline.status_done',
-    statusColor: 'text-on-surface-variant',
-    dotColor: 'bg-on-surface-variant/50',
-    lineColor: 'bg-transparent',
-    date: '2027.01.12',
-    technician: 'Standard 48-Mo Lifecycle',
-    description:
-      'End-of-life scheduled per corporate asset rotation policy. Data wipe and certified recycling.',
-    hasDetail: false,
-  },
-]
-
-const financials = {
-  acquisitionCost: '$248,500.00',
-  depreciatedValue: '$192,420.00',
-  maintenanceRoi: 12.4,
-}
-
-const compliance = [
-  {
-    label: 'ISO 27001 CERTIFICATION',
-    icon: 'verified',
-    status: 'pass',
-    color: 'text-[#69db7c]',
-  },
-  {
-    label: 'SECURITY PATCHING V4.2',
-    icon: 'security',
-    status: 'pass',
-    color: 'text-[#69db7c]',
-  },
-  {
-    label: 'PHYSICAL ACCESS AUDIT',
-    icon: 'warning',
-    status: 'warn',
-    color: 'text-error',
-  },
-]
+import { ASSET_FALLBACK, TIMELINE_STAGES, FINANCIALS, COMPLIANCE } from '../data/fallbacks/lifecycle'
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -131,13 +20,13 @@ export default function AssetLifecycleTimeline() {
   const apiAsset = assetQ.data?.data
 
   const asset = {
-    ...assetFallback,
-    id: apiAsset?.asset_tag ?? assetId ?? assetFallback.id,
-    status: apiAsset?.status?.toUpperCase() ?? assetFallback.status,
-    serial: apiAsset?.serial_number ?? assetFallback.serial,
-    primaryIp: (apiAsset?.attributes?.primary_ip as string) ?? assetFallback.primaryIp,
-    avgLatency: (apiAsset?.attributes?.avg_latency as string) ?? assetFallback.avgLatency,
-    uptime: (apiAsset?.attributes?.uptime as string) ?? assetFallback.uptime,
+    ...ASSET_FALLBACK,
+    id: apiAsset?.asset_tag ?? assetId ?? ASSET_FALLBACK.id,
+    status: apiAsset?.status?.toUpperCase() ?? ASSET_FALLBACK.status,
+    serial: apiAsset?.serial_number ?? ASSET_FALLBACK.serial,
+    primaryIp: (apiAsset?.attributes?.primary_ip as string) ?? ASSET_FALLBACK.primaryIp,
+    avgLatency: (apiAsset?.attributes?.avg_latency as string) ?? ASSET_FALLBACK.avgLatency,
+    uptime: (apiAsset?.attributes?.uptime as string) ?? ASSET_FALLBACK.uptime,
   }
 
   if (assetQ.isLoading) {
@@ -192,10 +81,10 @@ export default function AssetLifecycleTimeline() {
           </h2>
 
           <div className="relative pl-8">
-            {timelineStages.map((stage, idx) => (
+            {TIMELINE_STAGES.map((stage, idx) => (
               <div key={stage.id} className="relative pb-8 last:pb-0">
                 {/* Vertical line */}
-                {idx < timelineStages.length - 1 && (
+                {idx < TIMELINE_STAGES.length - 1 && (
                   <div
                     className={`absolute left-[-20px] top-4 h-full w-0.5 ${stage.lineColor}`}
                   />
@@ -289,7 +178,7 @@ export default function AssetLifecycleTimeline() {
                   {t('asset_lifecycle_timeline.label_acquisition_cost')}
                 </div>
                 <div className="mt-1 font-mono text-xl font-bold text-on-surface">
-                  {financials.acquisitionCost}
+                  {FINANCIALS.acquisitionCost}
                 </div>
               </div>
               <div>
@@ -297,7 +186,7 @@ export default function AssetLifecycleTimeline() {
                   {t('asset_lifecycle_timeline.label_depreciated_value')}
                 </div>
                 <div className="mt-1 font-mono text-xl font-bold text-[#69db7c]">
-                  {financials.depreciatedValue}
+                  {FINANCIALS.depreciatedValue}
                 </div>
               </div>
               <div>
@@ -306,13 +195,13 @@ export default function AssetLifecycleTimeline() {
                 </div>
                 <div className="mt-2 flex items-center gap-3">
                   <span className="font-mono text-lg font-bold text-on-surface">
-                    {financials.maintenanceRoi}%
+                    {FINANCIALS.maintenanceRoi}%
                   </span>
                   <div className="flex-1">
                     <div className="h-2 overflow-hidden rounded-full bg-surface-container-low">
                       <div
                         className="h-full rounded-full bg-primary"
-                        style={{ width: `${financials.maintenanceRoi * 5}%` }}
+                        style={{ width: `${FINANCIALS.maintenanceRoi * 5}%` }}
                       />
                     </div>
                   </div>
@@ -327,7 +216,7 @@ export default function AssetLifecycleTimeline() {
               {t('asset_lifecycle_timeline.section_compliance_summary')}
             </h2>
             <div className="space-y-3">
-              {compliance.map((item) => (
+              {COMPLIANCE.map((item) => (
                 <div
                   key={item.label}
                   className="flex items-center justify-between rounded bg-surface-container-low px-4 py-3"
