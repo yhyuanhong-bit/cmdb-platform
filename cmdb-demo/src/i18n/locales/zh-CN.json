@@ -2114,7 +2114,19 @@
     "ai_info_similar": "历史相似工单比对",
     "ai_info_similar_detail": "近 6 个月同类型变更成功率 97.3%",
     "ai_risk_score": "风险评分",
-    "btn_execute_auto_review": "执行自动审核预测方案"
+    "btn_execute_auto_review": "执行自动审核预测方案",
+    "approve_title": "审批工单",
+    "reject_title": "驳回工单",
+    "approve_reason_placeholder": "输入审批意见...",
+    "reject_reason_placeholder": "输入驳回原因...",
+    "comment_required": "此操作需要填写说明",
+    "approved_success": "工单已批准",
+    "rejected_success": "工单已驳回",
+    "btn_approve": "批准",
+    "btn_reject": "驳回",
+    "btn_verify": "验收关闭",
+    "confirm_delete": "确定要删除工单 {{id}} 吗？",
+    "delete_success": "工单已删除"
   },
   "quality": {
     "title": "数据质量治理",

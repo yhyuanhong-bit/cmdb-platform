@@ -12,33 +12,46 @@ import type { WorkOrder as ApiWorkOrder } from '../lib/api/maintenance'
 /*  Types (local view model)                                           */
 /* ------------------------------------------------------------------ */
 
+type DisplayStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'IN_PROGRESS' | 'COMPLETED' | 'VERIFIED'
+
 interface WorkOrderItem {
   id: string
+  apiId: string
   title: string
-  status: 'WAIT' | 'APPROVE' | 'DONE' | 'REJECT'
+  status: DisplayStatus
   requestor: { zh: string; en: string; avatar: string }
   ciName: string
   reason: string
   createdAt: string
   priority: string
+  sla_deadline?: string
+  sla_breached?: boolean
+  sla_warning_sent?: boolean
 }
 
 /* ------------------------------------------------------------------ */
 /*  Mapping helpers                                                    */
 /* ------------------------------------------------------------------ */
 
-function mapStatus(s: string): 'WAIT' | 'APPROVE' | 'DONE' | 'REJECT' {
-  const map: Record<string, 'WAIT' | 'APPROVE' | 'DONE' | 'REJECT'> = {
-    PENDING: 'WAIT', SCHEDULED: 'WAIT', IN_PROGRESS: 'APPROVE', APPROVED: 'APPROVE',
-    COMPLETED: 'DONE', CANCELLED: 'REJECT', REJECTED: 'REJECT',
-  }
-  return map[s?.toUpperCase()] ?? 'WAIT'
+const STATUS_MAP: Record<string, DisplayStatus> = {
+  submitted: 'SUBMITTED',
+  approved: 'APPROVED',
+  rejected: 'REJECTED',
+  in_progress: 'IN_PROGRESS',
+  completed: 'COMPLETED',
+  verified: 'VERIFIED',
+}
+
+function mapStatus(s: string): DisplayStatus {
+  return STATUS_MAP[s?.toLowerCase()] ?? 'SUBMITTED'
 }
 
 function toWorkOrderItem(wo: ApiWorkOrder): WorkOrderItem {
   const initials = wo.title.slice(0, 2).toUpperCase()
+  const raw = wo as any
   return {
     id: wo.code || wo.id,
+    apiId: wo.id,
     title: wo.title,
     status: mapStatus(wo.status),
     requestor: { zh: wo.assignee_id ?? '', en: wo.assignee_id ?? '', avatar: initials },
@@ -46,6 +59,9 @@ function toWorkOrderItem(wo: ApiWorkOrder): WorkOrderItem {
     reason: wo.description ?? '',
     createdAt: wo.scheduled_start?.slice(0, 16).replace('T', ' ') ?? '',
     priority: wo.priority ?? 'MEDIUM',
+    sla_deadline: raw.sla_deadline,
+    sla_breached: raw.sla_breached,
+    sla_warning_sent: raw.sla_warning_sent,
   }
 }
 
@@ -56,11 +72,13 @@ const FILTER_TABS = [
   { key: 'sort', labelKey: 'work_order.filter_sort', icon: 'filter_list' },
 ]
 
-const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
-  WAIT: { color: 'text-primary', bg: 'bg-primary/15', label: 'WAIT' },
-  APPROVE: { color: 'text-[#34d399]', bg: 'bg-[#34d399]/15', label: 'APPROVE' },
-  DONE: { color: 'text-on-surface-variant', bg: 'bg-surface-container-highest', label: 'DONE' },
-  REJECT: { color: 'text-error', bg: 'bg-error/15', label: 'REJECT' },
+const STATUS_COLORS: Record<string, string> = {
+  SUBMITTED: 'bg-[#1e3a5f] text-primary',
+  APPROVED: 'bg-[#064e3b] text-[#34d399]',
+  REJECTED: 'bg-error-container text-on-error-container',
+  IN_PROGRESS: 'bg-[#92400e] text-[#fbbf24]',
+  COMPLETED: 'bg-surface-container-highest text-on-surface-variant',
+  VERIFIED: 'bg-[#064e3b] text-[#34d399]',
 }
 
 /* ------------------------------------------------------------------ */
@@ -68,11 +86,11 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }
 /* ------------------------------------------------------------------ */
 
 function OrderStatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.DONE
+  const colors = STATUS_COLORS[status] ?? STATUS_COLORS.SUBMITTED
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.6875rem] font-semibold uppercase tracking-wider ${cfg.bg} ${cfg.color}`}>
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.6875rem] font-semibold uppercase tracking-wider ${colors}`}>
       <span className="w-1.5 h-1.5 rounded-full bg-current" />
-      {cfg.label}
+      {status}
     </span>
   )
 }
@@ -89,18 +107,22 @@ function WorkOrderCard({
   order,
   isSelected,
   onSelect,
+  onApprove,
+  onReject,
   onTransition,
   onDelete,
 }: {
   order: WorkOrderItem
   isSelected: boolean
   onSelect: () => void
+  onApprove?: (id: string) => void
+  onReject?: (id: string) => void
   onTransition?: (id: string, status: string) => void
   onDelete?: (id: string) => void
 }) {
   const { t } = useTranslation()
   const cardNavigate = useNavigate()
-  const cfg = STATUS_CONFIG[order.status]
+  const displayStatus = order.status
 
   return (
     <button
@@ -118,7 +140,18 @@ function WorkOrderCard({
           <h3 className="font-headline font-semibold text-on-surface truncate">{order.title}</h3>
           <span className="text-xs text-on-surface-variant font-mono">{order.id}</span>
         </div>
-        <OrderStatusBadge status={order.status} />
+        <div className="flex items-center gap-2">
+          {order.sla_deadline && (
+            <span className={`text-[0.6rem] px-1.5 py-0.5 rounded ${
+              order.sla_breached ? 'bg-error-container text-on-error-container' :
+              order.sla_warning_sent ? 'bg-[#92400e] text-[#fbbf24]' :
+              'bg-surface-container-highest text-on-surface-variant'
+            }`}>
+              SLA: {new Date(order.sla_deadline).toLocaleString()}
+            </span>
+          )}
+          <OrderStatusBadge status={displayStatus} />
+        </div>
       </div>
 
       {/* Detail grid */}
@@ -153,14 +186,21 @@ function WorkOrderCard({
           <Icon name="open_in_new" className="text-[16px]" />
           查看任務
         </span>
-        {order.status === 'WAIT' && (
+        {displayStatus === 'SUBMITTED' && (
           <>
             <span
               className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg machined-gradient text-on-primary text-xs font-bold cursor-pointer"
-              onClick={(e) => { e.stopPropagation(); onTransition?.(order.id, 'APPROVED'); }}
+              onClick={(e) => { e.stopPropagation(); onApprove?.(order.id); }}
             >
-              <Icon name="rate_review" className="text-[16px]" />
-              {t('work_order.btn_review')}
+              <Icon name="check_circle" className="text-[16px]" />
+              {t('work_order.btn_approve')}
+            </span>
+            <span
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-error text-white text-xs font-bold cursor-pointer"
+              onClick={(e) => { e.stopPropagation(); onReject?.(order.id); }}
+            >
+              <Icon name="block" className="text-[16px]" />
+              {t('work_order.btn_reject')}
             </span>
             <span onClick={(e) => { e.stopPropagation(); toast.info('Coming Soon'); }} className="inline-flex items-center gap-1 text-xs text-primary cursor-pointer hover:underline">
               <Icon name="history" className="text-[16px]" />
@@ -168,25 +208,45 @@ function WorkOrderCard({
             </span>
           </>
         )}
-        {order.status === 'APPROVE' && (
+        {displayStatus === 'APPROVED' && (
           <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#064e3b] text-[#34d399] text-xs font-bold cursor-pointer">
             <Icon name="check_circle" className="text-[16px]" />
             {t('work_order.status_processed')}
           </span>
         )}
-        {order.status === 'DONE' && (
-          <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant">
-            <Icon name="check" className="text-[16px]" />
-            {t('work_order.status_completed')}
+        {displayStatus === 'IN_PROGRESS' && (
+          <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#92400e] text-[#fbbf24] text-xs font-bold">
+            <Icon name="sync" className="text-[16px]" />
+            {t('work_order.stat_change')}
           </span>
         )}
-        {order.status === 'REJECT' && (
+        {displayStatus === 'COMPLETED' && (
+          <>
+            <span className="inline-flex items-center gap-1 text-xs text-on-surface-variant">
+              <Icon name="check" className="text-[16px]" />
+              {t('work_order.status_completed')}
+            </span>
+            <span
+              className="text-xs text-[#34d399] font-semibold cursor-pointer hover:underline"
+              onClick={(e) => { e.stopPropagation(); onTransition?.(order.id, 'verified'); }}
+            >
+              {t('work_order.btn_verify')}
+            </span>
+          </>
+        )}
+        {displayStatus === 'VERIFIED' && (
+          <span className="inline-flex items-center gap-1 text-xs text-[#34d399]">
+            <Icon name="verified" className="text-[16px]" />
+            {t('work_order.btn_verify')}
+          </span>
+        )}
+        {displayStatus === 'REJECTED' && (
           <span className="inline-flex items-center gap-1 text-xs text-error">
             <Icon name="block" className="text-[16px]" />
             {t('work_order.status_rejected')}
           </span>
         )}
-        {(order.status === 'WAIT' || order.status === 'REJECT') && onDelete && (
+        {(displayStatus === 'SUBMITTED' || displayStatus === 'REJECTED') && onDelete && (
           <span
             className="inline-flex items-center gap-1 text-xs text-error cursor-pointer hover:underline ml-auto"
             onClick={(e) => {
@@ -306,13 +366,17 @@ export default function WorkOrder() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { data: woResponse, isLoading, error } = useWorkOrders()
-  const transition = useTransitionWorkOrder()
+  const transitionWO = useTransitionWorkOrder()
   const deleteWO = useDeleteWorkOrder()
   const apiOrders: ApiWorkOrder[] = woResponse?.data ?? []
   const WORK_ORDERS = useMemo(() => apiOrders.map(toWorkOrderItem), [apiOrders])
   const [activeTab, setActiveTab] = useState('all')
   const [selectedOrderId, setSelectedOrderId] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [showApprovalModal, setShowApprovalModal] = useState(false)
+  const [approvalAction, setApprovalAction] = useState<'approved' | 'rejected'>('approved')
+  const [approvalComment, setApprovalComment] = useState('')
+  const [approvalTargetId, setApprovalTargetId] = useState<string>('')
   const totalPages = woResponse?.pagination?.total_pages ?? 4
   const totalItems = woResponse?.pagination?.total ?? 64
 
@@ -413,8 +477,8 @@ export default function WorkOrder() {
         <div className="flex flex-col gap-3">
           {WORK_ORDERS.filter((order) => {
             if (activeTab === 'all') return true
-            if (activeTab === 'review') return order.status === 'WAIT'
-            if (activeTab === 'approve') return order.status === 'APPROVE'
+            if (activeTab === 'review') return order.status === 'SUBMITTED'
+            if (activeTab === 'approve') return order.status === 'APPROVED' || order.status === 'IN_PROGRESS'
             return true
           }).map((order) => (
             <WorkOrderCard
@@ -422,19 +486,23 @@ export default function WorkOrder() {
               order={order}
               isSelected={order.id === effectiveSelectedId}
               onSelect={() => setSelectedOrderId(order.id)}
+              onApprove={(id) => {
+                setApprovalTargetId(order.apiId)
+                setApprovalAction('approved')
+                setShowApprovalModal(true)
+              }}
+              onReject={(id) => {
+                setApprovalTargetId(order.apiId)
+                setApprovalAction('rejected')
+                setShowApprovalModal(true)
+              }}
               onTransition={(id, status) => {
-                const apiOrder = apiOrders.find((o) => o.code === id || o.id === id)
-                if (apiOrder) {
-                  transition.mutate({ id: apiOrder.id, data: { status, comment: '' } })
-                }
+                transitionWO.mutate({ id: order.apiId, data: { status, comment: 'Verified' } })
               }}
               onDelete={(id) => {
-                const apiOrder = apiOrders.find((o) => o.code === id || o.id === id)
-                if (apiOrder) {
-                  deleteWO.mutate(apiOrder.id, {
-                    onSuccess: () => toast.success(t('work_order.delete_success')),
-                  })
-                }
+                deleteWO.mutate(order.apiId, {
+                  onSuccess: () => toast.success(t('work_order.delete_success')),
+                })
               }}
             />
           ))}
@@ -484,6 +552,43 @@ export default function WorkOrder() {
           <AiPanel order={selectedOrder} />
         </div>
       </div>
+
+      {/* Approval / Reject modal */}
+      {showApprovalModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowApprovalModal(false)}>
+          <div className="bg-surface-container p-6 rounded-xl w-96 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-on-surface">
+              {approvalAction === 'approved' ? t('work_order.approve_title') : t('work_order.reject_title')}
+            </h3>
+            <textarea
+              value={approvalComment}
+              onChange={e => setApprovalComment(e.target.value)}
+              placeholder={approvalAction === 'approved' ? t('work_order.approve_reason_placeholder') : t('work_order.reject_reason_placeholder')}
+              className="w-full p-3 bg-surface-container-low rounded-lg border border-surface-container-highest text-on-surface text-sm min-h-[100px]"
+              required
+            />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => { setShowApprovalModal(false); setApprovalComment('') }}
+                className="px-4 py-2 rounded bg-surface-container-high text-on-surface-variant">
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={() => {
+                  if (!approvalComment.trim()) { toast.error(t('work_order.comment_required')); return }
+                  transitionWO.mutate(
+                    { id: approvalTargetId, data: { status: approvalAction, comment: approvalComment } },
+                    { onSuccess: () => { setShowApprovalModal(false); setApprovalComment(''); toast.success(approvalAction === 'approved' ? t('work_order.approved_success') : t('work_order.rejected_success')) } }
+                  )
+                }}
+                disabled={transitionWO.isPending}
+                className={`px-4 py-2 rounded text-white ${approvalAction === 'approved' ? 'bg-[#064e3b]' : 'bg-error'} disabled:opacity-50`}
+              >
+                {transitionWO.isPending ? t('common.saving') : (approvalAction === 'approved' ? t('work_order.btn_approve') : t('work_order.btn_reject'))}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

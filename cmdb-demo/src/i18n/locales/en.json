@@ -2114,7 +2114,19 @@
     "ai_info_similar": "Historical similar work order comparison",
     "ai_info_similar_detail": "Success rate for similar changes in the last 6 months: 97.3%",
     "ai_risk_score": "Risk Score",
-    "btn_execute_auto_review": "Execute Auto Review"
+    "btn_execute_auto_review": "Execute Auto Review",
+    "approve_title": "Approve Work Order",
+    "reject_title": "Reject Work Order",
+    "approve_reason_placeholder": "Enter approval comments...",
+    "reject_reason_placeholder": "Enter rejection reason...",
+    "comment_required": "A comment is required for this action",
+    "approved_success": "Work order approved",
+    "rejected_success": "Work order rejected",
+    "btn_approve": "Approve",
+    "btn_reject": "Reject",
+    "btn_verify": "Verify & Close",
+    "confirm_delete": "Are you sure you want to delete work order {{id}}?",
+    "delete_success": "Work order deleted"
   },
   "quality": {
     "title": "Data Quality Governance",

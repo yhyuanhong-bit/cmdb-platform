@@ -2114,7 +2114,19 @@
     "ai_info_similar": "歷史相似工單比對",
     "ai_info_similar_detail": "近 6 個月同類型變更成功率 97.3%",
     "ai_risk_score": "風險評分",
-    "btn_execute_auto_review": "執行自動審核預測方案"
+    "btn_execute_auto_review": "執行自動審核預測方案",
+    "approve_title": "審批工單",
+    "reject_title": "駁回工單",
+    "approve_reason_placeholder": "輸入審批意見...",
+    "reject_reason_placeholder": "輸入駁回原因...",
+    "comment_required": "此操作需要填寫說明",
+    "approved_success": "工單已批准",
+    "rejected_success": "工單已駁回",
+    "btn_approve": "批准",
+    "btn_reject": "駁回",
+    "btn_verify": "驗收關閉",
+    "confirm_delete": "確定要刪除工單 {{id}} 嗎？",
+    "delete_success": "工單已刪除"
   },
   "quality": {
     "title": "數據質量治理",
