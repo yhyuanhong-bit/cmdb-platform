@@ -23,8 +23,6 @@ export interface Incident {
 }
 
 export const monitoringApi = {
-  ingestMetrics: (batch: any) =>
-    apiClient.post<ApiResponse<any>>('/monitoring/metrics', batch),
   queryMetrics: (params: Record<string, string>) =>
     apiClient.get<ApiResponse<any[]>>('/monitoring/metrics', params),
   listAlertRules: () =>

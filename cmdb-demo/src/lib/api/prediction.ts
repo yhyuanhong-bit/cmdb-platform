@@ -10,8 +10,6 @@ export const predictionApi = {
     apiClient.get<ApiResponse<any[]>>('/prediction/models'),
   listByCI: (ciID: string) =>
     apiClient.get<ApiResponse<PredictionResult[]>>(`/prediction/results/ci/${ciID}`),
-  createPrediction: (data: any) =>
-    apiClient.post<ApiResponse<PredictionResult>>('/prediction/results', data),
   createRCA: (data: any) =>
     apiClient.post<ApiResponse<RCAAnalysis>>('/prediction/rca', data),
   verifyRCA: (id: string, data: any) =>
