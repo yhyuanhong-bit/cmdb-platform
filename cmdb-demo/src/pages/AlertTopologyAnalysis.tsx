@@ -169,7 +169,7 @@ function AlertTopologyAnalysis() {
   const apiNodes = (graphData as any)?.nodes ?? [];
   const apiEdges = (graphData as any)?.edges ?? [];
 
-  const layoutNodes = useForceLayout(apiNodes, apiEdges, 800, 380);
+  const layoutNodes = useForceLayout(apiNodes, apiEdges, 960, 520, NODE_W, NODE_H);
 
   const mappedNodes: TopologyNode[] = layoutNodes.map((n: any) => ({
     id: n.id,
@@ -364,7 +364,7 @@ function AlertTopologyAnalysis() {
           </div>
 
           {/* SVG canvas for edges + positioned nodes */}
-          <div className="relative w-full" style={{ height: "400px" }}>
+          <div className="relative w-full" style={{ height: "520px" }}>
             {/* SVG layer for connections */}
             <svg
               className="absolute inset-0 w-full h-full pointer-events-none"
