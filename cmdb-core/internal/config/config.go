@@ -20,7 +20,11 @@ type Config struct {
 	MCPPort      int
 	WSEnabled    bool
 	OTELEndpoint string
-	MCPApiKey    string
+	MCPApiKey            string
+	CarbonEmissionFactor  float64
+	SyncEnabled           bool
+	SyncSnapshotBatchSize int
+	EdgeNodeID            string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -57,6 +61,10 @@ func Load() (*Config, error) {
 	cfg.WSEnabled = envOrDefault("WS_ENABLED", "true") == "true"
 	cfg.OTELEndpoint = os.Getenv("OTEL_ENDPOINT")
 	cfg.MCPApiKey = os.Getenv("MCP_API_KEY")
+	cfg.CarbonEmissionFactor = envOrDefaultFloat("CARBON_EMISSION_FACTOR", 0.0005)
+	cfg.SyncEnabled = envOrDefault("SYNC_ENABLED", "true") == "true"
+	cfg.SyncSnapshotBatchSize = envOrDefaultInt("SYNC_SNAPSHOT_BATCH_SIZE", 500)
+	cfg.EdgeNodeID = envOrDefault("EDGE_NODE_ID", "")
 
 	if cfg.DeployMode == "edge" && cfg.TenantID == "" {
 		return nil, fmt.Errorf("TENANT_ID is required in edge deploy mode")
@@ -74,6 +82,24 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func envOrDefaultFloat(key string, def float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
+}
+
+func envOrDefaultInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
+		}
+	}
+	return def
 }
 
 func envOrDefault(key, fallback string) string {
