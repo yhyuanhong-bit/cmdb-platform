@@ -58,6 +58,7 @@ const QualityDashboard = lazy(() => import('./pages/QualityDashboard'))
 // System
 const RolesPermissions = lazy(() => import('./pages/RolesPermissions'))
 const SystemSettings = lazy(() => import('./pages/SystemSettings'))
+const SyncManagement = lazy(() => import('./pages/SyncManagement'))
 const TaskDispatch = lazy(() => import('./pages/TaskDispatch'))
 const UserProfile = lazy(() => import('./pages/UserProfile'))
 
@@ -159,6 +160,7 @@ export default function App() {
           <Route path="/system" element={<RolesPermissions />} />
           <Route path="/system/settings" element={<SystemSettings />} />
           <Route path="/system/profile" element={<UserProfile />} />
+          <Route path="/system/sync" element={<SyncManagement />} />
 
           {/* BIA */}
           <Route path="/bia" element={<BIAOverview />} />
