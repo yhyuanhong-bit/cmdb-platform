@@ -4,6 +4,7 @@ import (
 	"context"
 	crand "crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -144,6 +145,7 @@ func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, r
 }
 
 // Transition moves a work order from one status to another after validation.
+// It delegates to TransitionGovernance or TransitionExecution based on the target status.
 func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.UUID, operatorRoles []string, req TransitionRequest) (*dbgen.WorkOrder, error) {
 	order, err := s.queries.GetWorkOrder(ctx, dbgen.GetWorkOrderParams{ID: id, TenantID: tenantID})
 	if err != nil {
@@ -154,20 +156,99 @@ func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.
 		return nil, err
 	}
 
-	// Check approval permissions
-	if RequiresApproval(req.Status) {
+	switch req.Status {
+	case StatusApproved, StatusRejected, StatusVerified:
+		return s.TransitionGovernance(ctx, tenantID, id, operatorID, operatorRoles, req.Status, req.Comment)
+	case StatusInProgress:
+		return s.TransitionExecution(ctx, tenantID, id, operatorID, ExecWorking)
+	case StatusCompleted:
+		return s.TransitionExecution(ctx, tenantID, id, operatorID, ExecDone)
+	default:
+		return nil, fmt.Errorf("unsupported transition target %q", req.Status)
+	}
+}
+
+// TransitionExecution updates execution_status independently.
+// Used by sync layer — allows status jumps (e.g., Edge starts work before Central approves).
+func (s *Service) TransitionExecution(ctx context.Context, tenantID, id, operatorID uuid.UUID, newExec string) (*dbgen.WorkOrder, error) {
+	order, err := s.queries.GetWorkOrder(ctx, dbgen.GetWorkOrderParams{ID: id, TenantID: tenantID})
+	if err != nil {
+		return nil, fmt.Errorf("get work order: %w", err)
+	}
+
+	if err := ValidateExecTransition(order.ExecutionStatus, newExec); err != nil {
+		return nil, err
+	}
+
+	derivedStatus, err := DeriveStatus(newExec, order.GovernanceStatus)
+	if err != nil {
+		return nil, fmt.Errorf("derive status: %w", err)
+	}
+
+	updated, err := s.queries.UpdateExecutionStatus(ctx, dbgen.UpdateExecutionStatusParams{
+		ID:                id,
+		ExecutionStatus:   newExec,
+		Status:            derivedStatus,
+		TenantID:          tenantID,
+		ExecutionStatus_2: order.ExecutionStatus, // optimistic lock
+	})
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, fmt.Errorf("execution_status has changed concurrently, please retry")
+		}
+		return nil, fmt.Errorf("update execution_status: %w", err)
+	}
+
+	s.incrementSyncVersion(ctx, "work_orders", id)
+
+	_, _ = s.queries.CreateWorkOrderLog(ctx, dbgen.CreateWorkOrderLogParams{
+		OrderID:    id,
+		Action:     "transition",
+		FromStatus: pgtype.Text{String: order.ExecutionStatus, Valid: true},
+		ToStatus:   pgtype.Text{String: newExec, Valid: true},
+		OperatorID: pgtype.UUID{Bytes: operatorID, Valid: true},
+	})
+
+	// Anomaly detection: done + rejected
+	if newExec == ExecDone && updated.GovernanceStatus == GovRejected && s.bus != nil {
+		payload, _ := json.Marshal(map[string]interface{}{
+			"order_id": id, "execution_status": newExec, "governance_status": updated.GovernanceStatus,
+		})
+		s.bus.Publish(ctx, eventbus.Event{
+			Subject: "maintenance.order_anomaly", TenantID: tenantID.String(), Payload: payload,
+		})
+	}
+
+	return &updated, nil
+}
+
+// TransitionGovernance updates governance_status independently.
+func (s *Service) TransitionGovernance(ctx context.Context, tenantID, id, operatorID uuid.UUID, operatorRoles []string, newGov, comment string) (*dbgen.WorkOrder, error) {
+	order, err := s.queries.GetWorkOrder(ctx, dbgen.GetWorkOrderParams{ID: id, TenantID: tenantID})
+	if err != nil {
+		return nil, fmt.Errorf("get work order: %w", err)
+	}
+
+	if err := ValidateGovTransition(order.GovernanceStatus, newGov); err != nil {
+		return nil, err
+	}
+
+	if newGov == GovApproved || newGov == GovRejected {
 		if err := validateApproval(operatorID, order.RequestorID, operatorRoles); err != nil {
 			return nil, err
 		}
-		if req.Comment == "" {
+		if comment == "" {
 			return nil, fmt.Errorf("approval/rejection requires a comment")
 		}
 	}
 
-	var updated dbgen.WorkOrder
+	derivedStatus, err := DeriveStatus(order.ExecutionStatus, newGov)
+	if err != nil {
+		return nil, fmt.Errorf("derive status: %w", err)
+	}
 
-	if req.Status == StatusApproved {
-		// Use StampWorkOrderApproval to set approved_at, approved_by, sla_deadline in one shot
+	var updated dbgen.WorkOrder
+	if newGov == GovApproved {
 		now := time.Now()
 		deadline := SLADeadline(order.Priority, now)
 		updated, err = s.queries.StampWorkOrderApproval(ctx, dbgen.StampWorkOrderApprovalParams{
@@ -177,18 +258,19 @@ func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.
 			TenantID:    tenantID,
 		})
 	} else {
-		updated, err = s.queries.UpdateWorkOrderStatus(ctx, dbgen.UpdateWorkOrderStatusParams{
-			ID:       id,
-			Status:   req.Status,
-			TenantID: tenantID,
-			Status_2: order.Status, // optimistic lock
+		updated, err = s.queries.UpdateGovernanceStatus(ctx, dbgen.UpdateGovernanceStatusParams{
+			ID:                 id,
+			GovernanceStatus:   newGov,
+			Status:             derivedStatus,
+			TenantID:           tenantID,
+			GovernanceStatus_2: order.GovernanceStatus, // optimistic lock
 		})
 	}
 	if err != nil {
 		if err.Error() == "no rows in result set" {
-			return nil, fmt.Errorf("work order status has changed concurrently, please retry")
+			return nil, fmt.Errorf("governance_status has changed concurrently, please retry")
 		}
-		return nil, fmt.Errorf("update work order status: %w", err)
+		return nil, fmt.Errorf("update governance_status: %w", err)
 	}
 
 	s.incrementSyncVersion(ctx, "work_orders", id)
@@ -196,14 +278,23 @@ func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.
 	logParams := dbgen.CreateWorkOrderLogParams{
 		OrderID:    id,
 		Action:     "transition",
-		FromStatus: pgtype.Text{String: order.Status, Valid: true},
-		ToStatus:   pgtype.Text{String: req.Status, Valid: true},
+		FromStatus: pgtype.Text{String: order.GovernanceStatus, Valid: true},
+		ToStatus:   pgtype.Text{String: newGov, Valid: true},
 		OperatorID: pgtype.UUID{Bytes: operatorID, Valid: true},
 	}
-	if req.Comment != "" {
-		logParams.Comment = pgtype.Text{String: req.Comment, Valid: true}
+	if comment != "" {
+		logParams.Comment = pgtype.Text{String: comment, Valid: true}
 	}
 	_, _ = s.queries.CreateWorkOrderLog(ctx, logParams)
+
+	if updated.ExecutionStatus == ExecDone && newGov == GovRejected && s.bus != nil {
+		payload, _ := json.Marshal(map[string]interface{}{
+			"order_id": id, "execution_status": updated.ExecutionStatus, "governance_status": newGov,
+		})
+		s.bus.Publish(ctx, eventbus.Event{
+			Subject: "maintenance.order_anomaly", TenantID: tenantID.String(), Payload: payload,
+		})
+	}
 
 	return &updated, nil
 }
