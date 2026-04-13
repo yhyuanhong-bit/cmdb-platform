@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import MainLayout from './layouts/MainLayout'
 import AuthGuard from './components/AuthGuard'
+import SyncingOverlay from './components/SyncingOverlay'
 
 // Location hierarchy
 const GlobalOverview = lazy(() => import('./pages/locations/GlobalOverview'))
@@ -92,8 +93,10 @@ function Loading() {
 
 export default function App() {
   return (
-    <Suspense fallback={<Loading />}>
-      <Routes>
+    <>
+      <SyncingOverlay />
+      <Suspense fallback={<Loading />}>
+        <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/welcome" element={<Welcome />} />
@@ -177,7 +180,8 @@ export default function App() {
 
         {/* Default */}
         <Route path="*" element={<Navigate to="/locations" replace />} />
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+    </>
   )
 }

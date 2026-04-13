@@ -46,6 +46,10 @@ class ApiClient {
         useAuthStore.getState().logout()
       }
 
+      if (res.status === 503 && error.code === 'SYNC_IN_PROGRESS') {
+        window.dispatchEvent(new CustomEvent('sync-in-progress'))
+      }
+
       throw new ApiRequestError(error.code, error.message, res.status)
     }
 
