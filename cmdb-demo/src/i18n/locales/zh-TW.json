@@ -160,7 +160,8 @@
       "task_dispatch": "任務調度",
       "troubleshoot": "故障排除",
       "video_lib": "影片庫",
-      "user_profile": "個人檔案"
+      "user_profile": "個人檔案",
+      "sync_management": "同步管理"
     },
     "help": "幫助"
   },

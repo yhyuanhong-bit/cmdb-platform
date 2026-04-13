@@ -160,7 +160,8 @@
       "task_dispatch": "Task Dispatch",
       "troubleshoot": "Troubleshooting",
       "video_lib": "Video Library",
-      "user_profile": "Profile"
+      "user_profile": "Profile",
+      "sync_management": "Sync"
     },
     "help": "Help"
   },

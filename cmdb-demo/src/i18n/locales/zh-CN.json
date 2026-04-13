@@ -160,7 +160,8 @@
       "task_dispatch": "任务调度",
       "troubleshoot": "故障排除",
       "video_lib": "视频库",
-      "user_profile": "个人档案"
+      "user_profile": "个人档案",
+      "sync_management": "同步管理"
     },
     "help": "帮助"
   },
