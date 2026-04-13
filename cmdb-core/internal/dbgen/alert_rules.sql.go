@@ -28,7 +28,7 @@ func (q *Queries) CountAlertRules(ctx context.Context, tenantID uuid.UUID) (int6
 const createAlertRule = `-- name: CreateAlertRule :one
 INSERT INTO alert_rules (tenant_id, name, metric_name, condition, severity, enabled)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, tenant_id, name, metric_name, condition, severity, enabled, created_at
+RETURNING id, tenant_id, name, metric_name, condition, severity, enabled, created_at, sync_version
 `
 
 type CreateAlertRuleParams struct {
@@ -59,12 +59,13 @@ func (q *Queries) CreateAlertRule(ctx context.Context, arg CreateAlertRuleParams
 		&i.Severity,
 		&i.Enabled,
 		&i.CreatedAt,
+		&i.SyncVersion,
 	)
 	return i, err
 }
 
 const listAlertRules = `-- name: ListAlertRules :many
-SELECT id, tenant_id, name, metric_name, condition, severity, enabled, created_at FROM alert_rules
+SELECT id, tenant_id, name, metric_name, condition, severity, enabled, created_at, sync_version FROM alert_rules
 WHERE tenant_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -94,6 +95,7 @@ func (q *Queries) ListAlertRules(ctx context.Context, arg ListAlertRulesParams) 
 			&i.Severity,
 			&i.Enabled,
 			&i.CreatedAt,
+			&i.SyncVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -113,7 +115,7 @@ UPDATE alert_rules SET
     severity    = COALESCE($4, severity),
     enabled     = COALESCE($5, enabled)
 WHERE id = $6
-RETURNING id, tenant_id, name, metric_name, condition, severity, enabled, created_at
+RETURNING id, tenant_id, name, metric_name, condition, severity, enabled, created_at, sync_version
 `
 
 type UpdateAlertRuleParams struct {
@@ -144,6 +146,7 @@ func (q *Queries) UpdateAlertRule(ctx context.Context, arg UpdateAlertRuleParams
 		&i.Severity,
 		&i.Enabled,
 		&i.CreatedAt,
+		&i.SyncVersion,
 	)
 	return i, err
 }

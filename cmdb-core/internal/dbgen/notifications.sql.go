@@ -12,6 +12,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countUnreadNotifications = `-- name: CountUnreadNotifications :one
+SELECT count(*) FROM notifications WHERE user_id = $1 AND is_read = false
+`
+
+func (q *Queries) CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countUnreadNotifications, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createNotification = `-- name: CreateNotification :one
 INSERT INTO notifications (tenant_id, user_id, type, title, body, resource_type, resource_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -97,6 +108,15 @@ func (q *Queries) ListUnreadNotifications(ctx context.Context, arg ListUnreadNot
 	return items, nil
 }
 
+const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :exec
+UPDATE notifications SET is_read = true WHERE user_id = $1 AND is_read = false
+`
+
+func (q *Queries) MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markAllNotificationsRead, userID)
+	return err
+}
+
 const markNotificationRead = `-- name: MarkNotificationRead :exec
 UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2
 `
@@ -109,24 +129,4 @@ type MarkNotificationReadParams struct {
 func (q *Queries) MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error {
 	_, err := q.db.Exec(ctx, markNotificationRead, arg.ID, arg.UserID)
 	return err
-}
-
-const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :exec
-UPDATE notifications SET is_read = true WHERE user_id = $1 AND is_read = false
-`
-
-func (q *Queries) MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markAllNotificationsRead, userID)
-	return err
-}
-
-const countUnreadNotifications = `-- name: CountUnreadNotifications :one
-SELECT count(*) FROM notifications WHERE user_id = $1 AND is_read = false
-`
-
-func (q *Queries) CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countUnreadNotifications, userID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
 }

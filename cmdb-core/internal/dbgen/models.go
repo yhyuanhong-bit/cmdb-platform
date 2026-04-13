@@ -24,40 +24,54 @@ type AlertEvent struct {
 	FiredAt      time.Time          `json:"fired_at"`
 	AckedAt      pgtype.Timestamptz `json:"acked_at"`
 	ResolvedAt   pgtype.Timestamptz `json:"resolved_at"`
+	SyncVersion  int64              `json:"sync_version"`
 }
 
 type AlertRule struct {
-	ID         uuid.UUID       `json:"id"`
-	TenantID   uuid.UUID       `json:"tenant_id"`
-	Name       string          `json:"name"`
-	MetricName string          `json:"metric_name"`
-	Condition  json.RawMessage `json:"condition"`
-	Severity   string          `json:"severity"`
-	Enabled    bool            `json:"enabled"`
-	CreatedAt  time.Time       `json:"created_at"`
+	ID          uuid.UUID       `json:"id"`
+	TenantID    uuid.UUID       `json:"tenant_id"`
+	Name        string          `json:"name"`
+	MetricName  string          `json:"metric_name"`
+	Condition   json.RawMessage `json:"condition"`
+	Severity    string          `json:"severity"`
+	Enabled     bool            `json:"enabled"`
+	CreatedAt   time.Time       `json:"created_at"`
+	SyncVersion int64           `json:"sync_version"`
 }
 
 type Asset struct {
-	ID             uuid.UUID       `json:"id"`
-	TenantID       uuid.UUID       `json:"tenant_id"`
-	AssetTag       string          `json:"asset_tag"`
-	PropertyNumber pgtype.Text     `json:"property_number"`
-	ControlNumber  pgtype.Text     `json:"control_number"`
-	Name           string          `json:"name"`
-	Type           string          `json:"type"`
-	SubType        pgtype.Text     `json:"sub_type"`
-	Status         string          `json:"status"`
-	BiaLevel       string          `json:"bia_level"`
-	LocationID     pgtype.UUID     `json:"location_id"`
-	RackID         pgtype.UUID     `json:"rack_id"`
-	Vendor         pgtype.Text     `json:"vendor"`
-	Model          pgtype.Text     `json:"model"`
-	SerialNumber   pgtype.Text     `json:"serial_number"`
-	IpAddress      pgtype.Text     `json:"ip_address"`
-	Attributes     json.RawMessage `json:"attributes"`
-	Tags           []string        `json:"tags"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	ID             uuid.UUID          `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	AssetTag       string             `json:"asset_tag"`
+	PropertyNumber pgtype.Text        `json:"property_number"`
+	ControlNumber  pgtype.Text        `json:"control_number"`
+	Name           string             `json:"name"`
+	Type           string             `json:"type"`
+	SubType        pgtype.Text        `json:"sub_type"`
+	Status         string             `json:"status"`
+	BiaLevel       string             `json:"bia_level"`
+	LocationID     pgtype.UUID        `json:"location_id"`
+	RackID         pgtype.UUID        `json:"rack_id"`
+	Vendor         pgtype.Text        `json:"vendor"`
+	Model          pgtype.Text        `json:"model"`
+	SerialNumber   pgtype.Text        `json:"serial_number"`
+	Attributes     json.RawMessage    `json:"attributes"`
+	Tags           []string           `json:"tags"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	IpAddress      pgtype.Text        `json:"ip_address"`
+	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
+	SyncVersion    int64              `json:"sync_version"`
+}
+
+type AssetDependency struct {
+	ID             uuid.UUID   `json:"id"`
+	TenantID       uuid.UUID   `json:"tenant_id"`
+	SourceAssetID  uuid.UUID   `json:"source_asset_id"`
+	TargetAssetID  uuid.UUID   `json:"target_asset_id"`
+	DependencyType string      `json:"dependency_type"`
+	Description    pgtype.Text `json:"description"`
+	CreatedAt      time.Time   `json:"created_at"`
 }
 
 type AuditEvent struct {
@@ -120,6 +134,17 @@ type BiaScoringRule struct {
 	CreatedAt    time.Time      `json:"created_at"`
 }
 
+type Credential struct {
+	ID        uuid.UUID   `json:"id"`
+	TenantID  uuid.UUID   `json:"tenant_id"`
+	Name      string      `json:"name"`
+	Type      string      `json:"type"`
+	Params    []byte      `json:"params"`
+	CreatedBy pgtype.UUID `json:"created_by"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
+}
+
 type Department struct {
 	ID          uuid.UUID       `json:"id"`
 	TenantID    uuid.UUID       `json:"tenant_id"`
@@ -179,34 +204,57 @@ type InventoryItem struct {
 	ScannedBy pgtype.UUID        `json:"scanned_by"`
 }
 
+type InventoryNote struct {
+	ID        uuid.UUID   `json:"id"`
+	ItemID    uuid.UUID   `json:"item_id"`
+	AuthorID  pgtype.UUID `json:"author_id"`
+	Severity  string      `json:"severity"`
+	Text      string      `json:"text"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
+type InventoryScanHistory struct {
+	ID        uuid.UUID   `json:"id"`
+	ItemID    uuid.UUID   `json:"item_id"`
+	ScannedAt time.Time   `json:"scanned_at"`
+	ScannedBy pgtype.UUID `json:"scanned_by"`
+	Method    string      `json:"method"`
+	Result    string      `json:"result"`
+	Note      pgtype.Text `json:"note"`
+}
+
 type InventoryTask struct {
-	ID              uuid.UUID   `json:"id"`
-	TenantID        uuid.UUID   `json:"tenant_id"`
-	Code            string      `json:"code"`
-	Name            string      `json:"name"`
-	ScopeLocationID pgtype.UUID `json:"scope_location_id"`
-	Status          string      `json:"status"`
-	Method          pgtype.Text `json:"method"`
-	PlannedDate     pgtype.Date `json:"planned_date"`
-	CompletedDate   pgtype.Date `json:"completed_date"`
-	AssignedTo      pgtype.UUID `json:"assigned_to"`
-	CreatedAt       time.Time   `json:"created_at"`
+	ID              uuid.UUID          `json:"id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	Code            string             `json:"code"`
+	Name            string             `json:"name"`
+	ScopeLocationID pgtype.UUID        `json:"scope_location_id"`
+	Status          string             `json:"status"`
+	Method          pgtype.Text        `json:"method"`
+	PlannedDate     pgtype.Date        `json:"planned_date"`
+	CompletedDate   pgtype.Date        `json:"completed_date"`
+	AssignedTo      pgtype.UUID        `json:"assigned_to"`
+	CreatedAt       time.Time          `json:"created_at"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	SyncVersion     int64              `json:"sync_version"`
 }
 
 type Location struct {
-	ID        uuid.UUID       `json:"id"`
-	TenantID  uuid.UUID       `json:"tenant_id"`
-	Name      string          `json:"name"`
-	NameEn    pgtype.Text     `json:"name_en"`
-	Slug      string          `json:"slug"`
-	Level     string          `json:"level"`
-	ParentID  pgtype.UUID     `json:"parent_id"`
-	Path      pgtype.Text     `json:"path"`
-	Status    string          `json:"status"`
-	Metadata  json.RawMessage `json:"metadata"`
-	SortOrder int32           `json:"sort_order"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID          uuid.UUID          `json:"id"`
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	Name        string             `json:"name"`
+	NameEn      pgtype.Text        `json:"name_en"`
+	Slug        string             `json:"slug"`
+	Level       string             `json:"level"`
+	ParentID    pgtype.UUID        `json:"parent_id"`
+	Path        pgtype.Text        `json:"path"`
+	Status      string             `json:"status"`
+	Metadata    json.RawMessage    `json:"metadata"`
+	SortOrder   int32              `json:"sort_order"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+	SyncVersion int64              `json:"sync_version"`
+	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type Metric struct {
@@ -238,14 +286,27 @@ type Metrics5min struct {
 	MinValue interface{} `json:"min_value"`
 }
 
+type Notification struct {
+	ID           uuid.UUID   `json:"id"`
+	TenantID     uuid.UUID   `json:"tenant_id"`
+	UserID       uuid.UUID   `json:"user_id"`
+	Type         string      `json:"type"`
+	Title        string      `json:"title"`
+	Body         pgtype.Text `json:"body"`
+	ResourceType pgtype.Text `json:"resource_type"`
+	ResourceID   pgtype.UUID `json:"resource_id"`
+	IsRead       bool        `json:"is_read"`
+	CreatedAt    time.Time   `json:"created_at"`
+}
+
 type PredictionModel struct {
-	ID        uuid.UUID          `json:"id"`
-	Name      string             `json:"name"`
-	Type      string             `json:"type"`
-	Provider  string             `json:"provider"`
-	Config    json.RawMessage    `json:"config"`
-	Enabled   pgtype.Bool        `json:"enabled"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID        uuid.UUID       `json:"id"`
+	Name      string          `json:"name"`
+	Type      string          `json:"type"`
+	Provider  string          `json:"provider"`
+	Config    json.RawMessage `json:"config"`
+	Enabled   bool            `json:"enabled"`
+	CreatedAt time.Time       `json:"created_at"`
 }
 
 type PredictionResult struct {
@@ -258,7 +319,7 @@ type PredictionResult struct {
 	Severity          pgtype.Text        `json:"severity"`
 	RecommendedAction pgtype.Text        `json:"recommended_action"`
 	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	CreatedAt         time.Time          `json:"created_at"`
 }
 
 type QualityRule struct {
@@ -288,16 +349,33 @@ type QualityScore struct {
 }
 
 type Rack struct {
-	ID              uuid.UUID      `json:"id"`
-	TenantID        uuid.UUID      `json:"tenant_id"`
-	LocationID      uuid.UUID      `json:"location_id"`
-	Name            string         `json:"name"`
-	RowLabel        pgtype.Text    `json:"row_label"`
-	TotalU          int32          `json:"total_u"`
-	PowerCapacityKw pgtype.Numeric `json:"power_capacity_kw"`
-	Status          string         `json:"status"`
-	Tags            []string       `json:"tags"`
-	CreatedAt       time.Time      `json:"created_at"`
+	ID              uuid.UUID          `json:"id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	LocationID      uuid.UUID          `json:"location_id"`
+	Name            string             `json:"name"`
+	RowLabel        pgtype.Text        `json:"row_label"`
+	TotalU          int32              `json:"total_u"`
+	PowerCapacityKw pgtype.Numeric     `json:"power_capacity_kw"`
+	Status          string             `json:"status"`
+	Tags            []string           `json:"tags"`
+	CreatedAt       time.Time          `json:"created_at"`
+	SyncVersion     int64              `json:"sync_version"`
+	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type RackNetworkConnection struct {
+	ID               uuid.UUID   `json:"id"`
+	TenantID         uuid.UUID   `json:"tenant_id"`
+	RackID           uuid.UUID   `json:"rack_id"`
+	SourcePort       string      `json:"source_port"`
+	ConnectedAssetID pgtype.UUID `json:"connected_asset_id"`
+	ExternalDevice   pgtype.Text `json:"external_device"`
+	Speed            pgtype.Text `json:"speed"`
+	Status           pgtype.Text `json:"status"`
+	Vlans            []int32     `json:"vlans"`
+	ConnectionType   pgtype.Text `json:"connection_type"`
+	CreatedAt        time.Time   `json:"created_at"`
+	UpdatedAt        time.Time   `json:"updated_at"`
 }
 
 type RackSlot struct {
@@ -310,16 +388,16 @@ type RackSlot struct {
 }
 
 type RcaAnalysis struct {
-	ID                uuid.UUID          `json:"id"`
-	TenantID          uuid.UUID          `json:"tenant_id"`
-	IncidentID        uuid.UUID          `json:"incident_id"`
-	ModelID           pgtype.UUID        `json:"model_id"`
-	Reasoning         json.RawMessage    `json:"reasoning"`
-	ConclusionAssetID pgtype.UUID        `json:"conclusion_asset_id"`
-	Confidence        pgtype.Numeric     `json:"confidence"`
-	HumanVerified     pgtype.Bool        `json:"human_verified"`
-	VerifiedBy        pgtype.UUID        `json:"verified_by"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ID                uuid.UUID       `json:"id"`
+	TenantID          uuid.UUID       `json:"tenant_id"`
+	IncidentID        uuid.UUID       `json:"incident_id"`
+	ModelID           pgtype.UUID     `json:"model_id"`
+	Reasoning         json.RawMessage `json:"reasoning"`
+	ConclusionAssetID pgtype.UUID     `json:"conclusion_asset_id"`
+	Confidence        pgtype.Numeric  `json:"confidence"`
+	HumanVerified     pgtype.Bool     `json:"human_verified"`
+	VerifiedBy        pgtype.UUID     `json:"verified_by"`
+	CreatedAt         time.Time       `json:"created_at"`
 }
 
 type Role struct {
@@ -332,6 +410,62 @@ type Role struct {
 	CreatedAt   time.Time       `json:"created_at"`
 }
 
+type ScanTarget struct {
+	ID            uuid.UUID   `json:"id"`
+	TenantID      uuid.UUID   `json:"tenant_id"`
+	Name          string      `json:"name"`
+	Cidrs         []string    `json:"cidrs"`
+	CollectorType string      `json:"collector_type"`
+	CredentialID  uuid.UUID   `json:"credential_id"`
+	Mode          string      `json:"mode"`
+	LocationID    pgtype.UUID `json:"location_id"`
+	CreatedAt     time.Time   `json:"created_at"`
+	UpdatedAt     time.Time   `json:"updated_at"`
+}
+
+type Sensor struct {
+	ID              uuid.UUID          `json:"id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	AssetID         pgtype.UUID        `json:"asset_id"`
+	Name            string             `json:"name"`
+	Type            string             `json:"type"`
+	Location        pgtype.Text        `json:"location"`
+	PollingInterval int32              `json:"polling_interval"`
+	Enabled         bool               `json:"enabled"`
+	Status          string             `json:"status"`
+	LastHeartbeat   pgtype.Timestamptz `json:"last_heartbeat"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+type SyncConflict struct {
+	ID            uuid.UUID          `json:"id"`
+	TenantID      uuid.UUID          `json:"tenant_id"`
+	EntityType    string             `json:"entity_type"`
+	EntityID      uuid.UUID          `json:"entity_id"`
+	LocalVersion  int64              `json:"local_version"`
+	RemoteVersion int64              `json:"remote_version"`
+	LocalDiff     json.RawMessage    `json:"local_diff"`
+	RemoteDiff    json.RawMessage    `json:"remote_diff"`
+	Resolution    pgtype.Text        `json:"resolution"`
+	ResolvedBy    pgtype.UUID        `json:"resolved_by"`
+	ResolvedAt    pgtype.Timestamptz `json:"resolved_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type SyncState struct {
+	ID              uuid.UUID          `json:"id"`
+	NodeID          string             `json:"node_id"`
+	TenantID        uuid.UUID          `json:"tenant_id"`
+	EntityType      string             `json:"entity_type"`
+	LastSyncVersion pgtype.Int8        `json:"last_sync_version"`
+	LastSyncAt      pgtype.Timestamptz `json:"last_sync_at"`
+	Status          pgtype.Text        `json:"status"`
+	ErrorMessage    pgtype.Text        `json:"error_message"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Tenant struct {
 	ID        uuid.UUID       `json:"id"`
 	Name      string          `json:"name"`
@@ -342,24 +476,55 @@ type Tenant struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
+type UpgradeRule struct {
+	ID             uuid.UUID      `json:"id"`
+	TenantID       uuid.UUID      `json:"tenant_id"`
+	AssetType      string         `json:"asset_type"`
+	Category       string         `json:"category"`
+	MetricName     string         `json:"metric_name"`
+	Threshold      pgtype.Numeric `json:"threshold"`
+	DurationDays   int32          `json:"duration_days"`
+	Priority       string         `json:"priority"`
+	Recommendation string         `json:"recommendation"`
+	Enabled        bool           `json:"enabled"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+}
+
 type User struct {
-	ID           uuid.UUID   `json:"id"`
-	TenantID     uuid.UUID   `json:"tenant_id"`
-	DeptID       pgtype.UUID `json:"dept_id"`
-	Username     string      `json:"username"`
-	DisplayName  string      `json:"display_name"`
-	Email        string      `json:"email"`
-	Phone        pgtype.Text `json:"phone"`
-	PasswordHash string      `json:"password_hash"`
-	Status       string      `json:"status"`
-	Source       string      `json:"source"`
-	CreatedAt    time.Time   `json:"created_at"`
-	UpdatedAt    time.Time   `json:"updated_at"`
+	ID           uuid.UUID          `json:"id"`
+	TenantID     uuid.UUID          `json:"tenant_id"`
+	DeptID       pgtype.UUID        `json:"dept_id"`
+	Username     string             `json:"username"`
+	DisplayName  string             `json:"display_name"`
+	Email        string             `json:"email"`
+	Phone        pgtype.Text        `json:"phone"`
+	PasswordHash string             `json:"password_hash"`
+	Status       string             `json:"status"`
+	Source       string             `json:"source"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+	LastLoginAt  pgtype.Timestamptz `json:"last_login_at"`
+	LastLoginIp  pgtype.Text        `json:"last_login_ip"`
+	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type UserRole struct {
 	UserID uuid.UUID `json:"user_id"`
 	RoleID uuid.UUID `json:"role_id"`
+}
+
+type UserSession struct {
+	ID           uuid.UUID          `json:"id"`
+	UserID       uuid.UUID          `json:"user_id"`
+	IpAddress    pgtype.Text        `json:"ip_address"`
+	UserAgent    pgtype.Text        `json:"user_agent"`
+	DeviceType   pgtype.Text        `json:"device_type"`
+	Browser      pgtype.Text        `json:"browser"`
+	CreatedAt    time.Time          `json:"created_at"`
+	LastActiveAt time.Time          `json:"last_active_at"`
+	ExpiredAt    pgtype.Timestamptz `json:"expired_at"`
+	IsCurrent    bool               `json:"is_current"`
 }
 
 type WebhookDelivery struct {
@@ -385,44 +550,43 @@ type WebhookSubscription struct {
 }
 
 type WorkOrder struct {
-	ID             uuid.UUID          `json:"id"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	Code           string             `json:"code"`
-	Title          string             `json:"title"`
-	Type           string             `json:"type"`
-	Status         string             `json:"status"`
-	Priority       string             `json:"priority"`
-	LocationID     pgtype.UUID        `json:"location_id"`
-	AssetID        pgtype.UUID        `json:"asset_id"`
-	RequestorID    pgtype.UUID        `json:"requestor_id"`
-	AssigneeID     pgtype.UUID        `json:"assignee_id"`
-	Description    pgtype.Text        `json:"description"`
-	Reason         pgtype.Text        `json:"reason"`
-	PredictionID   pgtype.UUID        `json:"prediction_id"`
-	ScheduledStart pgtype.Timestamptz `json:"scheduled_start"`
-	ScheduledEnd   pgtype.Timestamptz `json:"scheduled_end"`
-	ActualStart    pgtype.Timestamptz `json:"actual_start"`
-	ActualEnd      pgtype.Timestamptz `json:"actual_end"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	ApprovedAt     pgtype.Timestamptz `json:"approved_at"`
-	ApprovedBy     pgtype.UUID        `json:"approved_by"`
-	SlaDeadline    pgtype.Timestamptz `json:"sla_deadline"`
-	SlaWarningSent bool               `json:"sla_warning_sent"`
-	SlaBreached    bool               `json:"sla_breached"`
+	ID               uuid.UUID          `json:"id"`
+	TenantID         uuid.UUID          `json:"tenant_id"`
+	Code             string             `json:"code"`
+	Title            string             `json:"title"`
+	Type             string             `json:"type"`
+	Status           string             `json:"status"`
+	Priority         string             `json:"priority"`
+	LocationID       pgtype.UUID        `json:"location_id"`
+	AssetID          pgtype.UUID        `json:"asset_id"`
+	RequestorID      pgtype.UUID        `json:"requestor_id"`
+	AssigneeID       pgtype.UUID        `json:"assignee_id"`
+	Description      pgtype.Text        `json:"description"`
+	Reason           pgtype.Text        `json:"reason"`
+	PredictionID     pgtype.UUID        `json:"prediction_id"`
+	ScheduledStart   pgtype.Timestamptz `json:"scheduled_start"`
+	ScheduledEnd     pgtype.Timestamptz `json:"scheduled_end"`
+	ActualStart      pgtype.Timestamptz `json:"actual_start"`
+	ActualEnd        pgtype.Timestamptz `json:"actual_end"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+	ApprovedAt       pgtype.Timestamptz `json:"approved_at"`
+	ApprovedBy       pgtype.UUID        `json:"approved_by"`
+	SlaDeadline      pgtype.Timestamptz `json:"sla_deadline"`
+	SlaWarningSent   bool               `json:"sla_warning_sent"`
+	SlaBreached      bool               `json:"sla_breached"`
+	SyncVersion      int64              `json:"sync_version"`
+	ExecutionStatus  string             `json:"execution_status"`
+	GovernanceStatus string             `json:"governance_status"`
 }
 
-type Notification struct {
-	ID           uuid.UUID   `json:"id"`
-	TenantID     uuid.UUID   `json:"tenant_id"`
-	UserID       uuid.UUID   `json:"user_id"`
-	Type         string      `json:"type"`
-	Title        string      `json:"title"`
-	Body         pgtype.Text `json:"body"`
-	ResourceType pgtype.Text `json:"resource_type"`
-	ResourceID   pgtype.UUID `json:"resource_id"`
-	IsRead       bool        `json:"is_read"`
-	CreatedAt    time.Time   `json:"created_at"`
+type WorkOrderComment struct {
+	ID        uuid.UUID   `json:"id"`
+	OrderID   uuid.UUID   `json:"order_id"`
+	AuthorID  pgtype.UUID `json:"author_id"`
+	Text      string      `json:"text"`
+	CreatedAt time.Time   `json:"created_at"`
 }
 
 type WorkOrderLog struct {

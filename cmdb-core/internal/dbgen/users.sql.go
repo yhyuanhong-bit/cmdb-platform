@@ -12,20 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const deactivateUser = `-- name: DeactivateUser :exec
-UPDATE users SET status = 'deleted', updated_at = now() WHERE id = $1 AND tenant_id = $2
-`
-
-type DeactivateUserParams struct {
-	ID       uuid.UUID `json:"id"`
-	TenantID uuid.UUID `json:"tenant_id"`
-}
-
-func (q *Queries) DeactivateUser(ctx context.Context, arg DeactivateUserParams) error {
-	_, err := q.db.Exec(ctx, deactivateUser, arg.ID, arg.TenantID)
-	return err
-}
-
 const countUsers = `-- name: CountUsers :one
 SELECT count(*) FROM users WHERE tenant_id = $1
 `
@@ -44,7 +30,7 @@ INSERT INTO users (
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9
-) RETURNING id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at
+) RETURNING id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at
 `
 
 type CreateUserParams struct {
@@ -85,12 +71,29 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastLoginAt,
+		&i.LastLoginIp,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
+const deactivateUser = `-- name: DeactivateUser :exec
+UPDATE users SET status = 'deleted', updated_at = now() WHERE id = $1 AND tenant_id = $2
+`
+
+type DeactivateUserParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeactivateUser(ctx context.Context, arg DeactivateUserParams) error {
+	_, err := q.db.Exec(ctx, deactivateUser, arg.ID, arg.TenantID)
+	return err
+}
+
 const getUser = `-- name: GetUser :one
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at FROM users WHERE id = $1
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
@@ -109,12 +112,15 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastLoginAt,
+		&i.LastLoginIp,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at FROM users WHERE username = $1
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at FROM users WHERE username = $1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
@@ -133,12 +139,15 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastLoginAt,
+		&i.LastLoginIp,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at FROM users
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at FROM users
 WHERE tenant_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -172,6 +181,9 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.Source,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LastLoginAt,
+			&i.LastLoginIp,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -193,7 +205,7 @@ UPDATE users SET
     status        = COALESCE($6, status),
     updated_at    = now()
 WHERE id = $7
-RETURNING id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at
+RETURNING id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at
 `
 
 type UpdateUserParams struct {
@@ -230,6 +242,9 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastLoginAt,
+		&i.LastLoginIp,
+		&i.DeletedAt,
 	)
 	return i, err
 }

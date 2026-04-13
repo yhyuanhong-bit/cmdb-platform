@@ -20,7 +20,7 @@ INSERT INTO locations (
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7::ltree, $8, $9, $10
-) RETURNING id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at
+) RETURNING id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at
 `
 
 type CreateLocationParams struct {
@@ -64,6 +64,8 @@ func (q *Queries) CreateLocation(ctx context.Context, arg CreateLocationParams) 
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SyncVersion,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -83,7 +85,7 @@ func (q *Queries) DeleteLocation(ctx context.Context, arg DeleteLocationParams) 
 }
 
 const getLocation = `-- name: GetLocation :one
-SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at FROM locations WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at FROM locations WHERE id = $1 AND tenant_id = $2
 `
 
 type GetLocationParams struct {
@@ -108,12 +110,14 @@ func (q *Queries) GetLocation(ctx context.Context, arg GetLocationParams) (Locat
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SyncVersion,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getLocationBySlug = `-- name: GetLocationBySlug :one
-SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at FROM locations
+SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at FROM locations
 WHERE tenant_id = $1 AND slug = $2 AND level = $3
 `
 
@@ -140,12 +144,14 @@ func (q *Queries) GetLocationBySlug(ctx context.Context, arg GetLocationBySlugPa
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SyncVersion,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const listAncestors = `-- name: ListAncestors :many
-SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at FROM locations
+SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at FROM locations
 WHERE tenant_id = $1 AND path @> $2::ltree
 ORDER BY path
 `
@@ -178,6 +184,8 @@ func (q *Queries) ListAncestors(ctx context.Context, arg ListAncestorsParams) ([
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SyncVersion,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -190,7 +198,7 @@ func (q *Queries) ListAncestors(ctx context.Context, arg ListAncestorsParams) ([
 }
 
 const listChildren = `-- name: ListChildren :many
-SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at FROM locations
+SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at FROM locations
 WHERE parent_id = $1
 ORDER BY sort_order, name
 `
@@ -218,6 +226,8 @@ func (q *Queries) ListChildren(ctx context.Context, parentID pgtype.UUID) ([]Loc
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SyncVersion,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -230,7 +240,7 @@ func (q *Queries) ListChildren(ctx context.Context, parentID pgtype.UUID) ([]Loc
 }
 
 const listDescendants = `-- name: ListDescendants :many
-SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at FROM locations
+SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at FROM locations
 WHERE tenant_id = $1 AND path <@ $2::ltree
 ORDER BY path
 `
@@ -263,6 +273,8 @@ func (q *Queries) ListDescendants(ctx context.Context, arg ListDescendantsParams
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SyncVersion,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -275,7 +287,7 @@ func (q *Queries) ListDescendants(ctx context.Context, arg ListDescendantsParams
 }
 
 const listRootLocations = `-- name: ListRootLocations :many
-SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at FROM locations
+SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at FROM locations
 WHERE tenant_id = $1 AND parent_id IS NULL
 ORDER BY sort_order, name
 `
@@ -303,6 +315,8 @@ func (q *Queries) ListRootLocations(ctx context.Context, tenantID uuid.UUID) ([]
 			&i.SortOrder,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SyncVersion,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -325,7 +339,7 @@ UPDATE locations SET
     sort_order = COALESCE($7, sort_order),
     updated_at = now()
 WHERE id = $8
-RETURNING id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at
+RETURNING id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at
 `
 
 type UpdateLocationParams struct {
@@ -365,6 +379,8 @@ func (q *Queries) UpdateLocation(ctx context.Context, arg UpdateLocationParams) 
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SyncVersion,
+		&i.DeletedAt,
 	)
 	return i, err
 }

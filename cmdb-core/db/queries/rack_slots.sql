@@ -13,7 +13,7 @@ RETURNING *;
 
 -- name: DeleteRackSlot :exec
 DELETE FROM rack_slots
-WHERE id = $1
+WHERE rack_slots.id = $1
   AND rack_id IN (SELECT r.id FROM racks r WHERE r.tenant_id = $2);
 
 -- name: CheckSlotConflict :one

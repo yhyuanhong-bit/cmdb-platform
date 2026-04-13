@@ -29,7 +29,12 @@ type CountWorkOrdersParams struct {
 }
 
 func (q *Queries) CountWorkOrders(ctx context.Context, arg CountWorkOrdersParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countWorkOrders, arg.TenantID, arg.Status, arg.AssetID, arg.LocationID)
+	row := q.db.QueryRow(ctx, countWorkOrders,
+		arg.TenantID,
+		arg.Status,
+		arg.AssetID,
+		arg.LocationID,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -46,7 +51,7 @@ INSERT INTO work_orders (
     $7, $8, $9, $10,
     $11, $12, $13,
     $14, $15
-) RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
+) RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status
 `
 
 type CreateWorkOrderParams struct {
@@ -107,11 +112,15 @@ func (q *Queries) CreateWorkOrder(ctx context.Context, arg CreateWorkOrderParams
 		&i.ActualEnd,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 		&i.ApprovedAt,
 		&i.ApprovedBy,
 		&i.SlaDeadline,
 		&i.SlaWarningSent,
 		&i.SlaBreached,
+		&i.SyncVersion,
+		&i.ExecutionStatus,
+		&i.GovernanceStatus,
 	)
 	return i, err
 }
@@ -159,7 +168,7 @@ func (q *Queries) CreateWorkOrderLog(ctx context.Context, arg CreateWorkOrderLog
 }
 
 const getWorkOrder = `-- name: GetWorkOrder :one
-SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status FROM work_orders WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 `
 
 type GetWorkOrderParams struct {
@@ -191,13 +200,138 @@ func (q *Queries) GetWorkOrder(ctx context.Context, arg GetWorkOrderParams) (Wor
 		&i.ActualEnd,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 		&i.ApprovedAt,
 		&i.ApprovedBy,
 		&i.SlaDeadline,
 		&i.SlaWarningSent,
 		&i.SlaBreached,
+		&i.SyncVersion,
+		&i.ExecutionStatus,
+		&i.GovernanceStatus,
 	)
 	return i, err
+}
+
+const listOverdueSLAOrders = `-- name: ListOverdueSLAOrders :many
+SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status FROM work_orders
+WHERE tenant_id = $1
+  AND status IN ('approved', 'in_progress')
+  AND sla_deadline IS NOT NULL
+  AND sla_deadline < now()
+  AND sla_breached = false
+  AND deleted_at IS NULL
+`
+
+func (q *Queries) ListOverdueSLAOrders(ctx context.Context, tenantID uuid.UUID) ([]WorkOrder, error) {
+	rows, err := q.db.Query(ctx, listOverdueSLAOrders, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkOrder{}
+	for rows.Next() {
+		var i WorkOrder
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Code,
+			&i.Title,
+			&i.Type,
+			&i.Status,
+			&i.Priority,
+			&i.LocationID,
+			&i.AssetID,
+			&i.RequestorID,
+			&i.AssigneeID,
+			&i.Description,
+			&i.Reason,
+			&i.PredictionID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.ActualStart,
+			&i.ActualEnd,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ApprovedAt,
+			&i.ApprovedBy,
+			&i.SlaDeadline,
+			&i.SlaWarningSent,
+			&i.SlaBreached,
+			&i.SyncVersion,
+			&i.ExecutionStatus,
+			&i.GovernanceStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSLAWarningOrders = `-- name: ListSLAWarningOrders :many
+SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status FROM work_orders
+WHERE tenant_id = $1
+  AND status IN ('approved', 'in_progress')
+  AND sla_deadline IS NOT NULL
+  AND sla_warning_sent = false
+  AND approved_at IS NOT NULL
+  AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now()
+  AND deleted_at IS NULL
+`
+
+func (q *Queries) ListSLAWarningOrders(ctx context.Context, tenantID uuid.UUID) ([]WorkOrder, error) {
+	rows, err := q.db.Query(ctx, listSLAWarningOrders, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkOrder{}
+	for rows.Next() {
+		var i WorkOrder
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Code,
+			&i.Title,
+			&i.Type,
+			&i.Status,
+			&i.Priority,
+			&i.LocationID,
+			&i.AssetID,
+			&i.RequestorID,
+			&i.AssigneeID,
+			&i.Description,
+			&i.Reason,
+			&i.PredictionID,
+			&i.ScheduledStart,
+			&i.ScheduledEnd,
+			&i.ActualStart,
+			&i.ActualEnd,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ApprovedAt,
+			&i.ApprovedBy,
+			&i.SlaDeadline,
+			&i.SlaWarningSent,
+			&i.SlaBreached,
+			&i.SyncVersion,
+			&i.ExecutionStatus,
+			&i.GovernanceStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listWorkOrderLogs = `-- name: ListWorkOrderLogs :many
@@ -236,7 +370,7 @@ func (q *Queries) ListWorkOrderLogs(ctx context.Context, orderID uuid.UUID) ([]W
 }
 
 const listWorkOrders = `-- name: ListWorkOrders :many
-SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders
+SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status FROM work_orders
 WHERE tenant_id = $1
   AND deleted_at IS NULL
   AND ($4::varchar IS NULL OR status = $4)
@@ -292,11 +426,15 @@ func (q *Queries) ListWorkOrders(ctx context.Context, arg ListWorkOrdersParams) 
 			&i.ActualEnd,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeletedAt,
 			&i.ApprovedAt,
 			&i.ApprovedBy,
 			&i.SlaDeadline,
 			&i.SlaWarningSent,
 			&i.SlaBreached,
+			&i.SyncVersion,
+			&i.ExecutionStatus,
+			&i.GovernanceStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -306,6 +444,231 @@ func (q *Queries) ListWorkOrders(ctx context.Context, arg ListWorkOrdersParams) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const markSLABreached = `-- name: MarkSLABreached :exec
+UPDATE work_orders SET sla_breached = true WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+`
+
+type MarkSLABreachedParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) MarkSLABreached(ctx context.Context, arg MarkSLABreachedParams) error {
+	_, err := q.db.Exec(ctx, markSLABreached, arg.ID, arg.TenantID)
+	return err
+}
+
+const markSLAWarning = `-- name: MarkSLAWarning :exec
+UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+`
+
+type MarkSLAWarningParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) MarkSLAWarning(ctx context.Context, arg MarkSLAWarningParams) error {
+	_, err := q.db.Exec(ctx, markSLAWarning, arg.ID, arg.TenantID)
+	return err
+}
+
+const softDeleteWorkOrder = `-- name: SoftDeleteWorkOrder :exec
+UPDATE work_orders
+SET deleted_at = NOW(), updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+`
+
+type SoftDeleteWorkOrderParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) SoftDeleteWorkOrder(ctx context.Context, arg SoftDeleteWorkOrderParams) error {
+	_, err := q.db.Exec(ctx, softDeleteWorkOrder, arg.ID, arg.TenantID)
+	return err
+}
+
+const stampWorkOrderApproval = `-- name: StampWorkOrderApproval :one
+UPDATE work_orders SET
+    approved_at       = now(),
+    approved_by       = $2,
+    sla_deadline      = $3,
+    status            = 'approved',
+    governance_status = 'approved',
+    updated_at        = now()
+WHERE id = $1 AND tenant_id = $4 AND governance_status = 'submitted' AND deleted_at IS NULL
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status
+`
+
+type StampWorkOrderApprovalParams struct {
+	ID          uuid.UUID          `json:"id"`
+	ApprovedBy  pgtype.UUID        `json:"approved_by"`
+	SlaDeadline pgtype.Timestamptz `json:"sla_deadline"`
+	TenantID    uuid.UUID          `json:"tenant_id"`
+}
+
+func (q *Queries) StampWorkOrderApproval(ctx context.Context, arg StampWorkOrderApprovalParams) (WorkOrder, error) {
+	row := q.db.QueryRow(ctx, stampWorkOrderApproval,
+		arg.ID,
+		arg.ApprovedBy,
+		arg.SlaDeadline,
+		arg.TenantID,
+	)
+	var i WorkOrder
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Title,
+		&i.Type,
+		&i.Status,
+		&i.Priority,
+		&i.LocationID,
+		&i.AssetID,
+		&i.RequestorID,
+		&i.AssigneeID,
+		&i.Description,
+		&i.Reason,
+		&i.PredictionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.ActualStart,
+		&i.ActualEnd,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+		&i.SlaDeadline,
+		&i.SlaWarningSent,
+		&i.SlaBreached,
+		&i.SyncVersion,
+		&i.ExecutionStatus,
+		&i.GovernanceStatus,
+	)
+	return i, err
+}
+
+const updateExecutionStatus = `-- name: UpdateExecutionStatus :one
+UPDATE work_orders SET
+    execution_status = $2,
+    status           = $3,
+    updated_at       = now()
+WHERE id = $1 AND tenant_id = $4 AND execution_status = $5 AND deleted_at IS NULL
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status
+`
+
+type UpdateExecutionStatusParams struct {
+	ID                uuid.UUID `json:"id"`
+	ExecutionStatus   string    `json:"execution_status"`
+	Status            string    `json:"status"`
+	TenantID          uuid.UUID `json:"tenant_id"`
+	ExecutionStatus_2 string    `json:"execution_status_2"`
+}
+
+func (q *Queries) UpdateExecutionStatus(ctx context.Context, arg UpdateExecutionStatusParams) (WorkOrder, error) {
+	row := q.db.QueryRow(ctx, updateExecutionStatus,
+		arg.ID,
+		arg.ExecutionStatus,
+		arg.Status,
+		arg.TenantID,
+		arg.ExecutionStatus_2,
+	)
+	var i WorkOrder
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Title,
+		&i.Type,
+		&i.Status,
+		&i.Priority,
+		&i.LocationID,
+		&i.AssetID,
+		&i.RequestorID,
+		&i.AssigneeID,
+		&i.Description,
+		&i.Reason,
+		&i.PredictionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.ActualStart,
+		&i.ActualEnd,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+		&i.SlaDeadline,
+		&i.SlaWarningSent,
+		&i.SlaBreached,
+		&i.SyncVersion,
+		&i.ExecutionStatus,
+		&i.GovernanceStatus,
+	)
+	return i, err
+}
+
+const updateGovernanceStatus = `-- name: UpdateGovernanceStatus :one
+UPDATE work_orders SET
+    governance_status = $2,
+    status            = $3,
+    updated_at        = now()
+WHERE id = $1 AND tenant_id = $4 AND governance_status = $5 AND deleted_at IS NULL
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status
+`
+
+type UpdateGovernanceStatusParams struct {
+	ID                 uuid.UUID `json:"id"`
+	GovernanceStatus   string    `json:"governance_status"`
+	Status             string    `json:"status"`
+	TenantID           uuid.UUID `json:"tenant_id"`
+	GovernanceStatus_2 string    `json:"governance_status_2"`
+}
+
+func (q *Queries) UpdateGovernanceStatus(ctx context.Context, arg UpdateGovernanceStatusParams) (WorkOrder, error) {
+	row := q.db.QueryRow(ctx, updateGovernanceStatus,
+		arg.ID,
+		arg.GovernanceStatus,
+		arg.Status,
+		arg.TenantID,
+		arg.GovernanceStatus_2,
+	)
+	var i WorkOrder
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Title,
+		&i.Type,
+		&i.Status,
+		&i.Priority,
+		&i.LocationID,
+		&i.AssetID,
+		&i.RequestorID,
+		&i.AssigneeID,
+		&i.Description,
+		&i.Reason,
+		&i.PredictionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.ActualStart,
+		&i.ActualEnd,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+		&i.SlaDeadline,
+		&i.SlaWarningSent,
+		&i.SlaBreached,
+		&i.SyncVersion,
+		&i.ExecutionStatus,
+		&i.GovernanceStatus,
+	)
+	return i, err
 }
 
 const updateWorkOrder = `-- name: UpdateWorkOrder :one
@@ -318,7 +681,7 @@ UPDATE work_orders SET
     scheduled_end   = COALESCE($6, scheduled_end),
     updated_at      = now()
 WHERE id = $7 AND tenant_id = $8 AND deleted_at IS NULL
-RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status
 `
 
 type UpdateWorkOrderParams struct {
@@ -365,11 +728,15 @@ func (q *Queries) UpdateWorkOrder(ctx context.Context, arg UpdateWorkOrderParams
 		&i.ActualEnd,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 		&i.ApprovedAt,
 		&i.ApprovedBy,
 		&i.SlaDeadline,
 		&i.SlaWarningSent,
 		&i.SlaBreached,
+		&i.SyncVersion,
+		&i.ExecutionStatus,
+		&i.GovernanceStatus,
 	)
 	return i, err
 }
@@ -379,18 +746,23 @@ UPDATE work_orders SET
     status     = $2,
     updated_at = now()
 WHERE id = $1 AND tenant_id = $3 AND status = $4 AND deleted_at IS NULL
-RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status
 `
 
 type UpdateWorkOrderStatusParams struct {
-	ID         uuid.UUID `json:"id"`
-	Status     string    `json:"status"`
-	TenantID   uuid.UUID `json:"tenant_id"`
-	FromStatus string    `json:"from_status"`
+	ID       uuid.UUID `json:"id"`
+	Status   string    `json:"status"`
+	TenantID uuid.UUID `json:"tenant_id"`
+	Status_2 string    `json:"status_2"`
 }
 
 func (q *Queries) UpdateWorkOrderStatus(ctx context.Context, arg UpdateWorkOrderStatusParams) (WorkOrder, error) {
-	row := q.db.QueryRow(ctx, updateWorkOrderStatus, arg.ID, arg.Status, arg.TenantID, arg.FromStatus)
+	row := q.db.QueryRow(ctx, updateWorkOrderStatus,
+		arg.ID,
+		arg.Status,
+		arg.TenantID,
+		arg.Status_2,
+	)
 	var i WorkOrder
 	err := row.Scan(
 		&i.ID,
@@ -413,219 +785,15 @@ func (q *Queries) UpdateWorkOrderStatus(ctx context.Context, arg UpdateWorkOrder
 		&i.ActualEnd,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 		&i.ApprovedAt,
 		&i.ApprovedBy,
 		&i.SlaDeadline,
 		&i.SlaWarningSent,
 		&i.SlaBreached,
+		&i.SyncVersion,
+		&i.ExecutionStatus,
+		&i.GovernanceStatus,
 	)
 	return i, err
-}
-
-const softDeleteWorkOrder = `-- name: SoftDeleteWorkOrder :exec
-UPDATE work_orders
-SET deleted_at = NOW(), updated_at = NOW()
-WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-`
-
-type SoftDeleteWorkOrderParams struct {
-	ID       uuid.UUID `json:"id"`
-	TenantID uuid.UUID `json:"tenant_id"`
-}
-
-func (q *Queries) SoftDeleteWorkOrder(ctx context.Context, arg SoftDeleteWorkOrderParams) error {
-	_, err := q.db.Exec(ctx, softDeleteWorkOrder, arg.ID, arg.TenantID)
-	return err
-}
-
-const stampWorkOrderApproval = `-- name: StampWorkOrderApproval :one
-UPDATE work_orders SET
-    approved_at = now(),
-    approved_by = $2,
-    sla_deadline = $3,
-    status = 'approved',
-    updated_at = now()
-WHERE id = $1 AND tenant_id = $4 AND status = 'submitted' AND deleted_at IS NULL
-RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached
-`
-
-type StampWorkOrderApprovalParams struct {
-	ID          uuid.UUID          `json:"id"`
-	ApprovedBy  pgtype.UUID        `json:"approved_by"`
-	SlaDeadline pgtype.Timestamptz `json:"sla_deadline"`
-	TenantID    uuid.UUID          `json:"tenant_id"`
-}
-
-func (q *Queries) StampWorkOrderApproval(ctx context.Context, arg StampWorkOrderApprovalParams) (WorkOrder, error) {
-	row := q.db.QueryRow(ctx, stampWorkOrderApproval, arg.ID, arg.ApprovedBy, arg.SlaDeadline, arg.TenantID)
-	var i WorkOrder
-	err := row.Scan(
-		&i.ID,
-		&i.TenantID,
-		&i.Code,
-		&i.Title,
-		&i.Type,
-		&i.Status,
-		&i.Priority,
-		&i.LocationID,
-		&i.AssetID,
-		&i.RequestorID,
-		&i.AssigneeID,
-		&i.Description,
-		&i.Reason,
-		&i.PredictionID,
-		&i.ScheduledStart,
-		&i.ScheduledEnd,
-		&i.ActualStart,
-		&i.ActualEnd,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ApprovedAt,
-		&i.ApprovedBy,
-		&i.SlaDeadline,
-		&i.SlaWarningSent,
-		&i.SlaBreached,
-	)
-	return i, err
-}
-
-const markSLAWarning = `-- name: MarkSLAWarning :exec
-UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-`
-
-type MarkSLAWarningParams struct {
-	ID       uuid.UUID `json:"id"`
-	TenantID uuid.UUID `json:"tenant_id"`
-}
-
-func (q *Queries) MarkSLAWarning(ctx context.Context, arg MarkSLAWarningParams) error {
-	_, err := q.db.Exec(ctx, markSLAWarning, arg.ID, arg.TenantID)
-	return err
-}
-
-const markSLABreached = `-- name: MarkSLABreached :exec
-UPDATE work_orders SET sla_breached = true WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-`
-
-type MarkSLABreachedParams struct {
-	ID       uuid.UUID `json:"id"`
-	TenantID uuid.UUID `json:"tenant_id"`
-}
-
-func (q *Queries) MarkSLABreached(ctx context.Context, arg MarkSLABreachedParams) error {
-	_, err := q.db.Exec(ctx, markSLABreached, arg.ID, arg.TenantID)
-	return err
-}
-
-const listOverdueSLAOrders = `-- name: ListOverdueSLAOrders :many
-SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders
-WHERE tenant_id = $1
-  AND status IN ('approved', 'in_progress')
-  AND sla_deadline IS NOT NULL
-  AND sla_deadline < now()
-  AND sla_breached = false
-  AND deleted_at IS NULL
-`
-
-func (q *Queries) ListOverdueSLAOrders(ctx context.Context, tenantID uuid.UUID) ([]WorkOrder, error) {
-	rows, err := q.db.Query(ctx, listOverdueSLAOrders, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []WorkOrder{}
-	for rows.Next() {
-		var i WorkOrder
-		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.Code,
-			&i.Title,
-			&i.Type,
-			&i.Status,
-			&i.Priority,
-			&i.LocationID,
-			&i.AssetID,
-			&i.RequestorID,
-			&i.AssigneeID,
-			&i.Description,
-			&i.Reason,
-			&i.PredictionID,
-			&i.ScheduledStart,
-			&i.ScheduledEnd,
-			&i.ActualStart,
-			&i.ActualEnd,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ApprovedAt,
-			&i.ApprovedBy,
-			&i.SlaDeadline,
-			&i.SlaWarningSent,
-			&i.SlaBreached,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSLAWarningOrders = `-- name: ListSLAWarningOrders :many
-SELECT id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached FROM work_orders
-WHERE tenant_id = $1
-  AND status IN ('approved', 'in_progress')
-  AND sla_deadline IS NOT NULL
-  AND sla_warning_sent = false
-  AND approved_at IS NOT NULL
-  AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now()
-  AND deleted_at IS NULL
-`
-
-func (q *Queries) ListSLAWarningOrders(ctx context.Context, tenantID uuid.UUID) ([]WorkOrder, error) {
-	rows, err := q.db.Query(ctx, listSLAWarningOrders, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []WorkOrder{}
-	for rows.Next() {
-		var i WorkOrder
-		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.Code,
-			&i.Title,
-			&i.Type,
-			&i.Status,
-			&i.Priority,
-			&i.LocationID,
-			&i.AssetID,
-			&i.RequestorID,
-			&i.AssigneeID,
-			&i.Description,
-			&i.Reason,
-			&i.PredictionID,
-			&i.ScheduledStart,
-			&i.ScheduledEnd,
-			&i.ActualStart,
-			&i.ActualEnd,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ApprovedAt,
-			&i.ApprovedBy,
-			&i.SlaDeadline,
-			&i.SlaWarningSent,
-			&i.SlaBreached,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }

@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createModel = `-- name: CreateModel :one
@@ -26,7 +25,7 @@ type CreateModelParams struct {
 	Type     string          `json:"type"`
 	Provider string          `json:"provider"`
 	Config   json.RawMessage `json:"config"`
-	Enabled  pgtype.Bool     `json:"enabled"`
+	Enabled  bool            `json:"enabled"`
 }
 
 func (q *Queries) CreateModel(ctx context.Context, arg CreateModelParams) (PredictionModel, error) {

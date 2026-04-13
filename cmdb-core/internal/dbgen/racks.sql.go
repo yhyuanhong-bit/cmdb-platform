@@ -39,7 +39,7 @@ INSERT INTO racks (
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7, $8
-) RETURNING id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at
+) RETURNING id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at, sync_version, deleted_at
 `
 
 type CreateRackParams struct {
@@ -76,6 +76,8 @@ func (q *Queries) CreateRack(ctx context.Context, arg CreateRackParams) (Rack, e
 		&i.Status,
 		&i.Tags,
 		&i.CreatedAt,
+		&i.SyncVersion,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -95,7 +97,7 @@ func (q *Queries) DeleteRack(ctx context.Context, arg DeleteRackParams) error {
 }
 
 const getRack = `-- name: GetRack :one
-SELECT id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at FROM racks WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at, sync_version, deleted_at FROM racks WHERE id = $1 AND tenant_id = $2
 `
 
 type GetRackParams struct {
@@ -117,6 +119,8 @@ func (q *Queries) GetRack(ctx context.Context, arg GetRackParams) (Rack, error) 
 		&i.Status,
 		&i.Tags,
 		&i.CreatedAt,
+		&i.SyncVersion,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -142,7 +146,7 @@ func (q *Queries) GetRackOccupancy(ctx context.Context, id uuid.UUID) (GetRackOc
 }
 
 const listAssetsByRack = `-- name: ListAssetsByRack :many
-SELECT a.id, a.tenant_id, a.asset_tag, a.property_number, a.control_number, a.name, a.type, a.sub_type, a.status, a.bia_level, a.location_id, a.rack_id, a.vendor, a.model, a.serial_number, a.attributes, a.tags, a.created_at, a.updated_at FROM assets a
+SELECT a.id, a.tenant_id, a.asset_tag, a.property_number, a.control_number, a.name, a.type, a.sub_type, a.status, a.bia_level, a.location_id, a.rack_id, a.vendor, a.model, a.serial_number, a.attributes, a.tags, a.created_at, a.updated_at, a.ip_address, a.deleted_at, a.sync_version FROM assets a
 WHERE a.rack_id = $1
 ORDER BY a.name
 `
@@ -176,6 +180,9 @@ func (q *Queries) ListAssetsByRack(ctx context.Context, rackID pgtype.UUID) ([]A
 			&i.Tags,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.IpAddress,
+			&i.DeletedAt,
+			&i.SyncVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -188,7 +195,7 @@ func (q *Queries) ListAssetsByRack(ctx context.Context, rackID pgtype.UUID) ([]A
 }
 
 const listRacksByLocation = `-- name: ListRacksByLocation :many
-SELECT r.id, r.tenant_id, r.location_id, r.name, r.row_label, r.total_u, r.power_capacity_kw, r.status, r.tags, r.created_at FROM racks r
+SELECT r.id, r.tenant_id, r.location_id, r.name, r.row_label, r.total_u, r.power_capacity_kw, r.status, r.tags, r.created_at, r.sync_version, r.deleted_at FROM racks r
 JOIN locations l ON r.location_id = l.id
 WHERE l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $1)::ltree
 ORDER BY r.name
@@ -215,6 +222,8 @@ func (q *Queries) ListRacksByLocation(ctx context.Context, id uuid.UUID) ([]Rack
 			&i.Status,
 			&i.Tags,
 			&i.CreatedAt,
+			&i.SyncVersion,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -235,7 +244,7 @@ UPDATE racks SET
     status            = COALESCE($5, status),
     tags              = COALESCE($6, tags)
 WHERE id = $7
-RETURNING id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at
+RETURNING id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at, sync_version, deleted_at
 `
 
 type UpdateRackParams struct {
@@ -270,6 +279,8 @@ func (q *Queries) UpdateRack(ctx context.Context, arg UpdateRackParams) (Rack, e
 		&i.Status,
 		&i.Tags,
 		&i.CreatedAt,
+		&i.SyncVersion,
+		&i.DeletedAt,
 	)
 	return i, err
 }

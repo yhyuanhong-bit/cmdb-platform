@@ -229,11 +229,11 @@ WHERE tenant_id = $1
 
 type ListWebhooksByEventParams struct {
 	TenantID uuid.UUID `json:"tenant_id"`
-	Event    string    `json:"event"`
+	Column2  string    `json:"column_2"`
 }
 
 func (q *Queries) ListWebhooksByEvent(ctx context.Context, arg ListWebhooksByEventParams) ([]WebhookSubscription, error) {
-	rows, err := q.db.Query(ctx, listWebhooksByEvent, arg.TenantID, arg.Event)
+	rows, err := q.db.Query(ctx, listWebhooksByEvent, arg.TenantID, arg.Column2)
 	if err != nil {
 		return nil, err
 	}

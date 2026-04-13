@@ -72,12 +72,13 @@ WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
 
 -- name: StampWorkOrderApproval :one
 UPDATE work_orders SET
-    approved_at = now(),
-    approved_by = $2,
-    sla_deadline = $3,
-    status = 'approved',
-    updated_at = now()
-WHERE id = $1 AND tenant_id = $4 AND status = 'submitted' AND deleted_at IS NULL
+    approved_at       = now(),
+    approved_by       = $2,
+    sla_deadline      = $3,
+    status            = 'approved',
+    governance_status = 'approved',
+    updated_at        = now()
+WHERE id = $1 AND tenant_id = $4 AND governance_status = 'submitted' AND deleted_at IS NULL
 RETURNING *;
 
 -- name: MarkSLAWarning :exec
@@ -104,3 +105,19 @@ WHERE tenant_id = $1
   AND approved_at IS NOT NULL
   AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now()
   AND deleted_at IS NULL;
+
+-- name: UpdateExecutionStatus :one
+UPDATE work_orders SET
+    execution_status = $2,
+    status           = $3,
+    updated_at       = now()
+WHERE id = $1 AND tenant_id = $4 AND execution_status = $5 AND deleted_at IS NULL
+RETURNING *;
+
+-- name: UpdateGovernanceStatus :one
+UPDATE work_orders SET
+    governance_status = $2,
+    status            = $3,
+    updated_at        = now()
+WHERE id = $1 AND tenant_id = $4 AND governance_status = $5 AND deleted_at IS NULL
+RETURNING *;
