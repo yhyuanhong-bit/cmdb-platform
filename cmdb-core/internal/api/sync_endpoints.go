@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -29,6 +30,7 @@ func (s *APIServer) SyncGetChanges(c *gin.Context) {
 	allowedTables := map[string]bool{
 		"assets": true, "locations": true, "racks": true,
 		"work_orders": true, "alert_events": true, "inventory_tasks": true,
+		"alert_rules": true,
 	}
 	if !allowedTables[entityType] {
 		response.BadRequest(c, "invalid entity_type")
@@ -36,8 +38,15 @@ func (s *APIServer) SyncGetChanges(c *gin.Context) {
 	}
 
 	query := fmt.Sprintf(
-		"SELECT id, sync_version FROM %s WHERE tenant_id = $1 AND sync_version > $2 ORDER BY sync_version LIMIT $3",
+		"SELECT row_to_json(t) AS data, t.sync_version FROM %s t WHERE t.tenant_id = $1 AND t.sync_version > $2 AND t.deleted_at IS NULL ORDER BY t.sync_version LIMIT $3",
 		entityType)
+
+	// alert_rules and alert_events don't have deleted_at
+	if entityType == "alert_rules" || entityType == "alert_events" {
+		query = fmt.Sprintf(
+			"SELECT row_to_json(t) AS data, t.sync_version FROM %s t WHERE t.tenant_id = $1 AND t.sync_version > $2 ORDER BY t.sync_version LIMIT $3",
+			entityType)
+	}
 
 	rows, err := s.pool.Query(c.Request.Context(), query, tenantID, sinceVersion, limit+1)
 	if err != nil {
@@ -46,34 +55,28 @@ func (s *APIServer) SyncGetChanges(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var items []gin.H
+	var items []json.RawMessage
+	var lastVersion int64
+	count := 0
 	for rows.Next() {
-		var id uuid.UUID
+		var data json.RawMessage
 		var version int64
-		if rows.Scan(&id, &version) == nil {
-			items = append(items, gin.H{"entity_id": id, "entity_type": entityType, "version": version})
+		if rows.Scan(&data, &version) == nil {
+			count++
+			if count <= limit {
+				items = append(items, data)
+				lastVersion = version
+			}
 		}
 	}
 	if items == nil {
-		items = []gin.H{}
-	}
-
-	hasMore := len(items) > limit
-	if hasMore {
-		items = items[:limit]
-	}
-
-	var latestVersion int64
-	if len(items) > 0 {
-		if v, ok := items[len(items)-1]["version"].(int64); ok {
-			latestVersion = v
-		}
+		items = []json.RawMessage{}
 	}
 
 	response.OK(c, gin.H{
 		"changes":        items,
-		"has_more":       hasMore,
-		"latest_version": latestVersion,
+		"has_more":       count > limit,
+		"latest_version": lastVersion,
 	})
 }
 
@@ -188,6 +191,7 @@ func (s *APIServer) SyncSnapshot(c *gin.Context) {
 	allowedTables := map[string]bool{
 		"assets": true, "locations": true, "racks": true,
 		"work_orders": true, "alert_events": true, "inventory_tasks": true,
+		"alert_rules": true,
 	}
 	if !allowedTables[entityType] {
 		response.BadRequest(c, "invalid entity_type")
