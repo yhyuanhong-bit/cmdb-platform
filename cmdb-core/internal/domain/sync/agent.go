@@ -9,6 +9,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -136,12 +137,15 @@ func (a *Agent) handleIncomingEnvelope(ctx context.Context, event eventbus.Event
 	}
 
 	if err != nil {
+		telemetry.SyncEnvelopeFailed.WithLabelValues(env.EntityType).Inc()
 		zap.L().Error("sync agent: apply failed",
 			zap.String("entity_type", env.EntityType),
 			zap.String("entity_id", env.EntityID),
 			zap.Error(err))
 		return nil
 	}
+
+	telemetry.SyncEnvelopeApplied.WithLabelValues(env.EntityType).Inc()
 
 	// Update sync_state after successful apply
 	_, _ = a.pool.Exec(ctx,

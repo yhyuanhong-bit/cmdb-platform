@@ -268,6 +268,7 @@ func main() {
 	v1.GET("/sync/conflicts", apiServer.SyncGetConflicts)
 	v1.POST("/sync/conflicts/:id/resolve", apiServer.SyncResolveConflict)
 	v1.GET("/sync/snapshot", apiServer.SyncSnapshot)
+	v1.GET("/sync/stats", apiServer.SyncStats)
 
 	// MCP Server
 	if cfg.MCPEnabled {

@@ -230,6 +230,74 @@ func (s *APIServer) SyncResolveConflict(c *gin.Context) {
 	c.Status(204)
 }
 
+// SyncStats returns per-entity-type max versions and per-node sync gaps.
+// GET /api/v1/sync/stats
+func (s *APIServer) SyncStats(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+	ctx := c.Request.Context()
+
+	syncableTables := []string{"assets", "locations", "racks", "work_orders", "alert_events", "inventory_tasks", "alert_rules", "inventory_items"}
+
+	type nodeGap struct {
+		NodeID          string `json:"node_id"`
+		LastSyncVersion int64  `json:"last_sync_version"`
+		Gap             int64  `json:"gap"`
+	}
+	type entityStats struct {
+		EntityType string    `json:"entity_type"`
+		MaxVersion int64     `json:"max_version"`
+		Nodes      []nodeGap `json:"nodes"`
+	}
+
+	var results []entityStats
+
+	for _, table := range syncableTables {
+		var maxVersion int64
+		var err error
+
+		if table == "audit_events" {
+			err = s.pool.QueryRow(ctx,
+				"SELECT COALESCE(MAX(EXTRACT(EPOCH FROM created_at))::bigint, 0) FROM audit_events WHERE tenant_id = $1",
+				tenantID).Scan(&maxVersion)
+		} else {
+			err = s.pool.QueryRow(ctx,
+				fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s WHERE tenant_id = $1", table),
+				tenantID).Scan(&maxVersion)
+		}
+		if err != nil {
+			continue
+		}
+
+		rows, err := s.pool.Query(ctx,
+			"SELECT node_id, last_sync_version FROM sync_state WHERE tenant_id = $1 AND entity_type = $2",
+			tenantID, table)
+		if err != nil {
+			results = append(results, entityStats{EntityType: table, MaxVersion: maxVersion, Nodes: []nodeGap{}})
+			continue
+		}
+
+		var nodes []nodeGap
+		for rows.Next() {
+			var ng nodeGap
+			if rows.Scan(&ng.NodeID, &ng.LastSyncVersion) == nil {
+				ng.Gap = maxVersion - ng.LastSyncVersion
+				if ng.Gap < 0 {
+					ng.Gap = 0
+				}
+				nodes = append(nodes, ng)
+			}
+		}
+		rows.Close()
+		if nodes == nil {
+			nodes = []nodeGap{}
+		}
+
+		results = append(results, entityStats{EntityType: table, MaxVersion: maxVersion, Nodes: nodes})
+	}
+
+	response.OK(c, results)
+}
+
 // SyncSnapshot streams a full snapshot of an entity type for initial sync.
 // GET /api/v1/sync/snapshot?entity_type=assets
 func (s *APIServer) SyncSnapshot(c *gin.Context) {

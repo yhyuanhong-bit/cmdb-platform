@@ -9,6 +9,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -125,6 +126,7 @@ func (s *Service) StartReconciliation(ctx context.Context) {
 }
 
 func (s *Service) reconcile(ctx context.Context) {
+	telemetry.SyncReconciliationRuns.Inc()
 	// Find stale sync entries (>1 hour behind)
 	rows, err := s.pool.Query(ctx,
 		`SELECT node_id, entity_type, last_sync_version, last_sync_at

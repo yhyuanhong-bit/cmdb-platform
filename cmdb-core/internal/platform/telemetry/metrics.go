@@ -39,6 +39,27 @@ var (
 		Name: "db_query_duration_seconds",
 		Help: "Duration of database queries in seconds.",
 	}, []string{"query"})
+
+	// Sync metrics
+	SyncEnvelopeApplied = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "cmdb_sync_envelope_applied_total",
+		Help: "Successfully applied sync envelopes.",
+	}, []string{"entity_type"})
+
+	SyncEnvelopeSkipped = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "cmdb_sync_envelope_skipped_total",
+		Help: "Skipped sync envelopes (version gate or duplicate).",
+	}, []string{"entity_type"})
+
+	SyncEnvelopeFailed = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "cmdb_sync_envelope_failed_total",
+		Help: "Failed sync envelope applications.",
+	}, []string{"entity_type"})
+
+	SyncReconciliationRuns = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "cmdb_sync_reconciliation_runs_total",
+		Help: "Total reconciliation job executions.",
+	})
 )
 
 // PrometheusMiddleware returns a Gin middleware that records HTTP request
