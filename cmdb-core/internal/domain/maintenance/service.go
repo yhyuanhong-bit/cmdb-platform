@@ -178,10 +178,10 @@ func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.
 		})
 	} else {
 		updated, err = s.queries.UpdateWorkOrderStatus(ctx, dbgen.UpdateWorkOrderStatusParams{
-			ID:         id,
-			Status:     req.Status,
-			TenantID:   tenantID,
-			FromStatus: order.Status, // optimistic lock
+			ID:       id,
+			Status:   req.Status,
+			TenantID: tenantID,
+			Status_2: order.Status, // optimistic lock
 		})
 	}
 	if err != nil {

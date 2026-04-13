@@ -61,3 +61,99 @@ func TestRequiresApproval(t *testing.T) {
 		t.Error("completed should not require approval")
 	}
 }
+
+func TestDeriveStatus(t *testing.T) {
+	tests := []struct {
+		name    string
+		exec    string
+		gov     string
+		want    string
+		wantErr bool
+	}{
+		{"pending+submitted", ExecPending, GovSubmitted, StatusSubmitted, false},
+		{"pending+approved", ExecPending, GovApproved, StatusApproved, false},
+		{"pending+rejected", ExecPending, GovRejected, StatusRejected, false},
+		{"working+submitted", ExecWorking, GovSubmitted, StatusInProgress, false},
+		{"working+approved", ExecWorking, GovApproved, StatusInProgress, false},
+		{"working+rejected", ExecWorking, GovRejected, StatusRejected, false},
+		{"done+submitted", ExecDone, GovSubmitted, StatusCompleted, false},
+		{"done+approved", ExecDone, GovApproved, StatusCompleted, false},
+		{"done+rejected", ExecDone, GovRejected, StatusRejected, false},
+		{"done+verified", ExecDone, GovVerified, StatusVerified, false},
+		{"pending+verified", ExecPending, GovVerified, StatusVerified, false},
+		{"working+verified", ExecWorking, GovVerified, StatusVerified, false},
+		{"working+in_progress(dirty)", ExecWorking, "in_progress", StatusInProgress, false},
+		{"done+completed(dirty)", ExecDone, "completed", StatusCompleted, false},
+		{"invalid exec", "bogus", GovSubmitted, "", true},
+		{"invalid gov", ExecPending, "bogus", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := DeriveStatus(tt.exec, tt.gov)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got status=%q", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("DeriveStatus(%q, %q) = %q, want %q", tt.exec, tt.gov, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateExecTransition(t *testing.T) {
+	tests := []struct {
+		from, to string
+		wantErr  bool
+	}{
+		{ExecPending, ExecWorking, false},
+		{ExecWorking, ExecDone, false},
+		{ExecPending, ExecDone, true},
+		{ExecDone, ExecPending, true},
+		{ExecWorking, ExecPending, true},
+		{"bogus", ExecWorking, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.from+"→"+tt.to, func(t *testing.T) {
+			err := ValidateExecTransition(tt.from, tt.to)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateGovTransition(t *testing.T) {
+	tests := []struct {
+		from, to string
+		wantErr  bool
+	}{
+		{GovSubmitted, GovApproved, false},
+		{GovSubmitted, GovRejected, false},
+		{GovApproved, GovVerified, false},
+		{GovRejected, GovSubmitted, false},
+		{GovSubmitted, GovVerified, true},
+		{GovApproved, GovRejected, true},
+		{GovVerified, GovApproved, true},
+		{"bogus", GovApproved, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.from+"→"+tt.to, func(t *testing.T) {
+			err := ValidateGovTransition(tt.from, tt.to)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
