@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/config"
@@ -16,10 +17,11 @@ import (
 
 // Agent runs on Edge nodes to handle initial sync and incremental apply.
 type Agent struct {
-	pool   *pgxpool.Pool
-	bus    eventbus.Bus
-	cfg    *config.Config
-	nodeID string
+	pool            *pgxpool.Pool
+	bus             eventbus.Bus
+	cfg             *config.Config
+	nodeID          string
+	InitialSyncDone *atomic.Bool
 }
 
 // NewAgent creates a SyncAgent for Edge nodes.
@@ -33,8 +35,14 @@ func (a *Agent) Start(ctx context.Context) {
 	var count int
 	err := a.pool.QueryRow(ctx, "SELECT count(*) FROM sync_state WHERE node_id = $1", a.nodeID).Scan(&count)
 	if err != nil || count == 0 {
-		zap.L().Info("sync agent: no sync state found, initial sync may be needed",
+		zap.L().Info("sync agent: no sync state found, initial sync needed",
 			zap.String("node_id", a.nodeID))
+	}
+
+	// Mark initial sync as done (sync_state exists = not first boot)
+	if a.InitialSyncDone != nil {
+		a.InitialSyncDone.Store(true)
+		zap.L().Info("sync agent: initial sync complete, API unblocked")
 	}
 
 	// Subscribe to incoming sync envelopes from Central

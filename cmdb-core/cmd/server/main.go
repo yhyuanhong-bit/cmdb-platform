@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -140,6 +141,9 @@ func main() {
 
 	// 8b. Sync service
 	var syncSvc *sync.Service
+	var initialSyncDone atomic.Bool
+	initialSyncDone.Store(true) // default: don't block (Central mode)
+
 	if cfg.SyncEnabled && bus != nil {
 		syncSvc = sync.NewService(pool, bus, cfg)
 		syncSvc.RegisterSubscribers()
@@ -147,7 +151,9 @@ func main() {
 		zap.L().Info("Sync service started")
 
 		if cfg.DeployMode == "edge" && cfg.EdgeNodeID != "" {
+			initialSyncDone.Store(false) // Edge: block until sync completes
 			agent := sync.NewAgent(pool, bus, cfg)
+			agent.InitialSyncDone = &initialSyncDone
 			go agent.Start(ctx)
 			zap.L().Info("Sync agent started", zap.String("node_id", cfg.EdgeNodeID))
 		}
@@ -167,6 +173,7 @@ func main() {
 	// Tracing middleware first so spans wrap everything
 	router.Use(telemetry.TracingMiddleware("cmdb-core"))
 	router.Use(middleware.Recovery(), middleware.CORS(), middleware.SecurityHeaders(), middleware.RequestID())
+	router.Use(middleware.SyncGateMiddleware(&initialSyncDone, cfg.DeployMode))
 	router.Use(telemetry.PrometheusMiddleware())
 
 	// Health & readiness probes
