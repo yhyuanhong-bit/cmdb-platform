@@ -42,11 +42,16 @@ func (s *APIServer) SyncGetChanges(c *gin.Context) {
 		"SELECT row_to_json(t) AS data, t.sync_version FROM %s t WHERE t.tenant_id = $1 AND t.sync_version > $2 AND t.deleted_at IS NULL ORDER BY t.sync_version LIMIT $3",
 		entityType)
 
-	// alert_rules, alert_events, and inventory_items don't have deleted_at
-	if entityType == "alert_rules" || entityType == "alert_events" || entityType == "inventory_items" {
+	// alert_rules and alert_events don't have deleted_at
+	if entityType == "alert_rules" || entityType == "alert_events" {
 		query = fmt.Sprintf(
 			"SELECT row_to_json(t) AS data, t.sync_version FROM %s t WHERE t.tenant_id = $1 AND t.sync_version > $2 ORDER BY t.sync_version LIMIT $3",
 			entityType)
+	}
+
+	// inventory_items: no tenant_id, no deleted_at — join via task to scope by tenant
+	if entityType == "inventory_items" {
+		query = "SELECT row_to_json(t) AS data, t.sync_version FROM inventory_items t JOIN inventory_tasks it ON t.task_id = it.id WHERE it.tenant_id = $1 AND t.sync_version > $2 ORDER BY t.sync_version LIMIT $3"
 	}
 
 	// audit_events: no sync_version, use created_at for incremental pull
@@ -255,11 +260,16 @@ func (s *APIServer) SyncStats(c *gin.Context) {
 		var maxVersion int64
 		var err error
 
-		if table == "audit_events" {
+		switch table {
+		case "audit_events":
 			err = s.pool.QueryRow(ctx,
 				"SELECT COALESCE(MAX(EXTRACT(EPOCH FROM created_at))::bigint, 0) FROM audit_events WHERE tenant_id = $1",
 				tenantID).Scan(&maxVersion)
-		} else {
+		case "inventory_items":
+			err = s.pool.QueryRow(ctx,
+				"SELECT COALESCE(MAX(t.sync_version), 0) FROM inventory_items t JOIN inventory_tasks it ON t.task_id = it.id WHERE it.tenant_id = $1",
+				tenantID).Scan(&maxVersion)
+		default:
 			err = s.pool.QueryRow(ctx,
 				fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s WHERE tenant_id = $1", table),
 				tenantID).Scan(&maxVersion)
@@ -314,7 +324,15 @@ func (s *APIServer) SyncSnapshot(c *gin.Context) {
 		return
 	}
 
-	query := fmt.Sprintf("SELECT row_to_json(t) FROM %s t WHERE tenant_id = $1 ORDER BY sync_version", entityType)
+	var query string
+	switch entityType {
+	case "inventory_items":
+		query = "SELECT row_to_json(t) FROM inventory_items t JOIN inventory_tasks it ON t.task_id = it.id WHERE it.tenant_id = $1 ORDER BY t.sync_version"
+	case "audit_events":
+		query = "SELECT row_to_json(t) FROM audit_events t WHERE t.tenant_id = $1 ORDER BY t.created_at"
+	default:
+		query = fmt.Sprintf("SELECT row_to_json(t) FROM %s t WHERE t.tenant_id = $1 ORDER BY t.sync_version", entityType)
+	}
 	rows, err := s.pool.Query(c.Request.Context(), query, tenantID)
 	if err != nil {
 		response.InternalError(c, "failed to query snapshot")
