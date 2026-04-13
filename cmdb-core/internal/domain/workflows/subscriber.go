@@ -17,15 +17,22 @@ import (
 
 // WorkflowSubscriber handles cross-module reactions to domain events.
 type WorkflowSubscriber struct {
-	pool           *pgxpool.Pool
-	queries        *dbgen.Queries
-	bus            eventbus.Bus
-	maintenanceSvc *maintenance.Service
+	pool            *pgxpool.Pool
+	queries         *dbgen.Queries
+	bus             eventbus.Bus
+	maintenanceSvc  *maintenance.Service
+	adapterFailures map[uuid.UUID]int
 }
 
 // New creates a WorkflowSubscriber.
 func New(pool *pgxpool.Pool, queries *dbgen.Queries, bus eventbus.Bus, maintenanceSvc *maintenance.Service) *WorkflowSubscriber {
-	return &WorkflowSubscriber{pool: pool, queries: queries, bus: bus, maintenanceSvc: maintenanceSvc}
+	return &WorkflowSubscriber{
+		pool:            pool,
+		queries:         queries,
+		bus:             bus,
+		maintenanceSvc:  maintenanceSvc,
+		adapterFailures: make(map[uuid.UUID]int),
+	}
 }
 
 // Register subscribes to all relevant event subjects.
@@ -550,9 +557,8 @@ func (w *WorkflowSubscriber) StartMetricsPuller(ctx context.Context) {
 }
 
 func (w *WorkflowSubscriber) pullMetricsFromAdapters(ctx context.Context) {
-	// Find active inbound adapters
 	rows, err := w.pool.Query(ctx,
-		`SELECT id, name, type, endpoint, config FROM integration_adapters
+		`SELECT id, tenant_id, name, type, endpoint, config FROM integration_adapters
 		 WHERE direction = 'inbound' AND enabled = true`)
 	if err != nil {
 		zap.L().Warn("metrics puller: failed to query adapters", zap.Error(err))
@@ -561,23 +567,93 @@ func (w *WorkflowSubscriber) pullMetricsFromAdapters(ctx context.Context) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var id uuid.UUID
+		var id, tenantID uuid.UUID
 		var name, adapterType string
 		var endpoint *string
-		var config []byte
-		if rows.Scan(&id, &name, &adapterType, &endpoint, &config) != nil {
+		var configRaw []byte
+		if rows.Scan(&id, &tenantID, &name, &adapterType, &endpoint, &configRaw) != nil {
+			continue
+		}
+		if endpoint == nil || *endpoint == "" {
 			continue
 		}
 
-		ep := ""
-		if endpoint != nil {
-			ep = *endpoint
+		var cfg struct {
+			Queries             []string `json:"queries"`
+			PullIntervalSeconds int      `json:"pull_interval_seconds"`
+		}
+		json.Unmarshal(configRaw, &cfg)
+
+		if len(cfg.Queries) == 0 {
+			zap.L().Debug("metrics puller: no queries configured", zap.String("adapter", name))
+			continue
 		}
 
-		// Currently only log — actual HTTP pull would be phase 2
-		zap.L().Debug("metrics puller: would pull from adapter",
-			zap.String("name", name),
-			zap.String("type", adapterType),
-			zap.String("endpoint", ep))
+		pullErr := w.pullFromAdapter(ctx, id, tenantID, name, *endpoint, cfg.Queries)
+		if pullErr != nil {
+			w.adapterFailures[id]++
+			zap.L().Warn("metrics puller: pull failed",
+				zap.String("adapter", name),
+				zap.Int("consecutive_failures", w.adapterFailures[id]),
+				zap.Error(pullErr))
+			if w.adapterFailures[id] >= 3 {
+				w.disableAdapter(ctx, id, tenantID, name)
+			}
+		} else {
+			w.adapterFailures[id] = 0
+		}
 	}
+}
+
+func (w *WorkflowSubscriber) pullFromAdapter(ctx context.Context, adapterID, tenantID uuid.UUID, name, endpoint string, queries []string) error {
+	for _, query := range queries {
+		results, err := fetchPromMetrics(ctx, endpoint, query)
+		if err != nil {
+			return fmt.Errorf("query %q: %w", query, err)
+		}
+
+		for _, r := range results {
+			var assetID pgtype.UUID
+			if r.IP != "" {
+				asset, err := w.queries.FindAssetByIP(ctx, dbgen.FindAssetByIPParams{
+					TenantID:  tenantID,
+					IpAddress: pgtype.Text{String: r.IP, Valid: true},
+				})
+				if err == nil {
+					assetID = pgtype.UUID{Bytes: asset.ID, Valid: true}
+				}
+			}
+
+			labelsJSON, _ := json.Marshal(r.Labels)
+			w.pool.Exec(ctx,
+				"INSERT INTO metrics (time, asset_id, tenant_id, name, value, labels) VALUES ($1, $2, $3, $4, $5, $6)",
+				r.Timestamp, assetID, tenantID, r.MetricName, r.Value, labelsJSON)
+		}
+
+		zap.L().Debug("metrics puller: stored metrics",
+			zap.String("adapter", name),
+			zap.String("query", query),
+			zap.Int("count", len(results)))
+	}
+	return nil
+}
+
+func (w *WorkflowSubscriber) disableAdapter(ctx context.Context, adapterID, tenantID uuid.UUID, name string) {
+	_, err := w.pool.Exec(ctx,
+		"UPDATE integration_adapters SET enabled = false WHERE id = $1", adapterID)
+	if err != nil {
+		zap.L().Error("metrics puller: failed to disable adapter", zap.String("adapter", name), zap.Error(err))
+		return
+	}
+	zap.L().Warn("metrics puller: adapter disabled after 3 consecutive failures", zap.String("adapter", name))
+
+	admins := w.opsAdminUserIDs(ctx, tenantID)
+	for _, adminID := range admins {
+		w.createNotification(ctx, tenantID, adminID,
+			"adapter_error",
+			fmt.Sprintf("Adapter '%s' disabled", name),
+			fmt.Sprintf("The inbound adapter '%s' has been automatically disabled after 3 consecutive pull failures.", name),
+			"integration_adapter", adapterID)
+	}
+	delete(w.adapterFailures, adapterID)
 }
