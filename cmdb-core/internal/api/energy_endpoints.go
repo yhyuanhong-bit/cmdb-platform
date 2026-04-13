@@ -111,7 +111,7 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 	`, tenantID).Scan(&peakKW)
 
 	// Carbon footprint estimate: kW * 24h * 30days * emission_factor (tCO2/kWh)
-	carbonMT := totalKW * 24 * 30 * 0.0005 // rough monthly estimate in metric tonnes
+	carbonMT := totalKW * 24 * 30 * s.cfg.CarbonEmissionFactor // monthly estimate in metric tonnes
 
 	response.OK(c, gin.H{
 		"pue":               math.Round(pue*1000) / 1000,

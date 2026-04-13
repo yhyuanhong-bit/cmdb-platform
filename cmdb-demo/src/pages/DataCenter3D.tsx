@@ -20,6 +20,7 @@ interface RackCell {
   row: number;
   col: number;
   id: string;
+  label: string;
   status: "normal" | "critical" | "selected";
 }
 
@@ -34,8 +35,9 @@ function buildRackGrid(racks: Rack[]): RackCell[] {
       for (let c = 0; c < cols; c++) {
         const rowLabel = String.fromCharCode(65 + r);
         const colLabel = String(c + 1).padStart(2, "0");
-        const id = `${rowLabel}${colLabel}`;
-        cells.push({ row: r, col: c, id, status: "normal" });
+        const id = `fallback-${rowLabel}${colLabel}`;
+        const label = `${rowLabel}${colLabel}`;
+        cells.push({ row: r, col: c, id, label, status: "normal" });
       }
     }
     return cells;
@@ -54,7 +56,7 @@ function buildRackGrid(racks: Rack[]): RackCell[] {
       const pct = rack.total_u > 0 ? (rack.used_u / rack.total_u) * 100 : 0;
       let status: RackCell["status"] = "normal";
       if (rack.status === "MAINTENANCE" || pct >= 95) status = "critical";
-      cells.push({ row: rowIdx, col: colIdx, id: rack.name || rack.id.slice(0, 6), status });
+      cells.push({ row: rowIdx, col: colIdx, id: rack.id, label: rack.name || rack.id.slice(0, 6), status });
     });
   });
   return cells;
@@ -397,12 +399,11 @@ export default function DataCenter3D() {
                         onMouseEnter={() => setHoveredRack(rack.id)}
                         onMouseLeave={() => setHoveredRack(null)}
                         onClick={() => {
-                          const apiRack = apiRacks.find((r) => (r.name || r.id.slice(0, 6)) === rack.id);
-                          navigate('/racks/' + (apiRack?.id ?? rack.id));
+                          navigate('/racks/' + rack.id);
                         }}
                       >
                         <span className="text-[11px] font-medium text-white/90 font-label select-none">
-                          {rack.id}
+                          {rack.label}
                         </span>
                       </div>
                     );

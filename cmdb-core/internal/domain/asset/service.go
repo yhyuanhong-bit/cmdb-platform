@@ -8,6 +8,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // ListParams holds the filtering and pagination parameters for listing assets.
@@ -27,11 +28,12 @@ type ListParams struct {
 type Service struct {
 	queries *dbgen.Queries
 	bus     eventbus.Bus
+	pool    *pgxpool.Pool
 }
 
 // NewService creates a new asset Service.
-func NewService(queries *dbgen.Queries, bus eventbus.Bus) *Service {
-	return &Service{queries: queries, bus: bus}
+func NewService(queries *dbgen.Queries, bus eventbus.Bus, pool *pgxpool.Pool) *Service {
+	return &Service{queries: queries, bus: bus, pool: pool}
 }
 
 // List returns a paginated, filtered list of assets and the total count.
@@ -98,6 +100,7 @@ func (s *Service) Create(ctx context.Context, params dbgen.CreateAssetParams) (*
 	if err != nil {
 		return nil, fmt.Errorf("create asset: %w", err)
 	}
+	s.incrementSyncVersion(ctx, "assets", a.ID)
 	return &a, nil
 }
 
@@ -107,6 +110,7 @@ func (s *Service) Update(ctx context.Context, params dbgen.UpdateAssetParams) (*
 	if err != nil {
 		return nil, fmt.Errorf("update asset: %w", err)
 	}
+	s.incrementSyncVersion(ctx, "assets", a.ID)
 	return &a, nil
 }
 
@@ -128,5 +132,13 @@ func (s *Service) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	if err := s.queries.DeleteAsset(ctx, dbgen.DeleteAssetParams{ID: id, TenantID: tenantID}); err != nil {
 		return fmt.Errorf("delete asset: %w", err)
 	}
+	s.incrementSyncVersion(ctx, "assets", id)
 	return nil
+}
+
+func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uuid.UUID) {
+	if s.pool == nil {
+		return
+	}
+	_, _ = s.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", table), id)
 }

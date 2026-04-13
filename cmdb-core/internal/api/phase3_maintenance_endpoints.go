@@ -92,5 +92,8 @@ func (s *APIServer) CreateWorkOrderComment(c *gin.Context) {
 		return
 	}
 
+	s.recordAudit(c, "order_comment.created", "maintenance", "work_order_comment", newID, map[string]any{
+		"order_id": orderID.String(),
+	})
 	c.JSON(http.StatusCreated, gin.H{"id": newID.String()})
 }

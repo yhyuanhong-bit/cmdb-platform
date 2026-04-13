@@ -498,5 +498,10 @@ func (s *APIServer) CreateUpgradeRule(c *gin.Context) {
 		return
 	}
 
+	s.recordAudit(c, "upgrade_rule.created", "prediction", "upgrade_rule", newID, map[string]any{
+		"asset_type": body.AssetType,
+		"category":   body.Category,
+		"priority":   body.Priority,
+	})
 	response.Created(c, gin.H{"id": newID.String()})
 }

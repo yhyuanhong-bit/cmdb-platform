@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../stores/authStore'
 
@@ -10,11 +10,8 @@ export function useWebSocket() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const queryClient = useQueryClient()
   const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const retriesRef = useRef(0)
 
-  const invalidateByEvent = useCallback(
-    (type: string) => {
+  const invalidateByEvent = (type: string) => {
       switch (type) {
         case 'asset.created':
         case 'asset.updated':
@@ -39,73 +36,92 @@ export function useWebSocket() {
           queryClient.invalidateQueries({ queryKey: ['rcaAnalyses'] })
           break
       }
-    },
-    [queryClient]
-  )
+  }
 
-  const connect = useCallback(() => {
+  const invalidateByEventRef = useRef(invalidateByEvent)
+  invalidateByEventRef.current = invalidateByEvent
+
+  useEffect(() => {
     if (!token || !isAuthenticated) return
 
-    // Derive WS URL from API URL
+    // Derive WS URL
+    const wsBase = import.meta.env.VITE_WS_URL
     const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
     let wsUrl: string
-    if (apiUrl.startsWith('http')) {
-      // Absolute URL: replace protocol
+    if (wsBase) {
+      // Explicit WS URL (production)
+      wsUrl = wsBase
+    } else if (apiUrl.startsWith('http')) {
+      // Absolute API URL: replace protocol
       const wsProtocol = apiUrl.startsWith('https') ? 'wss' : 'ws'
       wsUrl = apiUrl.replace(/^https?/, wsProtocol) + '/ws'
     } else {
-      // Relative URL: build from current window location
+      // Relative API URL: use same host:port (goes through Vite proxy in dev)
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
       wsUrl = `${proto}://${window.location.host}${apiUrl}/ws`
     }
 
-    try {
-      const ws = new WebSocket(wsUrl, [`access_token.${token}`])
-      wsRef.current = ws
+    let retries = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
 
-      ws.onopen = () => {
-        retriesRef.current = 0 // reset on successful connection
-      }
+    async function doConnect() {
+      // Use the latest token (may have been refreshed)
+      const currentToken = useAuthStore.getState().accessToken
+      if (!currentToken) return
 
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data)
-          if (msg.type) {
-            invalidateByEvent(msg.type)
+      try {
+        const ws = new WebSocket(wsUrl, [`access_token.${currentToken}`])
+        wsRef.current = ws
+
+        ws.onopen = () => {
+          retries = 0
+        }
+
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data)
+            if (msg.type) {
+              invalidateByEventRef.current(msg.type)
+            }
+          } catch {
+            // ignore malformed messages
           }
-        } catch {
-          // ignore malformed messages
         }
-      }
 
-      ws.onclose = () => {
-        wsRef.current = null
-        // Auto-reconnect with max retries
-        if (useAuthStore.getState().isAuthenticated && retriesRef.current < WS_MAX_RETRIES) {
-          retriesRef.current++
-          reconnectTimerRef.current = setTimeout(connect, WS_RECONNECT_DELAY * retriesRef.current)
+        ws.onclose = async () => {
+          wsRef.current = null
+          if (!useAuthStore.getState().isAuthenticated) return
+
+          // Try refreshing the token before reconnecting
+          if (retries === 0 || retries === WS_MAX_RETRIES) {
+            await useAuthStore.getState().refreshTokens()
+          }
+
+          if (retries < WS_MAX_RETRIES) {
+            retries++
+            timer = setTimeout(doConnect, WS_RECONNECT_DELAY * retries)
+          } else {
+            // All fast retries exhausted — slow poll every 30s (single attempt each time)
+            timer = setTimeout(doConnect, 30_000)
+          }
         }
-      }
 
-      ws.onerror = () => {
-        ws.close()
+        ws.onerror = () => {
+          ws.close()
+        }
+      } catch {
+        // WebSocket constructor can throw in some environments
       }
-    } catch {
-      // WebSocket constructor can throw in some environments
     }
-  }, [token, isAuthenticated, invalidateByEvent])
 
-  useEffect(() => {
-    connect()
+    doConnect()
 
     return () => {
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current)
-      }
+      if (timer) clearTimeout(timer)
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
       }
     }
-  }, [connect])
+  }, [token, isAuthenticated])
 }

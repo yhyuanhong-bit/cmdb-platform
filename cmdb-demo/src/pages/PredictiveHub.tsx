@@ -1,14 +1,15 @@
 import { toast } from 'sonner'
-import { memo, useState, useEffect } from 'react'
+import { memo, useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import StatCard from '../components/StatCard'
 import StatusBadge from '../components/StatusBadge'
 import { usePredictionModels, usePredictionsByAsset, useCreateRCA, useVerifyRCA, useFailureDistribution } from '../hooks/usePrediction'
 import { useAssets } from '../hooks/useAssets'
+import { useAlerts } from '../hooks/useMonitoring'
+import { useWorkOrders } from '../hooks/useMaintenance'
 import CreateRCAModal from '../components/CreateRCAModal'
-import { FALLBACK_ALERTS_DATA, TIMELINE_ASSETS, INSIGHT_RECOMMENDATIONS, REC_ROWS, HEATMAP_REGIONS, TIMELINE_EVENTS, RACK_SLOTS, FORECAST_TASKS, SERVER_DATA, UPS_DATA, MONTHS } from '../data/fallbacks/predictive'
-import type { Alert, TimelineAsset, RecRow, TimelineEvent, MaintenanceTask } from '../data/fallbacks/predictive'
+import { RACK_SLOTS } from '../data/fallbacks/predictive'
 
 /* ──────────────────────────────────────────────
    Shared helpers
@@ -405,10 +406,36 @@ function OverviewTab() {
 
 /* ── Tab 2: Alerts ───────────────────────────── */
 
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant">
+      <span className="material-symbols-outlined text-4xl mb-2">info</span>
+      <p className="text-sm">{message}</p>
+    </div>
+  )
+}
+
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center py-16">
+      <span className="material-symbols-outlined text-4xl text-primary animate-spin">progress_activity</span>
+    </div>
+  )
+}
+
 function AlertsTab() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [activeFilter, setActiveFilter] = useState('ALL ASSETS')
+  const { data: alertsResponse, isLoading: alertsLoading } = useAlerts({ status: 'firing' })
+  const alerts = alertsResponse?.data ?? []
+
+  const urgencyFromSeverity = (severity: string): 'HIGH' | 'MEDIUM' | 'LOW' => {
+    const s = severity.toLowerCase()
+    if (s === 'critical' || s === 'high') return 'HIGH'
+    if (s === 'medium' || s === 'warning') return 'MEDIUM'
+    return 'LOW'
+  }
 
   return (
     <div className="space-y-6">
@@ -447,32 +474,38 @@ function AlertsTab() {
           <span className="text-[0.6875rem] font-semibold tracking-wider text-on-surface-variant uppercase text-right">{t('predictive_alerts.table_actions')}</span>
         </div>
 
-        {FALLBACK_ALERTS_DATA.map((alert, idx) => (
-          <div
-            key={alert.id}
-            className={`grid grid-cols-[1fr_1.5fr_0.7fr_0.8fr_1fr] gap-4 px-6 py-4 items-center ${
-              idx % 2 === 0 ? 'bg-surface-container' : 'bg-surface-container-low'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Icon name="dns" className="text-primary text-[20px]" />
-              <span className="text-sm font-semibold text-on-surface font-headline">{alert.asset}</span>
+        {alertsLoading ? (
+          <LoadingSpinner />
+        ) : alerts.length === 0 ? (
+          <EmptyState message={t('predictive.no_data')} />
+        ) : (
+          alerts.map((alert, idx) => (
+            <div
+              key={alert.id}
+              className={`grid grid-cols-[1fr_1.5fr_0.7fr_0.8fr_1fr] gap-4 px-6 py-4 items-center ${
+                idx % 2 === 0 ? 'bg-surface-container' : 'bg-surface-container-low'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon name="dns" className="text-primary text-[20px]" />
+                <span className="text-sm font-semibold text-on-surface font-headline">{alert.ci_id}</span>
+              </div>
+              <span className="text-sm text-on-surface-variant">{alert.message}</span>
+              <div>
+                <StatusBadge status={urgencyFromSeverity(alert.severity)} />
+              </div>
+              <span className="text-sm text-on-surface-variant font-mono">{new Date(alert.fired_at).toLocaleDateString()}</span>
+              <div className="flex justify-end">
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigate('/maintenance/add'); }}
+                  className="bg-surface-container-high hover:bg-surface-container-highest text-primary text-[0.6875rem] font-semibold tracking-wider uppercase px-4 py-2 rounded-lg transition-colors"
+                >
+                  {t('predictive_alerts.btn_schedule_maintenance')}
+                </button>
+              </div>
             </div>
-            <span className="text-sm text-on-surface-variant">{t(alert.issueKey)}</span>
-            <div>
-              <StatusBadge status={alert.urgency} />
-            </div>
-            <span className="text-sm text-on-surface-variant font-mono">{alert.failureWindow}</span>
-            <div className="flex justify-end">
-              <button
-                onClick={(e) => { e.stopPropagation(); navigate('/maintenance/add'); }}
-                className="bg-surface-container-high hover:bg-surface-container-highest text-primary text-[0.6875rem] font-semibold tracking-wider uppercase px-4 py-2 rounded-lg transition-colors"
-              >
-                {t('predictive_alerts.btn_schedule_maintenance')}
-              </button>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Telemetry stream */}
@@ -502,8 +535,10 @@ function AlertsTab() {
 function InsightsTab() {
   const { t } = useTranslation()
   const days = Array.from({ length: 7 }, (_, i) => `DAY ${String((i * 4) + 1).padStart(2, '0')}`)
-  const { data: failDistData } = useFailureDistribution()
+  const { data: failDistData, isLoading: failDistLoading } = useFailureDistribution()
   const failureDist: { category: string; count: number }[] = (failDistData as any)?.distribution ?? []
+  const { data: alertsResponse } = useAlerts({ status: 'firing' })
+  const alerts = alertsResponse?.data ?? []
 
   const insightsStats = [
     { labelKey: 'predictive_hub.insights_critical_maintenance', value: failureDist.filter((d) => d.category === 'Thermal' || d.category === 'Electrical').reduce((s, d) => s + d.count, 0), statusKey: 'predictive_hub.insights_status_upcoming', color: 'text-error', bgColor: 'bg-error-container' },
@@ -556,27 +591,30 @@ function InsightsTab() {
         </div>
 
         <div className="space-y-3">
-          {TIMELINE_ASSETS.map((asset) => (
-            <div key={asset.id} className="flex items-center gap-4">
-              <div className="w-44 shrink-0">
-                <div className="text-xs font-semibold text-on-surface font-headline">{asset.name}</div>
-                <div className="text-[0.5625rem] text-on-surface-variant tracking-wider uppercase">{t(asset.subtitleKey)}</div>
-              </div>
-              <div className="flex-1 relative h-8 bg-surface-container-low rounded">
-                {asset.bars.map((bar, i) => {
-                  const left = (bar.start / 30) * 100
-                  const width = ((bar.end - bar.start) / 30) * 100
-                  return (
+          {failureDist.length === 0 ? (
+            <EmptyState message={t('predictive.no_data')} />
+          ) : (
+            failureDist.map((d) => {
+              const barType = d.category === 'Thermal' || d.category === 'Electrical' ? 'critical'
+                : d.category === 'Mechanical' ? 'major' : 'minor'
+              const barStart = 2
+              const barEnd = Math.min(28, barStart + Math.max(2, Math.round(d.count * 3)))
+              return (
+                <div key={d.category} className="flex items-center gap-4">
+                  <div className="w-44 shrink-0">
+                    <div className="text-xs font-semibold text-on-surface font-headline">{d.category}</div>
+                    <div className="text-[0.5625rem] text-on-surface-variant tracking-wider uppercase">{d.count} {t('predictive_hub.legend_occurrences', { defaultValue: 'occurrences' })}</div>
+                  </div>
+                  <div className="flex-1 relative h-8 bg-surface-container-low rounded">
                     <div
-                      key={i}
-                      className={`absolute top-1 bottom-1 rounded ${GANTT_BAR_COLORS[bar.type]} opacity-80`}
-                      style={{ left: `${left}%`, width: `${width}%` }}
+                      className={`absolute top-1 bottom-1 rounded ${GANTT_BAR_COLORS[barType]} opacity-80`}
+                      style={{ left: `${(barStart / 30) * 100}%`, width: `${((barEnd - barStart) / 30) * 100}%` }}
                     />
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+                  </div>
+                </div>
+              )
+            })
+          )}
         </div>
 
         <div className="flex ml-48 mt-2">
@@ -595,27 +633,39 @@ function InsightsTab() {
           </h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {INSIGHT_RECOMMENDATIONS.map((rec) => (
-            <div key={rec.titleKey} className="bg-surface-container rounded-xl p-5 flex flex-col gap-3">
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="text-sm font-semibold text-on-surface font-headline">
-                  {t(rec.titleKey)} &mdash; {rec.asset}
-                </h3>
-                <span className={`shrink-0 px-2.5 py-1 rounded text-[0.625rem] font-semibold tracking-wider uppercase ${INSIGHT_PRIORITY_COLORS[rec.priority]}`}>
-                  {rec.priority}
-                </span>
-              </div>
-              <p className="text-on-surface-variant text-xs leading-relaxed">{t(rec.descriptionKey)}</p>
-              <div className="flex gap-2 mt-auto pt-1">
-                <button className="bg-on-primary-container/20 text-on-primary-container text-[0.6875rem] font-semibold tracking-wider uppercase px-4 py-2 rounded-lg hover:bg-on-primary-container/30 transition-colors">
-                  {t('predictive_insights.btn_repair_now')}
-                </button>
-                <button className="bg-surface-container-high text-on-surface-variant text-[0.6875rem] font-semibold tracking-wider uppercase px-4 py-2 rounded-lg hover:bg-surface-container-highest transition-colors">
-                  {t('predictive_insights.btn_detailed_report')}
-                </button>
-              </div>
+          {alerts.length === 0 ? (
+            <div className="col-span-2">
+              <EmptyState message={t('predictive.no_data')} />
             </div>
-          ))}
+          ) : (
+            alerts.slice(0, 4).map((alert) => {
+              const priority = alert.severity.toLowerCase() === 'critical' ? 'CRITICAL'
+                : alert.severity.toLowerCase() === 'high' ? 'HIGH' : 'MEDIUM'
+              return (
+                <div key={alert.id} className="bg-surface-container rounded-xl p-5 flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-on-surface font-headline">
+                      {alert.message} &mdash; {alert.ci_id}
+                    </h3>
+                    <span className={`shrink-0 px-2.5 py-1 rounded text-[0.625rem] font-semibold tracking-wider uppercase ${INSIGHT_PRIORITY_COLORS[priority] ?? INSIGHT_PRIORITY_COLORS.MEDIUM}`}>
+                      {priority}
+                    </span>
+                  </div>
+                  <p className="text-on-surface-variant text-xs leading-relaxed">
+                    {t('predictive_insights.triggered_at', { defaultValue: 'Triggered at' })}: {new Date(alert.fired_at).toLocaleString()}
+                  </p>
+                  <div className="flex gap-2 mt-auto pt-1">
+                    <button className="bg-on-primary-container/20 text-on-primary-container text-[0.6875rem] font-semibold tracking-wider uppercase px-4 py-2 rounded-lg hover:bg-on-primary-container/30 transition-colors">
+                      {t('predictive_insights.btn_repair_now')}
+                    </button>
+                    <button className="bg-surface-container-high text-on-surface-variant text-[0.6875rem] font-semibold tracking-wider uppercase px-4 py-2 rounded-lg hover:bg-surface-container-highest transition-colors">
+                      {t('predictive_insights.btn_detailed_report')}
+                    </button>
+                  </div>
+                </div>
+              )
+            })
+          )}
         </div>
       </div>
     </div>
@@ -626,12 +676,31 @@ function InsightsTab() {
 
 function RecommendationsTab() {
   const { t } = useTranslation()
+  const { data: alertsResponse, isLoading: alertsLoading } = useAlerts({ status: 'firing' })
+  const alerts = alertsResponse?.data ?? []
+
+  const recRows = useMemo(() => alerts.slice(0, 6).map((alert) => {
+    const urgency = alert.severity.toLowerCase() === 'critical' ? 'CRITICAL' as const
+      : alert.severity.toLowerCase() === 'high' ? 'HIGH' as const
+      : alert.severity.toLowerCase() === 'medium' ? 'MEDIUM' as const : 'LOW' as const
+    const confidence = alert.severity.toLowerCase() === 'critical' ? 94
+      : alert.severity.toLowerCase() === 'high' ? 87
+      : alert.severity.toLowerCase() === 'medium' ? 72 : 55
+    return {
+      id: alert.id,
+      asset: alert.ci_id,
+      failureMode: alert.message,
+      urgency,
+      confidence,
+      action: alert.message,
+    }
+  }), [alerts])
 
   return (
     <div className="space-y-6">
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon="warning" label={t('predictive_recommendations.stat_critical_assets_at_risk')} value={14} sub={t('predictive_recommendations.stat_critical_sub')} subColor="text-error" />
+        <StatCard icon="warning" label={t('predictive_recommendations.stat_critical_assets_at_risk')} value={alerts.filter(a => a.severity.toLowerCase() === 'critical').length || 0} sub={t('predictive_recommendations.stat_critical_sub')} subColor="text-error" />
         <StatCard icon="schedule" label={t('predictive_recommendations.stat_downtime_saved')} value="128.5h" sub={t('predictive_recommendations.stat_downtime_sub')} subColor="text-[#34d399]" />
         <StatCard icon="verified" label={t('predictive_recommendations.stat_system_reliability')} value="99.98%" sub={t('predictive_recommendations.stat_reliability_sub')} subColor="text-[#34d399]" />
         <StatCard icon="query_stats" label={t('predictive_recommendations.stat_roi_diagnostics')} value="87%" sub={t('predictive_recommendations.stat_roi_sub')} subColor="text-primary" />
@@ -647,25 +716,31 @@ function RecommendationsTab() {
           <span className="text-[0.6875rem] font-semibold tracking-wider text-on-surface-variant uppercase">{t('predictive_recommendations.table_recommended_action')}</span>
         </div>
 
-        {REC_ROWS.map((row, idx) => (
-          <div
-            key={row.id}
-            className={`grid grid-cols-[1fr_1.5fr_0.7fr_1fr_1.5fr] gap-4 px-6 py-4 items-center ${
-              idx % 2 === 0 ? 'bg-surface-container' : 'bg-surface-container-low'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Icon name="dns" className="text-primary text-[20px]" />
-              <span className="text-sm font-semibold text-on-surface font-headline">{row.asset}</span>
+        {alertsLoading ? (
+          <LoadingSpinner />
+        ) : recRows.length === 0 ? (
+          <EmptyState message={t('predictive.no_data')} />
+        ) : (
+          recRows.map((row, idx) => (
+            <div
+              key={row.id}
+              className={`grid grid-cols-[1fr_1.5fr_0.7fr_1fr_1.5fr] gap-4 px-6 py-4 items-center ${
+                idx % 2 === 0 ? 'bg-surface-container' : 'bg-surface-container-low'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon name="dns" className="text-primary text-[20px]" />
+                <span className="text-sm font-semibold text-on-surface font-headline">{row.asset}</span>
+              </div>
+              <span className="text-sm text-on-surface-variant">{row.failureMode}</span>
+              <div>
+                <StatusBadge status={row.urgency} />
+              </div>
+              <ConfidenceBar value={row.confidence} />
+              <span className="text-xs text-on-surface-variant leading-relaxed">{row.action}</span>
             </div>
-            <span className="text-sm text-on-surface-variant">{t(row.failureModeKey)}</span>
-            <div>
-              <StatusBadge status={row.urgency} />
-            </div>
-            <ConfidenceBar value={row.confidence} />
-            <span className="text-xs text-on-surface-variant leading-relaxed">{t(row.actionKey)}</span>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Bottom panels */}
@@ -679,15 +754,26 @@ function RecommendationsTab() {
             </h2>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            {HEATMAP_REGIONS.map((r) => (
-              <div
-                key={r.name}
-                className={`${RISK_COLOR[r.risk]} rounded-lg p-3 flex flex-col items-center justify-center min-h-[60px]`}
-              >
-                <span className="text-[0.625rem] font-semibold text-on-surface tracking-wider uppercase">{r.name}</span>
-                <span className="text-[0.5625rem] text-on-surface-variant uppercase tracking-wider mt-0.5">{r.risk}</span>
+            {alerts.length === 0 ? (
+              <div className="col-span-3">
+                <EmptyState message={t('predictive.no_data')} />
               </div>
-            ))}
+            ) : (
+              alerts.slice(0, 12).map((alert, idx) => {
+                const risk = alert.severity.toLowerCase() === 'critical' ? 'critical'
+                  : alert.severity.toLowerCase() === 'high' ? 'high'
+                  : alert.severity.toLowerCase() === 'medium' ? 'medium' : 'low'
+                return (
+                  <div
+                    key={alert.id ?? idx}
+                    className={`${RISK_COLOR[risk]} rounded-lg p-3 flex flex-col items-center justify-center min-h-[60px]`}
+                  >
+                    <span className="text-[0.625rem] font-semibold text-on-surface tracking-wider uppercase">{alert.ci_id.slice(0, 10)}</span>
+                    <span className="text-[0.5625rem] text-on-surface-variant uppercase tracking-wider mt-0.5">{risk}</span>
+                  </div>
+                )
+              })
+            )}
           </div>
           <div className="flex gap-4 mt-4">
             {['critical', 'high', 'medium', 'low'].map((level) => (
@@ -763,6 +849,10 @@ function RecommendationsTab() {
 function TimelineTab() {
   const { t } = useTranslation()
   const [filter, setFilter] = useState<'all' | 'critical' | 'scheduled'>('all')
+  const { data: alertsResponse, isLoading: alertsLoading } = useAlerts()
+  const { data: workOrdersResponse, isLoading: woLoading } = useWorkOrders()
+  const alerts = alertsResponse?.data ?? []
+  const workOrders = workOrdersResponse?.data ?? []
 
   const filters = [
     { key: 'all' as const, label: t('predictive_timeline.filter_all_events') },
@@ -770,11 +860,39 @@ function TimelineTab() {
     { key: 'scheduled' as const, label: t('predictive_timeline.filter_scheduled') },
   ]
 
-  const filteredEvents = TIMELINE_EVENTS.filter((e) => {
+  const timelineEvents = useMemo(() => {
+    const fromAlerts = alerts.map((a) => {
+      const severity: 'CRITICAL' | 'POTENTIAL ISSUE' | 'SCHEDULED' =
+        a.severity.toLowerCase() === 'critical' ? 'CRITICAL' : 'POTENTIAL ISSUE'
+      return {
+        time: new Date(a.fired_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        severity,
+        asset: a.ci_id,
+        description: a.message,
+        sortKey: new Date(a.fired_at).getTime(),
+        buttonLabelKey: severity === 'CRITICAL' ? 'predictive_timeline.btn_execute_emergency' : 'predictive_timeline.btn_dispatch_inspection',
+        buttonVariant: (severity === 'CRITICAL' ? 'danger' : 'warning') as 'danger' | 'warning' | 'default',
+      }
+    })
+    const fromWO = workOrders.map((wo) => ({
+      time: new Date(wo.scheduled_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      severity: 'SCHEDULED' as const,
+      asset: wo.title,
+      description: wo.description || wo.title,
+      sortKey: new Date(wo.scheduled_start).getTime(),
+      buttonLabelKey: 'predictive_timeline.btn_confirmed',
+      buttonVariant: 'default' as const,
+    }))
+    return [...fromAlerts, ...fromWO].sort((a, b) => b.sortKey - a.sortKey)
+  }, [alerts, workOrders])
+
+  const filteredEvents = timelineEvents.filter((e) => {
     if (filter === 'critical') return e.severity === 'CRITICAL'
     if (filter === 'scheduled') return e.severity === 'SCHEDULED'
     return true
   })
+
+  const isLoading = alertsLoading || woLoading
 
   return (
     <div className="space-y-6">
@@ -813,62 +931,42 @@ function TimelineTab() {
       </div>
 
       {/* Vertical timeline */}
-      <div className="relative">
-        <div className="absolute left-[72px] top-0 bottom-0 w-px bg-surface-container-highest" />
-        <div className="space-y-6">
-          {filteredEvents.map((event, idx) => {
-            const config = SEVERITY_CONFIG[event.severity]
-            return (
-              <div key={idx} className="flex gap-4">
-                <div className="w-16 shrink-0 pt-5">
-                  <span className="text-xs font-mono text-on-surface-variant">{event.time}</span>
-                </div>
-                <div className="relative shrink-0 flex flex-col items-center pt-5">
-                  <div className={`w-3.5 h-3.5 rounded-full ${config.dot} z-10`} />
-                </div>
-                <div className="flex-1 bg-surface-container rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`${config.bg} ${config.label} text-[0.625rem] font-semibold tracking-wider uppercase px-2 py-0.5 rounded`}>
-                      {event.severity}
-                    </span>
-                    <span className="text-sm font-semibold text-on-surface font-headline">{event.asset}</span>
+      {isLoading ? (
+        <LoadingSpinner />
+      ) : filteredEvents.length === 0 ? (
+        <EmptyState message={t('predictive.no_data')} />
+      ) : (
+        <div className="relative">
+          <div className="absolute left-[72px] top-0 bottom-0 w-px bg-surface-container-highest" />
+          <div className="space-y-6">
+            {filteredEvents.map((event, idx) => {
+              const config = SEVERITY_CONFIG[event.severity]
+              return (
+                <div key={idx} className="flex gap-4">
+                  <div className="w-16 shrink-0 pt-5">
+                    <span className="text-xs font-mono text-on-surface-variant">{event.time}</span>
                   </div>
-                  <p className="text-on-surface-variant text-sm leading-relaxed mb-3">{t(event.descriptionKey)}</p>
-                  <div className="flex flex-wrap gap-4 mb-4">
-                    {event.impactKey && (
-                      <div className="flex items-center gap-1.5">
-                        <Icon name="timer" className="text-error text-[16px]" />
-                        <span className="text-xs text-on-surface-variant">{t(event.impactKey)}</span>
-                      </div>
-                    )}
-                    {event.recoveryCost && (
-                      <div className="flex items-center gap-1.5">
-                        <Icon name="payments" className="text-tertiary text-[16px]" />
-                        <span className="text-xs text-on-surface-variant">{t('predictive_timeline.label_recovery_cost')}: {event.recoveryCost}</span>
-                      </div>
-                    )}
-                    {event.moduleCost && (
-                      <div className="flex items-center gap-1.5">
-                        <Icon name="payments" className="text-tertiary text-[16px]" />
-                        <span className="text-xs text-on-surface-variant">{t('predictive_timeline.label_module_cost')}: {event.moduleCost}</span>
-                      </div>
-                    )}
-                    {event.estCost && (
-                      <div className="flex items-center gap-1.5">
-                        <Icon name="payments" className="text-primary text-[16px]" />
-                        <span className="text-xs text-on-surface-variant">{t('predictive_timeline.label_est_cost')}: {event.estCost}</span>
-                      </div>
-                    )}
+                  <div className="relative shrink-0 flex flex-col items-center pt-5">
+                    <div className={`w-3.5 h-3.5 rounded-full ${config.dot} z-10`} />
                   </div>
-                  <button className={`${BUTTON_STYLES[event.button.variant]} text-[0.6875rem] font-semibold tracking-wider uppercase px-4 py-2 rounded-lg transition-colors`}>
-                    {t(event.button.labelKey)}
-                  </button>
+                  <div className="flex-1 bg-surface-container rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`${config.bg} ${config.label} text-[0.625rem] font-semibold tracking-wider uppercase px-2 py-0.5 rounded`}>
+                        {event.severity}
+                      </span>
+                      <span className="text-sm font-semibold text-on-surface font-headline">{event.asset}</span>
+                    </div>
+                    <p className="text-on-surface-variant text-sm leading-relaxed mb-3">{event.description}</p>
+                    <button className={`${BUTTON_STYLES[event.buttonVariant]} text-[0.6875rem] font-semibold tracking-wider uppercase px-4 py-2 rounded-lg transition-colors`}>
+                      {t(event.buttonLabelKey)}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Bottom panels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -948,6 +1046,21 @@ function TimelineTab() {
 function ForecastTab() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { data: alertsResponse, isLoading: alertsLoading } = useAlerts({ status: 'firing' })
+  const alerts = alertsResponse?.data ?? []
+
+  const forecastTasks = useMemo(() => alerts.slice(0, 5).map((alert) => {
+    const urgency = alert.severity.toLowerCase() === 'critical' ? 'CRITICAL' as const
+      : alert.severity.toLowerCase() === 'high' ? 'HIGH' as const : 'MEDIUM' as const
+    const probability = alert.severity.toLowerCase() === 'critical' ? 91
+      : alert.severity.toLowerCase() === 'high' ? 64 : 32
+    return {
+      asset: alert.ci_id,
+      failure: alert.message,
+      probability,
+      urgency,
+    }
+  }), [alerts])
 
   return (
     <div className="space-y-6">
@@ -1018,61 +1131,40 @@ function ForecastTab() {
           </div>
         </div>
 
-        <div className="w-full overflow-x-auto">
-          <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="w-full min-w-[500px]" preserveAspectRatio="xMidYMid meet">
-            {[0, 25, 50, 75, 100].map((val) => {
-              const y = CHART_PADDING.top + INNER_H - (val / 100) * INNER_H
-              return (
-                <g key={val}>
-                  <line x1={CHART_PADDING.left} y1={y} x2={CHART_PADDING.left + INNER_W} y2={y} stroke="#2b363d" strokeWidth="1" />
-                  <text x={CHART_PADDING.left - 8} y={y + 4} fill="#c4c6cc" fontSize="9" textAnchor="end" fontFamily="Inter">{val}%</text>
-                </g>
-              )
-            })}
-            {MONTHS.map((m, i) => {
-              const x = CHART_PADDING.left + (i / (MONTHS.length - 1)) * INNER_W
-              return <text key={m} x={x} y={CHART_HEIGHT - 5} fill="#c4c6cc" fontSize="8" textAnchor="middle" fontFamily="Inter">{m}</text>
-            })}
-            <path d={toAreaPath(SERVER_DATA)} fill="url(#serverGrad)" opacity="0.15" />
-            <path d={toAreaPath(UPS_DATA)} fill="url(#upsGrad)" opacity="0.1" />
-            <path d={toPath(SERVER_DATA)} fill="none" stroke="#ffb4ab" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d={toPath(UPS_DATA)} fill="none" stroke="#9ecaff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            {SERVER_DATA.map((val, i) => {
-              const x = CHART_PADDING.left + (i / (SERVER_DATA.length - 1)) * INNER_W
-              const y = CHART_PADDING.top + INNER_H - (val / 100) * INNER_H
-              return <circle key={`s-${i}`} cx={x} cy={y} r="3" fill="#ffb4ab" />
-            })}
-            {UPS_DATA.map((val, i) => {
-              const x = CHART_PADDING.left + (i / (UPS_DATA.length - 1)) * INNER_W
-              const y = CHART_PADDING.top + INNER_H - (val / 100) * INNER_H
-              return <circle key={`u-${i}`} cx={x} cy={y} r="3" fill="#9ecaff" />
-            })}
-            {(() => {
-              const peakIdx = SERVER_DATA.length - 1
-              const x = CHART_PADDING.left + (peakIdx / (SERVER_DATA.length - 1)) * INNER_W
-              const y = CHART_PADDING.top + INNER_H - (SERVER_DATA[peakIdx] / 100) * INNER_H
-              return (
-                <g>
-                  <line x1={x} y1={y - 8} x2={x} y2={y - 28} stroke="#ffb4ab" strokeWidth="1" strokeDasharray="3,2" />
-                  <rect x={x - 70} y={y - 50} width="140" height="20" rx="4" fill="#93000a" />
-                  <text x={x} y={y - 36} fill="#ffb4ab" fontSize="8" textAnchor="middle" fontFamily="Inter" fontWeight="600">
-                    {t('predictive_hub.chart_peak_failure')}
-                  </text>
-                </g>
-              )
-            })()}
-            <defs>
-              <linearGradient id="serverGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#ffb4ab" />
-                <stop offset="100%" stopColor="#ffb4ab" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id="upsGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#9ecaff" />
-                <stop offset="100%" stopColor="#9ecaff" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </div>
+        {alerts.length === 0 ? (
+          <EmptyState message={t('predictive.no_data', { defaultValue: 'Insufficient data for forecast' })} />
+        ) : (
+          <div className="w-full overflow-x-auto">
+            <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="w-full min-w-[500px]" preserveAspectRatio="xMidYMid meet">
+              {[0, 25, 50, 75, 100].map((val) => {
+                const y = CHART_PADDING.top + INNER_H - (val / 100) * INNER_H
+                return (
+                  <g key={val}>
+                    <line x1={CHART_PADDING.left} y1={y} x2={CHART_PADDING.left + INNER_W} y2={y} stroke="#2b363d" strokeWidth="1" />
+                    <text x={CHART_PADDING.left - 8} y={y + 4} fill="#c4c6cc" fontSize="9" textAnchor="end" fontFamily="Inter">{val}%</text>
+                  </g>
+                )
+              })}
+              {['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'].map((m, i) => {
+                const x = CHART_PADDING.left + (i / 11) * INNER_W
+                return <text key={m} x={x} y={CHART_HEIGHT - 5} fill="#c4c6cc" fontSize="8" textAnchor="middle" fontFamily="Inter">{m}</text>
+              })}
+              <text x={CHART_WIDTH / 2} y={CHART_HEIGHT / 2} fill="#c4c6cc" fontSize="12" textAnchor="middle" fontFamily="Inter">
+                {t('predictive.no_data', { defaultValue: 'Collecting metrics data...' })}
+              </text>
+              <defs>
+                <linearGradient id="serverGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ffb4ab" />
+                  <stop offset="100%" stopColor="#ffb4ab" stopOpacity="0" />
+                </linearGradient>
+                <linearGradient id="upsGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#9ecaff" />
+                  <stop offset="100%" stopColor="#9ecaff" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+        )}
       </div>
 
       {/* Proactive Maintenance Tasks table */}
@@ -1094,40 +1186,46 @@ function ForecastTab() {
           <span className="text-[0.6875rem] font-semibold tracking-wider text-on-surface-variant uppercase text-right">{t('failure_forecast.table_action')}</span>
         </div>
 
-        {FORECAST_TASKS.map((task, idx) => {
-          const probColor = task.probability >= 80 ? 'bg-error' : task.probability >= 50 ? 'bg-tertiary' : 'bg-[#fbbf24]'
-          return (
-            <div
-              key={task.asset}
-              className={`grid grid-cols-[1.2fr_1.5fr_0.8fr_0.7fr_0.7fr] gap-4 px-6 py-4 items-center ${
-                idx % 2 === 0 ? 'bg-surface-container' : 'bg-surface-container-low'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Icon name="dns" className="text-primary text-[20px]" />
-                <span className="text-sm font-semibold text-on-surface font-headline">{task.asset}</span>
-              </div>
-              <span className="text-sm text-on-surface-variant">{t(task.failureKey)}</span>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-surface-container-low rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${probColor}`} style={{ width: `${task.probability}%` }} />
+        {alertsLoading ? (
+          <LoadingSpinner />
+        ) : forecastTasks.length === 0 ? (
+          <EmptyState message={t('predictive.no_data')} />
+        ) : (
+          forecastTasks.map((task, idx) => {
+            const probColor = task.probability >= 80 ? 'bg-error' : task.probability >= 50 ? 'bg-tertiary' : 'bg-[#fbbf24]'
+            return (
+              <div
+                key={task.asset + idx}
+                className={`grid grid-cols-[1.2fr_1.5fr_0.8fr_0.7fr_0.7fr] gap-4 px-6 py-4 items-center ${
+                  idx % 2 === 0 ? 'bg-surface-container' : 'bg-surface-container-low'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon name="dns" className="text-primary text-[20px]" />
+                  <span className="text-sm font-semibold text-on-surface font-headline">{task.asset}</span>
                 </div>
-                <span className="text-xs font-mono text-on-surface-variant w-10 text-right">{task.probability}%</span>
+                <span className="text-sm text-on-surface-variant">{task.failure}</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-surface-container-low rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${probColor}`} style={{ width: `${task.probability}%` }} />
+                  </div>
+                  <span className="text-xs font-mono text-on-surface-variant w-10 text-right">{task.probability}%</span>
+                </div>
+                <div>
+                  <StatusBadge status={task.urgency} />
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate('/maintenance/add'); }}
+                    className="bg-on-primary-container/20 text-on-primary-container text-[0.6875rem] font-semibold tracking-wider uppercase px-3 py-2 rounded-lg hover:bg-on-primary-container/30 transition-colors whitespace-nowrap"
+                  >
+                    {t('failure_forecast.btn_initiate_task')}
+                  </button>
+                </div>
               </div>
-              <div>
-                <StatusBadge status={task.urgency} />
-              </div>
-              <div className="flex justify-end">
-                <button
-                  onClick={(e) => { e.stopPropagation(); navigate('/maintenance/add'); }}
-                  className="bg-on-primary-container/20 text-on-primary-container text-[0.6875rem] font-semibold tracking-wider uppercase px-3 py-2 rounded-lg hover:bg-on-primary-container/30 transition-colors whitespace-nowrap"
-                >
-                  {t('failure_forecast.btn_initiate_task')}
-                </button>
-              </div>
-            </div>
-          )
-        })}
+            )
+          })
+        )}
       </div>
 
       {/* System health footer */}

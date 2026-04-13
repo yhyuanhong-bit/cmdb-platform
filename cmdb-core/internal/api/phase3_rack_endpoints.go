@@ -122,6 +122,11 @@ func (s *APIServer) CreateRackNetworkConnection(c *gin.Context) {
 		return
 	}
 
+	connID, _ := uuid.Parse(newID)
+	s.recordAudit(c, "network_connection.created", "topology", "rack_network_connection", connID, map[string]any{
+		"rack_id":     rackID,
+		"source_port": body.SourcePort,
+	})
 	response.Created(c, gin.H{"id": newID})
 }
 
@@ -146,5 +151,7 @@ func (s *APIServer) DeleteRackNetworkConnection(c *gin.Context) {
 		return
 	}
 
+	connID, _ := uuid.Parse(connectionID)
+	s.recordAudit(c, "network_connection.deleted", "topology", "rack_network_connection", connID, nil)
 	c.Status(http.StatusNoContent)
 }

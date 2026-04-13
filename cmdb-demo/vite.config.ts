@@ -10,7 +10,7 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api/v1/ingestion': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8081',
         changeOrigin: true,
         rewrite: (path: string) => path.replace('/api/v1/ingestion', ''),
       },

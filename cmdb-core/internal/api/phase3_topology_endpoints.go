@@ -99,6 +99,12 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 		return
 	}
 
+	depID, _ := uuid.Parse(newID)
+	s.recordAudit(c, "dependency.created", "topology", "asset_dependency", depID, map[string]any{
+		"source_asset_id": body.SourceAssetID,
+		"target_asset_id": body.TargetAssetID,
+		"dependency_type": body.DependencyType,
+	})
 	c.JSON(http.StatusCreated, gin.H{"id": newID})
 }
 
@@ -123,6 +129,8 @@ func (s *APIServer) DeleteAssetDependency(c *gin.Context) {
 		return
 	}
 
+	depID, _ := uuid.Parse(id)
+	s.recordAudit(c, "dependency.deleted", "topology", "asset_dependency", depID, nil)
 	c.Status(http.StatusNoContent)
 }
 

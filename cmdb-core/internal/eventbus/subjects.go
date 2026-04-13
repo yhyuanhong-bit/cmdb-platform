@@ -33,4 +33,7 @@ const (
 	SubjectAuditRecorded = "audit.recorded"
 
 	SubjectNotificationCreated = "notification.created"
+
+	// Sync subjects
+	SubjectSyncEnvelope = "sync.envelope"
 )

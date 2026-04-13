@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -52,9 +53,10 @@ func (s *MCPServer) registerTools() {
 
 	s.srv.AddTool(
 		mcp.NewTool("query_metrics",
-			mcp.WithDescription("Query time-series metrics for an asset (placeholder)"),
-			mcp.WithString("asset_id", mcp.Description("Asset UUID")),
-			mcp.WithString("metric_name", mcp.Description("Metric name (e.g. cpu_usage, memory_usage)")),
+			mcp.WithDescription("Query time-series metrics for an asset"),
+			mcp.WithString("asset_id", mcp.Required(), mcp.Description("Asset UUID")),
+			mcp.WithString("metric_name", mcp.Required(), mcp.Description("Metric name (e.g. cpu_usage, memory_usage)")),
+			mcp.WithString("time_range", mcp.Description("Time range to query (e.g. 1h, 6h, 24h, 7d). Default: 24h")),
 		),
 		s.handleQueryMetrics,
 	)
@@ -215,8 +217,86 @@ func (s *MCPServer) handleGetTopology(ctx context.Context, req mcp.CallToolReque
 	return jsonResult(roots)
 }
 
-func (s *MCPServer) handleQueryMetrics(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return mcp.NewToolResultText(`{"status":"no_data","message":"Metrics query is not yet implemented. Time-series storage integration pending."}`), nil
+// parseDuration parses a human-friendly duration string like "1h", "6h",
+// "24h", "7d" into a time.Duration. Falls back to 24h on invalid input.
+func parseDuration(s string) time.Duration {
+	if s == "" {
+		return 24 * time.Hour
+	}
+	// Handle day shorthand (e.g. "7d" -> "168h").
+	if len(s) > 1 && s[len(s)-1] == 'd' {
+		days := s[:len(s)-1]
+		var n int
+		if _, err := fmt.Sscanf(days, "%d", &n); err == nil && n > 0 {
+			return time.Duration(n) * 24 * time.Hour
+		}
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d <= 0 {
+		return 24 * time.Hour
+	}
+	return d
+}
+
+func (s *MCPServer) handleQueryMetrics(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := req.GetArguments()
+
+	// Parse required asset_id.
+	assetIDStr, _ := args["asset_id"].(string)
+	if assetIDStr == "" {
+		return mcp.NewToolResultText(`{"error":"asset_id is required"}`), nil
+	}
+	assetUUID, err := uuid.Parse(assetIDStr)
+	if err != nil {
+		return mcp.NewToolResultText(fmt.Sprintf(`{"error":"invalid asset_id UUID: %s"}`, err)), nil
+	}
+
+	// Parse required metric_name.
+	metricName, _ := args["metric_name"].(string)
+	if metricName == "" {
+		return mcp.NewToolResultText(`{"error":"metric_name is required"}`), nil
+	}
+
+	// Parse optional time_range (default 24h).
+	timeRange, _ := args["time_range"].(string)
+	dur := parseDuration(timeRange)
+	since := time.Now().UTC().Add(-dur)
+
+	rows, err := s.queries.QueryMetricsByAsset(ctx, dbgen.QueryMetricsByAssetParams{
+		AssetID: pgtype.UUID{Bytes: assetUUID, Valid: true},
+		Name:    metricName,
+		Time:    since,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query metrics: %w", err)
+	}
+
+	// Build a clean response with explicit value handling.
+	type metricPoint struct {
+		Time  time.Time `json:"time"`
+		Name  string    `json:"name"`
+		Value *float64  `json:"value"`
+	}
+	points := make([]metricPoint, 0, len(rows))
+	for _, r := range rows {
+		p := metricPoint{Time: r.Time, Name: r.Name}
+		if r.Value.Valid {
+			v := r.Value.Float64
+			p.Value = &v
+		}
+		points = append(points, p)
+	}
+
+	result := struct {
+		Status string        `json:"status"`
+		Data   []metricPoint `json:"data"`
+		Count  int           `json:"count"`
+	}{
+		Status: "ok",
+		Data:   points,
+		Count:  len(points),
+	}
+	return jsonResult(result)
 }
 
 func (s *MCPServer) handleQueryWorkOrders(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

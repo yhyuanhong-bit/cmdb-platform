@@ -94,6 +94,11 @@ func (s *APIServer) CreateItemScanRecord(c *gin.Context) {
 		return
 	}
 
+	s.recordAudit(c, "scan_record.created", "inventory", "inventory_scan_history", newID, map[string]any{
+		"item_id": itemID.String(),
+		"method":  body.Method,
+		"result":  body.Result,
+	})
 	c.JSON(http.StatusCreated, gin.H{"id": newID.String()})
 }
 
@@ -183,5 +188,9 @@ func (s *APIServer) CreateItemNote(c *gin.Context) {
 		return
 	}
 
+	s.recordAudit(c, "item_note.created", "inventory", "inventory_note", newID, map[string]any{
+		"item_id":  itemID.String(),
+		"severity": body.Severity,
+	})
 	c.JSON(http.StatusCreated, gin.H{"id": newID.String()})
 }

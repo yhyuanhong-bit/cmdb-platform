@@ -102,6 +102,39 @@ func (s *Service) ScanAllAssets(ctx context.Context, tenantID uuid.UUID) (int, e
 	return scanned, nil
 }
 
+// ValidateForCreation evaluates whether an asset meets minimum quality standards
+// before creation. Returns the score and any issues found.
+// A nil error means the asset passes the quality gate.
+func (s *Service) ValidateForCreation(ctx context.Context, tenantID uuid.UUID, assetType, name, status string, rackID *uuid.UUID, vendor, model, serialNumber string) (*ScanResult, error) {
+	rules, err := s.queries.ListQualityRules(ctx, tenantID)
+	if err != nil || len(rules) == 0 {
+		return nil, nil // No rules = no gate
+	}
+
+	// Build a temporary asset for evaluation.
+	tmpAsset := dbgen.Asset{
+		TenantID:     tenantID,
+		Type:         assetType,
+		Name:         name,
+		Status:       status,
+		Vendor:       pgtype.Text{String: vendor, Valid: vendor != ""},
+		Model:        pgtype.Text{String: model, Valid: model != ""},
+		SerialNumber: pgtype.Text{String: serialNumber, Valid: serialNumber != ""},
+		UpdatedAt:    time.Now(), // New asset won't have timeliness penalty.
+	}
+	if rackID != nil {
+		tmpAsset.RackID = pgtype.UUID{Bytes: *rackID, Valid: true}
+	}
+
+	result := evaluateAsset(tmpAsset, rules)
+
+	if result.Total < 40 {
+		return &result, fmt.Errorf("asset quality score %.0f is below minimum threshold (40). Issues: %v", result.Total, result.Issues)
+	}
+
+	return &result, nil
+}
+
 func evaluateAsset(asset dbgen.Asset, rules []dbgen.QualityRule) ScanResult {
 	scores := map[string]float64{
 		"completeness": 100, "accuracy": 100, "timeliness": 100, "consistency": 100,

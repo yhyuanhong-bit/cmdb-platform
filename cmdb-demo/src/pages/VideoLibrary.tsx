@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
    Mock data
    ────────────────────────────────────────────── */
 
-type Category = "Surveillance" | "Training" | "Security" | "Audit" | "Testing";
+type Category = "Training" | "Monitoring" | "Maintenance" | "Compliance" | "Infrastructure";
 
 interface Video {
   id: number;
@@ -21,67 +21,67 @@ const VIDEOS: Video[] = [
   {
     id: 1,
     titleKey: "video_library.video_title_1",
-    duration: "02:34",
-    date: "2025-10-24",
-    category: "Surveillance",
-    icon: "videocam",
+    duration: "5:30",
+    date: "2026-01-10",
+    category: "Training",
+    icon: "school",
   },
   {
     id: 2,
     titleKey: "video_library.video_title_2",
-    duration: "15:42",
-    date: "2025-11-02",
+    duration: "8:15",
+    date: "2026-01-24",
     category: "Training",
-    icon: "school",
+    icon: "upload_file",
   },
   {
     id: 3,
     titleKey: "video_library.video_title_3",
-    duration: "01:15",
-    date: "2025-12-08",
-    category: "Security",
-    icon: "shield",
+    duration: "6:45",
+    date: "2026-02-05",
+    category: "Monitoring",
+    icon: "notifications_active",
   },
   {
     id: 4,
     titleKey: "video_library.video_title_4",
-    duration: "08:20",
-    date: "2026-01-15",
-    category: "Training",
-    icon: "school",
+    duration: "7:20",
+    date: "2026-02-18",
+    category: "Maintenance",
+    icon: "build",
   },
   {
     id: 5,
     titleKey: "video_library.video_title_5",
-    duration: "03:45",
-    date: "2026-02-20",
-    category: "Audit",
+    duration: "9:10",
+    date: "2026-03-03",
+    category: "Compliance",
     icon: "fact_check",
   },
   {
     id: 6,
     titleKey: "video_library.video_title_6",
-    duration: "05:12",
-    date: "2026-03-10",
-    category: "Testing",
-    icon: "science",
+    duration: "4:55",
+    date: "2026-03-15",
+    category: "Infrastructure",
+    icon: "view_in_ar",
   },
 ];
 
 const CATEGORIES: Category[] = [
-  "Surveillance",
   "Training",
-  "Security",
-  "Audit",
-  "Testing",
+  "Monitoring",
+  "Maintenance",
+  "Compliance",
+  "Infrastructure",
 ];
 
 const CATEGORY_COLORS: Record<Category, string> = {
-  Surveillance: "bg-[#1e3a5f] text-primary",
   Training: "bg-[#064e3b] text-[#34d399]",
-  Security: "bg-[#7f1d1d] text-[#ff6b6b]",
-  Audit: "bg-[#92400e] text-[#fbbf24]",
-  Testing: "bg-[#3b0764] text-[#c084fc]",
+  Monitoring: "bg-[#92400e] text-[#fbbf24]",
+  Maintenance: "bg-[#1e3a5f] text-primary",
+  Compliance: "bg-[#7f1d1d] text-[#ff6b6b]",
+  Infrastructure: "bg-[#3b0764] text-[#c084fc]",
 };
 
 const THUMBNAIL_GRADIENTS = [
@@ -108,11 +108,11 @@ function Icon({ name, className = "" }: { name: string; className?: string }) {
    ────────────────────────────────────────────── */
 
 const CATEGORY_I18N: Record<Category, string> = {
-  Surveillance: "video_library.category_surveillance",
   Training: "video_library.category_training",
-  Security: "video_library.category_security",
-  Audit: "video_library.category_audit",
-  Testing: "video_library.category_testing",
+  Monitoring: "video_library.category_monitoring",
+  Maintenance: "video_library.category_maintenance",
+  Compliance: "video_library.category_compliance",
+  Infrastructure: "video_library.category_infrastructure",
 };
 
 function VideoCardGrid({ video, index }: { video: Video; index: number }) {

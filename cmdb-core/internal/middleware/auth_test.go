@@ -1,6 +1,10 @@
 package middleware
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -83,5 +87,59 @@ func TestValidateJWT_ExpiredToken(t *testing.T) {
 	}
 	if parsed.ExpiresAt >= time.Now().Unix() {
 		t.Error("expected ExpiresAt to be in the past")
+	}
+}
+
+func TestValidateJWT_Valid(t *testing.T) {
+	secret := "test-secret-key-for-jwt-validation"
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"user_id":"b0000000-0000-0000-0000-000000000001","username":"admin","tenant_id":"a0000000-0000-0000-0000-000000000001","exp":` + fmt.Sprintf("%d", time.Now().Add(1*time.Hour).Unix()) + `}`))
+	signingInput := header + "." + payload
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(signingInput))
+	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	token := signingInput + "." + sig
+
+	claims, err := validateJWT(token, secret)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if claims.Username != "admin" {
+		t.Errorf("expected username 'admin', got %q", claims.Username)
+	}
+	if claims.TenantID != "a0000000-0000-0000-0000-000000000001" {
+		t.Errorf("expected tenant_id match, got %q", claims.TenantID)
+	}
+}
+
+func TestValidateJWT_InvalidSignature(t *testing.T) {
+	secret := "test-secret"
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"user_id":"x","username":"admin","tenant_id":"y"}`))
+	token := header + "." + payload + ".invalidsignature"
+
+	_, err := validateJWT(token, secret)
+	if err == nil {
+		t.Error("expected error for invalid signature")
+	}
+}
+
+func TestValidateJWT_MalformedTokenTable(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{"empty", ""},
+		{"no dots", "nodots"},
+		{"one dot", "one.dot"},
+		{"four dots", "a.b.c.d"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := validateJWT(tt.token, "secret")
+			if err == nil {
+				t.Errorf("expected error for malformed token %q", tt.token)
+			}
+		})
 	}
 }

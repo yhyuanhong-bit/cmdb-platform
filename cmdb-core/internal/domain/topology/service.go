@@ -2,20 +2,23 @@ package topology
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Service provides topology operations on locations and racks.
 type Service struct {
 	queries *dbgen.Queries
+	pool    *pgxpool.Pool
 }
 
 // NewService creates a new topology service.
-func NewService(queries *dbgen.Queries) *Service {
-	return &Service{queries: queries}
+func NewService(queries *dbgen.Queries, pool *pgxpool.Pool) *Service {
+	return &Service{queries: queries, pool: pool}
 }
 
 // ListRootLocations returns top-level locations for a tenant.
@@ -76,11 +79,28 @@ func (s *Service) GetLocationStats(ctx context.Context, tenantID, locationID uui
 		return LocationStats{}, err
 	}
 
+	// Compute average rack occupancy: used U positions / total U capacity.
+	var avgOccupancy float64
+	err = s.pool.QueryRow(ctx, `
+		SELECT COALESCE(AVG(
+			CASE WHEN r.total_u > 0
+			THEN (SELECT COUNT(*) FROM rack_slots rs WHERE rs.rack_id = r.id)::float / r.total_u * 100
+			ELSE 0 END
+		), 0)
+		FROM racks r
+		JOIN locations l ON r.location_id = l.id
+		WHERE r.tenant_id = $1
+		  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
+	`, loc.TenantID, locationID).Scan(&avgOccupancy)
+	if err != nil {
+		return LocationStats{}, fmt.Errorf("computing rack occupancy: %w", err)
+	}
+
 	return LocationStats{
 		TotalAssets:    totalAssets,
 		TotalRacks:     totalRacks,
 		CriticalAlerts: criticalAlerts,
-		AvgOccupancy:   0, // TODO: compute when rack_slots data is populated
+		AvgOccupancy:   avgOccupancy,
 	}, nil
 }
 
@@ -118,6 +138,7 @@ func (s *Service) CreateLocation(ctx context.Context, params dbgen.CreateLocatio
 	if err != nil {
 		return nil, err
 	}
+	s.incrementSyncVersion(ctx, "locations", loc.ID)
 	return &loc, nil
 }
 
@@ -127,12 +148,17 @@ func (s *Service) UpdateLocation(ctx context.Context, params dbgen.UpdateLocatio
 	if err != nil {
 		return nil, err
 	}
+	s.incrementSyncVersion(ctx, "locations", loc.ID)
 	return &loc, nil
 }
 
 // DeleteLocation removes a location by ID, scoped to the given tenant.
 func (s *Service) DeleteLocation(ctx context.Context, tenantID, id uuid.UUID) error {
-	return s.queries.DeleteLocation(ctx, dbgen.DeleteLocationParams{ID: id, TenantID: tenantID})
+	if err := s.queries.DeleteLocation(ctx, dbgen.DeleteLocationParams{ID: id, TenantID: tenantID}); err != nil {
+		return err
+	}
+	s.incrementSyncVersion(ctx, "locations", id)
+	return nil
 }
 
 // ListDescendants returns all descendant locations under a path.
@@ -149,6 +175,7 @@ func (s *Service) CreateRack(ctx context.Context, params dbgen.CreateRackParams)
 	if err != nil {
 		return nil, err
 	}
+	s.incrementSyncVersion(ctx, "racks", rack.ID)
 	return &rack, nil
 }
 
@@ -158,12 +185,17 @@ func (s *Service) UpdateRack(ctx context.Context, params dbgen.UpdateRackParams)
 	if err != nil {
 		return nil, err
 	}
+	s.incrementSyncVersion(ctx, "racks", rack.ID)
 	return &rack, nil
 }
 
 // DeleteRack removes a rack by ID, scoped to the given tenant.
 func (s *Service) DeleteRack(ctx context.Context, tenantID, id uuid.UUID) error {
-	return s.queries.DeleteRack(ctx, dbgen.DeleteRackParams{ID: id, TenantID: tenantID})
+	if err := s.queries.DeleteRack(ctx, dbgen.DeleteRackParams{ID: id, TenantID: tenantID}); err != nil {
+		return err
+	}
+	s.incrementSyncVersion(ctx, "racks", id)
+	return nil
 }
 
 // ListRackSlots returns all slot assignments for a rack.
@@ -193,4 +225,11 @@ func (s *Service) CreateRackSlot(ctx context.Context, params dbgen.CreateRackSlo
 // DeleteRackSlot removes a rack slot assignment by ID, scoped to the given tenant.
 func (s *Service) DeleteRackSlot(ctx context.Context, tenantID, id uuid.UUID) error {
 	return s.queries.DeleteRackSlot(ctx, dbgen.DeleteRackSlotParams{ID: id, TenantID: tenantID})
+}
+
+func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uuid.UUID) {
+	if s.pool == nil {
+		return
+	}
+	_, _ = s.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", table), id)
 }

@@ -155,6 +155,10 @@ func (s *APIServer) CreateSensor(c *gin.Context) {
 		return
 	}
 
+	s.recordAudit(c, "sensor.created", "monitoring", "sensor", newID, map[string]any{
+		"name": body.Name,
+		"type": body.Type,
+	})
 	response.Created(c, gin.H{"id": newID.String()})
 }
 
@@ -220,6 +224,8 @@ func (s *APIServer) UpdateSensor(c *gin.Context) {
 		return
 	}
 
+	parsedSensorID, _ := uuid.Parse(sensorID)
+	s.recordAudit(c, "sensor.updated", "monitoring", "sensor", parsedSensorID, body)
 	response.OK(c, gin.H{"message": "sensor updated"})
 }
 
@@ -245,6 +251,8 @@ func (s *APIServer) DeleteSensor(c *gin.Context) {
 		return
 	}
 
+	parsedSensorID, _ := uuid.Parse(sensorID)
+	s.recordAudit(c, "sensor.deleted", "monitoring", "sensor", parsedSensorID, nil)
 	c.Status(http.StatusNoContent)
 }
 

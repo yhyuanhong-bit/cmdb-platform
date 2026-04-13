@@ -231,41 +231,9 @@ function SensorConfiguration() {
         lastSeen: s.lastSeen ? new Date(s.lastSeen).toLocaleString() : 'Never',
         status: s.status || 'Offline',
       })));
-    } else if (allAssets.length > 0) {
-      // Fallback: derive from assets if sensor API returns nothing
-      setSensors(allAssets.map(a => {
-        const subType = (a as any).sub_type as string | undefined;
-        const sensorType =
-          subType ? subType :
-          a.type === 'server' ? 'Temperature' :
-          a.type === 'power' ? 'Power' :
-          a.type === 'network' ? 'Network' :
-          'Humidity';
-        const sensorIcon =
-          a.type === 'server' ? 'thermostat' :
-          a.type === 'power' ? 'bolt' :
-          a.type === 'network' ? 'lan' :
-          'humidity_percentage';
-        const lastSeen =
-          a.status === 'operational'
-            ? 'live'
-            : (a as any).updated_at
-              ? new Date((a as any).updated_at).toLocaleString()
-              : 'offline';
-        return {
-          id: a.asset_tag,
-          name: `${a.name} Sensor`,
-          type: sensorType,
-          icon: sensorIcon,
-          location: `IDC / ${a.rack_id ? 'Rack ' + a.asset_tag.split('-')[0] : 'Floor'}`,
-          enabled: a.status === 'operational',
-          pollingInterval: 30,
-          lastSeen,
-          status: a.status === 'operational' ? 'Online' as const : a.status === 'maintenance' ? 'Degraded' as const : 'Offline' as const,
-        };
-      }));
     }
-  }, [apiSensors, allAssets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiSensors.length, apiSensors.map((s: any) => s.id).join()]);
   const [rules, setRules] = useState(INITIAL_RULES);
   const [thresholds, setThresholds] = useState<ThresholdConfig[]>(THRESHOLDS);
 
@@ -483,8 +451,11 @@ function SensorConfiguration() {
             <tbody>
               {sensors.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-on-surface-variant">
-                    {t('sensors.no_sensors_registered')}
+                  <td colSpan={7} className="px-4 py-12">
+                    <div className="flex flex-col items-center justify-center text-on-surface-variant">
+                      <span className="material-symbols-outlined text-4xl mb-2">sensors_off</span>
+                      <p className="text-sm">{t('sensor_config.no_sensors')}</p>
+                    </div>
                   </td>
                 </tr>
               )}

@@ -1,25 +1,107 @@
-# Dependencies
-cmdb-demo/node_modules/
+# ========================
+# 项目专属规则
+# ========================
 cmdb-demo/dist/
-ingestion-engine/.venv/
 ingestion-engine/*.egg-info/
-
-# Python cache
-__pycache__/
-*.pyc
-
-# Go binaries
 cmdb-core/bin/
 cmdb-core/server
 
-# Environment
+# ========================
+# 环境变量文件（API密钥、数据库密码等）
+# ========================
 .env
-.env.local
+.env.*
+!.env.example
 
-# IDE
-.idea/
-.vscode/
-*.swp
+# ========================
+# 密钥和证书
+# ========================
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+id_rsa
+id_ed25519
 
-# OS
+# ========================
+# 云服务凭据
+# ========================
+.aws/credentials
+.gcp/credentials.json
+serviceAccountKey.json
+terraform.tfvars
+terraform.tfvars.json
+*.tfstate
+*.tfstate.backup
+
+# ========================
+# Docker
+# ========================
+docker-compose.override.yml
+.docker/config.json
+
+# ========================
+# 数据库文件
+# ========================
+*.sql
+!cmdb-core/db/**/*.sql
+*.sqlite
+*.sqlite3
+*.db
+dump.rdb
+
+# ========================
+# API / Token / 凭据
+# ========================
+.npmrc
+.pypirc
+.netrc
+.htpasswd
+
+# ========================
+# 应用框架敏感配置
+# ========================
+config/secrets.yml
+config/master.key
+wp-config.php
+settings_local.py
+
+# ========================
+# Node.js
+# ========================
+node_modules/
+package-lock.json
+yarn.lock
+
+# ========================
+# Python
+# ========================
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# ========================
+# 日志
+# ========================
+*.log
+logs/
+
+# ========================
+# 系统文件
+# ========================
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# IDE / 编辑器
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

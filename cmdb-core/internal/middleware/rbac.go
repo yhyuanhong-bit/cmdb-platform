@@ -22,6 +22,7 @@ const permsCacheTTL = 5 * time.Minute
 var publicPaths = map[string]bool{
 	"/api/v1/auth/login":   true,
 	"/api/v1/auth/refresh": true,
+	"/api/v1/ws":           true,
 	"/healthz":             true,
 	"/metrics":             true,
 }

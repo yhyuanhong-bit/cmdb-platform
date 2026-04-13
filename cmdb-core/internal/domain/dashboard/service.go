@@ -22,7 +22,7 @@ type Stats struct {
 }
 
 // statsCacheTTL is the duration dashboard stats are cached in Redis.
-const statsCacheTTL = 30 * time.Second
+const statsCacheTTL = 60 * time.Second
 
 // Service provides dashboard aggregation operations.
 type Service struct {

@@ -84,5 +84,10 @@ func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context) {
 		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND status = 'planned'",
 		taskID)
 
+	s.recordAudit(c, "item.discrepancy_resolved", "inventory", "inventory_item", itemID, map[string]any{
+		"task_id": taskID.String(),
+		"action":  req.Action,
+		"status":  newStatus,
+	})
 	response.OK(c, gin.H{"status": newStatus, "action": req.Action})
 }

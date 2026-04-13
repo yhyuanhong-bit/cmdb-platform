@@ -25,6 +25,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/sync"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/workflows"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
@@ -94,9 +95,9 @@ func main() {
 	// 8. Create all services
 	authSvc := identity.NewAuthService(queries, redisClient, cfg.JWTSecret, pool)
 	identitySvc := identity.NewService(queries)
-	topologySvc := topology.NewService(queries)
-	assetSvc := asset.NewService(queries, bus)
-	maintenanceSvc := maintenance.NewService(queries, bus)
+	topologySvc := topology.NewService(queries, pool)
+	assetSvc := asset.NewService(queries, bus, pool)
+	maintenanceSvc := maintenance.NewService(queries, bus, pool)
 	monitoringSvc := monitoring.NewService(queries)
 	inventorySvc := inventory.NewService(queries)
 	auditSvc := audit.NewService(queries)
@@ -116,11 +117,26 @@ func main() {
 	// Prediction
 	predictionSvc := prediction.NewService(queries, aiRegistry)
 
+	// 8b. Sync service
+	var syncSvc *sync.Service
+	if cfg.SyncEnabled && bus != nil {
+		syncSvc = sync.NewService(pool, bus, cfg)
+		syncSvc.RegisterSubscribers()
+		syncSvc.StartReconciliation(ctx)
+		zap.L().Info("Sync service started")
+
+		if cfg.DeployMode == "edge" && cfg.EdgeNodeID != "" {
+			agent := sync.NewAgent(pool, bus, cfg)
+			go agent.Start(ctx)
+			zap.L().Info("Sync agent started", zap.String("node_id", cfg.EdgeNodeID))
+		}
+	}
+
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
-		pool, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
+		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
-		integrationSvc, biaSvc, qualitySvc, discoverySvc,
+		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc,
 	)
 
 	// 10. Set up Gin router
@@ -145,7 +161,7 @@ func main() {
 	authMW := middleware.Auth(cfg.JWTSecret)
 	v1.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if path == "/api/v1/auth/login" || path == "/api/v1/auth/refresh" {
+		if path == "/api/v1/auth/login" || path == "/api/v1/auth/refresh" || path == "/api/v1/ws" {
 			c.Next()
 			return
 		}
@@ -225,6 +241,13 @@ func main() {
 	v1.DELETE("/sensors/:id", apiServer.DeleteSensor)
 	v1.POST("/sensors/:id/heartbeat", apiServer.SensorHeartbeat)
 
+	// Sync endpoints
+	v1.GET("/sync/changes", apiServer.SyncGetChanges)
+	v1.GET("/sync/state", apiServer.SyncGetState)
+	v1.GET("/sync/conflicts", apiServer.SyncGetConflicts)
+	v1.POST("/sync/conflicts/:id/resolve", apiServer.SyncResolveConflict)
+	v1.GET("/sync/snapshot", apiServer.SyncSnapshot)
+
 	// MCP Server
 	if cfg.MCPEnabled {
 		mcpSrv := cmdbmcp.New(queries)
@@ -287,6 +310,9 @@ func main() {
 		wfSub := workflows.New(pool, queries, bus, maintenanceSvc)
 		wfSub.Register()
 		wfSub.StartSLAChecker(ctx)
+		wfSub.StartSessionCleanup(ctx)
+		wfSub.StartConflictAndDiscoveryCleanup(ctx)
+		wfSub.StartMetricsPuller(ctx)
 	}
 
 	// Webhook dispatcher

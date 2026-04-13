@@ -130,6 +130,15 @@ async def _connect_and_collect(
                 result = await conn.run(cmd, check=False)
                 raw_results[field_key] = (result.stdout or "").strip()
 
+            # Detect virtual vs physical
+            for virt_key, virt_cmd in [
+                ("product_name", "cat /sys/class/dmi/id/product_name 2>/dev/null"),
+                ("sys_vendor", "cat /sys/class/dmi/id/sys_vendor 2>/dev/null"),
+                ("hypervisor", "systemd-detect-virt 2>/dev/null"),
+            ]:
+                result = await conn.run(virt_cmd, check=False)
+                raw_results[virt_key] = (result.stdout or "").strip()
+
     except (asyncssh.Error, OSError) as exc:
         logger.warning("SSH collection failed for %s: %s", ip, exc)
         return None
@@ -154,6 +163,19 @@ async def _connect_and_collect(
     # Strip CIDR prefix from ip_address (e.g. "192.168.1.5/24" → "192.168.1.5")
     raw_ip = raw_results.get("ip_address", "").strip()
     fields["ip_address"] = raw_ip.split("/")[0] if raw_ip else None
+
+    # Determine virtual vs physical
+    product_name = raw_results.get("product_name", "")
+    sys_vendor = raw_results.get("sys_vendor", "")
+    hypervisor = raw_results.get("hypervisor", "")
+    vm_indicators = ["vmware", "kvm", "qemu", "virtualbox", "hyper-v", "xen", "parallels", "bhyve"]
+    combined = f"{product_name} {sys_vendor} {hypervisor}".lower()
+    if any(v in combined for v in vm_indicators):
+        fields["sub_type"] = "virtual"
+    elif hypervisor and hypervisor != "none":
+        fields["sub_type"] = "virtual"
+    else:
+        fields["sub_type"] = "physical"
 
     unique_key = fields.get("serial_number") or fields.get("hostname") or ip
 
@@ -214,6 +236,7 @@ class SSHCollector:
             FieldMapping(field_name="memory_mb"),
             FieldMapping(field_name="disk_gb"),
             FieldMapping(field_name="ip_address"),
+            FieldMapping(field_name="sub_type"),
         ]
 
     async def collect(self, target: CollectTarget) -> list[RawAssetData]:

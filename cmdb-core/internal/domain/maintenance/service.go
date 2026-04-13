@@ -12,17 +12,19 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Service provides work order domain operations.
 type Service struct {
 	queries *dbgen.Queries
 	bus     eventbus.Bus
+	pool    *pgxpool.Pool
 }
 
 // NewService creates a new maintenance Service.
-func NewService(queries *dbgen.Queries, bus eventbus.Bus) *Service {
-	return &Service{queries: queries, bus: bus}
+func NewService(queries *dbgen.Queries, bus eventbus.Bus, pool *pgxpool.Pool) *Service {
+	return &Service{queries: queries, bus: bus, pool: pool}
 }
 
 // List returns a paginated list of work orders and the total count.
@@ -128,6 +130,7 @@ func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, r
 	if err != nil {
 		return nil, fmt.Errorf("create work order: %w", err)
 	}
+	s.incrementSyncVersion(ctx, "work_orders", order.ID)
 
 	// Create initial log entry
 	_, _ = s.queries.CreateWorkOrderLog(ctx, dbgen.CreateWorkOrderLogParams{
@@ -187,6 +190,8 @@ func (s *Service) Transition(ctx context.Context, tenantID, id, operatorID uuid.
 		}
 		return nil, fmt.Errorf("update work order status: %w", err)
 	}
+
+	s.incrementSyncVersion(ctx, "work_orders", id)
 
 	logParams := dbgen.CreateWorkOrderLogParams{
 		OrderID:    id,
@@ -276,4 +281,11 @@ func (s *Service) ListLogs(ctx context.Context, orderID uuid.UUID) ([]dbgen.Work
 		return nil, fmt.Errorf("list work order logs: %w", err)
 	}
 	return logs, nil
+}
+
+func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uuid.UUID) {
+	if s.pool == nil {
+		return
+	}
+	_, _ = s.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", table), id)
 }

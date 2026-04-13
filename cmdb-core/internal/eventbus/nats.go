@@ -70,6 +70,20 @@ func NewNATSBus(url string) (*NATSBus, error) {
 		return nil, fmt.Errorf("create stream: %w", err)
 	}
 
+	// Sync stream for edge federation
+	_, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+		Name: "CMDB_SYNC",
+		Subjects: []string{
+			"sync.>",
+		},
+		Retention: jetstream.WorkQueuePolicy,
+		MaxAge:    14 * 24 * time.Hour,
+		Storage:   jetstream.FileStorage,
+	})
+	if err != nil {
+		log.Printf("WARN: failed to create CMDB_SYNC stream: %v", err)
+	}
+
 	return &NATSBus{nc: nc, js: js}, nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
@@ -23,6 +24,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/sync"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
@@ -40,6 +42,7 @@ var _ ServerInterface = (*APIServer)(nil)
 // delegating business logic to the domain services.
 type APIServer struct {
 	pool           *pgxpool.Pool
+	cfg            *config.Config
 	eventBus       eventbus.Bus
 	authSvc        *identity.AuthService
 	identitySvc    *identity.Service
@@ -55,11 +58,13 @@ type APIServer struct {
 	biaSvc         *bia.Service
 	qualitySvc     *quality.Service
 	discoverySvc   *discovery.Service
+	syncSvc        *sync.Service
 }
 
 // NewAPIServer constructs an APIServer with all required domain services.
 func NewAPIServer(
 	pool *pgxpool.Pool,
+	cfg *config.Config,
 	bus eventbus.Bus,
 	authSvc *identity.AuthService,
 	identitySvc *identity.Service,
@@ -75,9 +80,11 @@ func NewAPIServer(
 	biaSvc *bia.Service,
 	qualitySvc *quality.Service,
 	discoverySvc *discovery.Service,
+	syncSvc *sync.Service,
 ) *APIServer {
 	return &APIServer{
 		pool:           pool,
+		cfg:            cfg,
 		eventBus:       bus,
 		authSvc:        authSvc,
 		identitySvc:    identitySvc,
@@ -93,6 +100,7 @@ func NewAPIServer(
 		biaSvc:         biaSvc,
 		qualitySvc:     qualitySvc,
 		discoverySvc:   discoverySvc,
+		syncSvc:        syncSvc,
 	}
 }
 
@@ -146,6 +154,14 @@ func pguuidFromPtr(v *uuid.UUID) pgtype.UUID {
 		return pgtype.UUID{}
 	}
 	return pgtype.UUID{Bytes: *v, Valid: true}
+}
+
+func uuidPtrFromPGUUID(pg pgtype.UUID) *uuid.UUID {
+	if !pg.Valid {
+		return nil
+	}
+	id := uuid.UUID(pg.Bytes)
+	return &id
 }
 
 // recordAudit logs an audit event. Errors are logged but don't fail the request.
@@ -307,6 +323,31 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 		Tags:           req.Tags,
 	}
 
+	// Quality gate: check minimum data quality before creation.
+	if s.qualitySvc != nil {
+		rackPtr := uuidPtrFromPGUUID(params.RackID)
+		qResult, qErr := s.qualitySvc.ValidateForCreation(
+			c.Request.Context(), tenantID,
+			params.Type, params.Name, params.Status,
+			rackPtr,
+			params.Vendor.String, params.Model.String, params.SerialNumber.String,
+		)
+		if qErr != nil {
+			c.JSON(422, gin.H{
+				"error": gin.H{
+					"code":    "QUALITY_GATE_FAILED",
+					"message": qErr.Error(),
+				},
+				"meta": gin.H{
+					"quality_score": qResult.Total,
+					"issues":        qResult.Issues,
+					"request_id":    c.GetString("request_id"),
+				},
+			})
+			return
+		}
+	}
+
 	created, err := s.assetSvc.Create(c.Request.Context(), params)
 	if err != nil {
 		response.InternalError(c, "failed to create asset")
@@ -389,6 +430,44 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 		params.Tags = *req.Tags
 	}
 
+	// Field-level authority check: prevent low-priority API source from
+	// overwriting fields owned by higher-priority sources (e.g. IPMI, SNMP).
+	const apiSourcePriority = 50
+	var authorityWarnings []string
+
+	tenantID := tenantIDFromContext(c)
+	authRows, authErr := s.pool.Query(c.Request.Context(),
+		`SELECT field_name, MAX(priority) as max_priority
+		 FROM asset_field_authorities
+		 WHERE tenant_id = $1
+		 GROUP BY field_name
+		 HAVING MAX(priority) > $2`,
+		tenantID, apiSourcePriority)
+	if authErr == nil {
+		defer authRows.Close()
+		blockedFields := make(map[string]int)
+		for authRows.Next() {
+			var fieldName string
+			var maxPriority int
+			if authRows.Scan(&fieldName, &maxPriority) == nil {
+				blockedFields[fieldName] = maxPriority
+			}
+		}
+
+		if params.SerialNumber.Valid && blockedFields["serial_number"] > 0 {
+			authorityWarnings = append(authorityWarnings, fmt.Sprintf("serial_number is managed by a higher-priority source (priority %d)", blockedFields["serial_number"]))
+			params.SerialNumber = pgtype.Text{}
+		}
+		if params.Vendor.Valid && blockedFields["vendor"] > 0 {
+			authorityWarnings = append(authorityWarnings, fmt.Sprintf("vendor is managed by a higher-priority source (priority %d)", blockedFields["vendor"]))
+			params.Vendor = pgtype.Text{}
+		}
+		if params.Model.Valid && blockedFields["model"] > 0 {
+			authorityWarnings = append(authorityWarnings, fmt.Sprintf("model is managed by a higher-priority source (priority %d)", blockedFields["model"]))
+			params.Model = pgtype.Text{}
+		}
+	}
+
 	updated, err := s.assetSvc.Update(c.Request.Context(), params)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
@@ -437,7 +516,6 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 	// ITSM Change Audit: Critical assets auto-create change audit work order
 	var changeOrderID *uuid.UUID
 	if updated.BiaLevel == "critical" {
-		tenantID := tenantIDFromContext(c)
 		userID := userIDFromContext(c)
 		order, err := s.maintenanceSvc.Create(c.Request.Context(), tenantID, userID, maintenance.CreateOrderRequest{
 			Title:       fmt.Sprintf("Change Audit: %s (%s)", updated.Name, updated.AssetTag),
@@ -451,11 +529,20 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 		}
 	}
 
-	// Return asset with optional change_order_id in meta
+	// Build meta with optional warnings and change_order_id
+	meta := gin.H{"request_id": c.GetString("request_id")}
+	if len(authorityWarnings) > 0 {
+		meta["warnings"] = authorityWarnings
+	}
 	if changeOrderID != nil {
+		meta["change_order_id"] = changeOrderID.String()
+	}
+
+	// Return with meta if it contains more than just request_id
+	if len(authorityWarnings) > 0 || changeOrderID != nil {
 		c.JSON(200, gin.H{
 			"data": toAPIAsset(*updated),
-			"meta": gin.H{"change_order_id": changeOrderID.String(), "request_id": c.GetString("request_id")},
+			"meta": meta,
 		})
 		return
 	}
@@ -929,6 +1016,14 @@ func (s *APIServer) CreateRackSlot(c *gin.Context, id IdPath) {
 		return
 	}
 
+	s.recordAudit(c, "rack_slot.created", "topology", "rack_slot", slot.ID, map[string]any{
+		"rack_id":  uuid.UUID(id).String(),
+		"asset_id": uuid.UUID(req.AssetId).String(),
+		"start_u":  req.StartU,
+		"end_u":    req.EndU,
+		"side":     side,
+	})
+
 	// Convert the created slot to API format
 	apiSlot := RackSlot{
 		Id:     &slot.ID,
@@ -949,6 +1044,9 @@ func (s *APIServer) DeleteRackSlot(c *gin.Context, id IdPath, slotId openapi_typ
 		response.NotFound(c, "rack slot not found")
 		return
 	}
+	s.recordAudit(c, "rack_slot.deleted", "topology", "rack_slot", uuid.UUID(slotId), map[string]any{
+		"rack_id": uuid.UUID(id).String(),
+	})
 	c.Status(204)
 }
 
@@ -1158,6 +1256,7 @@ func (s *APIServer) DeleteWorkOrder(c *gin.Context, id openapi_types.UUID) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	s.recordAudit(c, "order.deleted", "maintenance", "work_order", uuid.UUID(id), nil)
 	c.Status(204)
 }
 
@@ -1695,6 +1794,9 @@ func (s *APIServer) UpdateInventoryTask(c *gin.Context, id openapi_types.UUID) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	s.recordAudit(c, "task.updated", "inventory", "inventory_task", uuid.UUID(id), map[string]any{
+		"name": req.Name,
+	})
 	response.OK(c, toAPIInventoryTask(*task))
 }
 
@@ -1711,6 +1813,7 @@ func (s *APIServer) DeleteInventoryTask(c *gin.Context, id openapi_types.UUID) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	s.recordAudit(c, "task.deleted", "inventory", "inventory_task", uuid.UUID(id), nil)
 	c.Status(204)
 }
 
@@ -2452,6 +2555,11 @@ func (s *APIServer) CreateWebhook(c *gin.Context) {
 		response.InternalError(c, "failed to create webhook")
 		return
 	}
+	s.recordAudit(c, "webhook.created", "integration", "webhook", webhook.ID, map[string]any{
+		"name":   req.Name,
+		"url":    req.Url,
+		"events": req.Events,
+	})
 	response.Created(c, toAPIWebhook(webhook))
 }
 
@@ -2861,6 +2969,11 @@ func (s *APIServer) CreateQualityRule(c *gin.Context) {
 		response.InternalError(c, "failed to create quality rule")
 		return
 	}
+	s.recordAudit(c, "quality_rule.created", "quality", "quality_rule", rule.ID, map[string]any{
+		"dimension":  req.Dimension,
+		"field_name": req.FieldName,
+		"rule_type":  req.RuleType,
+	})
 	response.Created(c, toAPIQualityRule(*rule))
 }
 
@@ -2873,6 +2986,9 @@ func (s *APIServer) TriggerQualityScan(c *gin.Context) {
 		response.InternalError(c, "quality scan failed")
 		return
 	}
+	s.recordAudit(c, "quality.scan_triggered", "quality", "tenant", tenantID, map[string]any{
+		"scanned": scanned,
+	})
 	response.OK(c, gin.H{"scanned": scanned})
 }
 
