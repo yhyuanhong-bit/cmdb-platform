@@ -125,6 +125,12 @@ func (a *Agent) handleIncomingEnvelope(ctx context.Context, event eventbus.Event
 		err = a.applyAlertEvent(ctx, env)
 	case "alert_rules":
 		err = a.applyAlertRule(ctx, env)
+	case "inventory_tasks":
+		err = a.applyInventoryTask(ctx, env)
+	case "inventory_items":
+		err = a.applyInventoryItem(ctx, env)
+	case "audit_events":
+		err = a.applyAuditEvent(ctx, env)
 	default:
 		err = a.applyGeneric(ctx, env)
 	}
@@ -238,6 +244,74 @@ func (a *Agent) applyAlertRule(ctx context.Context, env SyncEnvelope) error {
 	return err
 }
 
+func (a *Agent) applyInventoryTask(ctx context.Context, env SyncEnvelope) error {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(env.Diff, &payload); err != nil {
+		return fmt.Errorf("unmarshal inventory task payload: %w", err)
+	}
+
+	_, err := a.pool.Exec(ctx,
+		`INSERT INTO inventory_tasks (id, tenant_id, code, name, scope_location_id, status, method, planned_date, completed_date, assigned_to, created_at, sync_version)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		 ON CONFLICT (id) DO UPDATE SET
+		   name = EXCLUDED.name,
+		   status = EXCLUDED.status,
+		   method = EXCLUDED.method,
+		   planned_date = EXCLUDED.planned_date,
+		   completed_date = EXCLUDED.completed_date,
+		   assigned_to = EXCLUDED.assigned_to,
+		   sync_version = EXCLUDED.sync_version
+		 WHERE inventory_tasks.sync_version < EXCLUDED.sync_version`,
+		payload["id"], payload["tenant_id"], payload["code"], payload["name"],
+		payload["scope_location_id"], payload["status"], payload["method"],
+		payload["planned_date"], payload["completed_date"], payload["assigned_to"],
+		payload["created_at"], env.Version)
+	return err
+}
+
+func (a *Agent) applyInventoryItem(ctx context.Context, env SyncEnvelope) error {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(env.Diff, &payload); err != nil {
+		return fmt.Errorf("unmarshal inventory item payload: %w", err)
+	}
+
+	expectedJSON, _ := json.Marshal(payload["expected"])
+	actualJSON, _ := json.Marshal(payload["actual"])
+
+	_, err := a.pool.Exec(ctx,
+		`INSERT INTO inventory_items (id, task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by, sync_version)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 ON CONFLICT (id) DO UPDATE SET
+		   actual = EXCLUDED.actual,
+		   status = EXCLUDED.status,
+		   scanned_at = EXCLUDED.scanned_at,
+		   scanned_by = EXCLUDED.scanned_by,
+		   sync_version = EXCLUDED.sync_version
+		 WHERE inventory_items.sync_version < EXCLUDED.sync_version`,
+		payload["id"], payload["task_id"], payload["asset_id"], payload["rack_id"],
+		expectedJSON, actualJSON, payload["status"],
+		payload["scanned_at"], payload["scanned_by"], env.Version)
+	return err
+}
+
+func (a *Agent) applyAuditEvent(ctx context.Context, env SyncEnvelope) error {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(env.Diff, &payload); err != nil {
+		return fmt.Errorf("unmarshal audit event payload: %w", err)
+	}
+
+	diffJSON, _ := json.Marshal(payload["diff"])
+
+	_, err := a.pool.Exec(ctx,
+		`INSERT INTO audit_events (id, tenant_id, action, module, target_type, target_id, operator_id, diff, source, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 ON CONFLICT (id) DO NOTHING`,
+		payload["id"], payload["tenant_id"], payload["action"], payload["module"],
+		payload["target_type"], payload["target_id"], payload["operator_id"],
+		diffJSON, payload["source"], payload["created_at"])
+	return err
+}
+
 func (a *Agent) applyGeneric(ctx context.Context, env SyncEnvelope) error {
 	_, err := a.pool.Exec(ctx,
 		fmt.Sprintf("UPDATE %s SET sync_version = $1, updated_at = now() WHERE id = $2 AND sync_version < $1", env.EntityType),
@@ -247,7 +321,7 @@ func (a *Agent) applyGeneric(ctx context.Context, env SyncEnvelope) error {
 
 func (a *Agent) updateSyncState(ctx context.Context) {
 	// For each syncable table, record current max sync_version
-	tables := []string{"assets", "locations", "racks", "work_orders", "alert_events", "inventory_tasks"}
+	tables := []string{"assets", "locations", "racks", "work_orders", "alert_events", "inventory_tasks", "inventory_items"}
 	for _, table := range tables {
 		var maxVersion int64
 		err := a.pool.QueryRow(ctx,
@@ -260,5 +334,18 @@ func (a *Agent) updateSyncState(ctx context.Context) {
 			 VALUES ($1, $2, $3, $4, now(), 'active')
 			 ON CONFLICT (node_id, entity_type) DO UPDATE SET last_sync_version = $4, last_sync_at = now()`,
 			a.nodeID, a.cfg.TenantID, table, maxVersion)
+	}
+
+	// audit_events: no sync_version, use created_at epoch
+	var auditMax int64
+	err := a.pool.QueryRow(ctx,
+		"SELECT COALESCE(MAX(EXTRACT(EPOCH FROM created_at))::bigint, 0) FROM audit_events WHERE tenant_id = $1",
+		a.cfg.TenantID).Scan(&auditMax)
+	if err == nil {
+		_, _ = a.pool.Exec(ctx,
+			`INSERT INTO sync_state (node_id, tenant_id, entity_type, last_sync_version, last_sync_at, status)
+			 VALUES ($1, $2, 'audit_events', $3, now(), 'active')
+			 ON CONFLICT (node_id, entity_type) DO UPDATE SET last_sync_version = $3, last_sync_at = now()`,
+			a.nodeID, a.cfg.TenantID, auditMax)
 	}
 }
