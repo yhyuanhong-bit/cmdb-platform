@@ -59,6 +59,9 @@ func (s *Service) RegisterSubscribers() {
 		{eventbus.SubjectAlertRuleCreated, "alert_rules", "create"},
 		{eventbus.SubjectAlertRuleUpdated, "alert_rules", "update"},
 		{eventbus.SubjectAlertRuleDeleted, "alert_rules", "delete"},
+		{eventbus.SubjectInventoryItemCreated, "inventory_items", "create"},
+		{eventbus.SubjectInventoryItemUpdated, "inventory_items", "update"},
+		{eventbus.SubjectAuditRecorded, "audit_events", "create"},
 	}
 
 	for _, sub := range subjects {

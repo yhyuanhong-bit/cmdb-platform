@@ -120,7 +120,7 @@ func main() {
 	assetSvc := asset.NewService(queries, bus, pool)
 	maintenanceSvc := maintenance.NewService(queries, bus, pool)
 	monitoringSvc := monitoring.NewService(queries, bus)
-	inventorySvc := inventory.NewService(queries)
+	inventorySvc := inventory.NewService(queries, bus)
 	auditSvc := audit.NewService(queries)
 	dashboardSvc := dashboard.NewService(queries, pool, redisClient)
 

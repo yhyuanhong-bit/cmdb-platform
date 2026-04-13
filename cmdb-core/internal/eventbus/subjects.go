@@ -21,6 +21,8 @@ const (
 	SubjectInventoryTaskCreated   = "inventory.task_created"
 	SubjectInventoryTaskCompleted = "inventory.task_completed"
 	SubjectInventoryItemScanned   = "inventory.item_scanned"
+	SubjectInventoryItemCreated   = "inventory.item_created"
+	SubjectInventoryItemUpdated   = "inventory.item_updated"
 
 	SubjectAlertFired    = "alert.fired"
 	SubjectAlertResolved = "alert.resolved"

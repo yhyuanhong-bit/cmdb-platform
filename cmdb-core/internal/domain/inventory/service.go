@@ -2,10 +2,12 @@ package inventory
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -13,11 +15,12 @@ import (
 // Service provides inventory task operations.
 type Service struct {
 	queries *dbgen.Queries
+	bus     eventbus.Bus
 }
 
 // NewService creates a new inventory Service.
-func NewService(queries *dbgen.Queries) *Service {
-	return &Service{queries: queries}
+func NewService(queries *dbgen.Queries, bus eventbus.Bus) *Service {
+	return &Service{queries: queries, bus: bus}
 }
 
 // List returns a paginated list of inventory tasks and the total count.
@@ -98,6 +101,10 @@ func (s *Service) ScanItem(ctx context.Context, params dbgen.ScanInventoryItemPa
 	item, err := s.queries.ScanInventoryItem(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("scan inventory item: %w", err)
+	}
+	if s.bus != nil {
+		payload, _ := json.Marshal(map[string]interface{}{"item_id": item.ID, "task_id": item.TaskID})
+		s.bus.Publish(ctx, eventbus.Event{Subject: eventbus.SubjectInventoryItemUpdated, Payload: payload})
 	}
 	return &item, nil
 }

@@ -31,7 +31,7 @@ func (s *APIServer) SyncGetChanges(c *gin.Context) {
 	allowedTables := map[string]bool{
 		"assets": true, "locations": true, "racks": true,
 		"work_orders": true, "alert_events": true, "inventory_tasks": true,
-		"alert_rules": true,
+		"alert_rules": true, "inventory_items": true, "audit_events": true,
 	}
 	if !allowedTables[entityType] {
 		response.BadRequest(c, "invalid entity_type")
@@ -42,11 +42,16 @@ func (s *APIServer) SyncGetChanges(c *gin.Context) {
 		"SELECT row_to_json(t) AS data, t.sync_version FROM %s t WHERE t.tenant_id = $1 AND t.sync_version > $2 AND t.deleted_at IS NULL ORDER BY t.sync_version LIMIT $3",
 		entityType)
 
-	// alert_rules and alert_events don't have deleted_at
-	if entityType == "alert_rules" || entityType == "alert_events" {
+	// alert_rules, alert_events, and inventory_items don't have deleted_at
+	if entityType == "alert_rules" || entityType == "alert_events" || entityType == "inventory_items" {
 		query = fmt.Sprintf(
 			"SELECT row_to_json(t) AS data, t.sync_version FROM %s t WHERE t.tenant_id = $1 AND t.sync_version > $2 ORDER BY t.sync_version LIMIT $3",
 			entityType)
+	}
+
+	// audit_events: no sync_version, use created_at for incremental pull
+	if entityType == "audit_events" {
+		query = "SELECT row_to_json(t) AS data, EXTRACT(EPOCH FROM t.created_at)::bigint AS sync_version FROM audit_events t WHERE t.tenant_id = $1 AND t.created_at > to_timestamp($2::bigint) ORDER BY t.created_at LIMIT $3"
 	}
 
 	rows, err := s.pool.Query(c.Request.Context(), query, tenantID, sinceVersion, limit+1)
@@ -234,7 +239,7 @@ func (s *APIServer) SyncSnapshot(c *gin.Context) {
 	allowedTables := map[string]bool{
 		"assets": true, "locations": true, "racks": true,
 		"work_orders": true, "alert_events": true, "inventory_tasks": true,
-		"alert_rules": true,
+		"alert_rules": true, "inventory_items": true, "audit_events": true,
 	}
 	if !allowedTables[entityType] {
 		response.BadRequest(c, "invalid entity_type")
