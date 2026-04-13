@@ -215,7 +215,7 @@ func (s *Service) TransitionExecution(ctx context.Context, tenantID, id, operato
 			"order_id": id, "execution_status": newExec, "governance_status": updated.GovernanceStatus,
 		})
 		s.bus.Publish(ctx, eventbus.Event{
-			Subject: "maintenance.order_anomaly", TenantID: tenantID.String(), Payload: payload,
+			Subject: eventbus.SubjectOrderAnomaly, TenantID: tenantID.String(), Payload: payload,
 		})
 	}
 
@@ -292,7 +292,7 @@ func (s *Service) TransitionGovernance(ctx context.Context, tenantID, id, operat
 			"order_id": id, "execution_status": updated.ExecutionStatus, "governance_status": newGov,
 		})
 		s.bus.Publish(ctx, eventbus.Event{
-			Subject: "maintenance.order_anomaly", TenantID: tenantID.String(), Payload: payload,
+			Subject: eventbus.SubjectOrderAnomaly, TenantID: tenantID.String(), Payload: payload,
 		})
 	}
 

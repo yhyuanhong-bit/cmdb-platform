@@ -36,4 +36,10 @@ const (
 
 	// Sync subjects
 	SubjectSyncEnvelope = "sync.envelope"
+
+	SubjectAlertRuleCreated = "alert_rule.created"
+	SubjectAlertRuleUpdated = "alert_rule.updated"
+	SubjectAlertRuleDeleted = "alert_rule.deleted"
+
+	SubjectOrderAnomaly = "maintenance.order_anomaly"
 )

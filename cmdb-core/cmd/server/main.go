@@ -98,7 +98,7 @@ func main() {
 	topologySvc := topology.NewService(queries, pool)
 	assetSvc := asset.NewService(queries, bus, pool)
 	maintenanceSvc := maintenance.NewService(queries, bus, pool)
-	monitoringSvc := monitoring.NewService(queries)
+	monitoringSvc := monitoring.NewService(queries, bus)
 	inventorySvc := inventory.NewService(queries)
 	auditSvc := audit.NewService(queries)
 	dashboardSvc := dashboard.NewService(queries, pool, redisClient)

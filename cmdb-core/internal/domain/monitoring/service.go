@@ -2,9 +2,11 @@ package monitoring
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -12,11 +14,12 @@ import (
 // Service provides alert monitoring operations.
 type Service struct {
 	queries *dbgen.Queries
+	bus     eventbus.Bus
 }
 
 // NewService creates a new monitoring Service.
-func NewService(queries *dbgen.Queries) *Service {
-	return &Service{queries: queries}
+func NewService(queries *dbgen.Queries, bus eventbus.Bus) *Service {
+	return &Service{queries: queries, bus: bus}
 }
 
 // ListAlerts returns a paginated, filtered list of alerts and the total count.
@@ -79,6 +82,10 @@ func (s *Service) CreateRule(ctx context.Context, params dbgen.CreateAlertRulePa
 	if err != nil {
 		return nil, fmt.Errorf("create alert rule: %w", err)
 	}
+	if s.bus != nil {
+		payload, _ := json.Marshal(map[string]interface{}{"rule_id": rule.ID, "tenant_id": rule.TenantID})
+		s.bus.Publish(ctx, eventbus.Event{Subject: eventbus.SubjectAlertRuleCreated, TenantID: rule.TenantID.String(), Payload: payload})
+	}
 	return &rule, nil
 }
 
@@ -87,6 +94,10 @@ func (s *Service) UpdateRule(ctx context.Context, params dbgen.UpdateAlertRulePa
 	rule, err := s.queries.UpdateAlertRule(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("update alert rule: %w", err)
+	}
+	if s.bus != nil {
+		payload, _ := json.Marshal(map[string]interface{}{"rule_id": rule.ID, "tenant_id": rule.TenantID})
+		s.bus.Publish(ctx, eventbus.Event{Subject: eventbus.SubjectAlertRuleUpdated, TenantID: rule.TenantID.String(), Payload: payload})
 	}
 	return &rule, nil
 }
