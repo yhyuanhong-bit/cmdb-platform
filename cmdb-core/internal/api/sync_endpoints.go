@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -146,7 +147,7 @@ func (s *APIServer) SyncGetConflicts(c *gin.Context) {
 	response.OK(c, items)
 }
 
-// SyncResolveConflict resolves a sync conflict.
+// SyncResolveConflict resolves a sync conflict and applies the resolution to the entity.
 // POST /api/v1/sync/conflicts/:id/resolve
 func (s *APIServer) SyncResolveConflict(c *gin.Context) {
 	userID := userIDFromContext(c)
@@ -168,7 +169,21 @@ func (s *APIServer) SyncResolveConflict(c *gin.Context) {
 		return
 	}
 
-	_, err = s.pool.Exec(c.Request.Context(),
+	ctx := c.Request.Context()
+
+	// 1. Read the conflict to get entity info
+	var entityType, entityID string
+	var remoteDiff json.RawMessage
+	err = s.pool.QueryRow(ctx,
+		"SELECT entity_type, entity_id, remote_diff FROM sync_conflicts WHERE id = $1 AND resolution = 'pending'",
+		conflictID).Scan(&entityType, &entityID, &remoteDiff)
+	if err != nil {
+		response.NotFound(c, "conflict not found or already resolved")
+		return
+	}
+
+	// 2. Mark conflict as resolved
+	_, err = s.pool.Exec(ctx,
 		"UPDATE sync_conflicts SET resolution = $1, resolved_by = $2, resolved_at = now() WHERE id = $3",
 		req.Resolution, userID, conflictID)
 	if err != nil {
@@ -176,8 +191,36 @@ func (s *APIServer) SyncResolveConflict(c *gin.Context) {
 		return
 	}
 
+	// 3. If remote_wins, apply remote_diff to entity
+	if req.Resolution == "remote_wins" && remoteDiff != nil {
+		var diffMap map[string]interface{}
+		if json.Unmarshal(remoteDiff, &diffMap) == nil && len(diffMap) > 0 {
+			setClauses := []string{}
+			args := []interface{}{}
+			argIdx := 1
+			for key, val := range diffMap {
+				setClauses = append(setClauses, fmt.Sprintf("%s = $%d", key, argIdx))
+				args = append(args, val)
+				argIdx++
+			}
+			if len(setClauses) > 0 {
+				query := fmt.Sprintf("UPDATE %s SET %s, updated_at = now() WHERE id = $%d",
+					entityType, strings.Join(setClauses, ", "), argIdx)
+				args = append(args, entityID)
+				s.pool.Exec(ctx, query, args...)
+
+				// Increment sync_version
+				s.pool.Exec(ctx,
+					fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", entityType),
+					entityID)
+			}
+		}
+	}
+
 	s.recordAudit(c, "sync.conflict_resolved", "sync", "sync_conflict", conflictID, map[string]any{
-		"resolution": req.Resolution,
+		"resolution":  req.Resolution,
+		"entity_type": entityType,
+		"entity_id":   entityID,
 	})
 	c.Status(204)
 }
