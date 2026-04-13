@@ -24,3 +24,11 @@ export function useResolveConflict() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['syncConflicts'] }),
   })
 }
+
+export function useSyncStats() {
+  return useQuery({
+    queryKey: ['syncStats'],
+    queryFn: () => syncApi.getStats(),
+    refetchInterval: 30000,
+  })
+}

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { usePermission } from '../hooks/usePermission'
-import { useSyncState, useSyncConflicts, useResolveConflict } from '../hooks/useSync'
+import { useSyncState, useSyncConflicts, useResolveConflict, useSyncStats } from '../hooks/useSync'
 import type { SyncConflict } from '../lib/api/sync'
 
 function formatTimeAgo(dateStr: string): string {
@@ -52,11 +53,116 @@ export default function SyncManagement() {
   )
 }
 
-function SyncStatusTab() {
-  const { data: resp, isLoading } = useSyncState()
-  const states = (resp as any)?.data ?? []
+function SummaryCards({ states, conflictCount }: { states: any[]; conflictCount: number }) {
+  const uniqueNodes = new Set(states.map((s: any) => s.node_id))
+  const okCount = states.filter((s: any) => {
+    if (s.status === 'error') return false
+    const hoursSince = (Date.now() - new Date(s.last_sync_at).getTime()) / 3600000
+    return hoursSince <= 1
+  }).length
+  const lagCount = states.filter((s: any) => {
+    if (s.status === 'error') return false
+    const hoursSince = (Date.now() - new Date(s.last_sync_at).getTime()) / 3600000
+    return hoursSince > 1 && hoursSince <= 24
+  }).length
+  const errorCount = states.filter((s: any) => {
+    if (s.status === 'error') return true
+    const hoursSince = (Date.now() - new Date(s.last_sync_at).getTime()) / 3600000
+    return hoursSince > 24
+  }).length
 
-  if (isLoading) {
+  return (
+    <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="bg-surface-container rounded-lg p-4 text-center">
+        <div className="text-2xl font-bold text-on-surface">{uniqueNodes.size}</div>
+        <div className="text-xs text-on-surface-variant mt-1">Total Nodes</div>
+      </div>
+      <div className="bg-surface-container rounded-lg p-4 text-center">
+        <div className="text-sm font-semibold text-on-surface">
+          <span className="text-emerald-500">{okCount} OK</span>
+          {lagCount > 0 && <span className="text-yellow-500 ml-2">{lagCount} Lag</span>}
+          {errorCount > 0 && <span className="text-red-500 ml-2">{errorCount} Error</span>}
+        </div>
+        <div className="text-xs text-on-surface-variant mt-1">Sync Health</div>
+      </div>
+      <div className="bg-surface-container rounded-lg p-4 text-center">
+        <div className="text-sm font-semibold text-on-surface">
+          {conflictCount} conflicts · {errorCount} errors
+        </div>
+        <div className="text-xs text-on-surface-variant mt-1">Pending</div>
+      </div>
+    </div>
+  )
+}
+
+function VersionGapChart({ stats }: { stats: any[] }) {
+  const chartData = stats
+    .map((s: any) => ({
+      entity_type: s.entity_type.replace(/_/g, ' '),
+      gap: Math.max(0, ...s.nodes.map((n: any) => n.gap), 0),
+    }))
+    .filter((d: any) => d.gap > 0)
+
+  if (chartData.length === 0) {
+    return (
+      <div className="bg-surface-container rounded-lg p-4 mb-6 text-center text-on-surface-variant text-sm">
+        All nodes are up to date — no version gaps.
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-surface-container rounded-lg p-4 mb-6">
+      <h3 className="text-sm font-bold text-on-surface mb-3">Version Gap by Entity Type</h3>
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={chartData}>
+          <XAxis dataKey="entity_type" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} />
+          <Tooltip />
+          <Bar dataKey="gap" fill="#f59e0b" radius={[4, 4, 0, 0]}>
+            {chartData.map((_: any, i: number) => (
+              <Cell key={i} fill={chartData[i].gap > 50 ? '#ef4444' : '#f59e0b'} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+function ErrorList({ states }: { states: any[] }) {
+  const errors = states.filter((s: any) => s.status === 'error' || (Date.now() - new Date(s.last_sync_at).getTime()) / 3600000 > 24)
+
+  if (errors.length === 0) return null
+
+  return (
+    <div className="mt-6">
+      <h3 className="text-sm font-bold text-on-surface mb-3">Sync Errors</h3>
+      <div className="space-y-2">
+        {errors.map((s: any) => (
+          <div key={`${s.node_id}-${s.entity_type}`} className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+            <div className="text-sm font-semibold text-on-surface">
+              {s.node_id} / {s.entity_type}
+            </div>
+            <div className="text-xs text-on-surface-variant mt-1">
+              {s.error_message || `Last sync: ${formatTimeAgo(s.last_sync_at)}`}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SyncStatusTab() {
+  const { data: stateResp, isLoading: stateLoading } = useSyncState()
+  const { data: conflictsResp } = useSyncConflicts()
+  const { data: statsResp, isLoading: statsLoading } = useSyncStats()
+  const states = (stateResp as any)?.data ?? []
+  const conflicts = (conflictsResp as any)?.data ?? []
+  const stats = (statsResp as any)?.data ?? []
+
+  if (stateLoading) {
     return <div className="text-on-surface-variant">Loading sync state...</div>
   }
 
@@ -75,39 +181,47 @@ function SyncStatusTab() {
   }
 
   return (
-    <div className="space-y-4">
-      {Object.entries(byNode).map(([nodeId, nodeStates]) => (
-        <div key={nodeId} className="bg-surface-container rounded-lg p-4">
-          <h3 className="text-sm font-bold text-on-surface mb-3 uppercase tracking-wide">{nodeId}</h3>
-          <div className="grid grid-cols-[1fr_80px_100px_60px] gap-2 text-sm">
-            <div className="text-on-surface-variant font-semibold">Entity</div>
-            <div className="text-on-surface-variant font-semibold">Version</div>
-            <div className="text-on-surface-variant font-semibold">Last Sync</div>
-            <div className="text-on-surface-variant font-semibold">Status</div>
-            {(nodeStates as any[]).map((s: any) => {
-              const { color, label } = syncStatusColor(s.status, s.last_sync_at)
-              return (
-                <div key={s.entity_type} className="contents">
-                  <div className="text-on-surface">{s.entity_type}</div>
-                  <div className="text-on-surface">{s.last_sync_version}</div>
-                  <div className="text-on-surface-variant">{formatTimeAgo(s.last_sync_at)}</div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`inline-block w-2 h-2 rounded-full ${color}`} />
-                    <span className="text-on-surface-variant">{label}</span>
+    <div>
+      <SummaryCards states={states} conflictCount={conflicts.length} />
+
+      {!statsLoading && stats.length > 0 && <VersionGapChart stats={stats} />}
+
+      <div className="space-y-4">
+        {Object.entries(byNode).map(([nodeId, nodeStates]) => (
+          <div key={nodeId} className="bg-surface-container rounded-lg p-4">
+            <h3 className="text-sm font-bold text-on-surface mb-3 uppercase tracking-wide">{nodeId}</h3>
+            <div className="grid grid-cols-[1fr_80px_100px_60px] gap-2 text-sm">
+              <div className="text-on-surface-variant font-semibold">Entity</div>
+              <div className="text-on-surface-variant font-semibold">Version</div>
+              <div className="text-on-surface-variant font-semibold">Last Sync</div>
+              <div className="text-on-surface-variant font-semibold">Status</div>
+              {(nodeStates as any[]).map((s: any) => {
+                const { color, label } = syncStatusColor(s.status, s.last_sync_at)
+                return (
+                  <div key={s.entity_type} className="contents">
+                    <div className="text-on-surface">{s.entity_type}</div>
+                    <div className="text-on-surface">{s.last_sync_version}</div>
+                    <div className="text-on-surface-variant">{formatTimeAgo(s.last_sync_at)}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`inline-block w-2 h-2 rounded-full ${color}`} />
+                      <span className="text-on-surface-variant">{label}</span>
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-          {(nodeStates as any[]).some((s: any) => s.error_message) && (
-            <div className="mt-3 text-xs text-red-400">
-              {(nodeStates as any[]).filter((s: any) => s.error_message).map((s: any) => (
-                <div key={s.entity_type}>{s.entity_type}: {s.error_message}</div>
-              ))}
+                )
+              })}
             </div>
-          )}
-        </div>
-      ))}
+            {(nodeStates as any[]).some((s: any) => s.error_message) && (
+              <div className="mt-3 text-xs text-red-400">
+                {(nodeStates as any[]).filter((s: any) => s.error_message).map((s: any) => (
+                  <div key={s.entity_type}>{s.entity_type}: {s.error_message}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <ErrorList states={states} />
     </div>
   )
 }

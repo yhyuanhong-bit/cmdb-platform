@@ -21,6 +21,18 @@ export interface SyncConflict {
   created_at: string
 }
 
+export interface SyncNodeGap {
+  node_id: string
+  last_sync_version: number
+  gap: number
+}
+
+export interface SyncEntityStats {
+  entity_type: string
+  max_version: number
+  nodes: SyncNodeGap[]
+}
+
 export const syncApi = {
   getState: () =>
     apiClient.get<ApiResponse<SyncState[]>>('/sync/state'),
@@ -28,4 +40,6 @@ export const syncApi = {
     apiClient.get<ApiResponse<SyncConflict[]>>('/sync/conflicts'),
   resolveConflict: (id: string, resolution: 'local_wins' | 'remote_wins') =>
     apiClient.post<void>(`/sync/conflicts/${id}/resolve`, { resolution }),
+  getStats: () =>
+    apiClient.get<ApiResponse<SyncEntityStats[]>>('/sync/stats'),
 }
