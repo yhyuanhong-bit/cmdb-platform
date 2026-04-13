@@ -12,6 +12,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const insertMetric = `-- name: InsertMetric :exec
+INSERT INTO metrics (time, asset_id, tenant_id, name, value, labels)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type InsertMetricParams struct {
+	Time     time.Time     `json:"time"`
+	AssetID  pgtype.UUID   `json:"asset_id"`
+	TenantID pgtype.UUID   `json:"tenant_id"`
+	Name     string        `json:"name"`
+	Value    pgtype.Float8 `json:"value"`
+	Labels   []byte        `json:"labels"`
+}
+
+func (q *Queries) InsertMetric(ctx context.Context, arg InsertMetricParams) error {
+	_, err := q.db.Exec(ctx, insertMetric,
+		arg.Time,
+		arg.AssetID,
+		arg.TenantID,
+		arg.Name,
+		arg.Value,
+		arg.Labels,
+	)
+	return err
+}
+
 const queryMetricsByAsset = `-- name: QueryMetricsByAsset :many
 SELECT time, name, value
 FROM metrics
