@@ -1,0 +1,4586 @@
+openapi: "3.0.3"
+info:
+  title: CMDB Platform API
+  version: "1.0.0"
+  description: Configuration Management Database Platform API
+servers:
+  - url: /api/v1
+security:
+  - BearerAuth: []
+
+tags:
+  - name: auth
+    description: Authentication
+  - name: topology
+    description: Locations, racks, and physical topology
+  - name: assets
+    description: Asset management
+  - name: maintenance
+    description: Work orders and maintenance
+  - name: monitoring
+    description: Alerts and monitoring
+  - name: inventory
+    description: Inventory tasks
+  - name: audit
+    description: Audit trail
+  - name: dashboard
+    description: Dashboard statistics
+  - name: identity
+    description: Users and roles
+  - name: prediction
+    description: AI predictions and RCA
+  - name: system
+    description: System health and diagnostics
+  - name: integration
+    description: Integration adapters and webhooks
+  - name: bia
+    description: Business Impact Analysis
+  - name: quality
+    description: Data Quality Governance
+  - name: discovery
+    description: Auto-Discovery staging area
+
+paths:
+  # ── Auth ────────────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      security: []
+      summary: Authenticate and obtain tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TokenPair'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [auth]
+      security: []
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TokenPair'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CurrentUser'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change the authenticated user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+      responses:
+        '200':
+          description: Password changed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # ── Topology ────────────────────────────────────────────────────────────
+  /locations:
+    get:
+      operationId: listLocations
+      tags: [topology]
+      summary: List locations
+      parameters:
+        - name: slug
+          in: query
+          schema:
+            type: string
+        - name: level
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Location list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Location'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createLocation
+      tags: [topology]
+      summary: Create a new location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug, level, status]
+              properties:
+                name:
+                  type: string
+                name_en:
+                  type: string
+                slug:
+                  type: string
+                level:
+                  type: string
+                parent_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                status:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+                sort_order:
+                  type: integer
+      responses:
+        '201':
+          description: Location created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Location'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /locations/{id}:
+    get:
+      operationId: getLocation
+      tags: [topology]
+      summary: Get a location by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Location detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Location'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateLocation
+      tags: [topology]
+      summary: Update a location
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                name_en:
+                  type: string
+                slug:
+                  type: string
+                level:
+                  type: string
+                status:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+                sort_order:
+                  type: integer
+      responses:
+        '200':
+          description: Location updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Location'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteLocation
+      tags: [topology]
+      summary: Delete a location
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Location deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /locations/{id}/children:
+    get:
+      operationId: listLocationChildren
+      tags: [topology]
+      summary: List child locations
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Child locations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Location'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /locations/{id}/ancestors:
+    get:
+      operationId: listLocationAncestors
+      tags: [topology]
+      summary: List ancestor locations
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Ancestor locations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Location'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /locations/{id}/stats:
+    get:
+      operationId: getLocationStats
+      tags: [topology]
+      summary: Get location statistics
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Location stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LocationStats'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /locations/{id}/descendants:
+    get:
+      operationId: listLocationDescendants
+      tags: [topology]
+      summary: List all descendant locations
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Descendant locations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Location'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /locations/{id}/racks:
+    get:
+      operationId: listLocationRacks
+      tags: [topology]
+      summary: List racks in a location
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Rack list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Rack'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /racks:
+    post:
+      operationId: createRack
+      tags: [topology]
+      summary: Create a new rack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [location_id, name, status]
+              properties:
+                location_id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                row_label:
+                  type: string
+                total_u:
+                  type: integer
+                power_capacity_kw:
+                  type: number
+                status:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Rack created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Rack'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /racks/{id}:
+    get:
+      operationId: getRack
+      tags: [topology]
+      summary: Get a rack by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Rack detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Rack'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateRack
+      tags: [topology]
+      summary: Update a rack
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                row_label:
+                  type: string
+                total_u:
+                  type: integer
+                power_capacity_kw:
+                  type: number
+                status:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Rack updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Rack'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteRack
+      tags: [topology]
+      summary: Delete a rack
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Rack deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /racks/{id}/assets:
+    get:
+      operationId: listRackAssets
+      tags: [topology]
+      summary: List assets in a rack
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Asset list for rack
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Asset'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /racks/{id}/slots:
+    get:
+      operationId: listRackSlots
+      tags: [topology]
+      summary: List rack slot assignments
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Rack slots with asset info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RackSlot'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+    post:
+      operationId: createRackSlot
+      tags: [topology]
+      summary: Assign asset to rack slot (with conflict detection)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asset_id, start_u, end_u]
+              properties:
+                asset_id:
+                  type: string
+                  format: uuid
+                start_u:
+                  type: integer
+                end_u:
+                  type: integer
+                side:
+                  type: string
+                  default: front
+      responses:
+        '201':
+          description: Slot created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RackSlot'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /racks/{id}/slots/{slotId}:
+    delete:
+      operationId: deleteRackSlot
+      tags: [topology]
+      summary: Remove asset from rack slot
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Slot removed
+
+  /racks/stats:
+    get:
+      operationId: getRackStats
+      tags: [topology]
+      summary: Get rack occupancy statistics
+      responses:
+        '200':
+          description: Rack stats
+
+  /racks/{id}/maintenance:
+    get:
+      operationId: getRackMaintenance
+      tags: [maintenance]
+      summary: Get maintenance history for a rack
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Rack maintenance records
+
+  /racks/{id}/network-connections:
+    get:
+      operationId: listRackNetworkConnections
+      tags: [topology]
+      summary: List network connections in a rack
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Network connections
+    post:
+      operationId: createRackNetworkConnection
+      tags: [topology]
+      summary: Create a network connection
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '201':
+          description: Connection created
+
+  /racks/{id}/network-connections/{connectionId}:
+    delete:
+      operationId: deleteRackNetworkConnection
+      tags: [topology]
+      summary: Delete a network connection
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: connectionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Connection deleted
+
+  /topology/dependencies:
+    get:
+      operationId: listAssetDependencies
+      tags: [topology]
+      summary: List asset dependencies
+      parameters:
+        - name: asset_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Dependency list
+    post:
+      operationId: createAssetDependency
+      tags: [topology]
+      summary: Create asset dependency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Dependency created
+
+  /topology/dependencies/{id}:
+    delete:
+      operationId: deleteAssetDependency
+      tags: [topology]
+      summary: Delete asset dependency
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Dependency deleted
+
+  /topology/graph:
+    get:
+      operationId: getTopologyGraph
+      tags: [topology]
+      summary: Get topology graph for a location
+      parameters:
+        - name: location_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Topology graph data
+
+  # ── Assets ──────────────────────────────────────────────────────────────
+  /assets:
+    get:
+      operationId: listAssets
+      tags: [assets]
+      summary: List assets with pagination and filters
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: location_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: rack_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: serial_number
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated asset list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Asset'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createAsset
+      tags: [assets]
+      summary: Create a new asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Asset'
+      responses:
+        '201':
+          description: Asset created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Asset'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /assets/{id}:
+    get:
+      operationId: getAsset
+      tags: [assets]
+      summary: Get an asset by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Asset detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Asset'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateAsset
+      tags: [assets]
+      summary: Update an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                status:
+                  type: string
+                bia_level:
+                  type: string
+                location_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                rack_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                vendor:
+                  type: string
+                model:
+                  type: string
+                attributes:
+                  type: object
+                  additionalProperties: true
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Asset updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Asset'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteAsset
+      tags: [assets]
+      summary: Delete an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Asset deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /assets/lifecycle-stats:
+    get:
+      operationId: getAssetLifecycleStats
+      tags: [assets]
+      summary: Get asset counts by lifecycle status
+      responses:
+        '200':
+          description: Lifecycle statistics
+
+  /assets/{id}/upgrade-recommendations:
+    get:
+      operationId: getAssetUpgradeRecommendations
+      tags: [assets]
+      summary: Get upgrade recommendations for an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Upgrade recommendations
+
+  /assets/{id}/upgrade-recommendations/{category}/accept:
+    post:
+      operationId: acceptUpgradeRecommendation
+      tags: [assets]
+      summary: Accept an upgrade recommendation
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recommendation accepted
+
+  # ── Maintenance ─────────────────────────────────────────────────────────
+  /maintenance/orders:
+    get:
+      operationId: listWorkOrders
+      tags: [maintenance]
+      summary: List work orders
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: asset_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: location_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated work order list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkOrder'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createWorkOrder
+      tags: [maintenance]
+      summary: Create a new work order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, type]
+              properties:
+                title:
+                  type: string
+                type:
+                  type: string
+                priority:
+                  type: string
+                location_id:
+                  type: string
+                  format: uuid
+                assignee_id:
+                  type: string
+                  format: uuid
+                description:
+                  type: string
+                scheduled_start:
+                  type: string
+                  format: date-time
+                scheduled_end:
+                  type: string
+                  format: date-time
+      responses:
+        '201':
+          description: Work order created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkOrder'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /maintenance/orders/{id}:
+    get:
+      operationId: getWorkOrder
+      tags: [maintenance]
+      summary: Get a work order by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Work order detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkOrder'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateWorkOrder
+      tags: [maintenance]
+      summary: Update a work order
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                priority:
+                  type: string
+                assignee_id:
+                  type: string
+                  format: uuid
+                scheduled_start:
+                  type: string
+                  format: date-time
+                scheduled_end:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Work order updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkOrder'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteWorkOrder
+      tags: [maintenance]
+      summary: Soft-delete a work order
+      description: |
+        Marks a work order as deleted. Only work orders in draft or rejected
+        status can be deleted. Completed/closed orders are preserved for audit.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Work order deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /maintenance/orders/{id}/logs:
+    get:
+      operationId: listWorkOrderLogs
+      tags: [maintenance]
+      summary: List work order logs
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Work order logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkOrderLog'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /maintenance/orders/{id}/transition:
+    post:
+      operationId: transitionWorkOrder
+      tags: [maintenance]
+      summary: Transition work order status
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: Work order transitioned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkOrder'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /maintenance/orders/{id}/comments:
+    get:
+      operationId: listWorkOrderComments
+      tags: [maintenance]
+      summary: List comments on a work order
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Comment list
+    post:
+      operationId: createWorkOrderComment
+      tags: [maintenance]
+      summary: Add a comment to a work order
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+      responses:
+        '201':
+          description: Comment created
+
+  # ── Monitoring ──────────────────────────────────────────────────────────
+  /monitoring/alerts:
+    get:
+      operationId: listAlerts
+      tags: [monitoring]
+      summary: List alert events
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: severity
+          in: query
+          schema:
+            type: string
+        - name: asset_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Alert list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AlertEvent'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /monitoring/alerts/{id}/ack:
+    post:
+      operationId: acknowledgeAlert
+      tags: [monitoring]
+      summary: Acknowledge an alert
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Alert acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /monitoring/alerts/{id}/resolve:
+    post:
+      operationId: resolveAlert
+      tags: [monitoring]
+      summary: Resolve an alert
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Alert resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /monitoring/rules:
+    get:
+      operationId: listAlertRules
+      tags: [monitoring]
+      summary: List alert rules
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated alert rules list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AlertRule'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createAlertRule
+      tags: [monitoring]
+      summary: Create an alert rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, metric_name, condition, severity]
+              properties:
+                name:
+                  type: string
+                metric_name:
+                  type: string
+                condition:
+                  type: object
+                  additionalProperties: true
+                severity:
+                  type: string
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: Alert rule created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AlertRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /monitoring/rules/{id}:
+    put:
+      operationId: updateAlertRule
+      tags: [monitoring]
+      summary: Update an alert rule
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                metric_name:
+                  type: string
+                condition:
+                  type: object
+                  additionalProperties: true
+                severity:
+                  type: string
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Alert rule updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AlertRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /monitoring/incidents:
+    get:
+      operationId: listIncidents
+      tags: [monitoring]
+      summary: List incidents
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: severity
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated incidents list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Incident'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createIncident
+      tags: [monitoring]
+      summary: Create an incident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, severity]
+              properties:
+                title:
+                  type: string
+                severity:
+                  type: string
+                status:
+                  type: string
+                  default: open
+      responses:
+        '201':
+          description: Incident created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Incident'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /monitoring/incidents/{id}:
+    get:
+      operationId: getIncident
+      tags: [monitoring]
+      summary: Get an incident by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Incident detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Incident'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateIncident
+      tags: [monitoring]
+      summary: Update an incident
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                status:
+                  type: string
+                severity:
+                  type: string
+                resolved_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        '200':
+          description: Incident updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Incident'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /monitoring/metrics:
+    get:
+      operationId: queryMetrics
+      tags: [monitoring]
+      summary: Query time-series metrics for an asset
+      parameters:
+        - name: asset_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: metric_name
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: time_range
+          in: query
+          required: true
+          schema:
+            type: string
+            description: "Time range, e.g. 1h, 6h, 24h, 7d"
+      responses:
+        '200':
+          description: Metric data points
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MetricPoint'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /monitoring/alerts/trend:
+    get:
+      operationId: getAlertsTrend
+      tags: [monitoring]
+      summary: Get 24-hour alert trend data
+      responses:
+        '200':
+          description: Hourly alert counts
+
+  /energy/breakdown:
+    get:
+      operationId: getEnergyBreakdown
+      tags: [monitoring]
+      summary: Get energy breakdown by category
+      parameters:
+        - name: location_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Energy breakdown data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /energy/summary:
+    get:
+      operationId: getEnergySummary
+      tags: [monitoring]
+      summary: Get energy summary metrics
+      responses:
+        '200':
+          description: Energy summary
+
+  /energy/trend:
+    get:
+      operationId: getEnergyTrend
+      tags: [monitoring]
+      summary: Get energy consumption trend
+      parameters:
+        - name: range
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Energy trend data
+
+  /sensors:
+    get:
+      operationId: listSensors
+      tags: [monitoring]
+      summary: List all sensors
+      parameters:
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Sensor list
+    post:
+      operationId: createSensor
+      tags: [monitoring]
+      summary: Create a sensor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Sensor created
+
+  /sensors/{id}:
+    put:
+      operationId: updateSensor
+      tags: [monitoring]
+      summary: Update a sensor
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Sensor updated
+    delete:
+      operationId: deleteSensor
+      tags: [monitoring]
+      summary: Delete a sensor
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Sensor deleted
+
+  /sensors/{id}/heartbeat:
+    post:
+      operationId: sensorHeartbeat
+      tags: [monitoring]
+      summary: Send sensor heartbeat
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Heartbeat acknowledged
+
+  # ── Inventory ───────────────────────────────────────────────────────────
+  /inventory/tasks:
+    get:
+      operationId: listInventoryTasks
+      tags: [inventory]
+      summary: List inventory tasks
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: scope_location_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated inventory task list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryTask'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createInventoryTask
+      tags: [inventory]
+      summary: Create an inventory task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, method, planned_date]
+              properties:
+                name:
+                  type: string
+                scope_location_id:
+                  type: string
+                  format: uuid
+                method:
+                  type: string
+                planned_date:
+                  type: string
+                assigned_to:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Inventory task created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InventoryTask'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /inventory/tasks/{id}:
+    get:
+      operationId: getInventoryTask
+      tags: [inventory]
+      summary: Get an inventory task by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Inventory task detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InventoryTask'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateInventoryTask
+      tags: [inventory]
+      summary: Update an inventory task
+      description: |
+        Update editable fields of an inventory task. Only planned and in_progress
+        tasks can be modified. Method and scope_location_id cannot be changed.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                planned_date:
+                  type: string
+                assigned_to:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Inventory task updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InventoryTask'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteInventoryTask
+      tags: [inventory]
+      summary: Soft-delete an inventory task
+      description: Only planned tasks can be deleted.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Inventory task deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /inventory/tasks/{id}/items:
+    get:
+      operationId: listInventoryItems
+      tags: [inventory]
+      summary: List items in an inventory task
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Inventory items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryItem'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /inventory/tasks/{id}/complete:
+    post:
+      operationId: completeInventoryTask
+      tags: [inventory]
+      summary: Complete an inventory task
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Inventory task completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InventoryTask'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /inventory/tasks/{id}/items/{itemId}/scan:
+    post:
+      operationId: scanInventoryItem
+      tags: [inventory]
+      summary: Scan an inventory item
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actual, status]
+              properties:
+                actual:
+                  type: object
+                  additionalProperties: true
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Item scanned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/InventoryItem'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /inventory/tasks/{id}/import:
+    post:
+      operationId: importInventoryItems
+      tags: [inventory]
+      summary: Import inventory items from external source
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      asset_tag: { type: string }
+                      serial_number: { type: string }
+                      expected_location: { type: string }
+      responses:
+        '200':
+          description: Import results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      matched: { type: integer }
+                      discrepancy: { type: integer }
+                      not_found: { type: integer }
+                      total: { type: integer }
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /inventory/tasks/{id}/summary:
+    get:
+      operationId: getInventorySummary
+      tags: [inventory]
+      summary: Get inventory task summary
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Inventory task summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      scanned:
+                        type: integer
+                      pending:
+                        type: integer
+                      discrepancy:
+                        type: integer
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /inventory/tasks/{id}/racks-summary:
+    get:
+      operationId: getInventoryRacksSummary
+      tags: [inventory]
+      summary: Get per-rack scan progress for an inventory task
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Rack summary data
+
+  /inventory/tasks/{id}/discrepancies:
+    get:
+      operationId: getInventoryDiscrepancies
+      tags: [inventory]
+      summary: List discrepancies in an inventory task
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Discrepancy list
+
+  /inventory/tasks/{id}/items/{itemId}/scan-history:
+    get:
+      operationId: getItemScanHistory
+      tags: [inventory]
+      summary: Get scan history for an inventory item
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Scan history
+    post:
+      operationId: createItemScanRecord
+      tags: [inventory]
+      summary: Create a scan record for an inventory item
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Scan record created
+
+  /inventory/tasks/{id}/items/{itemId}/notes:
+    get:
+      operationId: getItemNotes
+      tags: [inventory]
+      summary: Get notes for an inventory item
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notes list
+    post:
+      operationId: createItemNote
+      tags: [inventory]
+      summary: Add a note to an inventory item
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Note created
+
+  /inventory/tasks/{id}/items/{itemId}/resolve:
+    post:
+      operationId: resolveInventoryDiscrepancy
+      tags: [inventory]
+      summary: Resolve a discrepancy on an inventory item
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [verify, add_findings, register, clear]
+                note:
+                  type: string
+      responses:
+        '200':
+          description: Discrepancy resolved
+
+  # ── Audit ───────────────────────────────────────────────────────────────
+  /audit/events:
+    get:
+      operationId: queryAuditEvents
+      tags: [audit]
+      summary: Query audit events
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: module
+          in: query
+          schema:
+            type: string
+        - name: target_type
+          in: query
+          schema:
+            type: string
+        - name: target_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated audit events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditEvent'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /audit/events/{id}:
+    get:
+      operationId: getAuditEventDetail
+      tags: [audit]
+      summary: Get detailed audit event
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Audit event detail
+
+  /activity-feed:
+    get:
+      operationId: getActivityFeed
+      tags: [audit]
+      summary: Get activity feed for a resource
+      parameters:
+        - name: resource_type
+          in: query
+          schema:
+            type: string
+        - name: resource_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Activity feed entries
+
+  # ── Dashboard ───────────────────────────────────────────────────────────
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard statistics
+      parameters:
+        - name: idc_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DashboardStats'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Identity ────────────────────────────────────────────────────────────
+  /users:
+    get:
+      operationId: listUsers
+      tags: [identity]
+      summary: List users
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated user list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createUser
+      tags: [identity]
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, display_name, email, password]
+              properties:
+                username:
+                  type: string
+                display_name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                password:
+                  type: string
+                status:
+                  type: string
+                  default: active
+                source:
+                  type: string
+                  default: local
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [identity]
+      summary: Get a user by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: User detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateUser
+      tags: [identity]
+      summary: Update a user
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                status:
+                  type: string
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [identity]
+      summary: List roles
+      responses:
+        '200':
+          description: Role list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Role'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createRole
+      tags: [identity]
+      summary: Create a role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                permissions:
+                  type: object
+                  additionalProperties:
+                    type: array
+                    items:
+                      type: string
+      responses:
+        '201':
+          description: Role created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Role'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /roles/{id}:
+    put:
+      operationId: updateRole
+      tags: [identity]
+      summary: Update a role
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                permissions:
+                  type: object
+                  additionalProperties:
+                    type: array
+                    items:
+                      type: string
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Role'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteRole
+      tags: [identity]
+      summary: Delete a role
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Role deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{id}/sessions:
+    get:
+      operationId: listUserSessions
+      tags: [identity]
+      summary: List active sessions for a user
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Session list
+
+  # ── Prediction ──────────────────────────────────────────────────────────
+  /prediction/models:
+    get:
+      operationId: listPredictionModels
+      tags: [prediction]
+      summary: List prediction models
+      responses:
+        '200':
+          description: Model list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PredictionModel'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /prediction/results/ci/{ciId}:
+    get:
+      operationId: listPredictionsByAsset
+      tags: [prediction]
+      summary: List predictions for a specific asset
+      parameters:
+        - name: ciId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prediction results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PredictionResult'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /prediction/rca:
+    post:
+      operationId: createRCA
+      tags: [prediction]
+      summary: Create a root cause analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [incident_id]
+              properties:
+                incident_id:
+                  type: string
+                  format: uuid
+                model_name:
+                  type: string
+                context:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '201':
+          description: RCA created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RCAAnalysis'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /prediction/rca/{id}/verify:
+    post:
+      operationId: verifyRCA
+      tags: [prediction]
+      summary: Verify an RCA analysis
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verified_by]
+              properties:
+                verified_by:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: RCA verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RCAAnalysis'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /prediction/rul/{id}:
+    get:
+      operationId: getAssetRUL
+      tags: [prediction]
+      summary: Get remaining useful life for an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: RUL data
+
+  /prediction/failure-distribution:
+    get:
+      operationId: getFailureDistribution
+      tags: [prediction]
+      summary: Get failure distribution forecast
+      responses:
+        '200':
+          description: Failure distribution data
+
+  # ── System ───────────────────────────────────────────────────────────
+  /system/health:
+    get:
+      operationId: getSystemHealth
+      tags: [system]
+      summary: Get system health status
+      responses:
+        '200':
+          description: System health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SystemHealth'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  # ── Integration ────────────────────────────────────────────────────
+  /integration/adapters:
+    get:
+      operationId: listAdapters
+      tags: [integration]
+      summary: List integration adapters
+      responses:
+        '200':
+          description: Adapter list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/IntegrationAdapter'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createAdapter
+      tags: [integration]
+      summary: Create an integration adapter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type, direction]
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                direction:
+                  type: string
+                endpoint:
+                  type: string
+                config:
+                  type: object
+                  additionalProperties: true
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: Adapter created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/IntegrationAdapter'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /integration/webhooks:
+    get:
+      operationId: listWebhooks
+      tags: [integration]
+      summary: List webhook subscriptions
+      responses:
+        '200':
+          description: Webhook list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookSubscription'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createWebhook
+      tags: [integration]
+      summary: Create a webhook subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, url, events]
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+                secret:
+                  type: string
+                events:
+                  type: array
+                  items:
+                    type: string
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WebhookSubscription'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /integration/webhooks/{id}/deliveries:
+    get:
+      operationId: listWebhookDeliveries
+      tags: [integration]
+      summary: List webhook delivery history
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Webhook deliveries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookDelivery'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  # ── BIA ──────────────────────────────────────────────────────────────────
+  /bia/assessments:
+    get:
+      operationId: listBIAAssessments
+      tags: [bia]
+      summary: List BIA assessments with pagination
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated BIA assessment list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BIAAssessment'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createBIAAssessment
+      tags: [bia]
+      summary: Create a BIA assessment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [system_name, system_code, bia_score, tier]
+              properties:
+                system_name:
+                  type: string
+                system_code:
+                  type: string
+                owner:
+                  type: string
+                bia_score:
+                  type: integer
+                tier:
+                  type: string
+                rto_hours:
+                  type: number
+                rpo_minutes:
+                  type: number
+                mtpd_hours:
+                  type: number
+                data_compliance:
+                  type: boolean
+                asset_compliance:
+                  type: boolean
+                audit_compliance:
+                  type: boolean
+                description:
+                  type: string
+                assessed_by:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: BIA assessment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIAAssessment'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /bia/assessments/{id}:
+    get:
+      operationId: getBIAAssessment
+      tags: [bia]
+      summary: Get a BIA assessment by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: BIA assessment detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIAAssessment'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateBIAAssessment
+      tags: [bia]
+      summary: Update a BIA assessment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                system_name:
+                  type: string
+                owner:
+                  type: string
+                bia_score:
+                  type: integer
+                tier:
+                  type: string
+                rto_hours:
+                  type: number
+                rpo_minutes:
+                  type: number
+                mtpd_hours:
+                  type: number
+                data_compliance:
+                  type: boolean
+                asset_compliance:
+                  type: boolean
+                audit_compliance:
+                  type: boolean
+                description:
+                  type: string
+      responses:
+        '200':
+          description: BIA assessment updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIAAssessment'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteBIAAssessment
+      tags: [bia]
+      summary: Delete a BIA assessment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: BIA assessment deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /bia/rules:
+    get:
+      operationId: listBIAScoringRules
+      tags: [bia]
+      summary: List BIA scoring rules
+      responses:
+        '200':
+          description: Scoring rule list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BIAScoringRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /bia/rules/{id}:
+    put:
+      operationId: updateBIAScoringRule
+      tags: [bia]
+      summary: Update a BIA scoring rule
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                min_score:
+                  type: integer
+                max_score:
+                  type: integer
+                rto_threshold:
+                  type: number
+                rpo_threshold:
+                  type: number
+                description:
+                  type: string
+                color:
+                  type: string
+      responses:
+        '200':
+          description: Scoring rule updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIAScoringRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /bia/assessments/{id}/dependencies:
+    get:
+      operationId: listBIADependencies
+      tags: [bia]
+      summary: List dependencies for a BIA assessment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Dependency list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BIADependency'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: createBIADependency
+      tags: [bia]
+      summary: Add a dependency to a BIA assessment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asset_id, dependency_type]
+              properties:
+                asset_id:
+                  type: string
+                  format: uuid
+                dependency_type:
+                  type: string
+                criticality:
+                  type: string
+      responses:
+        '201':
+          description: Dependency created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIADependency'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /bia/stats:
+    get:
+      operationId: getBIAStats
+      tags: [bia]
+      summary: Get BIA statistics
+      responses:
+        '200':
+          description: BIA statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BIAStats'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── BIA Impact ─────────────────────────────────────────────────────────
+  /bia/impact/{id}:
+    get:
+      operationId: getBIAImpact
+      tags: [bia]
+      summary: Get business systems impacted by an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Impacted BIA assessments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BIAAssessment'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Quality ────────────────────────────────────────────────────────────
+  /quality/rules:
+    get:
+      operationId: listQualityRules
+      tags: [quality]
+      summary: List data quality rules
+      responses:
+        '200':
+          description: Quality rules
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QualityRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createQualityRule
+      tags: [quality]
+      summary: Create a data quality rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQualityRuleRequest'
+      responses:
+        '201':
+          description: Quality rule created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityRule'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /quality/scan:
+    post:
+      operationId: triggerQualityScan
+      tags: [quality]
+      summary: Trigger a quality scan for all assets
+      responses:
+        '200':
+          description: Scan completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      scanned:
+                        type: integer
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /quality/dashboard:
+    get:
+      operationId: getQualityDashboard
+      tags: [quality]
+      summary: Get quality dashboard with aggregate scores
+      responses:
+        '200':
+          description: Quality dashboard
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityDashboard'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /quality/worst:
+    get:
+      operationId: getWorstAssets
+      tags: [quality]
+      summary: Get worst quality assets (bottom 10)
+      responses:
+        '200':
+          description: Worst quality assets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QualityScore'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /quality/history/{id}:
+    get:
+      operationId: getAssetQualityHistory
+      tags: [quality]
+      summary: Get quality score history for an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Quality score history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QualityScore'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # -- Discovery (Auto-Discovery Staging Area) --------------------------------
+  /discovery/pending:
+    get:
+      operationId: listDiscoveredAssets
+      tags: [discovery]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Discovered assets list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DiscoveredAsset'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+
+  /discovery/ingest:
+    post:
+      operationId: ingestDiscoveredAsset
+      tags: [discovery]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source, hostname]
+              properties:
+                source: { type: string }
+                external_id: { type: string }
+                hostname: { type: string }
+                ip_address: { type: string }
+                raw_data: { type: object, additionalProperties: true }
+      responses:
+        '201':
+          description: Asset ingested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DiscoveredAsset' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /discovery/{id}/approve:
+    post:
+      operationId: approveDiscoveredAsset
+      tags: [discovery]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Approved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DiscoveredAsset' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /discovery/{id}/ignore:
+    post:
+      operationId: ignoreDiscoveredAsset
+      tags: [discovery]
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Ignored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DiscoveredAsset' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /discovery/stats:
+    get:
+      operationId: getDiscoveryStats
+      tags: [discovery]
+      responses:
+        '200':
+          description: Discovery statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DiscoveryStats' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # ── Response wrappers ─────────────────────────────────────────────────
+    Meta:
+      type: object
+      properties:
+        request_id:
+          type: string
+      required: [request_id]
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required: [page, page_size, total, total_pages]
+
+    ErrorBody:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+      required: [code, message]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+        meta:
+          $ref: '#/components/schemas/Meta'
+      required: [error, meta]
+
+    # ── Auth ──────────────────────────────────────────────────────────────
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+      required: [access_token, refresh_token, expires_in]
+
+    CurrentUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        display_name:
+          type: string
+        email:
+          type: string
+        permissions:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required: [id, username, display_name, email, permissions]
+
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required: [username, password]
+
+    RefreshRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+      required: [refresh_token]
+
+    # ── Asset ─────────────────────────────────────────────────────────────
+    Asset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset_tag:
+          type: string
+        property_number:
+          type: string
+          nullable: true
+        control_number:
+          type: string
+          nullable: true
+        name:
+          type: string
+        type:
+          type: string
+        sub_type:
+          type: string
+        status:
+          type: string
+        bia_level:
+          type: string
+        location_id:
+          type: string
+          nullable: true
+          format: uuid
+        rack_id:
+          type: string
+          nullable: true
+          format: uuid
+        vendor:
+          type: string
+        model:
+          type: string
+        serial_number:
+          type: string
+        attributes:
+          type: object
+          additionalProperties: true
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - asset_tag
+        - name
+        - type
+        - sub_type
+        - status
+        - bia_level
+        - vendor
+        - model
+        - serial_number
+        - attributes
+        - tags
+        - created_at
+        - updated_at
+
+    # ── Location ──────────────────────────────────────────────────────────
+    Location:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        name_en:
+          type: string
+        slug:
+          type: string
+        level:
+          type: string
+        parent_id:
+          type: string
+          nullable: true
+          format: uuid
+        path:
+          type: string
+        status:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        sort_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - name_en
+        - slug
+        - level
+        - path
+        - status
+        - metadata
+        - sort_order
+        - created_at
+        - updated_at
+
+    # ── Rack ──────────────────────────────────────────────────────────────
+    Rack:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        location_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        row_label:
+          type: string
+        total_u:
+          type: integer
+        used_u:
+          type: integer
+        power_capacity_kw:
+          type: number
+        power_current_kw:
+          type: number
+        status:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - location_id
+        - name
+        - row_label
+        - total_u
+        - used_u
+        - power_capacity_kw
+        - power_current_kw
+        - status
+        - tags
+        - created_at
+
+    # ── WorkOrder ─────────────────────────────────────────────────────────
+    WorkOrder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+        location_id:
+          type: string
+          format: uuid
+        assignee_id:
+          type: string
+          nullable: true
+          format: uuid
+        description:
+          type: string
+        scheduled_start:
+          type: string
+          format: date-time
+        scheduled_end:
+          type: string
+          format: date-time
+        actual_start:
+          type: string
+          nullable: true
+          format: date-time
+        actual_end:
+          type: string
+          nullable: true
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - code
+        - title
+        - type
+        - status
+        - priority
+        - location_id
+        - description
+        - scheduled_start
+        - scheduled_end
+        - created_at
+
+    # ── MetricPoint ──────────────────────────────────────────────────────
+    MetricPoint:
+      type: object
+      properties:
+        time:
+          type: string
+          format: date-time
+        name:
+          type: string
+        value:
+          type: number
+          format: double
+      required: [time, name, value]
+
+    # ── AlertEvent ────────────────────────────────────────────────────────
+    AlertEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        rule_id:
+          type: string
+          format: uuid
+        ci_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        severity:
+          type: string
+        message:
+          type: string
+        trigger_value:
+          type: number
+        fired_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          nullable: true
+          format: date-time
+      required:
+        - id
+        - rule_id
+        - ci_id
+        - status
+        - severity
+        - message
+        - trigger_value
+        - fired_at
+
+    # ── AlertRule ─────────────────────────────────────────────────────
+    AlertRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        metric_name:
+          type: string
+        condition:
+          type: object
+          additionalProperties: true
+        severity:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - metric_name
+        - condition
+        - severity
+        - enabled
+        - created_at
+
+    # ── Incident ──────────────────────────────────────────────────────
+    Incident:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+        severity:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          nullable: true
+          format: date-time
+      required:
+        - id
+        - title
+        - status
+        - severity
+        - started_at
+
+    # ── InventoryTask ─────────────────────────────────────────────────────
+    InventoryTask:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        scope_location_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        method:
+          type: string
+        planned_date:
+          type: string
+        completed_date:
+          type: string
+          nullable: true
+        assigned_to:
+          type: string
+          format: uuid
+      required:
+        - id
+        - code
+        - name
+        - scope_location_id
+        - status
+        - method
+        - planned_date
+        - assigned_to
+
+    # ── InventoryItem ─────────────────────────────────────────────────────
+    InventoryItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        task_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          nullable: true
+          format: uuid
+        rack_id:
+          type: string
+          nullable: true
+          format: uuid
+        expected:
+          type: object
+          additionalProperties: true
+        actual:
+          type: object
+          nullable: true
+          additionalProperties: true
+        status:
+          type: string
+        scanned_at:
+          type: string
+          nullable: true
+          format: date-time
+        scanned_by:
+          type: string
+          nullable: true
+          format: uuid
+      required:
+        - id
+        - task_id
+        - expected
+        - status
+
+    # ── AuditEvent ────────────────────────────────────────────────────────
+    AuditEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        module:
+          type: string
+        target_type:
+          type: string
+        target_id:
+          type: string
+          format: uuid
+        operator_id:
+          type: string
+          format: uuid
+        diff:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - action
+        - module
+        - target_type
+        - target_id
+        - operator_id
+        - diff
+        - created_at
+
+    # ── User ──────────────────────────────────────────────────────────────
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        display_name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+        source:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - username
+        - display_name
+        - email
+        - phone
+        - status
+        - source
+        - created_at
+
+    # ── Role ──────────────────────────────────────────────────────────────
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        permissions:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        is_system:
+          type: boolean
+      required:
+        - id
+        - name
+        - description
+        - permissions
+        - is_system
+
+    # ── PredictionModel ───────────────────────────────────────────────────
+    PredictionModel:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+        provider:
+          type: string
+        config:
+          type: object
+          additionalProperties: true
+        enabled:
+          type: boolean
+      required:
+        - id
+        - name
+        - type
+        - provider
+        - config
+        - enabled
+
+    # ── PredictionResult ──────────────────────────────────────────────────
+    PredictionResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        model_id:
+          type: string
+          format: uuid
+        ci_id:
+          type: string
+          format: uuid
+        prediction_type:
+          type: string
+        result:
+          type: object
+          additionalProperties: true
+        severity:
+          type: string
+        recommended_action:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - model_id
+        - ci_id
+        - prediction_type
+        - result
+        - severity
+        - recommended_action
+        - expires_at
+        - created_at
+
+    # ── RCAAnalysis ───────────────────────────────────────────────────────
+    RCAAnalysis:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        incident_id:
+          type: string
+          format: uuid
+        reasoning:
+          type: object
+          additionalProperties: true
+        conclusion_ci_id:
+          type: string
+          nullable: true
+          format: uuid
+        confidence:
+          type: number
+        human_verified:
+          type: boolean
+      required:
+        - id
+        - incident_id
+        - reasoning
+        - confidence
+        - human_verified
+
+    # ── WorkOrderLog ──────────────────────────────────────────────────────
+    WorkOrderLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        from_status:
+          type: string
+          nullable: true
+        to_status:
+          type: string
+          nullable: true
+        operator_id:
+          type: string
+          nullable: true
+          format: uuid
+        comment:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - order_id
+        - action
+        - created_at
+
+    # ── LocationStats ─────────────────────────────────────────────────────
+    LocationStats:
+      type: object
+      properties:
+        total_assets:
+          type: integer
+        total_racks:
+          type: integer
+        critical_alerts:
+          type: integer
+        avg_occupancy:
+          type: number
+      required:
+        - total_assets
+        - total_racks
+        - critical_alerts
+        - avg_occupancy
+
+    # ── DashboardStats ────────────────────────────────────────────────────
+    DashboardStats:
+      type: object
+      properties:
+        total_assets:
+          type: integer
+        total_racks:
+          type: integer
+        critical_alerts:
+          type: integer
+        active_orders:
+          type: integer
+      required:
+        - total_assets
+        - total_racks
+        - critical_alerts
+        - active_orders
+
+    # ── SystemHealth ──────────────────────────────────────────────────
+    SystemHealth:
+      type: object
+      properties:
+        database:
+          type: object
+          properties:
+            status:
+              type: string
+            latency_ms:
+              type: number
+        redis:
+          type: object
+          properties:
+            status:
+              type: string
+            latency_ms:
+              type: number
+        nats:
+          type: object
+          properties:
+            status:
+              type: string
+            connected:
+              type: boolean
+
+    # ── IntegrationAdapter ────────────────────────────────────────────
+    IntegrationAdapter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+        direction:
+          type: string
+        endpoint:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    # ── WebhookSubscription ───────────────────────────────────────────
+    WebhookSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        url:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    # ── WebhookDelivery ──────────────────────────────────────────────
+    WebhookDelivery:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        subscription_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        status_code:
+          type: integer
+        response_body:
+          type: string
+        delivered_at:
+          type: string
+          format: date-time
+
+    # ── RackSlot ──────────────────────────────────────────────────────
+    RackSlot:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        rack_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        start_u:
+          type: integer
+        end_u:
+          type: integer
+        side:
+          type: string
+        asset_name:
+          type: string
+        asset_tag:
+          type: string
+        asset_type:
+          type: string
+        bia_level:
+          type: string
+
+    # ── BIAAssessment ────────────────────────────────────────────────
+    BIAAssessment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        system_name:
+          type: string
+        system_code:
+          type: string
+        owner:
+          type: string
+        bia_score:
+          type: integer
+        tier:
+          type: string
+        rto_hours:
+          type: number
+        rpo_minutes:
+          type: number
+        mtpd_hours:
+          type: number
+        data_compliance:
+          type: boolean
+        asset_compliance:
+          type: boolean
+        audit_compliance:
+          type: boolean
+        description:
+          type: string
+        last_assessed:
+          type: string
+          format: date-time
+        assessed_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - system_name
+        - system_code
+        - bia_score
+        - tier
+
+    # ── BIAScoringRule ───────────────────────────────────────────────
+    BIAScoringRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tier_name:
+          type: string
+        tier_level:
+          type: integer
+        display_name:
+          type: string
+        min_score:
+          type: integer
+        max_score:
+          type: integer
+        rto_threshold:
+          type: number
+        rpo_threshold:
+          type: number
+        description:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+      required:
+        - id
+        - tier_name
+        - tier_level
+        - display_name
+        - min_score
+        - max_score
+
+    # ── BIADependency ────────────────────────────────────────────────
+    BIADependency:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assessment_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        dependency_type:
+          type: string
+        criticality:
+          type: string
+      required:
+        - id
+        - assessment_id
+        - asset_id
+        - dependency_type
+
+    # ── BIAStats ─────────────────────────────────────────────────────
+    BIAStats:
+      type: object
+      properties:
+        total:
+          type: integer
+        by_tier:
+          type: object
+          additionalProperties:
+            type: integer
+        avg_compliance:
+          type: number
+        data_compliant:
+          type: integer
+        asset_compliant:
+          type: integer
+        audit_compliant:
+          type: integer
+
+    # ── QualityRule ──────────────────────────────────────────────────
+    QualityRule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ci_type:
+          type: string
+        dimension:
+          type: string
+        field_name:
+          type: string
+        rule_type:
+          type: string
+        rule_config:
+          type: object
+          additionalProperties: true
+        weight:
+          type: integer
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - dimension
+        - field_name
+        - rule_type
+
+    CreateQualityRuleRequest:
+      type: object
+      properties:
+        ci_type:
+          type: string
+        dimension:
+          type: string
+        field_name:
+          type: string
+        rule_type:
+          type: string
+        rule_config:
+          type: object
+          additionalProperties: true
+        weight:
+          type: integer
+        enabled:
+          type: boolean
+      required:
+        - dimension
+        - field_name
+        - rule_type
+
+    # ── QualityScore ─────────────────────────────────────────────────
+    QualityScore:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        completeness:
+          type: number
+        accuracy:
+          type: number
+        timeliness:
+          type: number
+        consistency:
+          type: number
+        total_score:
+          type: number
+        issue_details:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        scan_date:
+          type: string
+          format: date-time
+        asset_name:
+          type: string
+        asset_tag:
+          type: string
+
+    # ── QualityDashboard ─────────────────────────────────────────────
+    QualityDashboard:
+      type: object
+      properties:
+        avg_total:
+          type: number
+        avg_completeness:
+          type: number
+        avg_accuracy:
+          type: number
+        avg_timeliness:
+          type: number
+        avg_consistency:
+          type: number
+        total_scanned:
+          type: integer
+
+    # ── DiscoveredAsset ──────────────────────────────────────────────
+    DiscoveredAsset:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        source: { type: string }
+        external_id: { type: string }
+        hostname: { type: string }
+        ip_address: { type: string }
+        raw_data: { type: object, additionalProperties: true }
+        status: { type: string }
+        matched_asset_id: { type: string, format: uuid, nullable: true }
+        diff_details: { type: object, additionalProperties: true, nullable: true }
+        discovered_at: { type: string, format: date-time }
+        reviewed_by: { type: string, format: uuid, nullable: true }
+        reviewed_at: { type: string, format: date-time, nullable: true }
+
+    # ── DiscoveryStats ──────────────────────────────────���────────────
+    DiscoveryStats:
+      type: object
+      properties:
+        total: { type: integer }
+        pending: { type: integer }
+        conflict: { type: integer }
+        approved: { type: integer }
+        ignored: { type: integer }
+        matched: { type: integer }

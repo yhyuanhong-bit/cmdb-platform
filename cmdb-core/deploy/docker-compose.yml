@@ -1,0 +1,226 @@
+services:
+  # ─── Core Application ────────────────────────────────────────────────
+  cmdb-core:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://cmdb:${DB_PASS:-changeme}@postgres:5432/cmdb?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      NATS_URL: nats://nats:4222
+      JWT_SECRET: ${JWT_SECRET:-changeme}
+      DEPLOY_MODE: central
+      MCP_ENABLED: "true"
+      MCP_PORT: "3001"
+      WS_ENABLED: "true"
+      OTEL_ENDPOINT: otel-collector:4317
+    ports:
+      - "8080:8080"
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      replicas: ${CORE_REPLICAS:-1}
+    restart: unless-stopped
+
+  # ─── Ingestion Engine ────────────────────────────────────────────────
+  ingestion-engine:
+    build:
+      context: ../../ingestion-engine
+      dockerfile: Dockerfile
+    environment:
+      INGESTION_DATABASE_URL: postgresql://cmdb:${DB_PASS:-changeme}@postgres:5432/cmdb
+      INGESTION_REDIS_URL: redis://redis:6379/0
+      INGESTION_CELERY_BROKER_URL: redis://redis:6379/1
+      INGESTION_NATS_URL: nats://nats:4222
+      INGESTION_OTEL_ENDPOINT: otel-collector:4317
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8081/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  ingestion-worker:
+    build:
+      context: ../../ingestion-engine
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app worker -l info -c 4
+    environment:
+      INGESTION_DATABASE_URL: postgresql://cmdb:${DB_PASS:-changeme}@postgres:5432/cmdb
+      INGESTION_REDIS_URL: redis://redis:6379/0
+      INGESTION_CELERY_BROKER_URL: redis://redis:6379/1
+      INGESTION_NATS_URL: nats://nats:4222
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+    restart: unless-stopped
+
+  # ─── Storage ─────────────────────────────────────────────────────────
+  postgres:
+    image: timescale/timescaledb:latest-pg17
+    environment:
+      POSTGRES_USER: cmdb
+      POSTGRES_PASSWORD: ${DB_PASS:-changeme}
+      POSTGRES_DB: cmdb
+    command:
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - wal_level=replica
+      - -c
+      - max_connections=200
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=128MB
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cmdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["--config", "/etc/nats/nats.conf"]
+    ports:
+      - "4222:4222"
+      - "7422:7422"
+      - "8222:8222"
+    volumes:
+      - ./nats/nats-central.conf:/etc/nats/nats.conf:ro
+      - nats_data:/data
+    restart: unless-stopped
+
+  # ─── Reverse Proxy ──────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../../frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - cmdb-core
+    restart: unless-stopped
+
+  # ─── Observability ──────────────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.0
+    command: ["--config", "/etc/otel/otel-collector.yaml"]
+    volumes:
+      - ./otel/otel-collector.yaml:/etc/otel/otel-collector.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - jaeger
+      - prometheus
+      - loki
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.64
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.3.2
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    command: -config.file=/etc/promtail/promtail.yml
+    volumes:
+      - ./promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASS:-admin}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  redis_data:
+  nats_data:
+  prom_data:
+  loki_data:
+  grafana_data:

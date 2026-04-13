@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS sensors;
+DROP TABLE IF EXISTS user_sessions;
+ALTER TABLE users DROP COLUMN IF EXISTS last_login_at;
+ALTER TABLE users DROP COLUMN IF EXISTS last_login_ip;

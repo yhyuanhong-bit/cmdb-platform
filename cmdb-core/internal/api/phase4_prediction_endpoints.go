@@ -1,0 +1,507 @@
+package api
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
+	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
+)
+
+// parseJSONAttributes unmarshals JSONB bytes into a map[string]string,
+// extracting only string-typed values.
+func parseJSONAttributes(data []byte) map[string]string {
+	result := map[string]string{}
+	if len(data) == 0 {
+		return result
+	}
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return result
+	}
+	for k, v := range raw {
+		if s, ok := v.(string); ok {
+			result[k] = s
+		}
+	}
+	return result
+}
+
+// GetAssetRUL handles GET /prediction/rul/:id
+// Calculates the Remaining Useful Life for an asset based on warranty and expected lifespan.
+func (s *APIServer) GetAssetRUL(c *gin.Context) {
+	assetID := c.Param("id")
+	if assetID == "" {
+		response.BadRequest(c, "missing asset id")
+		return
+	}
+
+	var (
+		name        string
+		assetType   string
+		attrBytes   []byte
+		createdAt   time.Time
+	)
+	err := s.pool.QueryRow(c.Request.Context(), `
+		SELECT name, type, attributes, created_at
+		FROM assets
+		WHERE id = $1
+	`, assetID).Scan(&name, &assetType, &attrBytes, &createdAt)
+	if err != nil {
+		response.NotFound(c, "asset not found")
+		return
+	}
+
+	attrs := parseJSONAttributes(attrBytes)
+
+	now := time.Now().UTC()
+
+	// Parse purchase_date
+	purchaseDate := attrs["purchase_date"]
+	var ageDays int64
+	if purchaseDate != "" {
+		if pd, err := time.Parse("2006-01-02", purchaseDate); err == nil {
+			ageDays = int64(now.Sub(pd).Hours() / 24)
+		}
+	} else {
+		ageDays = int64(now.Sub(createdAt).Hours() / 24)
+		purchaseDate = createdAt.Format("2006-01-02")
+	}
+
+	// Parse warranty_expiry
+	warrantyExpiry := attrs["warranty_expiry"]
+	var warrantyRemainingDays int64
+	if warrantyExpiry != "" {
+		if we, err := time.Parse("2006-01-02", warrantyExpiry); err == nil {
+			warrantyRemainingDays = int64(we.Sub(now).Hours() / 24)
+		}
+	}
+
+	// Expected lifespan by type (years)
+	lifespanYears := map[string]int64{
+		"server":  5,
+		"network": 7,
+		"storage": 5,
+		"power":   10,
+	}
+	expectedLifespanYears := int64(5)
+	assetTypeLower := strings.ToLower(assetType)
+	for k, v := range lifespanYears {
+		if strings.Contains(assetTypeLower, k) {
+			expectedLifespanYears = v
+			break
+		}
+	}
+	lifespanDays := expectedLifespanYears * 365
+	lifespanRemainingDays := lifespanDays - ageDays
+
+	// RUL = min(warranty_remaining, lifespan_remaining)
+	rulDays := warrantyRemainingDays
+	if lifespanRemainingDays < rulDays {
+		rulDays = lifespanRemainingDays
+	}
+
+	// Determine status
+	rulStatus := "expired"
+	switch {
+	case rulDays > 365:
+		rulStatus = "healthy"
+	case rulDays >= 90:
+		rulStatus = "warning"
+	case rulDays > 0:
+		rulStatus = "critical"
+	}
+
+	response.OK(c, gin.H{
+		"asset_id":                assetID,
+		"asset_name":              name,
+		"purchase_date":           purchaseDate,
+		"warranty_expiry":         warrantyExpiry,
+		"expected_lifespan_years": expectedLifespanYears,
+		"age_days":                ageDays,
+		"rul_days":                rulDays,
+		"rul_status":              rulStatus,
+		"warranty_remaining_days": warrantyRemainingDays,
+	})
+}
+
+// GetFailureDistribution handles GET /prediction/failure-distribution
+// Returns failure category distribution based on alerts and work orders from the last 90 days.
+func (s *APIServer) GetFailureDistribution(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+
+	// Classify a text string into a failure category.
+	classify := func(text string) string {
+		t := strings.ToLower(text)
+		switch {
+		case strings.Contains(t, "temperature") || strings.Contains(t, "temp") || strings.Contains(t, "thermal"):
+			return "Thermal"
+		case strings.Contains(t, "power") || strings.Contains(t, "voltage") || strings.Contains(t, "electrical") || strings.Contains(t, "pdu") || strings.Contains(t, "ups"):
+			return "Electrical"
+		case strings.Contains(t, "disk") || strings.Contains(t, "fan") || strings.Contains(t, "vibration") || strings.Contains(t, "hardware"):
+			return "Mechanical"
+		case strings.Contains(t, "cpu") || strings.Contains(t, "memory") || strings.Contains(t, "software") || strings.Contains(t, "firmware"):
+			return "Software"
+		default:
+			return "Other"
+		}
+	}
+
+	counts := map[string]int64{
+		"Thermal":    0,
+		"Electrical": 0,
+		"Mechanical": 0,
+		"Software":   0,
+		"Other":      0,
+	}
+
+	// Query alert_events for last 90 days
+	alertRows, err := s.pool.Query(c.Request.Context(), `
+		SELECT message
+		FROM alert_events
+		WHERE tenant_id = $1
+		  AND fired_at > now() - INTERVAL '90 days'
+	`, tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to query alert events")
+		return
+	}
+	defer alertRows.Close()
+
+	for alertRows.Next() {
+		var message string
+		if err := alertRows.Scan(&message); err != nil {
+			continue
+		}
+		cat := classify(message)
+		counts[cat]++
+	}
+	alertRows.Close()
+
+	// Query work_orders for last 90 days
+	woRows, err := s.pool.Query(c.Request.Context(), `
+		SELECT type, title
+		FROM work_orders
+		WHERE tenant_id = $1
+		  AND created_at > now() - INTERVAL '90 days'
+	`, tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to query work orders")
+		return
+	}
+	defer woRows.Close()
+
+	for woRows.Next() {
+		var woType, woTitle string
+		if err := woRows.Scan(&woType, &woTitle); err != nil {
+			continue
+		}
+		var cat string
+		switch strings.ToLower(woType) {
+		case "replacement":
+			cat = "Mechanical"
+		case "upgrade":
+			cat = "Software"
+		default:
+			cat = classify(woTitle)
+		}
+		counts[cat]++
+	}
+	woRows.Close()
+
+	var total int64
+	for _, v := range counts {
+		total += v
+	}
+
+	type distItem struct {
+		Category   string  `json:"category"`
+		Count      int64   `json:"count"`
+		Percentage float64 `json:"percentage"`
+	}
+	categories := []string{"Thermal", "Electrical", "Mechanical", "Software", "Other"}
+	distribution := make([]distItem, 0, len(categories))
+	for _, cat := range categories {
+		cnt := counts[cat]
+		pct := 0.0
+		if total > 0 {
+			pct = float64(cnt) / float64(total) * 100
+		}
+		distribution = append(distribution, distItem{
+			Category:   cat,
+			Count:      cnt,
+			Percentage: pct,
+		})
+	}
+
+	response.OK(c, gin.H{
+		"distribution": distribution,
+		"total":        total,
+		"period_days":  90,
+	})
+}
+
+// GetAssetUpgradeRecommendations handles GET /assets/:id/upgrade-recommendations
+// Returns upgrade recommendations for an asset based on metric thresholds.
+func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
+	assetID := c.Param("id")
+	tenantID := tenantIDFromContext(c)
+
+	// Get asset type and attributes
+	var assetType string
+	var attrBytes []byte
+	err := s.pool.QueryRow(c.Request.Context(), `
+		SELECT type, attributes FROM assets WHERE id = $1 AND tenant_id = $2
+	`, assetID, tenantID).Scan(&assetType, &attrBytes)
+	if err != nil {
+		response.NotFound(c, "asset not found")
+		return
+	}
+	attrs := parseJSONAttributes(attrBytes)
+
+	// Load upgrade rules for this asset_type and tenant
+	ruleRows, err := s.pool.Query(c.Request.Context(), `
+		SELECT id, category, metric_name, threshold, duration_days, priority, recommendation
+		FROM upgrade_rules
+		WHERE tenant_id = $1 AND asset_type = $2 AND enabled = true
+	`, tenantID, assetType)
+	if err != nil {
+		response.InternalError(c, "failed to query upgrade rules")
+		return
+	}
+	defer ruleRows.Close()
+
+	type recommendation struct {
+		ID           string   `json:"id"`
+		Category     string   `json:"category"`
+		Priority     string   `json:"priority"`
+		CurrentSpec  string   `json:"current_spec"`
+		Recommendation string `json:"recommendation"`
+		MetricName   string   `json:"metric_name"`
+		AvgValue     float64  `json:"avg_value"`
+		Threshold    float64  `json:"threshold"`
+		DurationDays int      `json:"duration_days"`
+		CostEstimate *float64 `json:"cost_estimate"`
+	}
+
+	type ruleRow struct {
+		id           uuid.UUID
+		category     string
+		metricName   string
+		threshold    float64
+		durationDays int
+		priority     string
+		recommendation string
+	}
+
+	var rules []ruleRow
+	for ruleRows.Next() {
+		var r ruleRow
+		if err := ruleRows.Scan(&r.id, &r.category, &r.metricName, &r.threshold, &r.durationDays, &r.priority, &r.recommendation); err != nil {
+			continue
+		}
+		rules = append(rules, r)
+	}
+	ruleRows.Close()
+
+	var recommendations []recommendation
+	for _, r := range rules {
+		// Query average metric value over duration_days
+		var avgValue float64
+		err := s.pool.QueryRow(c.Request.Context(), `
+			SELECT COALESCE(avg(value), 0)
+			FROM metrics
+			WHERE asset_id = $1
+			  AND name = $2
+			  AND time > now() - ($3 || ' days')::interval
+		`, assetID, r.metricName, r.durationDays).Scan(&avgValue)
+		if err != nil {
+			continue
+		}
+
+		if avgValue > r.threshold {
+			currentSpec := attrs[r.category]
+			if currentSpec == "" {
+				currentSpec = attrs[r.metricName]
+			}
+			recommendations = append(recommendations, recommendation{
+				ID:             r.id.String(),
+				Category:       r.category,
+				Priority:       r.priority,
+				CurrentSpec:    currentSpec,
+				Recommendation: r.recommendation,
+				MetricName:     r.metricName,
+				AvgValue:       avgValue,
+				Threshold:      r.threshold,
+				DurationDays:   r.durationDays,
+				CostEstimate:   nil,
+			})
+		}
+	}
+
+	// Sort by priority: critical > high > medium > low
+	priorityOrder := map[string]int{"critical": 0, "high": 1, "medium": 2, "low": 3}
+	for i := 0; i < len(recommendations); i++ {
+		for j := i + 1; j < len(recommendations); j++ {
+			pi := priorityOrder[recommendations[i].Priority]
+			pj := priorityOrder[recommendations[j].Priority]
+			if pj < pi {
+				recommendations[i], recommendations[j] = recommendations[j], recommendations[i]
+			}
+		}
+	}
+
+	if recommendations == nil {
+		recommendations = []recommendation{}
+	}
+
+	response.OK(c, gin.H{"recommendations": recommendations})
+}
+
+// AcceptUpgradeRecommendation handles POST /assets/:id/upgrade-recommendations/:category/accept
+// Creates a work order for the accepted upgrade recommendation.
+func (s *APIServer) AcceptUpgradeRecommendation(c *gin.Context) {
+	assetID := c.Param("id")
+	category := c.Param("category")
+	tenantID := tenantIDFromContext(c)
+	userID := userIDFromContext(c)
+
+	// Get the matching rule for this asset + category
+	var ruleRecommendation string
+	var assetType string
+	err := s.pool.QueryRow(c.Request.Context(), `
+		SELECT ur.recommendation, a.type
+		FROM upgrade_rules ur
+		JOIN assets a ON a.type = ur.asset_type AND a.tenant_id = ur.tenant_id
+		WHERE a.id = $1 AND ur.category = $2 AND ur.tenant_id = $3 AND ur.enabled = true
+		LIMIT 1
+	`, assetID, category, tenantID).Scan(&ruleRecommendation, &assetType)
+	if err != nil {
+		response.NotFound(c, "no matching upgrade rule found")
+		return
+	}
+
+	// Create work order via service layer
+	title := fmt.Sprintf("Upgrade %s %s: %s", assetType, category, ruleRecommendation)
+	assetUUID, err := uuid.Parse(assetID)
+	if err != nil {
+		response.BadRequest(c, "invalid asset ID")
+		return
+	}
+
+	order, err := s.maintenanceSvc.Create(c.Request.Context(), tenantID, userID, maintenance.CreateOrderRequest{
+		Title:    title,
+		Type:     "upgrade",
+		Priority: "medium",
+		AssetID:  &assetUUID,
+	})
+	if err != nil {
+		response.InternalError(c, "failed to create work order")
+		return
+	}
+
+	response.Created(c, gin.H{
+		"work_order_id": order.ID.String(),
+		"code":          order.Code,
+	})
+}
+
+// GetUpgradeRules handles GET /upgrade-rules
+// Returns all upgrade rules for the current tenant.
+func (s *APIServer) GetUpgradeRules(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+
+	rows, err := s.pool.Query(c.Request.Context(), `
+		SELECT id, asset_type, category, metric_name, threshold, duration_days, priority, recommendation, enabled
+		FROM upgrade_rules
+		WHERE tenant_id = $1
+		ORDER BY asset_type, category
+	`, tenantID)
+	if err != nil {
+		response.InternalError(c, "failed to query upgrade rules")
+		return
+	}
+	defer rows.Close()
+
+	type upgradeRule struct {
+		ID             string  `json:"id"`
+		AssetType      string  `json:"asset_type"`
+		Category       string  `json:"category"`
+		MetricName     string  `json:"metric_name"`
+		Threshold      float64 `json:"threshold"`
+		DurationDays   int     `json:"duration_days"`
+		Priority       string  `json:"priority"`
+		Recommendation string  `json:"recommendation"`
+		Enabled        bool    `json:"enabled"`
+	}
+
+	rules := []upgradeRule{}
+	for rows.Next() {
+		var r upgradeRule
+		if err := rows.Scan(&r.ID, &r.AssetType, &r.Category, &r.MetricName, &r.Threshold, &r.DurationDays, &r.Priority, &r.Recommendation, &r.Enabled); err != nil {
+			continue
+		}
+		rules = append(rules, r)
+	}
+	if err := rows.Err(); err != nil {
+		response.InternalError(c, "error reading upgrade rules")
+		return
+	}
+
+	response.OK(c, gin.H{"rules": rules})
+}
+
+// CreateUpgradeRule handles POST /upgrade-rules
+// Creates a new upgrade rule for the current tenant.
+func (s *APIServer) CreateUpgradeRule(c *gin.Context) {
+	tenantID := tenantIDFromContext(c)
+
+	var body struct {
+		AssetType      string  `json:"asset_type" binding:"required"`
+		Category       string  `json:"category" binding:"required"`
+		MetricName     string  `json:"metric_name"`
+		Threshold      float64 `json:"threshold"`
+		DurationDays   int     `json:"duration_days"`
+		Priority       string  `json:"priority"`
+		Recommendation string  `json:"recommendation"`
+		Enabled        *bool   `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	// Apply defaults
+	if body.DurationDays == 0 {
+		body.DurationDays = 7
+	}
+	if body.Priority == "" {
+		body.Priority = "medium"
+	}
+	enabled := true
+	if body.Enabled != nil {
+		enabled = *body.Enabled
+	}
+
+	newID := uuid.New()
+	_, err := s.pool.Exec(c.Request.Context(), `
+		INSERT INTO upgrade_rules (id, tenant_id, asset_type, category, metric_name, threshold, duration_days, priority, recommendation, enabled, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
+	`, newID, tenantID, body.AssetType, body.Category, body.MetricName, body.Threshold, body.DurationDays, body.Priority, body.Recommendation, enabled)
+	if err != nil {
+		response.InternalError(c, "failed to create upgrade rule")
+		return
+	}
+
+	s.recordAudit(c, "upgrade_rule.created", "prediction", "upgrade_rule", newID, map[string]any{
+		"asset_type": body.AssetType,
+		"category":   body.Category,
+		"priority":   body.Priority,
+	})
+	response.Created(c, gin.H{"id": newID.String()})
+}
