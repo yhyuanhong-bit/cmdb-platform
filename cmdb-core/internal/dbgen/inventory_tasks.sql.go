@@ -99,7 +99,7 @@ func (q *Queries) CountInventoryTasks(ctx context.Context, arg CountInventoryTas
 const createInventoryItem = `-- name: CreateInventoryItem :one
 INSERT INTO inventory_items (task_id, asset_id, rack_id, expected, status)
 VALUES ($1, $2, $3, $4, 'pending')
-RETURNING id, task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by
+RETURNING id, task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by, sync_version
 `
 
 type CreateInventoryItemParams struct {
@@ -127,6 +127,7 @@ func (q *Queries) CreateInventoryItem(ctx context.Context, arg CreateInventoryIt
 		&i.Status,
 		&i.ScannedAt,
 		&i.ScannedBy,
+		&i.SyncVersion,
 	)
 	return i, err
 }
@@ -236,7 +237,7 @@ func (q *Queries) GetInventoryTask(ctx context.Context, arg GetInventoryTaskPara
 }
 
 const listInventoryItems = `-- name: ListInventoryItems :many
-SELECT id, task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by FROM inventory_items
+SELECT id, task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by, sync_version FROM inventory_items
 WHERE task_id = $1
 ORDER BY status, scanned_at
 LIMIT $2 OFFSET $3
@@ -267,6 +268,7 @@ func (q *Queries) ListInventoryItems(ctx context.Context, arg ListInventoryItems
 			&i.Status,
 			&i.ScannedAt,
 			&i.ScannedBy,
+			&i.SyncVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -340,7 +342,7 @@ UPDATE inventory_items SET
     scanned_at = now(),
     scanned_by = $4
 WHERE id = $1
-RETURNING id, task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by
+RETURNING id, task_id, asset_id, rack_id, expected, actual, status, scanned_at, scanned_by, sync_version
 `
 
 type ScanInventoryItemParams struct {
@@ -368,6 +370,7 @@ func (q *Queries) ScanInventoryItem(ctx context.Context, arg ScanInventoryItemPa
 		&i.Status,
 		&i.ScannedAt,
 		&i.ScannedBy,
+		&i.SyncVersion,
 	)
 	return i, err
 }

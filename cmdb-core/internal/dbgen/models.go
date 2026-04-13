@@ -193,15 +193,16 @@ type IntegrationAdapter struct {
 }
 
 type InventoryItem struct {
-	ID        uuid.UUID          `json:"id"`
-	TaskID    uuid.UUID          `json:"task_id"`
-	AssetID   pgtype.UUID        `json:"asset_id"`
-	RackID    pgtype.UUID        `json:"rack_id"`
-	Expected  []byte             `json:"expected"`
-	Actual    []byte             `json:"actual"`
-	Status    string             `json:"status"`
-	ScannedAt pgtype.Timestamptz `json:"scanned_at"`
-	ScannedBy pgtype.UUID        `json:"scanned_by"`
+	ID          uuid.UUID          `json:"id"`
+	TaskID      uuid.UUID          `json:"task_id"`
+	AssetID     pgtype.UUID        `json:"asset_id"`
+	RackID      pgtype.UUID        `json:"rack_id"`
+	Expected    []byte             `json:"expected"`
+	Actual      []byte             `json:"actual"`
+	Status      string             `json:"status"`
+	ScannedAt   pgtype.Timestamptz `json:"scanned_at"`
+	ScannedBy   pgtype.UUID        `json:"scanned_by"`
+	SyncVersion int64              `json:"sync_version"`
 }
 
 type InventoryNote struct {
