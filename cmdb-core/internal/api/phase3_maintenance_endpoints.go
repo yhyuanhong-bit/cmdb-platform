@@ -1,9 +1,9 @@
 package api
 
 import (
-	"net/http"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -14,7 +14,7 @@ func (s *APIServer) GetWorkOrderComments(c *gin.Context) {
 	orderIDStr := c.Param("id")
 	orderID, err := uuid.Parse(orderIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		response.BadRequest(c, "invalid order id")
 		return
 	}
 
@@ -26,7 +26,7 @@ func (s *APIServer) GetWorkOrderComments(c *gin.Context) {
 		ORDER BY wc.created_at ASC
 	`, orderID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query comments"})
+		response.InternalError(c, "failed to query comments")
 		return
 	}
 	defer rows.Close()
@@ -34,13 +34,13 @@ func (s *APIServer) GetWorkOrderComments(c *gin.Context) {
 	comments := []gin.H{}
 	for rows.Next() {
 		var (
-			id          uuid.UUID
-			authorName  *string
-			text        string
-			createdAt   time.Time
+			id         uuid.UUID
+			authorName *string
+			text       string
+			createdAt  time.Time
 		)
 		if err := rows.Scan(&id, &authorName, &text, &createdAt); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to scan row"})
+			response.InternalError(c, "failed to scan row")
 			return
 		}
 		comments = append(comments, gin.H{
@@ -51,11 +51,11 @@ func (s *APIServer) GetWorkOrderComments(c *gin.Context) {
 		})
 	}
 	if err := rows.Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "error reading comment rows"})
+		response.InternalError(c, "error reading comment rows")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"comments": comments})
+	response.OK(c, gin.H{"comments": comments})
 }
 
 // CreateWorkOrderComment handles POST /maintenance/orders/:id/comments
@@ -64,7 +64,7 @@ func (s *APIServer) CreateWorkOrderComment(c *gin.Context) {
 	orderIDStr := c.Param("id")
 	orderID, err := uuid.Parse(orderIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		response.BadRequest(c, "invalid order id")
 		return
 	}
 
@@ -74,11 +74,11 @@ func (s *APIServer) CreateWorkOrderComment(c *gin.Context) {
 		Text string `json:"text" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if body.Text == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "text must not be empty"})
+		response.BadRequest(c, "text must not be empty")
 		return
 	}
 
@@ -88,12 +88,12 @@ func (s *APIServer) CreateWorkOrderComment(c *gin.Context) {
 		VALUES ($1, $2, $3, $4, now())
 	`, newID, orderID, userID, body.Text)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create comment"})
+		response.InternalError(c, "failed to create comment")
 		return
 	}
 
 	s.recordAudit(c, "order_comment.created", "maintenance", "work_order_comment", newID, map[string]any{
 		"order_id": orderID.String(),
 	})
-	c.JSON(http.StatusCreated, gin.H{"id": newID.String()})
+	response.Created(c, gin.H{"id": newID.String()})
 }

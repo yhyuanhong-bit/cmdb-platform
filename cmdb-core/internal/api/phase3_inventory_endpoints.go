@@ -1,9 +1,9 @@
 package api
 
 import (
-	"net/http"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -14,7 +14,7 @@ func (s *APIServer) GetItemScanHistory(c *gin.Context) {
 	itemIDStr := c.Param("itemId")
 	itemID, err := uuid.Parse(itemIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid itemId"})
+		response.BadRequest(c, "invalid itemId")
 		return
 	}
 
@@ -26,7 +26,7 @@ func (s *APIServer) GetItemScanHistory(c *gin.Context) {
 		ORDER BY ish.scanned_at DESC
 	`, itemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query scan history"})
+		response.InternalError(c, "failed to query scan history")
 		return
 	}
 	defer rows.Close()
@@ -42,7 +42,7 @@ func (s *APIServer) GetItemScanHistory(c *gin.Context) {
 			note        *string
 		)
 		if err := rows.Scan(&id, &scannedAt, &displayName, &method, &result, &note); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to scan row"})
+			response.InternalError(c, "failed to scan row")
 			return
 		}
 		history = append(history, gin.H{
@@ -55,11 +55,11 @@ func (s *APIServer) GetItemScanHistory(c *gin.Context) {
 		})
 	}
 	if err := rows.Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "error reading scan history rows"})
+		response.InternalError(c, "error reading scan history rows")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"scan_history": history})
+	response.OK(c, gin.H{"scan_history": history})
 }
 
 // CreateItemScanRecord handles POST /inventory/tasks/:id/items/:itemId/scan-history
@@ -68,7 +68,7 @@ func (s *APIServer) CreateItemScanRecord(c *gin.Context) {
 	itemIDStr := c.Param("itemId")
 	itemID, err := uuid.Parse(itemIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid itemId"})
+		response.BadRequest(c, "invalid itemId")
 		return
 	}
 
@@ -80,7 +80,7 @@ func (s *APIServer) CreateItemScanRecord(c *gin.Context) {
 		Note   *string `json:"note"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
@@ -90,7 +90,7 @@ func (s *APIServer) CreateItemScanRecord(c *gin.Context) {
 		VALUES ($1, $2, $3, $4, $5, $6, now())
 	`, newID, itemID, userID, body.Method, body.Result, body.Note)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create scan record"})
+		response.InternalError(c, "failed to create scan record")
 		return
 	}
 
@@ -99,7 +99,7 @@ func (s *APIServer) CreateItemScanRecord(c *gin.Context) {
 		"method":  body.Method,
 		"result":  body.Result,
 	})
-	c.JSON(http.StatusCreated, gin.H{"id": newID.String()})
+	response.Created(c, gin.H{"id": newID.String()})
 }
 
 // GetItemNotes handles GET /inventory/tasks/:id/items/:itemId/notes
@@ -108,7 +108,7 @@ func (s *APIServer) GetItemNotes(c *gin.Context) {
 	itemIDStr := c.Param("itemId")
 	itemID, err := uuid.Parse(itemIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid itemId"})
+		response.BadRequest(c, "invalid itemId")
 		return
 	}
 
@@ -120,7 +120,7 @@ func (s *APIServer) GetItemNotes(c *gin.Context) {
 		ORDER BY n.created_at DESC
 	`, itemID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query notes"})
+		response.InternalError(c, "failed to query notes")
 		return
 	}
 	defer rows.Close()
@@ -135,7 +135,7 @@ func (s *APIServer) GetItemNotes(c *gin.Context) {
 			text        string
 		)
 		if err := rows.Scan(&id, &createdAt, &displayName, &severity, &text); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to scan row"})
+			response.InternalError(c, "failed to scan row")
 			return
 		}
 		notes = append(notes, gin.H{
@@ -147,11 +147,11 @@ func (s *APIServer) GetItemNotes(c *gin.Context) {
 		})
 	}
 	if err := rows.Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "error reading notes rows"})
+		response.InternalError(c, "error reading notes rows")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"notes": notes})
+	response.OK(c, gin.H{"notes": notes})
 }
 
 // CreateItemNote handles POST /inventory/tasks/:id/items/:itemId/notes
@@ -160,7 +160,7 @@ func (s *APIServer) CreateItemNote(c *gin.Context) {
 	itemIDStr := c.Param("itemId")
 	itemID, err := uuid.Parse(itemIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid itemId"})
+		response.BadRequest(c, "invalid itemId")
 		return
 	}
 
@@ -171,7 +171,7 @@ func (s *APIServer) CreateItemNote(c *gin.Context) {
 		Text     string `json:"text" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if body.Severity == "" {
@@ -184,7 +184,7 @@ func (s *APIServer) CreateItemNote(c *gin.Context) {
 		VALUES ($1, $2, $3, $4, $5, now())
 	`, newID, itemID, userID, body.Severity, body.Text)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create note"})
+		response.InternalError(c, "failed to create note")
 		return
 	}
 
@@ -192,5 +192,5 @@ func (s *APIServer) CreateItemNote(c *gin.Context) {
 		"item_id":  itemID.String(),
 		"severity": body.Severity,
 	})
-	c.JSON(http.StatusCreated, gin.H{"id": newID.String()})
+	response.Created(c, gin.H{"id": newID.String()})
 }

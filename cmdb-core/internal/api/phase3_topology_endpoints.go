@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -16,7 +17,7 @@ func (s *APIServer) GetAssetDependencies(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 	assetID := c.Query("asset_id")
 	if assetID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "asset_id query param required"})
+		response.BadRequest(c, "asset_id query param required")
 		return
 	}
 
@@ -36,7 +37,7 @@ func (s *APIServer) GetAssetDependencies(c *gin.Context) {
 		  AND (ad.source_asset_id = $2 OR ad.target_asset_id = $2)
 	`, tenantID, assetID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query dependencies"})
+		response.InternalError(c, "failed to query dependencies")
 		return
 	}
 	defer rows.Close()
@@ -58,7 +59,7 @@ func (s *APIServer) GetAssetDependencies(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"dependencies": deps})
+	response.OK(c, gin.H{"dependencies": deps})
 }
 
 // CreateAssetDependency handles POST /topology/dependencies
@@ -67,17 +68,17 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 
 	var body struct {
-		SourceAssetID string `json:"source_asset_id"`
-		TargetAssetID string `json:"target_asset_id"`
+		SourceAssetID  string `json:"source_asset_id"`
+		TargetAssetID  string `json:"target_asset_id"`
 		DependencyType string `json:"dependency_type"`
-		Description   string `json:"description"`
+		Description    string `json:"description"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		response.BadRequest(c, "invalid request body")
 		return
 	}
 	if body.SourceAssetID == "" || body.TargetAssetID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "source_asset_id and target_asset_id are required"})
+		response.BadRequest(c, "source_asset_id and target_asset_id are required")
 		return
 	}
 	if body.DependencyType == "" {
@@ -92,10 +93,10 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 	if err != nil {
 		errStr := err.Error()
 		if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique") {
-			c.JSON(http.StatusConflict, gin.H{"error": "dependency already exists"})
+			response.Err(c, http.StatusConflict, "CONFLICT", "dependency already exists")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create dependency"})
+		response.InternalError(c, "failed to create dependency")
 		return
 	}
 
@@ -105,7 +106,7 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 		"target_asset_id": body.TargetAssetID,
 		"dependency_type": body.DependencyType,
 	})
-	c.JSON(http.StatusCreated, gin.H{"id": newID})
+	response.Created(c, gin.H{"id": newID})
 }
 
 // DeleteAssetDependency handles DELETE /topology/dependencies/:id
@@ -113,7 +114,7 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 func (s *APIServer) DeleteAssetDependency(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
+		response.BadRequest(c, "missing id")
 		return
 	}
 
@@ -121,11 +122,11 @@ func (s *APIServer) DeleteAssetDependency(c *gin.Context) {
 		DELETE FROM asset_dependencies WHERE id = $1
 	`, id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete dependency"})
+		response.InternalError(c, "failed to delete dependency")
 		return
 	}
 	if tag.RowsAffected() == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "dependency not found"})
+		response.NotFound(c, "dependency not found")
 		return
 	}
 
@@ -155,7 +156,7 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 	locationID := c.Query("location_id")
 	if locationID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "location_id query param required"})
+		response.BadRequest(c, "location_id query param required")
 		return
 	}
 
@@ -183,7 +184,7 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context) {
 		LIMIT 50
 	`, tenantID, locationID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query assets"})
+		response.InternalError(c, "failed to query assets")
 		return
 	}
 	defer assetRows.Close()
@@ -261,7 +262,7 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context) {
 
 	_ = time.Now() // satisfy time import if needed elsewhere in package
 
-	c.JSON(http.StatusOK, gin.H{
+	response.OK(c, gin.H{
 		"nodes": nodes,
 		"edges": edges,
 	})

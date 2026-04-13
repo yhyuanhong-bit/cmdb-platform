@@ -1,9 +1,9 @@
 package api
 
 import (
-	"net/http"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -18,7 +18,7 @@ func (s *APIServer) GetActivityFeed(c *gin.Context) {
 	targetID := c.Query("target_id")
 
 	if targetType == "" || targetID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "target_type and target_id query params are required"})
+		response.BadRequest(c, "target_type and target_id query params are required")
 		return
 	}
 
@@ -86,7 +86,7 @@ func (s *APIServer) GetActivityFeed(c *gin.Context) {
 		LIMIT 20
 	`, targetType, targetID, tenantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query activity feed"})
+		response.InternalError(c, "failed to query activity feed")
 		return
 	}
 	defer rows.Close()
@@ -108,7 +108,7 @@ func (s *APIServer) GetActivityFeed(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"events": events})
+	response.OK(c, gin.H{"events": events})
 }
 
 // GetAuditEventDetail handles GET /audit/events/:id
@@ -116,7 +116,7 @@ func (s *APIServer) GetActivityFeed(c *gin.Context) {
 func (s *APIServer) GetAuditEventDetail(c *gin.Context) {
 	eventID := c.Param("id")
 	if eventID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing event id"})
+		response.BadRequest(c, "missing event id")
 		return
 	}
 
@@ -150,7 +150,7 @@ func (s *APIServer) GetAuditEventDetail(c *gin.Context) {
 		&diff, &source, &createdAt,
 		&displayName, &email,
 	); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "audit event not found"})
+		response.NotFound(c, "audit event not found")
 		return
 	}
 
@@ -166,7 +166,7 @@ func (s *APIServer) GetAuditEventDetail(c *gin.Context) {
 		operatorIDStr = &s
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response.OK(c, gin.H{
 		"event": gin.H{
 			"id":             id,
 			"action":         action,
