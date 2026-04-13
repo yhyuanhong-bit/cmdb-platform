@@ -72,6 +72,27 @@ func main() {
 	}
 	defer pool.Close()
 
+	// 4b. Verify database migration version matches code expectations
+	{
+		const expectedMigration = 30 // bump this when adding new migrations
+		var dbVersion int
+		err := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&dbVersion)
+		if err != nil {
+			zap.L().Fatal("failed to check migration version — is the database initialized?", zap.Error(err))
+		}
+		if dbVersion < expectedMigration {
+			zap.L().Fatal("database schema is behind code — run pending migrations before starting the server",
+				zap.Int("db_version", dbVersion),
+				zap.Int("expected_version", expectedMigration),
+				zap.Int("migrations_behind", expectedMigration-dbVersion))
+		}
+		if dbVersion > expectedMigration {
+			zap.L().Warn("database schema is ahead of code — is this the right binary?",
+				zap.Int("db_version", dbVersion),
+				zap.Int("expected_version", expectedMigration))
+		}
+	}
+
 	// 5. Create dbgen.Queries from the pool
 	queries := dbgen.New(pool)
 
