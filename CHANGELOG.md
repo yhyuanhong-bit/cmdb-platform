@@ -5,6 +5,69 @@ All notable changes to the CMDB Platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-04-13
+
+### Added
+
+#### Phase A — Work Order Dual-Dimension State Machine + Alert Sync
+- Dual-dimension state machine: independent `execution_status` and `governance_status` fields on work orders
+- Alert event sync with Last-Write-Wins (LWW) conflict resolution strategy
+- Alert rules sync with Central Wins strategy (central authority overrides edge mutations)
+- Conflict resolution UI for viewing and resolving sync divergence in the frontend
+
+#### Phase B — Inventory/Audit Sync + Monitoring Dashboard
+- Inventory item and audit event sync pipeline (Edge → Central)
+- Monitoring dashboard rebuilt with recharts for real-time alert and metric visualization
+
+#### Phase C — SyncGateMiddleware + Stress/Chaos Testing + Edge Deployment Guide
+- `SyncGateMiddleware`: returns HTTP 503 with `Retry-After` header when Edge node is isolated
+- Stress test suite: concurrent sync load across multiple simulated Edge nodes
+- Chaos test suite: network partition simulation and recovery verification
+- Edge node deployment guide covering network topology, config, and failover
+
+#### Phase D — Prometheus HTTP Pull + Adapter Config UI + Auto-Disable on Failure
+- Prometheus HTTP pull endpoint (`/metrics/prometheus`) for scrape-based metric collection
+- Adapter configuration UI: view, edit, enable/disable AI adapters from the frontend
+- Auto-disable circuit breaker: adapters are automatically disabled after consecutive failures
+
+#### Phase E — Playwright E2E Test Suite + CI Integration
+- 15 Playwright end-to-end tests covering critical user flows across all major modules
+- CI integration: E2E tests run automatically on every pull request
+
+#### Phase F — Tech Debt Cleanup + API Response Unification
+- Unified API response format: replaced raw `c.JSON(gin.H{...})` calls with `response.OK`, `response.Created`, `response.BadRequest`, `response.NotFound`, `response.InternalError`, and `response.Unauthorized` helpers across `phase3_activity_endpoints.go`, `phase3_maintenance_endpoints.go`, `phase3_inventory_endpoints.go`, `phase3_topology_endpoints.go`, and `phase4_session_endpoints.go`
+- npm dependency update (32 packages updated, TypeScript clean)
+
+---
+
+## [1.1.0] - 2026-04-10
+
+### Added
+
+#### Edge Sync Phase 1
+- `SyncService`: bidirectional sync orchestrator with configurable batch size and node identity
+- `SyncAgent`: background goroutine that periodically pushes local snapshots to Central
+- 5 sync API endpoints: `POST /sync/push`, `POST /sync/pull`, `GET /sync/status`, `POST /sync/resolve`, `GET /sync/conflicts`
+- Migration `000027_sync_system`: `sync_snapshots`, `sync_conflicts`, `sync_log` tables
+
+#### Database Hardening
+- Migrations `000023` through `000029`: schema guards, index additions, NOT NULL enforcement, and constraint tightening across core tables
+- `POST /system/migrate` endpoint for runtime migration execution
+
+#### Work Order Redesign
+- SLA tracking fields on work orders: `sla_deadline`, `sla_breached`, `priority`
+- Redesigned work order list and detail views with SLA indicator column
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SYNC_ENABLED` | false | Enable Edge Sync agent |
+| `EDGE_NODE_ID` | (empty) | Unique identifier for this Edge node |
+| `SYNC_SNAPSHOT_BATCH_SIZE` | 100 | Records per sync batch |
+
+---
+
 ## [1.0.0] - 2026-04-04
 
 Initial production-ready release of the CMDB Platform. Platform score: **95/100**.
@@ -129,4 +192,6 @@ Initial production-ready release of the CMDB Platform. Platform score: **95/100*
 | `LOG_LEVEL` | info | zap log level |
 | `OTEL_ENDPOINT` | (empty) | OpenTelemetry collector |
 
+[1.2.0]: https://github.com/cmdb-platform/cmdb-platform/releases/tag/v1.2.0
+[1.1.0]: https://github.com/cmdb-platform/cmdb-platform/releases/tag/v1.1.0
 [1.0.0]: https://github.com/cmdb-platform/cmdb-platform/releases/tag/v1.0.0
