@@ -440,7 +440,7 @@ func toAPIPredictionModel(db dbgen.PredictionModel) PredictionModel {
 		Type:     db.Type,
 		Provider: db.Provider,
 		Config:   rawJSONToMapVal(db.Config),
-		Enabled:  pgboolVal(db.Enabled),
+		Enabled:  db.Enabled,
 	}
 }
 
@@ -458,7 +458,7 @@ func toAPIPredictionResult(db dbgen.PredictionResult) PredictionResult {
 		Severity:          pgtextToStr(db.Severity),
 		RecommendedAction: pgtextToStr(db.RecommendedAction),
 		ExpiresAt:         pgtsToTime(db.ExpiresAt),
-		CreatedAt:         pgtsToTime(db.CreatedAt),
+		CreatedAt:         db.CreatedAt,
 	}
 }
 

@@ -3,6 +3,7 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/google/uuid"
@@ -128,7 +129,7 @@ func (s *Service) Update(ctx context.Context, tenantID, taskID uuid.UUID, name *
 		params.Name = pgtype.Text{String: *name, Valid: true}
 	}
 	if plannedDate != nil {
-		params.PlannedDate = pgtype.Text{String: *plannedDate, Valid: true}
+		params.PlannedDate = pgtype.Date{Time: func() time.Time { t, _ := time.Parse("2006-01-02", *plannedDate); return t }(), Valid: true}
 	}
 	if assignedTo != nil {
 		params.AssignedTo = pgtype.UUID{Bytes: *assignedTo, Valid: true}

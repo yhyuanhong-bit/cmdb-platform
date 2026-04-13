@@ -40,7 +40,7 @@ func (d *WebhookDispatcher) HandleEvent(ctx context.Context, event eventbus.Even
 	tenantUUID, _ := uuid.Parse(event.TenantID)
 	subs, err := d.queries.ListWebhooksByEvent(ctx, dbgen.ListWebhooksByEventParams{
 		TenantID: tenantUUID,
-		Event:    event.Subject,
+		Column2: event.Subject,
 	})
 	if err != nil {
 		zap.L().Error("failed to list webhooks for event", zap.String("subject", event.Subject), zap.Error(err))
