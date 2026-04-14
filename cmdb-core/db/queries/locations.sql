@@ -24,10 +24,12 @@ ORDER BY path;
 -- name: CreateLocation :one
 INSERT INTO locations (
     tenant_id, name, name_en, slug, level,
-    parent_id, path, status, metadata, sort_order
+    parent_id, path, status, metadata, sort_order,
+    latitude, longitude
 ) VALUES (
     $1, $2, $3, $4, $5,
-    $6, $7::ltree, $8, $9, $10
+    $6, $7::ltree, $8, $9, $10,
+    $11, $12
 ) RETURNING *;
 
 -- name: UpdateLocation :one

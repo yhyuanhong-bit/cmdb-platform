@@ -84,10 +84,12 @@ func (q *Queries) CountAssetsByLocation(ctx context.Context, tenantID uuid.UUID)
 const createLocation = `-- name: CreateLocation :one
 INSERT INTO locations (
     tenant_id, name, name_en, slug, level,
-    parent_id, path, status, metadata, sort_order
+    parent_id, path, status, metadata, sort_order,
+    latitude, longitude
 ) VALUES (
     $1, $2, $3, $4, $5,
-    $6, $7::ltree, $8, $9, $10
+    $6, $7::ltree, $8, $9, $10,
+    $11, $12
 ) RETURNING id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at, latitude, longitude
 `
 
@@ -102,6 +104,8 @@ type CreateLocationParams struct {
 	Status    string          `json:"status"`
 	Metadata  json.RawMessage `json:"metadata"`
 	SortOrder int32           `json:"sort_order"`
+	Latitude  pgtype.Float8   `json:"latitude"`
+	Longitude pgtype.Float8   `json:"longitude"`
 }
 
 func (q *Queries) CreateLocation(ctx context.Context, arg CreateLocationParams) (Location, error) {
@@ -116,6 +120,8 @@ func (q *Queries) CreateLocation(ctx context.Context, arg CreateLocationParams) 
 		arg.Status,
 		arg.Metadata,
 		arg.SortOrder,
+		arg.Latitude,
+		arg.Longitude,
 	)
 	var i Location
 	err := row.Scan(

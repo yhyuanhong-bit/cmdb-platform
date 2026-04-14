@@ -14,6 +14,8 @@ const initial = {
   level: 'territory',
   parent_id: '',
   status: 'active',
+  latitude: '',
+  longitude: '',
 }
 
 export default function CreateLocationModal({ open, onClose }: Props) {
@@ -71,6 +73,21 @@ export default function CreateLocationModal({ open, onClose }: Props) {
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" placeholder={t('location_modal.parent_id_placeholder')} />
         </div>
 
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Latitude</label>
+            <input value={formData.latitude} onChange={e => setFormData(p => ({ ...p, latitude: e.target.value }))}
+              type="number" step="any"
+              className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" placeholder="25.03" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Longitude</label>
+            <input value={formData.longitude} onChange={e => setFormData(p => ({ ...p, longitude: e.target.value }))}
+              type="number" step="any"
+              className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" placeholder="121.56" />
+          </div>
+        </div>
+
         <div>
           <label className="block text-sm text-gray-400 mb-1">{t('location_modal.status_label')}</label>
           <select value={formData.status} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}
@@ -83,7 +100,14 @@ export default function CreateLocationModal({ open, onClose }: Props) {
         <div className="flex gap-2 justify-end pt-2">
           <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('location_modal.btn_cancel')}</button>
           <button
-            onClick={() => mutation.mutate(formData, { onSuccess: () => { onClose(); setFormData({ ...initial }) } })}
+            onClick={() => {
+              const { latitude, longitude, ...rest } = formData
+              const metadata: Record<string, unknown> = {}
+              if (latitude) metadata.latitude = parseFloat(latitude)
+              if (longitude) metadata.longitude = parseFloat(longitude)
+              const payload = { ...rest, metadata: Object.keys(metadata).length > 0 ? metadata : undefined }
+              mutation.mutate(payload as any, { onSuccess: () => { onClose(); setFormData({ ...initial }) } })
+            }}
             disabled={mutation.isPending || !formData.name}
             className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
             {mutation.isPending ? t('location_modal.btn_creating') : t('location_modal.btn_create')}

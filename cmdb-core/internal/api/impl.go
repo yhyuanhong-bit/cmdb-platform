@@ -711,6 +711,20 @@ func (s *APIServer) CreateLocation(c *gin.Context) {
 		Metadata:  metadataJSON,
 		SortOrder: sortOrder,
 	}
+	// Latitude/Longitude: read from metadata if provided by frontend
+	// (frontend sends them as top-level fields, but they get captured in metadata)
+	if req.Metadata != nil {
+		if lat, ok := (*req.Metadata)["latitude"]; ok {
+			if v, ok := lat.(float64); ok {
+				params.Latitude = pgtype.Float8{Float64: v, Valid: true}
+			}
+		}
+		if lng, ok := (*req.Metadata)["longitude"]; ok {
+			if v, ok := lng.(float64); ok {
+				params.Longitude = pgtype.Float8{Float64: v, Valid: true}
+			}
+		}
+	}
 
 	created, err := s.topologySvc.CreateLocation(c.Request.Context(), params)
 	if err != nil {
