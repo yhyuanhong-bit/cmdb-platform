@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/ai"
+	"github.com/google/uuid"
 	"github.com/cmdb-platform/cmdb-core/internal/api"
 	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
@@ -133,6 +135,44 @@ func main() {
 
 	// Location detection
 	locationDetectSvc := location_detect.NewService(pool, bus)
+
+	// Subscribe to MAC table updates from ingestion-engine
+	if bus != nil && locationDetectSvc != nil {
+		bus.Subscribe("mac_table.updated", func(ctx context.Context, event eventbus.Event) error {
+			var payload struct {
+				TenantID string `json:"tenant_id"`
+				Entries  []struct {
+					SwitchAssetID string `json:"switch_asset_id"`
+					PortName      string `json:"port_name"`
+					MACAddress    string `json:"mac_address"`
+				} `json:"entries"`
+			}
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				return nil
+			}
+			tenantID, err := uuid.Parse(payload.TenantID)
+			if err != nil {
+				return nil
+			}
+
+			var entries []location_detect.MACEntry
+			for _, e := range payload.Entries {
+				switchID, _ := uuid.Parse(e.SwitchAssetID)
+				entries = append(entries, location_detect.MACEntry{
+					SwitchAssetID: switchID,
+					PortName:      e.PortName,
+					MACAddress:    e.MACAddress,
+				})
+			}
+
+			if len(entries) > 0 {
+				locationDetectSvc.UpdateMACCache(ctx, tenantID, entries)
+				zap.L().Info("MAC cache updated from SNMP scan", zap.Int("entries", len(entries)))
+			}
+			return nil
+		})
+		zap.L().Info("Subscribed to mac_table.updated events")
+	}
 
 	// AI Registry
 	aiRegistry := ai.NewRegistry()

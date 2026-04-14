@@ -60,6 +60,7 @@ func NewNATSBus(url string) (*NATSBus, error) {
 			"audit.>",
 			"prediction.>",
 			"config.>",
+			"mac_table.>",
 		},
 		Retention: jetstream.LimitsPolicy,
 		MaxAge:    7 * 24 * time.Hour,

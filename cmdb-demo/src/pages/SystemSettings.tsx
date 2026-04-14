@@ -1,6 +1,8 @@
 import { toast } from 'sonner'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
+import { apiClient } from '../lib/api/client'
 import { useNavigate } from 'react-router-dom'
 import { useUsers, useRoles, useCreateUser, useUpdateUser, useDeleteUser, useAssignRole } from '../hooks/useIdentity'
 import { usePermission } from '../hooks/usePermission'
@@ -101,7 +103,7 @@ export default function SystemSettings() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6">
-        {['permissions', 'security', 'integrations', 'credentials'].map((tab) => (
+        {['permissions', 'security', 'integrations', 'credentials', 'location-detection'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -117,12 +119,16 @@ export default function SystemSettings() {
               ? t('system_settings.tab_security')
               : tab === 'integrations'
               ? t('system_settings.tab_integrations')
-              : t('system_settings.tab_credentials')}
+              : tab === 'credentials'
+              ? t('system_settings.tab_credentials')
+              : t('location_detect.title', 'Location Detection')}
           </button>
         ))}
       </div>
 
-      {activeTab === 'credentials' ? (
+      {activeTab === 'location-detection' ? (
+        <LocationDetectionTab />
+      ) : activeTab === 'credentials' ? (
         <div className="bg-surface-container rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-headline font-bold text-lg text-on-surface">{t('system_settings.section_credentials')}</h2>
@@ -496,6 +502,127 @@ export default function SystemSettings() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function LocationDetectionTab() {
+  const { t } = useTranslation()
+
+  const { data: summary, refetch } = useQuery({
+    queryKey: ['locationDetectSummary'],
+    queryFn: () => apiClient.get('/location-detect/summary'),
+    refetchInterval: 60000,
+  })
+  const s = summary as Record<string, unknown> | undefined
+
+  const [scanning, setScanning] = useState(false)
+
+  const handleScan = async () => {
+    setScanning(true)
+    try {
+      await apiClient.post('/ingestion/mac-scan', {})
+      toast.success(t('location_detect.scan_triggered', 'Scan triggered successfully'))
+      setTimeout(() => refetch(), 5000)
+    } catch {
+      toast.error(t('location_detect.scan_failed', 'Scan failed -- check SNMP credentials'))
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const trackedByNetwork = (s?.tracked_by_network as number) ?? 0
+  const coveragePct = s?.coverage_pct as number | undefined
+  const relocations24h = (s?.relocations_24h as number) ?? 0
+  const unregistered = (s?.unregistered as number) ?? 0
+
+  const stats = [
+    { label: t('location_detect.tracked', 'Tracked Devices'), value: trackedByNetwork || '\u2014', icon: 'wifi', color: 'text-[#69db7c]' },
+    { label: t('location_detect.coverage', 'Coverage'), value: coveragePct ? `${Math.round(coveragePct)}%` : '\u2014', icon: 'pie_chart', color: 'text-primary' },
+    { label: t('location_detect.relocations', 'Relocations (24h)'), value: relocations24h, icon: 'swap_horiz', color: 'text-tertiary' },
+    { label: t('location_detect.unregistered', 'Unregistered'), value: unregistered, icon: 'device_unknown', color: 'text-error' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Status Card */}
+      <div className="bg-surface-container rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-primary text-2xl">radar</span>
+            <div>
+              <h3 className="font-headline font-bold text-on-surface">
+                {t('location_detect.title', 'SNMP Location Detection')}
+              </h3>
+              <p className="text-xs text-on-surface-variant">
+                {t('location_detect.subtitle', 'Automatic asset location tracking via CDP/MAC table analysis')}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-on-surface-variant">
+              {t('location_detect.last_scan', 'Last scan')}: {trackedByNetwork > 0 ? t('location_detect.active', 'Active') : t('location_detect.no_data', 'No data yet')}
+            </span>
+            <div className="w-2 h-2 rounded-full bg-[#69db7c] animate-ping" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-4">
+          {stats.map(st => (
+            <div key={st.label} className="bg-surface-container-low rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`material-symbols-outlined text-lg ${st.color}`}>{st.icon}</span>
+                <span className="text-[10px] text-on-surface-variant font-label uppercase tracking-widest">{st.label}</span>
+              </div>
+              <div className="text-2xl font-headline font-bold text-on-surface">{st.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleScan}
+          disabled={scanning}
+          className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-lg">{scanning ? 'hourglass_top' : 'radar'}</span>
+          {scanning ? t('location_detect.scanning', 'Scanning...') : t('location_detect.scan_now', 'Scan Now')}
+        </button>
+        <button
+          onClick={() => window.open('/api/v1/location-detect/report?days=30', '_blank')}
+          className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors"
+        >
+          <span className="material-symbols-outlined text-lg">summarize</span>
+          {t('location_detect.download_report', 'Download Monthly Report')}
+        </button>
+      </div>
+
+      {/* Setup Guide */}
+      <div className="bg-surface-container rounded-xl p-6">
+        <h4 className="font-headline font-bold text-on-surface mb-3">
+          {t('location_detect.setup_title', 'Setup Guide')}
+        </h4>
+        <div className="space-y-3">
+          {[
+            { step: '1', text: t('location_detect.setup_1', 'Register switches in Asset Management (type=network) with correct rack location'), icon: 'dns' },
+            { step: '2', text: t('location_detect.setup_2', 'Configure SNMP credentials in Integrations tab'), icon: 'key' },
+            { step: '3', text: t('location_detect.setup_3', 'Set scan target CIDR range for switch management IPs'), icon: 'lan' },
+            { step: '4', text: t('location_detect.setup_4', 'Click "Scan Now" to verify -- detection runs automatically every 5 minutes'), icon: 'check_circle' },
+          ].map(item => (
+            <div key={item.step} className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-primary-container flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-[10px] font-bold text-primary">{item.step}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-on-surface-variant text-lg">{item.icon}</span>
+                <span className="text-sm text-on-surface-variant">{item.text}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
