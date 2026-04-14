@@ -13,6 +13,74 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAlertsByLocation = `-- name: CountAlertsByLocation :many
+SELECT a.location_id AS id, COUNT(ae.id)::bigint AS critical_alerts
+FROM assets a
+JOIN alert_events ae ON ae.asset_id = a.id AND ae.status = 'firing' AND ae.severity = 'critical'
+WHERE a.tenant_id = $1 AND a.deleted_at IS NULL AND a.location_id IS NOT NULL
+GROUP BY a.location_id
+`
+
+type CountAlertsByLocationRow struct {
+	ID             pgtype.UUID `json:"id"`
+	CriticalAlerts int64       `json:"critical_alerts"`
+}
+
+func (q *Queries) CountAlertsByLocation(ctx context.Context, tenantID uuid.UUID) ([]CountAlertsByLocationRow, error) {
+	rows, err := q.db.Query(ctx, countAlertsByLocation, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountAlertsByLocationRow{}
+	for rows.Next() {
+		var i CountAlertsByLocationRow
+		if err := rows.Scan(&i.ID, &i.CriticalAlerts); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countAssetsByLocation = `-- name: CountAssetsByLocation :many
+SELECT l.id, COUNT(a.id)::bigint AS total_assets
+FROM locations l
+LEFT JOIN assets a ON a.location_id IN (
+  SELECT sub.id FROM locations sub WHERE sub.path <@ l.path AND sub.deleted_at IS NULL
+) AND a.deleted_at IS NULL
+WHERE l.tenant_id = $1 AND l.deleted_at IS NULL
+GROUP BY l.id
+`
+
+type CountAssetsByLocationRow struct {
+	ID          uuid.UUID `json:"id"`
+	TotalAssets int64     `json:"total_assets"`
+}
+
+func (q *Queries) CountAssetsByLocation(ctx context.Context, tenantID uuid.UUID) ([]CountAssetsByLocationRow, error) {
+	rows, err := q.db.Query(ctx, countAssetsByLocation, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountAssetsByLocationRow{}
+	for rows.Next() {
+		var i CountAssetsByLocationRow
+		if err := rows.Scan(&i.ID, &i.TotalAssets); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createLocation = `-- name: CreateLocation :one
 INSERT INTO locations (
     tenant_id, name, name_en, slug, level,

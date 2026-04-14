@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { useRootLocations } from '../../hooks/useTopology';
+import { useRootLocations, useLocationAssetCounts } from '../../hooks/useTopology';
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { useAlerts } from '../../hooks/useMonitoring';
 import CreateLocationModal from '../../components/CreateLocationModal';
@@ -59,8 +59,14 @@ const FLAG_MAP: Record<string, string> = {
   tw:        '\u{1F1F9}\u{1F1FC}',
 };
 
-function locationToTerritory(loc: Location): TerritoryData {
+function locationToTerritory(
+  loc: Location,
+  totalAssetsOverride?: number,
+  criticalAlertsOverride?: number,
+): TerritoryData {
   const flag = FLAG_MAP[loc.slug] ?? '\u{1F30D}';
+  const totalAssets = totalAssetsOverride ?? (loc.metadata?.total_assets as number) ?? 0;
+  const criticalAlerts = criticalAlertsOverride ?? (loc.metadata?.critical_alerts as number) ?? 0;
   return {
     slug: loc.slug,
     nameCn: loc.name,
@@ -68,15 +74,14 @@ function locationToTerritory(loc: Location): TerritoryData {
     flag,
     latitude: loc.latitude ?? undefined,
     longitude: loc.longitude ?? undefined,
-    // These stats are not yet in the Location schema; use metadata or fallback
     idcCount: (loc.metadata?.idc_count as number) ?? 0,
     regionCount: (loc.metadata?.region_count as number) ?? 0,
-    totalAssets: (loc.metadata?.total_assets as number) ?? 0,
+    totalAssets,
     pue: (loc.metadata?.pue as number) ?? 0,
     rackOccupancy: (loc.metadata?.rack_occupancy as number) ?? 0,
-    criticalAlerts: (loc.metadata?.critical_alerts as number) ?? 0,
+    criticalAlerts,
     powerTrend: (loc.metadata?.power_trend as number[]) ?? [],
-    healthy: ((loc.metadata?.critical_alerts as number) ?? 0) === 0,
+    healthy: criticalAlerts === 0,
   };
 }
 
@@ -259,6 +264,7 @@ const GlobalOverview: React.FC = () => {
   const rootLocationsQ = useRootLocations();
   const dashStatsQ = useDashboardStats();
   const alertsQ = useAlerts({ status: 'firing' });
+  const assetCountsQ = useLocationAssetCounts();
   const stats = dashStatsQ.data?.data;
 
   // Convert API alerts to display format
@@ -267,11 +273,19 @@ const GlobalOverview: React.FC = () => {
     return raw.map(apiAlertToAlertData);
   }, [alertsQ.data]);
 
-  // Convert API locations to TerritoryData for rendering
+  // Convert API locations to TerritoryData for rendering, merging real-time counts
   const TERRITORIES: TerritoryData[] = useMemo(() => {
     const locs = rootLocationsQ.data?.data ?? [];
-    return locs.map(locationToTerritory);
-  }, [rootLocationsQ.data]);
+    const counts = assetCountsQ.data?.data?.counts ?? {};
+    const alerts = assetCountsQ.data?.data?.alerts ?? {};
+    return locs.map(loc =>
+      locationToTerritory(
+        loc,
+        counts[loc.id] !== undefined ? Number(counts[loc.id]) : undefined,
+        alerts[loc.id] !== undefined ? Number(alerts[loc.id]) : undefined,
+      )
+    );
+  }, [rootLocationsQ.data, assetCountsQ.data]);
 
   const GLOBAL_KPI = useMemo(() => ({
     territories: TERRITORIES.length,
@@ -372,6 +386,9 @@ const GlobalOverview: React.FC = () => {
                   const isAlert = territory.criticalAlerts > 0
                   const dotColor = isAlert ? '#fb923c' : '#4ade80'
                   const ringColor = isAlert ? 'rgba(251,146,60,0.3)' : 'rgba(74,222,128,0.3)'
+                  const minSize = 14
+                  const maxSize = 32
+                  const dotSize = Math.min(maxSize, Math.max(minSize, minSize + Math.sqrt(territory.totalAssets) * 2))
                   return (
                     <Marker
                       key={territory.slug}
@@ -380,15 +397,15 @@ const GlobalOverview: React.FC = () => {
                         className: 'custom-marker',
                         html: `
                           <div style="display:flex;flex-direction:column;align-items:center;cursor:pointer">
-                            <span style="position:relative;display:inline-block;width:20px;height:20px">
+                            <span style="position:relative;display:inline-block;width:${dotSize}px;height:${dotSize}px">
                               <span style="position:absolute;inset:0;border-radius:50%;background:${dotColor};opacity:0.4;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></span>
-                              <span style="position:relative;display:inline-block;width:20px;height:20px;border-radius:50%;background:${dotColor};box-shadow:0 0 0 4px ${ringColor}"></span>
+                              <span style="position:relative;display:inline-block;width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:${dotColor};box-shadow:0 0 0 4px ${ringColor}"></span>
                             </span>
                             <span style="margin-top:4px;font-size:11px;font-weight:700;color:#e2e8f0;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,0.8)">${territory.nameEn}</span>
-                            <span style="font-size:9px;color:#94a3b8;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,0.8)">${territory.idcCount} IDC</span>
+                            <span style="font-size:9px;color:#94a3b8;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,0.8)">${territory.idcCount} IDC · ${territory.totalAssets} assets</span>
                           </div>`,
-                        iconSize: [80, 50],
-                        iconAnchor: [40, 10],
+                        iconSize: [100, 55],
+                        iconAnchor: [50, 10],
                       })}
                       eventHandlers={{
                         click: () => navigate(`/locations/${territory.slug}`),

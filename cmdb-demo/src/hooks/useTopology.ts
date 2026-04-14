@@ -193,3 +193,11 @@ export function useDeleteNetworkConnection() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rackNetworkConnections'] }),
   })
 }
+
+export function useLocationAssetCounts() {
+  return useQuery({
+    queryKey: ['locationAssetCounts'],
+    queryFn: () => topologyApi.getLocationAssetCounts(),
+    staleTime: 30_000,
+  })
+}

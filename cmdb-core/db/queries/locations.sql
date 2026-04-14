@@ -49,3 +49,19 @@ DELETE FROM locations WHERE id = $1 AND tenant_id = $2;
 -- name: GetLocationBySlug :one
 SELECT * FROM locations
 WHERE tenant_id = $1 AND slug = $2 AND level = $3;
+
+-- name: CountAssetsByLocation :many
+SELECT l.id, COUNT(a.id)::bigint AS total_assets
+FROM locations l
+LEFT JOIN assets a ON a.location_id IN (
+  SELECT sub.id FROM locations sub WHERE sub.path <@ l.path AND sub.deleted_at IS NULL
+) AND a.deleted_at IS NULL
+WHERE l.tenant_id = $1 AND l.deleted_at IS NULL
+GROUP BY l.id;
+
+-- name: CountAlertsByLocation :many
+SELECT a.location_id AS id, COUNT(ae.id)::bigint AS critical_alerts
+FROM assets a
+JOIN alert_events ae ON ae.asset_id = a.id AND ae.status = 'firing' AND ae.severity = 'critical'
+WHERE a.tenant_id = $1 AND a.deleted_at IS NULL AND a.location_id IS NOT NULL
+GROUP BY a.location_id;

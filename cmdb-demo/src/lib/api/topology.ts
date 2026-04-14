@@ -42,6 +42,8 @@ export const topologyApi = {
     apiClient.post<ApiResponse<any>>(`/racks/${rackId}/slots`, data),
   getRackStats: () =>
     apiClient.get<RackStats>('/racks/stats'),
+  getLocationAssetCounts: () =>
+    apiClient.get<ApiResponse<{ counts: Record<string, number>; alerts: Record<string, number> }>>('/locations/asset-counts'),
   listDependencies: (params: Record<string, string>) => apiClient.get('/topology/dependencies', params),
   createDependency: (data: any) => apiClient.post('/topology/dependencies', data),
   deleteDependency: (id: string) => apiClient.del(`/topology/dependencies/${id}`),
