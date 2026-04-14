@@ -15,6 +15,7 @@ from pysnmp.hlapi.asyncio import (
     SnmpEngine,
     UdpTransportTarget,
     UsmUserData,
+    bulk_cmd,
     get_cmd,
 )
 
@@ -51,6 +52,14 @@ VENDOR_SERIAL_OIDS: dict[str, str] = {
 }
 
 DEFAULT_CONCURRENCY = 50
+
+# CDP / MAC table OIDs
+OID_CDP_CACHE_DEVICE_ID = "1.3.6.1.4.1.9.9.23.1.2.1.1.6"
+OID_CDP_CACHE_DEVICE_PORT = "1.3.6.1.4.1.9.9.23.1.2.1.1.7"
+OID_CDP_CACHE_PLATFORM = "1.3.6.1.4.1.9.9.23.1.2.1.1.8"
+OID_CDP_CACHE_ADDRESS = "1.3.6.1.4.1.9.9.23.1.2.1.1.4"
+OID_IF_NAME = "1.3.6.1.2.1.31.1.1.1.1"
+OID_DOT1D_TP_FDB_PORT = "1.3.6.1.2.1.17.4.3.1.2"
 
 
 # ──────────────────────────────────────────────
@@ -213,6 +222,58 @@ async def _snmp_get(
     return result
 
 
+async def _snmp_bulk_walk(
+    ip: str,
+    base_oid: str,
+    credentials: dict | None,
+    options: dict | None,
+    max_repetitions: int = 25,
+) -> dict[str, str]:
+    """Walk an OID subtree via SNMP GETBULK.
+
+    Returns a mapping of ``full_oid → value`` for all OIDs under *base_oid*.
+    """
+    opts = options or {}
+    port = int(opts.get("port", 161))
+    timeout = float(opts.get("timeout", 2))
+    retries = int(opts.get("retries", 1))
+
+    engine = SnmpEngine()
+    auth_data = _build_auth_data(credentials)
+    transport = await UdpTransportTarget.create(
+        (ip, port),
+        timeout=timeout,
+        retries=retries,
+    )
+
+    result: dict[str, str] = {}
+
+    iterator = bulk_cmd(
+        engine,
+        auth_data,
+        transport,
+        ContextData(),
+        0,
+        max_repetitions,
+        ObjectType(ObjectIdentity(base_oid)),
+    )
+
+    async for error_indication, error_status, _error_index, var_binds in iterator:
+        if error_indication or error_status:
+            break
+        for var_bind in var_binds:
+            oid_str = str(var_bind[0]).lstrip(".")
+            if not oid_str.startswith(base_oid):
+                # Walked past the subtree
+                return result
+            result[oid_str] = var_bind[1].prettyPrint()
+        else:
+            continue
+        break
+
+    return result
+
+
 async def _collect_single(
     ip: str,
     credentials: dict | None,
@@ -355,3 +416,95 @@ class SNMPCollector:
         except Exception as exc:  # noqa: BLE001
             latency_ms = (time.monotonic() - start) * 1000
             return ConnectionResult(success=False, message=str(exc), latency_ms=latency_ms)
+
+    # ── CDP / MAC table collection ─────────────────
+
+    async def collect_cdp_neighbors(self, target: CollectTarget) -> list[dict]:
+        """Read CDP neighbor table from a Cisco switch via SNMP.
+
+        Returns a list of dicts, each with ``device_name``, ``remote_port``,
+        ``port_name``, and ``if_index`` keys.
+        """
+        ip = target.endpoint.split(",")[0].strip()
+        if not ip:
+            return []
+
+        try:
+            # Walk cdpCacheDeviceId
+            device_ids = await _snmp_bulk_walk(
+                ip, OID_CDP_CACHE_DEVICE_ID, target.credentials, target.options,
+            )
+
+            neighbors: dict[str, dict] = {}
+            for oid, value in device_ids.items():
+                # OID format: ...1.6.<ifIndex>.<deviceIndex>
+                parts = oid.split(".")
+                if_index = parts[-2]
+                neighbors[if_index] = {
+                    "device_name": value,
+                    "if_index": if_index,
+                }
+
+            # Walk cdpCacheDevicePort for remote port names
+            device_ports = await _snmp_bulk_walk(
+                ip, OID_CDP_CACHE_DEVICE_PORT, target.credentials, target.options,
+            )
+            for oid, value in device_ports.items():
+                parts = oid.split(".")
+                if_index = parts[-2]
+                if if_index in neighbors:
+                    neighbors[if_index]["remote_port"] = value
+
+            # Get local interface names via ifName
+            if_names = await _snmp_bulk_walk(
+                ip, OID_IF_NAME, target.credentials, target.options,
+                max_repetitions=50,
+            )
+            if_name_map: dict[str, str] = {}
+            for oid, value in if_names.items():
+                idx = oid.split(".")[-1]
+                if_name_map[idx] = value
+
+            results: list[dict] = []
+            for if_idx, info in neighbors.items():
+                info["port_name"] = if_name_map.get(if_idx, f"port-{if_idx}")
+                results.append(info)
+
+            return results
+
+        except Exception as e:
+            logger.warning("CDP collection failed for %s: %s", ip, e)
+            return []
+
+    async def collect_mac_table(self, target: CollectTarget) -> list[dict]:
+        """Read MAC address table (dot1dTpFdbPort) from a switch via SNMP.
+
+        Returns a list of dicts with ``mac_address`` and ``bridge_port`` keys.
+        """
+        ip = target.endpoint.split(",")[0].strip()
+        if not ip:
+            return []
+
+        try:
+            mac_entries = await _snmp_bulk_walk(
+                ip, OID_DOT1D_TP_FDB_PORT, target.credentials, target.options,
+                max_repetitions=50,
+            )
+
+            results: list[dict] = []
+            for oid, value in mac_entries.items():
+                # Extract MAC from OID suffix (6 decimal octets)
+                suffix = oid.replace(OID_DOT1D_TP_FDB_PORT + ".", "")
+                mac_parts = suffix.split(".")
+                if len(mac_parts) == 6:
+                    mac = ":".join(f"{int(p):02x}" for p in mac_parts)
+                    results.append({
+                        "mac_address": mac,
+                        "bridge_port": int(value),
+                    })
+
+            return results
+
+        except Exception as e:
+            logger.warning("MAC table collection failed for %s: %s", ip, e)
+            return []
