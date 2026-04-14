@@ -80,6 +80,15 @@ func (s *Service) runDetection(ctx context.Context, tenantID uuid.UUID) {
 			zap.Int("new_device", newDevice),
 			zap.Int("consistent", len(diffs)-relocated-missing-newDevice))
 	}
+
+	// Run anomaly detection
+	anomalies := s.DetectAnomalies(ctx, tenantID)
+	for _, a := range anomalies {
+		s.createLocationAlert(ctx, tenantID, LocationDiff{
+			DiffType: string(a.Type),
+		}, a.Severity, a.Message)
+		zap.L().Warn("location anomaly detected", zap.String("type", string(a.Type)), zap.String("message", a.Message))
+	}
 }
 
 func (s *Service) autoConfirmRelocation(ctx context.Context, tenantID uuid.UUID, d LocationDiff) {

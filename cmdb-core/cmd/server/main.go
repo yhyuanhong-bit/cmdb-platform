@@ -283,6 +283,8 @@ func main() {
 	// Location detection endpoints
 	v1.GET("/location-detect/diffs", apiServer.LocationDetectGetDiffs)
 	v1.GET("/location-detect/summary", apiServer.LocationDetectGetSummary)
+	v1.GET("/location-detect/anomalies", apiServer.LocationDetectGetAnomalies)
+	v1.GET("/location-detect/report", apiServer.LocationDetectGetReport)
 	v1.GET("/assets/:id/location-history", apiServer.LocationDetectGetHistory)
 
 	// Sync endpoints
