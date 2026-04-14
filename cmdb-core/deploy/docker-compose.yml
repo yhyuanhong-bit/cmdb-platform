@@ -133,16 +133,17 @@ services:
       - nats_data:/data
     restart: unless-stopped
 
-  # ─── Reverse Proxy ──────────────────────────────────────────────────
-  nginx:
-    image: nginx:1.27-alpine
+  # ─── Frontend (React + nginx) ────────────────────────────────────────
+  frontend:
+    build:
+      context: ../../cmdb-demo
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-}cmdb-frontend:${VERSION:-latest}
     ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ../../cmdb-demo/dist:/usr/share/nginx/html:ro
+      - "${FRONTEND_PORT:-80}:80"
     depends_on:
-      - cmdb-core
+      cmdb-core:
+        condition: service_healthy
     restart: unless-stopped
 
   # ─── Observability ──────────────────────────────────────────────────

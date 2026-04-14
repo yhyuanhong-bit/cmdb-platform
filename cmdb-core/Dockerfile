@@ -16,6 +16,8 @@ RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /bin/cmdb-core /usr/local/bin/cmdb-core
 COPY --from=builder /src/migrations /migrations
 
+ENV MIGRATIONS_DIR=/migrations
+
 EXPOSE 8080
 
 ENTRYPOINT ["cmdb-core"]

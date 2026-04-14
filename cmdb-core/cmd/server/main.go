@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -75,6 +77,46 @@ func main() {
 		zap.L().Fatal("failed to connect to database", zap.Error(err))
 	}
 	defer pool.Close()
+
+	// 4a. Auto-run pending migrations
+	{
+		migrationsDir := os.Getenv("MIGRATIONS_DIR")
+		if migrationsDir == "" {
+			migrationsDir = "migrations"
+		}
+		if _, err := os.Stat(migrationsDir); err == nil {
+			entries, _ := os.ReadDir(migrationsDir)
+			for _, entry := range entries {
+				if !strings.HasSuffix(entry.Name(), ".up.sql") {
+					continue
+				}
+				// Extract version number
+				var version int
+				fmt.Sscanf(entry.Name(), "%06d", &version)
+
+				// Check if already applied
+				var exists bool
+				pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)", version).Scan(&exists)
+				if exists {
+					continue
+				}
+
+				// Apply migration
+				sqlBytes, err := os.ReadFile(filepath.Join(migrationsDir, entry.Name()))
+				if err != nil {
+					zap.L().Warn("migration: failed to read", zap.String("file", entry.Name()), zap.Error(err))
+					continue
+				}
+				_, err = pool.Exec(ctx, string(sqlBytes))
+				if err != nil {
+					zap.L().Error("migration: failed to apply", zap.String("file", entry.Name()), zap.Error(err))
+					continue
+				}
+				pool.Exec(ctx, "INSERT INTO schema_migrations (version, dirty) VALUES ($1, false) ON CONFLICT DO NOTHING", version)
+				zap.L().Info("migration: applied", zap.String("file", entry.Name()), zap.Int("version", version))
+			}
+		}
+	}
 
 	// 4b. Verify database migration version matches code expectations
 	{
