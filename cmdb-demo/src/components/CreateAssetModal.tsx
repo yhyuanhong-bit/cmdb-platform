@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useCreateAsset } from '../hooks/useAssets'
 
 interface Props {
@@ -118,7 +119,16 @@ export default function CreateAssetModal({ open, onClose }: Props) {
         <div className="flex gap-2 justify-end pt-2">
           <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('asset_modal.btn_cancel')}</button>
           <button
-            onClick={() => mutation.mutate(formData, { onSuccess: () => { onClose(); setFormData({ ...initial }) } })}
+            onClick={() => mutation.mutate(formData, {
+              onSuccess: () => { onClose(); setFormData({ ...initial }) },
+              onError: (err: any) => {
+                if (err?.code === 'DUPLICATE') {
+                  toast.error('An asset with this asset tag already exists')
+                } else {
+                  toast.error('Failed to create asset')
+                }
+              },
+            })}
             disabled={mutation.isPending || !formData.asset_tag || !formData.name}
             className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
             {mutation.isPending ? t('asset_modal.btn_creating') : t('asset_modal.btn_create')}

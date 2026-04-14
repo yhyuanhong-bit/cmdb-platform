@@ -267,7 +267,13 @@ export default function AddNewRack() {
                   },
                   {
                     onSuccess: () => navigate('/racks'),
-                    onError: () => toast.error(t('add_new_rack.error_create_failed')),
+                    onError: (err: any) => {
+                      if (err?.code === 'DUPLICATE') {
+                        toast.error('A rack with this name already exists in this location')
+                      } else {
+                        toast.error(t('add_new_rack.error_create_failed'))
+                      }
+                    },
                   },
                 )
               }}

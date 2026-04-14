@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useCreateLocation } from '../hooks/useTopology'
 
 interface Props {
@@ -106,7 +107,16 @@ export default function CreateLocationModal({ open, onClose }: Props) {
               if (latitude) metadata.latitude = parseFloat(latitude)
               if (longitude) metadata.longitude = parseFloat(longitude)
               const payload = { ...rest, metadata: Object.keys(metadata).length > 0 ? metadata : undefined }
-              mutation.mutate(payload as any, { onSuccess: () => { onClose(); setFormData({ ...initial }) } })
+              mutation.mutate(payload as any, {
+                onSuccess: () => { onClose(); setFormData({ ...initial }) },
+                onError: (err: any) => {
+                  if (err?.code === 'DUPLICATE') {
+                    toast.error('A location with this slug already exists')
+                  } else {
+                    toast.error('Failed to create location')
+                  }
+                },
+              })
             }}
             disabled={mutation.isPending || !formData.name}
             className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">

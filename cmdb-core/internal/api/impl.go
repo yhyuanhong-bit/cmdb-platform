@@ -354,6 +354,10 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 
 	created, err := s.assetSvc.Create(c.Request.Context(), params)
 	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			response.Err(c, 409, "DUPLICATE", "An asset with this asset tag already exists")
+			return
+		}
 		response.InternalError(c, "failed to create asset")
 		return
 	}
@@ -728,6 +732,10 @@ func (s *APIServer) CreateLocation(c *gin.Context) {
 
 	created, err := s.topologySvc.CreateLocation(c.Request.Context(), params)
 	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			response.Err(c, 409, "DUPLICATE", "A location with this slug already exists")
+			return
+		}
 		response.InternalError(c, "failed to create location")
 		return
 	}
@@ -879,6 +887,10 @@ func (s *APIServer) CreateRack(c *gin.Context) {
 
 	created, err := s.topologySvc.CreateRack(c.Request.Context(), params)
 	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			response.Err(c, 409, "DUPLICATE", "A rack with this name already exists in this location")
+			return
+		}
 		response.InternalError(c, "failed to create rack")
 		return
 	}
@@ -1130,6 +1142,10 @@ func (s *APIServer) CreateWorkOrder(c *gin.Context) {
 
 	order, err := s.maintenanceSvc.Create(c.Request.Context(), tenantID, requestorID, domainReq)
 	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			response.Err(c, 409, "DUPLICATE", "A work order with this code already exists")
+			return
+		}
 		response.InternalError(c, "failed to create work order")
 		return
 	}
@@ -1405,6 +1421,10 @@ func (s *APIServer) CreateAlertRule(c *gin.Context) {
 
 	rule, err := s.monitoringSvc.CreateRule(c.Request.Context(), params)
 	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			response.Err(c, 409, "DUPLICATE", "An alert rule with this name already exists")
+			return
+		}
 		response.InternalError(c, "failed to create alert rule")
 		return
 	}
