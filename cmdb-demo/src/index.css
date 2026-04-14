@@ -7,6 +7,18 @@
   border: none !important;
 }
 
+/* Keep Leaflet map below modals (Leaflet defaults to z-index 400+) */
+.leaflet-container {
+  z-index: 0 !important;
+}
+.leaflet-pane {
+  z-index: 0 !important;
+}
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 10 !important;
+}
+
 /* Pulsing dot animation for map markers */
 @keyframes ping {
   75%, 100% {
