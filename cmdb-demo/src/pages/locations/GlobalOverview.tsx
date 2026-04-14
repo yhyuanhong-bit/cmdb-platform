@@ -377,6 +377,7 @@ const GlobalOverview: React.FC = () => {
                 zoom={3}
                 style={{ height: '100%', width: '100%' }}
                 scrollWheelZoom={true}
+                attributionControl={false}
               >
                 <TileLayer
                   attribution='&copy; <a href="https://carto.com/">CARTO</a>'
