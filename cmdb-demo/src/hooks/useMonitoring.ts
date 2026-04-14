@@ -54,3 +54,11 @@ export function useCreateAlertRule() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alertRules'] }),
   })
 }
+
+export function useDeleteAlertRule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => monitoringApi.deleteAlertRule(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alertRules'] }),
+  })
+}

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon";
 import { useAssets } from "../hooks/useAssets";
-import { useAlertRules, useUpdateAlertRule, useCreateAlertRule } from "../hooks/useMonitoring";
+import { useAlertRules, useUpdateAlertRule, useCreateAlertRule, useDeleteAlertRule } from "../hooks/useMonitoring";
 import { useSensors, useUpdateSensor } from "../hooks/useSensors";
 
 /* ──────────────────────────────────────────────
@@ -212,11 +212,13 @@ function SensorConfiguration() {
   const apiRules = rulesResp?.data || [];
   const updateAlertRule = useUpdateAlertRule();
   const createAlertRule = useCreateAlertRule();
+  const deleteAlertRule = useDeleteAlertRule();
 
   const [sensors, setSensors] = useState<Sensor[]>([]);
   const [showAddRule, setShowAddRule] = useState(false);
   const [newRule, setNewRule] = useState({ name: '', metric_name: '', severity: 'warning', threshold: 80 });
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{ name: string; condition: string; action: string } | null>(null);
 
   useEffect(() => {
     if (apiSensors.length > 0) {
@@ -690,57 +692,112 @@ function SensorConfiguration() {
       <Section title={t('sensors.alert_rule_configuration')} icon="rule">
         <div className="space-y-3">
           {rules.map((rule) => (
-            <div
-              key={rule.id}
-              className={`flex items-center gap-4 rounded-lg bg-surface-container-low p-4 transition-opacity ${!rule.enabled ? "opacity-50" : ""}`}
-            >
-              <Toggle
-                enabled={rule.enabled}
-                onToggle={() => toggleRule(rule.id)}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-on-surface">
-                    {rule.name}
-                  </p>
-                  <span className="font-mono text-[10px] text-on-surface-variant">
-                    {rule.id}
-                  </span>
+            <div key={rule.id}>
+              <div
+                className={`flex items-center gap-4 rounded-lg bg-surface-container-low p-4 transition-opacity ${!rule.enabled ? "opacity-50" : ""}`}
+              >
+                <Toggle
+                  enabled={rule.enabled}
+                  onToggle={() => toggleRule(rule.id)}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-on-surface">
+                      {rule.name}
+                    </p>
+                    <span className="font-mono text-[10px] text-on-surface-variant">
+                      {rule.id}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="flex items-center gap-1 text-xs text-on-surface-variant">
+                      <Icon name="filter_alt" className="text-sm text-primary" />
+                      {rule.condition}
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-on-surface-variant">
+                      <Icon
+                        name="notifications_active"
+                        className="text-sm text-[#fbbf24]"
+                      />
+                      {rule.action}
+                    </span>
+                  </div>
                 </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span className="flex items-center gap-1 text-xs text-on-surface-variant">
-                    <Icon name="filter_alt" className="text-sm text-primary" />
-                    {rule.condition}
-                  </span>
-                  <span className="flex items-center gap-1 text-xs text-on-surface-variant">
-                    <Icon
-                      name="notifications_active"
-                      className="text-sm text-[#fbbf24]"
-                    />
-                    {rule.action}
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editingRuleId === rule.id) {
+                      setEditingRuleId(null);
+                      setEditDraft(null);
+                    } else {
+                      setEditingRuleId(rule.id);
+                      setEditDraft({ name: rule.name, condition: rule.condition, action: rule.action });
+                    }
+                  }}
+                  className="shrink-0 rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
+                  title={t('sensors.edit_rule')}
+                >
+                  <Icon name="edit" className="text-lg" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(t('sensors.delete_rule_confirm', { name: rule.name }))) {
+                      setRules(prev => prev.filter(r => r.id !== rule.id));
+                      deleteAlertRule.mutate(rule.id);
+                    }
+                  }}
+                  className="shrink-0 rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-error"
+                  title={t('sensors.delete_rule')}
+                >
+                  <Icon name="delete" className="text-lg" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => toast.info(t('sensors.edit_rule_hint'))}
-                className="shrink-0 rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary"
-                title={t('sensors.edit_rule')}
-              >
-                <Icon name="edit" className="text-lg" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm(t('sensors.delete_rule_confirm', { name: rule.name }))) {
-                    setRules(prev => prev.filter(r => r.id !== rule.id));
-                  }
-                }}
-                className="shrink-0 rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-error"
-                title={t('sensors.delete_rule')}
-              >
-                <Icon name="delete" className="text-lg" />
-              </button>
+              {editingRuleId === rule.id && editDraft && (
+                <div className="mt-1 rounded-lg bg-surface-container-low border border-primary/20 p-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      value={editDraft.name}
+                      onChange={e => setEditDraft(p => p ? { ...p, name: e.target.value } : p)}
+                      placeholder={t('sensors.rule_name_placeholder')}
+                      className="p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                    <input
+                      value={editDraft.condition}
+                      onChange={e => setEditDraft(p => p ? { ...p, condition: e.target.value } : p)}
+                      placeholder={t('sensors.condition_placeholder')}
+                      className="p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                    <input
+                      value={editDraft.action}
+                      onChange={e => setEditDraft(p => p ? { ...p, action: e.target.value } : p)}
+                      placeholder={t('sensors.action_placeholder')}
+                      className="col-span-2 p-2 bg-surface-container rounded-lg text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => { setEditingRuleId(null); setEditDraft(null); }}
+                      className="px-3 py-1.5 rounded-lg bg-surface-container-high text-xs text-on-surface-variant"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRules(prev => prev.map(r => r.id === rule.id ? { ...r, name: editDraft.name, condition: editDraft.condition, action: editDraft.action } : r));
+                        updateAlertRule.mutate({ id: rule.id, data: { name: editDraft.name } });
+                        setEditingRuleId(null);
+                        setEditDraft(null);
+                        toast.success(t('sensors.rule_updated'));
+                      }}
+                      disabled={!editDraft.name}
+                      className="px-3 py-1.5 rounded-lg bg-primary text-on-primary-container text-xs font-semibold disabled:opacity-40"
+                    >
+                      {t('common.save')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
