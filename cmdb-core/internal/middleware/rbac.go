@@ -52,7 +52,8 @@ var resourceMap = map[string]string{
 	"discovery":     "assets",
 	"upgrade-rules": "assets",
 	"sync":          "sync",
-	"notifications": "system",
+	"notifications":     "system",
+	"capacity-planning": "assets",
 }
 
 // methodToAction converts an HTTP method to an RBAC action.
