@@ -61,6 +61,15 @@ func (s *Service) runDetection(ctx context.Context, tenantID uuid.UUID) {
 			s.createLocationAlert(ctx, tenantID, d, "info",
 				fmt.Sprintf("Unregistered device detected: MAC %s at %s",
 					d.MACAddress, d.ActualRackName))
+
+			// Also create discovery candidate for review
+			s.pool.Exec(ctx, `
+				INSERT INTO discovered_assets (tenant_id, source, hostname, ip_address, raw_data, status, discovered_at)
+				VALUES ($1, 'snmp_mac_detect', $2, '', $3, 'pending', now())
+				ON CONFLICT DO NOTHING`,
+				tenantID,
+				fmt.Sprintf("MAC-%s", d.MACAddress),
+				fmt.Sprintf(`{"mac_address":"%s","detected_rack":"%s","detected_at":"%s"}`, d.MACAddress, d.ActualRackName, d.DetectedAt.Format(time.RFC3339)))
 		}
 	}
 
@@ -100,6 +109,29 @@ func (s *Service) autoConfirmRelocation(ctx context.Context, tenantID uuid.UUID,
 			TenantID: tenantID.String(),
 			Payload:  payload,
 		})
+	}
+
+	// Auto-close matching relocation work orders
+	rows, _ := s.pool.Query(ctx,
+		`SELECT id FROM work_orders
+		 WHERE asset_id = $1 AND type = 'relocation'
+		 AND status NOT IN ('completed','verified','rejected')
+		 AND tenant_id = $2 AND deleted_at IS NULL`,
+		d.AssetID, tenantID)
+	if rows != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var woID uuid.UUID
+			if rows.Scan(&woID) == nil {
+				s.pool.Exec(ctx,
+					"UPDATE work_orders SET status = 'completed', actual_end = now(), sync_version = sync_version + 1 WHERE id = $1",
+					woID)
+				s.pool.Exec(ctx,
+					"INSERT INTO work_order_logs (order_id, action, from_status, to_status) VALUES ($1, 'auto_completed_by_location_detect', $2, 'completed')",
+					woID, "in_progress")
+				zap.L().Info("auto-closed relocation work order", zap.String("order_id", woID.String()))
+			}
+		}
 	}
 
 	zap.L().Info("auto-confirmed relocation",
