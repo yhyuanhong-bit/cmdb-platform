@@ -10,16 +10,22 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Service provides data quality governance operations.
 type Service struct {
 	queries *dbgen.Queries
+	pool    *pgxpool.Pool
 }
 
 // NewService creates a new quality Service.
-func NewService(queries *dbgen.Queries) *Service {
-	return &Service{queries: queries}
+func NewService(queries *dbgen.Queries, pool ...*pgxpool.Pool) *Service {
+	s := &Service{queries: queries}
+	if len(pool) > 0 {
+		s.pool = pool[0]
+	}
+	return s
 }
 
 // ScanResult holds the evaluation outcome for a single asset.
@@ -84,6 +90,30 @@ func (s *Service) ScanAllAssets(ctx context.Context, tenantID uuid.UUID) (int, e
 	scanned := 0
 	for _, asset := range assets {
 		result := evaluateAsset(asset, rules)
+
+		// Location consistency bonus check via MAC cache
+		if s.pool != nil && asset.RackID.Valid {
+			var detectedRackID *uuid.UUID
+			_ = s.pool.QueryRow(ctx,
+				"SELECT detected_rack_id FROM mac_address_cache WHERE asset_id = $1 AND tenant_id = $2",
+				asset.ID, tenantID).Scan(&detectedRackID)
+
+			if detectedRackID != nil {
+				assetRack := uuid.UUID(asset.RackID.Bytes)
+				if *detectedRackID != assetRack {
+					result.Consistency -= 50
+					result.Issues = append(result.Issues, map[string]string{
+						"field": "rack_id", "dimension": "consistency",
+						"error": "CMDB location differs from network-detected location",
+					})
+					if result.Consistency < 0 {
+						result.Consistency = 0
+					}
+					// Recalculate total
+					result.Total = result.Completeness*0.4 + result.Accuracy*0.3 + result.Timeliness*0.1 + result.Consistency*0.2
+				}
+			}
+		}
 
 		issueJSON, _ := json.Marshal(result.Issues)
 
