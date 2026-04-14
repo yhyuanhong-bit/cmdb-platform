@@ -20,6 +20,10 @@ EXPECTED_HEADERS = [
     "serial_number",
     "property_number",
     "control_number",
+    "ip_address",
+    "location",
+    "rack",
+    "tags",
 ]
 
 REQUIRED_FIELDS = {"asset_tag", "name", "type"}

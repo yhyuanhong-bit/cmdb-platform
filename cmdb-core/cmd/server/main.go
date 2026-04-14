@@ -329,6 +329,8 @@ func main() {
 	// Custom endpoints (Phase 2)
 	v1.GET("/racks/stats", apiServer.GetRackStats)
 	v1.GET("/assets/lifecycle-stats", apiServer.GetAssetLifecycleStats)
+	// Import template — must be registered before /assets/:id to avoid route conflict
+	v1.GET("/assets/import-template", apiServer.DownloadImportTemplate)
 	v1.GET("/monitoring/alerts/trend", apiServer.GetAlertsTrend)
 	v1.GET("/racks/:id/maintenance", apiServer.GetRackMaintenance)
 

@@ -179,6 +179,36 @@ async def _create_asset(
     property_number = raw.fields.get("property_number")
     control_number = raw.fields.get("control_number")
 
+    ip_address = raw.fields.get("ip_address")
+    tags_str = raw.fields.get("tags")
+    tags = [t.strip() for t in tags_str.split(",")] if tags_str else None
+
+    # Resolve location name → location_id
+    location_id = None
+    location_name = raw.fields.get("location_name")
+    if location_name:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM locations WHERE tenant_id = $1 AND (name = $2 OR name_en = $2 OR slug = $2) AND deleted_at IS NULL LIMIT 1",
+                tenant_id,
+                location_name.strip(),
+            )
+            if row:
+                location_id = row["id"]
+
+    # Resolve rack name → rack_id
+    rack_id = None
+    rack_name = raw.fields.get("rack_name")
+    if rack_name:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM racks WHERE tenant_id = $1 AND name = $2 AND deleted_at IS NULL LIMIT 1",
+                tenant_id,
+                rack_name.strip(),
+            )
+            if row:
+                rack_id = row["id"]
+
     attributes_json = json.dumps(raw.attributes) if raw.attributes else None
 
     async with pool.acquire() as conn:
@@ -186,11 +216,13 @@ async def _create_asset(
             """INSERT INTO assets (
                 id, tenant_id, asset_tag, name, type, sub_type,
                 status, bia_level, vendor, model, serial_number,
-                property_number, control_number, attributes
+                property_number, control_number, attributes,
+                ip_address, location_id, rack_id, tags
             ) VALUES (
                 $1, $2, $3, $4, $5, $6,
                 $7, $8, $9, $10, $11,
-                $12, $13, $14
+                $12, $13, $14,
+                $15, $16, $17, $18
             )""",
             asset_id,
             tenant_id,
@@ -206,6 +238,10 @@ async def _create_asset(
             property_number,
             control_number,
             attributes_json,
+            ip_address,
+            location_id,
+            rack_id,
+            tags,
         )
 
     return asset_id

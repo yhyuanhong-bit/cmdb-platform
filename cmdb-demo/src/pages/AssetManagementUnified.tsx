@@ -328,6 +328,18 @@ export default function AssetManagementUnified() {
           onChange={handleImport}
         />
         <button
+          onClick={() => {
+            const a = document.createElement('a')
+            a.href = '/api/v1/assets/import-template'
+            a.download = 'asset-import-template.csv'
+            a.click()
+          }}
+          className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"
+        >
+          <Icon name="download" className="text-[18px]" />
+          {t('assets.download_template')}
+        </button>
+        <button
           onClick={handleExport}
           className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"
         >
