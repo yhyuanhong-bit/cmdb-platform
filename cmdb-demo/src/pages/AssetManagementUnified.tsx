@@ -8,6 +8,7 @@ import CreateAssetModal from '../components/CreateAssetModal'
 import { useAssets } from '../hooks/useAssets'
 import type { Asset } from '../lib/api/assets'
 import { useLocationContext } from '../contexts/LocationContext'
+import { useAuthStore } from '../stores/authStore'
 
 const typeIcons: Record<string, string> = {
   server: 'dns',
@@ -330,11 +331,9 @@ export default function AssetManagementUnified() {
         <button
           onClick={async () => {
             const a = document.createElement('a')
-            const token = sessionStorage.getItem('cmdb-auth')
-            const parsed = token ? JSON.parse(token) : null
-            const accessToken = parsed?.state?.accessToken || ''
+            const accessToken = useAuthStore.getState().accessToken
             const res = await fetch('/api/v1/assets/import-template', {
-              headers: { Authorization: `Bearer ${accessToken}` },
+              headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
             })
             if (!res.ok) { toast.error('Failed to download template'); return }
             const blob = await res.blob()
