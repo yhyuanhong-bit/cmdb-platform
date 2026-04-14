@@ -76,13 +76,13 @@ export default function CreateLocationModal({ open, onClose }: Props) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Latitude</label>
+            <label className="block text-sm text-gray-400 mb-1">{t('location_modal.latitude')}</label>
             <input value={formData.latitude} onChange={e => setFormData(p => ({ ...p, latitude: e.target.value }))}
               type="number" step="any"
               className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" placeholder="25.03" />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Longitude</label>
+            <label className="block text-sm text-gray-400 mb-1">{t('location_modal.longitude')}</label>
             <input value={formData.longitude} onChange={e => setFormData(p => ({ ...p, longitude: e.target.value }))}
               type="number" step="any"
               className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" placeholder="121.56" />

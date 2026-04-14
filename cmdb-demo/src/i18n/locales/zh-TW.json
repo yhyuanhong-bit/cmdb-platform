@@ -2320,6 +2320,8 @@
     "level_campus": "園區",
     "parent_id_label": "父位置 ID（可選）",
     "parent_id_placeholder": "父位置 UUID",
+    "latitude": "緯度",
+    "longitude": "經度",
     "status_label": "狀態",
     "status_active": "啟用",
     "status_inactive": "停用",

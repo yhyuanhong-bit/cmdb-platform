@@ -2320,6 +2320,8 @@
     "level_campus": "Campus",
     "parent_id_label": "Parent ID (optional)",
     "parent_id_placeholder": "Parent location UUID",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
     "status_label": "Status",
     "status_active": "Active",
     "status_inactive": "Inactive",
