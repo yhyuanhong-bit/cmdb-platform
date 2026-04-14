@@ -49,6 +49,37 @@ function StatusBadge({
   );
 }
 
+function AutoDetectionPanel() {
+  const { t } = useTranslation()
+  const { data: summary } = useQuery({
+    queryKey: ['locationDetectSummary'],
+    queryFn: () => apiClient.get('/location-detect/summary'),
+    refetchInterval: 5 * 60 * 1000,
+  })
+  const s = summary as Record<string, unknown> | undefined
+
+  const stats = [
+    { label: t('inventory.tracked', 'Network Tracked'), value: (s?.tracked_by_network as number) ?? '\u2014', icon: 'wifi', color: 'text-[#69db7c]' },
+    { label: t('inventory.relocations_24h', 'Relocations (24h)'), value: (s?.relocations_24h as number) ?? 0, icon: 'swap_horiz', color: 'text-primary' },
+    { label: t('inventory.unregistered', 'Unregistered'), value: (s?.unregistered as number) ?? 0, icon: 'device_unknown', color: 'text-error' },
+    { label: t('inventory.coverage', 'Coverage'), value: s?.coverage_pct ? `${Math.round(s.coverage_pct as number)}%` : '\u2014', icon: 'coverage', color: 'text-tertiary' },
+  ]
+
+  return (
+    <div className="grid grid-cols-4 gap-3">
+      {stats.map(st => (
+        <div key={st.label} className="bg-surface-container-low rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`material-symbols-outlined text-lg ${st.color}`}>{st.icon}</span>
+            <span className="text-[10px] text-on-surface-variant font-label uppercase tracking-widest">{st.label}</span>
+          </div>
+          <div className="text-2xl font-headline font-bold text-on-surface">{st.value}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /* ──────────────────────────────────────────────
    Main page
    ────────────────────────────────────────────── */
@@ -581,6 +612,22 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Auto-Detection Results */}
+      <div className="bg-surface-container rounded-xl p-5 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary">radar</span>
+            <h3 className="font-headline text-sm font-bold text-on-surface uppercase tracking-wide">
+              {t('inventory.auto_detection', 'Auto Detection (SNMP)')}
+            </h3>
+          </div>
+          <span className="text-[10px] font-label text-on-surface-variant">
+            {t('inventory.auto_detection_hint', 'Updated every 5 minutes via network topology')}
+          </span>
+        </div>
+        <AutoDetectionPanel />
       </div>
 
       {/* Bottom stats bar */}
