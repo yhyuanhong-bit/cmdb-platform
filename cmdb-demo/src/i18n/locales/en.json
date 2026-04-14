@@ -1583,7 +1583,15 @@
     "empty_no_recommendations": "No upgrade recommendations found for this asset.",
     "detail_benchmark": "This upgrade recommendation is based on industry benchmarks and current asset utilization patterns.",
     "detail_implementation": "Estimated implementation time: 2-4 hours per unit with zero downtime deployment.",
-    "alert_select_one": "Please select at least one upgrade recommendation"
+    "alert_select_one": "Please select at least one upgrade recommendation",
+    "capacity_title": "Capacity Planning",
+    "capacity_subtitle": "Infrastructure and resource utilization forecast",
+    "months_until_full": "months until threshold",
+    "at_capacity": "At capacity!",
+    "growth_per_month": "/month",
+    "trend_rising": "Rising",
+    "trend_stable": "Stable",
+    "trend_declining": "Declining"
   },
   "component_usage": {
     "breadcrumb_realtime_telemetry": "REAL-TIME NODE TELEMETRY",

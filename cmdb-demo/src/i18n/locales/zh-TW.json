@@ -1583,7 +1583,15 @@
     "empty_no_recommendations": "未找到該資產的升級建議。",
     "detail_benchmark": "此升級建議基於行業基準和目前資產使用率模式。",
     "detail_implementation": "預計實施時間：每台設備 2-4 小時，零停機部署。",
-    "alert_select_one": "請至少選擇一個升級建議"
+    "alert_select_one": "請至少選擇一個升級建議",
+    "capacity_title": "容量規劃",
+    "capacity_subtitle": "基礎設施與資源使用率預測",
+    "months_until_full": "個月後到達閾值",
+    "at_capacity": "已達容量上限！",
+    "growth_per_month": "/月",
+    "trend_rising": "上升中",
+    "trend_stable": "穩定",
+    "trend_declining": "下降中"
   },
   "component_usage": {
     "breadcrumb_realtime_telemetry": "即時節點遙測",

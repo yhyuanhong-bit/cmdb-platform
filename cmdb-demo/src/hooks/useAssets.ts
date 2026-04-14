@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { assetApi, type Asset } from '../lib/api/assets'
+import { assetApi, type Asset, type CapacityForecast } from '../lib/api/assets'
 
 export function useAssetLifecycle(assetId: string) {
   return useQuery({
@@ -61,6 +61,15 @@ export function useUpgradeRecommendations(assetId: string) {
     queryKey: ['upgradeRecommendations', assetId],
     queryFn: () => assetApi.getUpgradeRecommendations(assetId),
     enabled: !!assetId,
+  })
+}
+
+export function useCapacityPlanning() {
+  return useQuery({
+    queryKey: ['capacityPlanning'],
+    queryFn: () => assetApi.getCapacityPlanning(),
+    refetchInterval: 60000,
+    select: (res) => (res as any)?.data as CapacityForecast[] ?? [],
   })
 }
 

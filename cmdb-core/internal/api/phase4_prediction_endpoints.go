@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -248,21 +249,39 @@ func (s *APIServer) GetFailureDistribution(c *gin.Context) {
 
 // GetAssetUpgradeRecommendations handles GET /assets/:id/upgrade-recommendations
 // Returns upgrade recommendations for an asset based on metric thresholds.
+// Enhancements: EOL/warranty filter, P95 check, BIA priority boost, cost estimate, warranty warning.
 func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 	assetID := c.Param("id")
 	tenantID := tenantIDFromContext(c)
 
-	// Get asset type and attributes
+	// Get asset type, attributes, lifecycle fields, and BIA level
 	var assetType string
 	var attrBytes []byte
+	var biaLevel string
+	var eolDate sql.NullTime
+	var warrantyEnd sql.NullTime
+
 	err := s.pool.QueryRow(c.Request.Context(), `
-		SELECT type, attributes FROM assets WHERE id = $1 AND tenant_id = $2
-	`, assetID, tenantID).Scan(&assetType, &attrBytes)
+		SELECT type, attributes, COALESCE(bia_level, 'normal'), eol_date, warranty_end
+		FROM assets WHERE id = $1 AND tenant_id = $2
+	`, assetID, tenantID).Scan(&assetType, &attrBytes, &biaLevel, &eolDate, &warrantyEnd)
 	if err != nil {
 		response.NotFound(c, "asset not found")
 		return
 	}
 	attrs := parseJSONAttributes(attrBytes)
+
+	// 2a. Filter: don't recommend upgrades for assets approaching end-of-life (within 12 months)
+	if eolDate.Valid && eolDate.Time.Before(time.Now().AddDate(0, 12, 0)) {
+		response.OK(c, gin.H{
+			"recommendations":  []struct{}{},
+			"skip_reason":      "Asset approaching end-of-life — upgrade not recommended",
+			"eol_date":         eolDate.Time.Format("2006-01-02"),
+			"warranty_warning": "",
+			"bia_level":        biaLevel,
+		})
+		return
+	}
 
 	// Load upgrade rules for this asset_type and tenant
 	ruleRows, err := s.pool.Query(c.Request.Context(), `
@@ -277,25 +296,26 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 	defer ruleRows.Close()
 
 	type recommendation struct {
-		ID           string   `json:"id"`
-		Category     string   `json:"category"`
-		Priority     string   `json:"priority"`
-		CurrentSpec  string   `json:"current_spec"`
-		Recommendation string `json:"recommendation"`
-		MetricName   string   `json:"metric_name"`
-		AvgValue     float64  `json:"avg_value"`
-		Threshold    float64  `json:"threshold"`
-		DurationDays int      `json:"duration_days"`
-		CostEstimate *float64 `json:"cost_estimate"`
+		ID             string   `json:"id"`
+		Category       string   `json:"category"`
+		Priority       string   `json:"priority"`
+		CurrentSpec    string   `json:"current_spec"`
+		Recommendation string   `json:"recommendation"`
+		MetricName     string   `json:"metric_name"`
+		AvgValue       float64  `json:"avg_value"`
+		P95Value       float64  `json:"p95_value"`
+		Threshold      float64  `json:"threshold"`
+		DurationDays   int      `json:"duration_days"`
+		CostEstimate   *float64 `json:"cost_estimate"`
 	}
 
 	type ruleRow struct {
-		id           uuid.UUID
-		category     string
-		metricName   string
-		threshold    float64
-		durationDays int
-		priority     string
+		id             uuid.UUID
+		category       string
+		metricName     string
+		threshold      float64
+		durationDays   int
+		priority       string
 		recommendation string
 	}
 
@@ -308,6 +328,14 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 		rules = append(rules, r)
 	}
 	ruleRows.Close()
+
+	// 2d. Cost estimates by category
+	costEstimates := map[string]float64{
+		"cpu":     5000,
+		"memory":  2000,
+		"storage": 3000,
+		"network": 8000,
+	}
 
 	var recommendations []recommendation
 	for _, r := range rules {
@@ -324,10 +352,25 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 			continue
 		}
 
-		if avgValue > r.threshold {
+		// 2b. P95 check alongside average
+		var p95Value float64
+		s.pool.QueryRow(c.Request.Context(), `
+			SELECT COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY value), 0)
+			FROM metrics
+			WHERE asset_id = $1 AND name = $2 AND time > now() - ($3 || ' days')::interval
+		`, assetID, r.metricName, r.durationDays).Scan(&p95Value)
+
+		// Trigger if avg > threshold OR p95 > threshold * 1.1
+		triggered := avgValue > r.threshold || p95Value > r.threshold*1.1
+		if triggered {
 			currentSpec := attrs[r.category]
 			if currentSpec == "" {
 				currentSpec = attrs[r.metricName]
+			}
+			var costEstimate *float64
+			if cost, ok := costEstimates[r.category]; ok {
+				c2 := cost
+				costEstimate = &c2
 			}
 			recommendations = append(recommendations, recommendation{
 				ID:             r.id.String(),
@@ -337,10 +380,25 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 				Recommendation: r.recommendation,
 				MetricName:     r.metricName,
 				AvgValue:       avgValue,
+				P95Value:       p95Value,
 				Threshold:      r.threshold,
 				DurationDays:   r.durationDays,
-				CostEstimate:   nil,
+				CostEstimate:   costEstimate,
 			})
+		}
+	}
+
+	// 2c. BIA-based priority boost
+	if biaLevel == "critical" || biaLevel == "important" {
+		priorityUp := map[string]string{
+			"medium": "high",
+			"low":    "medium",
+		}
+		for i := range recommendations {
+			if upgraded, ok := priorityUp[recommendations[i].Priority]; ok {
+				recommendations[i].Priority = upgraded
+			}
+			recommendations[i].Recommendation += " [BIA: " + biaLevel + " — prioritized]"
 		}
 	}
 
@@ -360,7 +418,17 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 		recommendations = []recommendation{}
 	}
 
-	response.OK(c, gin.H{"recommendations": recommendations})
+	// 2e. Warranty warning
+	var warrantyWarning string
+	if warrantyEnd.Valid && warrantyEnd.Time.Before(time.Now().AddDate(0, 6, 0)) {
+		warrantyWarning = fmt.Sprintf("Warning: asset warranty expires %s — consider ROI before upgrading", warrantyEnd.Time.Format("2006-01-02"))
+	}
+
+	response.OK(c, gin.H{
+		"recommendations":  recommendations,
+		"warranty_warning": warrantyWarning,
+		"bia_level":        biaLevel,
+	})
 }
 
 // AcceptUpgradeRecommendation handles POST /assets/:id/upgrade-recommendations/:category/accept

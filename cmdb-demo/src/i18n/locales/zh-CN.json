@@ -1583,7 +1583,15 @@
     "empty_no_recommendations": "未找到该资产的升级建议。",
     "detail_benchmark": "此升级建议基于行业基准和当前资产利用率模式。",
     "detail_implementation": "预计实施时间：每台设备 2-4 小时，零停机部署。",
-    "alert_select_one": "请至少选择一个升级建议"
+    "alert_select_one": "请至少选择一个升级建议",
+    "capacity_title": "容量规划",
+    "capacity_subtitle": "基础设施与资源使用率预测",
+    "months_until_full": "个月后到达阈值",
+    "at_capacity": "已达容量上限！",
+    "growth_per_month": "/月",
+    "trend_rising": "上升中",
+    "trend_stable": "稳定",
+    "trend_declining": "下降中"
   },
   "component_usage": {
     "breadcrumb_realtime_telemetry": "实时节点遥测",

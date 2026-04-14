@@ -2,7 +2,8 @@ import { toast } from 'sonner'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useAssets, useUpgradeRecommendations, useAcceptUpgradeRecommendation } from '../hooks/useAssets'
+import { useAssets, useUpgradeRecommendations, useAcceptUpgradeRecommendation, useCapacityPlanning } from '../hooks/useAssets'
+import type { CapacityForecast } from '../lib/api/assets'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -58,9 +59,13 @@ export default function ComponentUpgradeRecommendations() {
     { labelKey: 'component_upgrades.metric_power_efficiency', value: String(assetCount), icon: 'inventory_2' },
   ]
 
+  // Fetch capacity planning data
+  const forecasts = useCapacityPlanning().data ?? []
+
   // Fetch upgrade recommendations for selected asset
   const { data: recData } = useUpgradeRecommendations(selectedAssetId)
   const acceptMutation = useAcceptUpgradeRecommendation()
+  const warrantyWarning = (recData as any)?.warranty_warning as string | undefined
 
   // Map API data to card format
   const apiCards: UpgradeCard[] = ((recData as any)?.recommendations ?? []).map((r: any) => ({
@@ -114,6 +119,67 @@ export default function ComponentUpgradeRecommendations() {
           {t('component_upgrades.subtitle')}
           <span className="text-xs text-on-surface-variant ml-2">Based on {assetCount} monitored assets</span>
         </p>
+      </div>
+
+      {/* Capacity Planning Section */}
+      <div className="mb-8 mt-4">
+        <h2 className="font-headline text-lg font-bold text-on-surface mb-4">
+          {t('component_upgrades.capacity_title', 'Capacity Planning')}
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {(forecasts as CapacityForecast[]).map((f, i) => (
+            <div key={i} className={`bg-surface-container rounded-lg p-4 border-l-4 ${
+              f.severity === 'critical' ? 'border-error' :
+              f.severity === 'warning' ? 'border-tertiary' : 'border-primary'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold text-on-surface">{f.resource_name}</span>
+                <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                  f.trend === 'rising' ? 'bg-error/20 text-error' :
+                  f.trend === 'declining' ? 'bg-primary/20 text-primary' :
+                  'bg-surface-container-high text-on-surface-variant'
+                }`}>
+                  {f.trend === 'rising' ? '↑' : f.trend === 'declining' ? '↓' : '→'} {f.trend}
+                </span>
+              </div>
+              {f.current_capacity > 0 && f.usage_percent > 0 && (
+                <div className="mb-2">
+                  <div className="flex justify-between text-xs text-on-surface-variant mb-1">
+                    <span>{Math.round(f.current_usage)} / {Math.round(f.current_capacity)}</span>
+                    <span>{f.usage_percent}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-surface-container-lowest rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${
+                      f.usage_percent >= 90 ? 'bg-error' :
+                      f.usage_percent >= 75 ? 'bg-tertiary' : 'bg-primary'
+                    }`} style={{ width: `${Math.min(f.usage_percent, 100)}%` }} />
+                  </div>
+                </div>
+              )}
+              {f.months_until_full !== null && f.months_until_full !== undefined && (
+                <p className={`text-xs font-semibold ${
+                  f.months_until_full <= 1 ? 'text-error' :
+                  f.months_until_full <= 3 ? 'text-tertiary' : 'text-on-surface-variant'
+                }`}>
+                  {f.months_until_full <= 0
+                    ? t('component_upgrades.at_capacity', 'At capacity!')
+                    : `~${f.months_until_full} ${t('component_upgrades.months_until_full', 'months until threshold')}`}
+                </p>
+              )}
+              {f.monthly_growth !== 0 && (
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Growth: {f.monthly_growth > 0 ? '+' : ''}{f.monthly_growth}{t('component_upgrades.growth_per_month', '/month')}
+                </p>
+              )}
+              <p className="text-xs text-on-surface-variant mt-2">{f.recommendation}</p>
+            </div>
+          ))}
+          {forecasts.length === 0 && (
+            <div className="col-span-full bg-surface-container rounded-lg p-6 text-center text-on-surface-variant text-sm">
+              No capacity data available yet.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Asset selector */}
@@ -186,6 +252,13 @@ export default function ComponentUpgradeRecommendations() {
       {!selectedAssetId && (
         <div className="flex items-center justify-center rounded-lg bg-surface-container py-16 text-sm text-on-surface-variant">
           {t('component_upgrades.empty_select_asset')}
+        </div>
+      )}
+
+      {/* Warranty warning */}
+      {warrantyWarning && (
+        <div className="bg-tertiary/10 border border-tertiary/30 rounded-lg p-3 mb-4 text-sm text-tertiary">
+          ⚠️ {warrantyWarning}
         </div>
       )}
 

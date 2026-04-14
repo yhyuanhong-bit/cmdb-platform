@@ -408,6 +408,9 @@ func main() {
 	v1.GET("/location-detect/report", apiServer.LocationDetectGetReport)
 	v1.GET("/assets/:id/location-history", apiServer.LocationDetectGetHistory)
 
+	// Capacity planning
+	v1.GET("/capacity-planning", apiServer.GetCapacityPlanning)
+
 	// Sync endpoints
 	v1.GET("/sync/changes", apiServer.SyncGetChanges)
 	v1.GET("/sync/state", apiServer.SyncGetState)

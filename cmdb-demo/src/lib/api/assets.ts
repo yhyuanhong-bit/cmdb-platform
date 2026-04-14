@@ -23,6 +23,22 @@ export const assetApi = {
     apiClient.get(`/assets/${assetId}/upgrade-recommendations`),
   acceptUpgradeRecommendation: (assetId: string, category: string, data?: unknown) =>
     apiClient.post(`/assets/${assetId}/upgrade-recommendations/${category}/accept`, data ?? {}),
+  getCapacityPlanning: () =>
+    apiClient.get<ApiResponse<CapacityForecast[]>>('/capacity-planning'),
+}
+
+export interface CapacityForecast {
+  resource_type: string
+  resource_name: string
+  current_usage: number
+  current_capacity: number
+  usage_percent: number
+  monthly_growth: number
+  threshold_percent: number
+  months_until_full: number | null
+  trend: 'rising' | 'stable' | 'declining'
+  severity: 'critical' | 'warning' | 'ok'
+  recommendation: string
 }
 
 export interface LifecycleStats {
