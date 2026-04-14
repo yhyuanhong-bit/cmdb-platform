@@ -3,7 +3,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAssets, useUpgradeRecommendations, useAcceptUpgradeRecommendation, useCapacityPlanning } from '../hooks/useAssets'
+import { useUpgradeRules, useCreateUpgradeRule, useUpdateUpgradeRule, useDeleteUpgradeRule } from '../hooks/useUpgradeRules'
 import type { CapacityForecast } from '../lib/api/assets'
+import type { UpgradeRule } from '../lib/api/upgradeRules'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -32,6 +34,21 @@ interface UpgradeCard {
   metricValue: string
   costPerNode: string | number
   selected: boolean
+  alternatives?: string[]
+}
+
+const RULE_PRIORITIES = ['low', 'medium', 'high', 'critical']
+const RULE_CATEGORIES = ['cpu', 'memory', 'storage', 'network', 'overall']
+
+const emptyNewRule = {
+  asset_type: 'server',
+  category: 'cpu',
+  metric_name: 'cpu_usage',
+  threshold: 80,
+  duration_days: 7,
+  priority: 'medium',
+  recommendation: '',
+  enabled: true,
 }
 
 /* ------------------------------------------------------------------ */
@@ -45,6 +62,16 @@ export default function ComponentUpgradeRecommendations() {
   const [selectedAssetId, setSelectedAssetId] = useState('')
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
   const [localSelected, setLocalSelected] = useState<Set<string>>(new Set())
+  const [showRules, setShowRules] = useState(false)
+  const [showAddRule, setShowAddRule] = useState(false)
+  const [newRule, setNewRule] = useState({ ...emptyNewRule })
+
+  // Upgrade rules management
+  const rulesQ = useUpgradeRules()
+  const rules: UpgradeRule[] = (rulesQ.data as any)?.rules ?? []
+  const createRule = useCreateUpgradeRule()
+  const updateRule = useUpdateUpgradeRule()
+  const deleteRule = useDeleteUpgradeRule()
 
   // Fetch server assets for dropdown
   const { data: assetsData } = useAssets({ type: 'server' })
@@ -81,6 +108,7 @@ export default function ComponentUpgradeRecommendations() {
     metricValue: `${r.avg_value}% avg (threshold: ${r.threshold}%)`,
     costPerNode: r.cost_estimate ?? '-',
     selected: localSelected.has(r.id),
+    alternatives: r.alternatives ?? [],
   }))
 
   const cards = apiCards
@@ -180,6 +208,194 @@ export default function ComponentUpgradeRecommendations() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Upgrade Rules Management */}
+      <div className="mb-8">
+        <button
+          onClick={() => setShowRules((v) => !v)}
+          className="flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-base text-primary">rule</span>
+          <span className="text-[10px] font-bold tracking-widest">{t('component_upgrades.rules_title')}</span>
+          <span className="material-symbols-outlined text-base">{showRules ? 'expand_less' : 'expand_more'}</span>
+        </button>
+        {showRules && (
+          <div className="mt-4 bg-surface-container rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-on-surface-variant">{t('component_upgrades.rules_subtitle')}</p>
+              <button
+                onClick={() => setShowAddRule((v) => !v)}
+                className="flex items-center gap-1 rounded bg-primary/15 px-3 py-1.5 text-[10px] font-bold tracking-widest text-primary hover:bg-primary/25 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[14px]">add</span>
+                {t('component_upgrades.add_rule')}
+              </button>
+            </div>
+
+            {/* Add Rule Form */}
+            {showAddRule && (
+              <div className="mb-4 bg-surface-container-high rounded-lg p-4 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] tracking-widest text-on-surface-variant mb-1">{t('component_upgrades.rule_asset_type')}</label>
+                  <input
+                    className="w-full bg-surface-container-highest text-on-surface text-xs rounded px-2 py-1.5 outline-none"
+                    value={newRule.asset_type}
+                    onChange={(e) => setNewRule({ ...newRule, asset_type: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] tracking-widest text-on-surface-variant mb-1">{t('component_upgrades.rule_category')}</label>
+                  <select
+                    className="w-full bg-surface-container-highest text-on-surface text-xs rounded px-2 py-1.5 outline-none cursor-pointer"
+                    value={newRule.category}
+                    onChange={(e) => setNewRule({ ...newRule, category: e.target.value })}
+                  >
+                    {RULE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] tracking-widest text-on-surface-variant mb-1">{t('component_upgrades.rule_metric')}</label>
+                  <input
+                    className="w-full bg-surface-container-highest text-on-surface text-xs rounded px-2 py-1.5 outline-none"
+                    value={newRule.metric_name}
+                    onChange={(e) => setNewRule({ ...newRule, metric_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] tracking-widest text-on-surface-variant mb-1">{t('component_upgrades.rule_threshold')}</label>
+                  <input
+                    type="number"
+                    className="w-full bg-surface-container-highest text-on-surface text-xs rounded px-2 py-1.5 outline-none"
+                    value={newRule.threshold}
+                    onChange={(e) => setNewRule({ ...newRule, threshold: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] tracking-widest text-on-surface-variant mb-1">{t('component_upgrades.rule_duration')}</label>
+                  <input
+                    type="number"
+                    className="w-full bg-surface-container-highest text-on-surface text-xs rounded px-2 py-1.5 outline-none"
+                    value={newRule.duration_days}
+                    onChange={(e) => setNewRule({ ...newRule, duration_days: parseInt(e.target.value) || 7 })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] tracking-widest text-on-surface-variant mb-1">{t('component_upgrades.rule_priority')}</label>
+                  <select
+                    className="w-full bg-surface-container-highest text-on-surface text-xs rounded px-2 py-1.5 outline-none cursor-pointer"
+                    value={newRule.priority}
+                    onChange={(e) => setNewRule({ ...newRule, priority: e.target.value })}
+                  >
+                    {RULE_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[10px] tracking-widest text-on-surface-variant mb-1">{t('component_upgrades.rule_recommendation')}</label>
+                  <input
+                    className="w-full bg-surface-container-highest text-on-surface text-xs rounded px-2 py-1.5 outline-none"
+                    value={newRule.recommendation}
+                    onChange={(e) => setNewRule({ ...newRule, recommendation: e.target.value })}
+                    placeholder="Describe the recommended action..."
+                  />
+                </div>
+                <div className="col-span-2 flex gap-2 justify-end">
+                  <button
+                    onClick={() => { setShowAddRule(false); setNewRule({ ...emptyNewRule }) }}
+                    className="rounded bg-surface-container px-4 py-1.5 text-[10px] font-bold tracking-widest text-on-surface-variant hover:bg-surface-container-high cursor-pointer"
+                  >
+                    {t('common.cancel', 'Cancel')}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!newRule.recommendation.trim()) {
+                        toast.error('Recommendation text is required')
+                        return
+                      }
+                      createRule.mutate(newRule, {
+                        onSuccess: () => {
+                          toast.success('Rule created')
+                          setShowAddRule(false)
+                          setNewRule({ ...emptyNewRule })
+                        },
+                        onError: () => toast.error('Failed to create rule'),
+                      })
+                    }}
+                    disabled={createRule.isPending}
+                    className="rounded bg-primary px-4 py-1.5 text-[10px] font-bold tracking-widest text-[#0a151a] hover:opacity-90 cursor-pointer disabled:opacity-50"
+                  >
+                    {t('component_upgrades.add_rule')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Rules Table */}
+            {rules.length === 0 ? (
+              <p className="text-xs text-on-surface-variant text-center py-6">No rules configured.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[10px] tracking-widest text-on-surface-variant border-b border-outline-variant/20">
+                      <th className="text-left pb-2 pr-3">{t('component_upgrades.rule_asset_type')}</th>
+                      <th className="text-left pb-2 pr-3">{t('component_upgrades.rule_category')}</th>
+                      <th className="text-left pb-2 pr-3">{t('component_upgrades.rule_metric')}</th>
+                      <th className="text-right pb-2 pr-3">{t('component_upgrades.rule_threshold')}</th>
+                      <th className="text-right pb-2 pr-3">{t('component_upgrades.rule_duration')}</th>
+                      <th className="text-left pb-2 pr-3">{t('component_upgrades.rule_priority')}</th>
+                      <th className="text-left pb-2 pr-3">{t('component_upgrades.rule_enabled')}</th>
+                      <th className="text-right pb-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rules.map((rule) => (
+                      <tr key={rule.id} className="border-b border-outline-variant/10 hover:bg-surface-container-high">
+                        <td className="py-2 pr-3 text-on-surface">{rule.asset_type}</td>
+                        <td className="py-2 pr-3 text-on-surface-variant">{rule.category}</td>
+                        <td className="py-2 pr-3 text-on-surface-variant font-mono">{rule.metric_name}</td>
+                        <td className="py-2 pr-3 text-right font-mono text-on-surface">{rule.threshold}%</td>
+                        <td className="py-2 pr-3 text-right text-on-surface-variant">{rule.duration_days}d</td>
+                        <td className="py-2 pr-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            rule.priority === 'critical' ? 'bg-red-500/20 text-red-400' :
+                            rule.priority === 'high' ? 'bg-amber-500/20 text-amber-400' :
+                            rule.priority === 'medium' ? 'bg-blue-500/20 text-blue-400' :
+                            'bg-surface-container-highest text-on-surface-variant'
+                          }`}>{rule.priority}</span>
+                        </td>
+                        <td className="py-2 pr-3">
+                          <button
+                            onClick={() => updateRule.mutate(
+                              { id: rule.id, data: { enabled: !rule.enabled } },
+                              { onError: () => toast.error('Failed to update rule') }
+                            )}
+                            className="cursor-pointer"
+                          >
+                            <span className={`material-symbols-outlined text-base ${rule.enabled ? 'text-primary' : 'text-on-surface-variant'}`}>
+                              {rule.enabled ? 'toggle_on' : 'toggle_off'}
+                            </span>
+                          </button>
+                        </td>
+                        <td className="py-2 text-right">
+                          <button
+                            onClick={() => deleteRule.mutate(rule.id, {
+                              onSuccess: () => toast.success('Rule deleted'),
+                              onError: () => toast.error('Failed to delete rule'),
+                            })}
+                            className="text-on-surface-variant hover:text-error transition-colors cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-base">delete</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Asset selector */}
@@ -369,6 +585,21 @@ export default function ComponentUpgradeRecommendations() {
                   <div className="mt-3 pt-3 border-t border-outline-variant/20 text-xs text-on-surface-variant">
                     <p>{t('component_upgrades.detail_benchmark')}</p>
                     <p className="mt-1">{t('component_upgrades.detail_implementation')}</p>
+                    {card.alternatives && card.alternatives.length > 0 && (
+                      <div className="mt-3 border-t border-surface-container-highest pt-3">
+                        <p className="text-xs font-semibold text-on-surface-variant mb-2">
+                          {t('component_upgrades.alternatives_title')}
+                        </p>
+                        <ul className="space-y-1">
+                          {card.alternatives.map((alt: string, i: number) => (
+                            <li key={i} className="text-xs text-on-surface-variant flex items-start gap-1.5">
+                              <span className="material-symbols-outlined text-[14px] mt-0.5 text-primary">arrow_right</span>
+                              {alt}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

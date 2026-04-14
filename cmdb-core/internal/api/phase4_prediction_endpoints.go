@@ -254,17 +254,18 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 	assetID := c.Param("id")
 	tenantID := tenantIDFromContext(c)
 
-	// Get asset type, attributes, lifecycle fields, and BIA level
+	// Get asset type, attributes, lifecycle fields, BIA level, and model
 	var assetType string
+	var assetModel sql.NullString
 	var attrBytes []byte
 	var biaLevel string
 	var eolDate sql.NullTime
 	var warrantyEnd sql.NullTime
 
 	err := s.pool.QueryRow(c.Request.Context(), `
-		SELECT type, attributes, COALESCE(bia_level, 'normal'), eol_date, warranty_end
+		SELECT type, attributes, COALESCE(bia_level, 'normal'), eol_date, warranty_end, model
 		FROM assets WHERE id = $1 AND tenant_id = $2
-	`, assetID, tenantID).Scan(&assetType, &attrBytes, &biaLevel, &eolDate, &warrantyEnd)
+	`, assetID, tenantID).Scan(&assetType, &attrBytes, &biaLevel, &eolDate, &warrantyEnd, &assetModel)
 	if err != nil {
 		response.NotFound(c, "asset not found")
 		return
@@ -307,6 +308,7 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 		Threshold      float64  `json:"threshold"`
 		DurationDays   int      `json:"duration_days"`
 		CostEstimate   *float64 `json:"cost_estimate"`
+		Alternatives   []string `json:"alternatives"`
 	}
 
 	type ruleRow struct {
@@ -399,6 +401,93 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 				recommendations[i].Priority = upgraded
 			}
 			recommendations[i].Recommendation += " [BIA: " + biaLevel + " — prioritized]"
+		}
+	}
+
+	// Item 7: Composite load score — weighted combination of CPU, RAM, disk metrics
+	var cpuAvg, memAvg, diskAvg float64
+	s.pool.QueryRow(c.Request.Context(), //nolint:errcheck
+		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE asset_id = $1 AND name = 'cpu_usage' AND time > now() - interval '7 days'",
+		assetID).Scan(&cpuAvg)
+	s.pool.QueryRow(c.Request.Context(), //nolint:errcheck
+		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE asset_id = $1 AND name = 'memory_usage' AND time > now() - interval '7 days'",
+		assetID).Scan(&memAvg)
+	s.pool.QueryRow(c.Request.Context(), //nolint:errcheck
+		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE asset_id = $1 AND name = 'disk_usage' AND time > now() - interval '7 days'",
+		assetID).Scan(&diskAvg)
+
+	loadScore := cpuAvg*0.4 + memAvg*0.35 + diskAvg*0.25
+	if loadScore > 75 && cpuAvg > 0 {
+		recommendations = append(recommendations, recommendation{
+			ID:             "load-score-composite",
+			Category:       "overall",
+			Priority:       "high",
+			CurrentSpec:    fmt.Sprintf("CPU: %.0f%%, RAM: %.0f%%, Disk: %.0f%%", cpuAvg, memAvg, diskAvg),
+			Recommendation: fmt.Sprintf("Composite load score %.0f%% exceeds 75%%. Consider migrating workloads, scaling horizontally, or upgrading multiple components.", loadScore),
+			MetricName:     "composite_load",
+			AvgValue:       loadScore,
+			Threshold:      75,
+			DurationDays:   7,
+		})
+	}
+
+	// Item 8: Peer comparison — annotate recommendations where this asset is an outlier vs same-model peers
+	if assetModel.Valid && assetModel.String != "" {
+		for i := range recommendations {
+			var peerAvg float64
+			var peerCount int
+			s.pool.QueryRow(c.Request.Context(), //nolint:errcheck
+				`SELECT COALESCE(avg(m.value), 0), COUNT(DISTINCT m.asset_id)
+				 FROM metrics m JOIN assets a ON m.asset_id = a.id
+				 WHERE a.tenant_id = $1 AND a.model = $2 AND a.id != $3
+				   AND m.name = $4 AND m.time > now() - interval '7 days'
+				   AND a.deleted_at IS NULL`,
+				tenantID, assetModel.String, assetID, recommendations[i].MetricName,
+			).Scan(&peerAvg, &peerCount)
+
+			if peerCount >= 3 && peerAvg > 0 {
+				ratio := recommendations[i].AvgValue / peerAvg
+				if ratio > 1.5 {
+					recommendations[i].Recommendation += fmt.Sprintf(
+						" [Outlier: this asset %.0f%% vs peer avg %.0f%% across %d similar %s — investigate application issues before hardware upgrade]",
+						recommendations[i].AvgValue, peerAvg, peerCount, assetModel.String,
+					)
+				}
+			}
+		}
+	}
+
+	// Item 9: Alternative recommendations per category
+	alternativesMap := map[string][]string{
+		"cpu": {
+			"Migrate CPU-intensive workloads to less loaded servers",
+			"Optimize application code or database queries",
+			"Add a server for horizontal load balancing",
+		},
+		"memory": {
+			"Identify and fix memory leaks in applications",
+			"Reduce cache sizes or implement eviction policies",
+			"Migrate memory-intensive services to dedicated nodes",
+		},
+		"storage": {
+			"Archive or delete old data and logs",
+			"Implement data compression",
+			"Migrate cold data to cheaper storage tier",
+		},
+		"network": {
+			"Implement QoS and traffic shaping",
+			"Optimize application protocols (compression, batching)",
+			"Add redundant network links for load distribution",
+		},
+		"overall": {
+			"Redistribute workloads across the fleet",
+			"Review application architecture for optimization opportunities",
+			"Plan horizontal scaling with additional servers",
+		},
+	}
+	for i := range recommendations {
+		if alts, ok := alternativesMap[recommendations[i].Category]; ok {
+			recommendations[i].Alternatives = alts
 		}
 	}
 
@@ -572,4 +661,52 @@ func (s *APIServer) CreateUpgradeRule(c *gin.Context) {
 		"priority":   body.Priority,
 	})
 	response.Created(c, gin.H{"id": newID.String()})
+}
+
+// UpdateUpgradeRule handles PUT /upgrade-rules/:id
+// Updates an existing upgrade rule (threshold, duration, priority, recommendation, enabled).
+func (s *APIServer) UpdateUpgradeRule(c *gin.Context) {
+	ruleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid rule ID")
+		return
+	}
+	var body struct {
+		Threshold      *float64 `json:"threshold"`
+		DurationDays   *int     `json:"duration_days"`
+		Priority       *string  `json:"priority"`
+		Recommendation *string  `json:"recommendation"`
+		Enabled        *bool    `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+	_, err = s.pool.Exec(c.Request.Context(), `
+		UPDATE upgrade_rules SET
+		  threshold      = COALESCE($2, threshold),
+		  duration_days  = COALESCE($3, duration_days),
+		  priority       = COALESCE($4, priority),
+		  recommendation = COALESCE($5, recommendation),
+		  enabled        = COALESCE($6, enabled),
+		  updated_at     = now()
+		WHERE id = $1
+	`, ruleID, body.Threshold, body.DurationDays, body.Priority, body.Recommendation, body.Enabled)
+	if err != nil {
+		response.InternalError(c, "failed to update upgrade rule")
+		return
+	}
+	response.OK(c, gin.H{"updated": true})
+}
+
+// DeleteUpgradeRule handles DELETE /upgrade-rules/:id
+// Deletes an upgrade rule.
+func (s *APIServer) DeleteUpgradeRule(c *gin.Context) {
+	ruleID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid rule ID")
+		return
+	}
+	s.pool.Exec(c.Request.Context(), "DELETE FROM upgrade_rules WHERE id = $1", ruleID) //nolint:errcheck
+	c.Status(204)
 }

@@ -365,6 +365,8 @@ func main() {
 	v1.POST("/assets/:id/upgrade-recommendations/:category/accept", apiServer.AcceptUpgradeRecommendation)
 	v1.GET("/upgrade-rules", apiServer.GetUpgradeRules)
 	v1.POST("/upgrade-rules", apiServer.CreateUpgradeRule)
+	v1.PUT("/upgrade-rules/:id", apiServer.UpdateUpgradeRule)
+	v1.DELETE("/upgrade-rules/:id", apiServer.DeleteUpgradeRule)
 
 	// One-time data migration: draft/pending → submitted
 	v1.POST("/admin/migrate-statuses", func(c *gin.Context) {
