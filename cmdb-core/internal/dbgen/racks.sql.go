@@ -146,7 +146,7 @@ func (q *Queries) GetRackOccupancy(ctx context.Context, id uuid.UUID) (GetRackOc
 }
 
 const listAssetsByRack = `-- name: ListAssetsByRack :many
-SELECT a.id, a.tenant_id, a.asset_tag, a.property_number, a.control_number, a.name, a.type, a.sub_type, a.status, a.bia_level, a.location_id, a.rack_id, a.vendor, a.model, a.serial_number, a.attributes, a.tags, a.created_at, a.updated_at, a.ip_address, a.deleted_at, a.sync_version FROM assets a
+SELECT a.id, a.tenant_id, a.asset_tag, a.property_number, a.control_number, a.name, a.type, a.sub_type, a.status, a.bia_level, a.location_id, a.rack_id, a.vendor, a.model, a.serial_number, a.attributes, a.tags, a.created_at, a.updated_at, a.ip_address, a.deleted_at, a.sync_version, a.bmc_ip, a.bmc_type, a.bmc_firmware FROM assets a
 WHERE a.rack_id = $1
 ORDER BY a.name
 `
@@ -183,6 +183,9 @@ func (q *Queries) ListAssetsByRack(ctx context.Context, rackID pgtype.UUID) ([]A
 			&i.IpAddress,
 			&i.DeletedAt,
 			&i.SyncVersion,
+			&i.BmcIp,
+			&i.BmcType,
+			&i.BmcFirmware,
 		); err != nil {
 			return nil, err
 		}

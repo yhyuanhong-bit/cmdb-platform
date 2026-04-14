@@ -1,0 +1,4 @@
+DROP INDEX IF EXISTS idx_assets_bmc_ip;
+ALTER TABLE assets DROP COLUMN IF EXISTS bmc_firmware;
+ALTER TABLE assets DROP COLUMN IF EXISTS bmc_type;
+ALTER TABLE assets DROP COLUMN IF EXISTS bmc_ip;

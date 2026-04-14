@@ -46,6 +46,9 @@ type Asset struct {
 	AssetTag       string                 `json:"asset_tag"`
 	Attributes     map[string]interface{} `json:"attributes"`
 	BiaLevel       string                 `json:"bia_level"`
+	BmcFirmware    *string                `json:"bmc_firmware,omitempty"`
+	BmcIp          *string                `json:"bmc_ip,omitempty"`
+	BmcType        *string                `json:"bmc_type,omitempty"`
 	ControlNumber  *string                `json:"control_number,omitempty"`
 	CreatedAt      time.Time              `json:"created_at"`
 	Id             openapi_types.UUID     `json:"id"`
@@ -526,17 +529,20 @@ type ListAssetsParams struct {
 
 // UpdateAssetJSONBody defines parameters for UpdateAsset.
 type UpdateAssetJSONBody struct {
-	Attributes   *map[string]interface{} `json:"attributes,omitempty"`
-	BiaLevel     *string                 `json:"bia_level,omitempty"`
-	IpAddress    *string                 `json:"ip_address,omitempty"`
-	LocationId   *openapi_types.UUID     `json:"location_id,omitempty"`
-	Model        *string                 `json:"model,omitempty"`
-	Name         *string                 `json:"name,omitempty"`
-	RackId       *openapi_types.UUID     `json:"rack_id,omitempty"`
-	SerialNumber *string                 `json:"serial_number,omitempty"`
-	Status       *string                 `json:"status,omitempty"`
-	Tags         *[]string               `json:"tags,omitempty"`
-	Vendor       *string                 `json:"vendor,omitempty"`
+	Attributes  *map[string]interface{} `json:"attributes,omitempty"`
+	BiaLevel    *string                 `json:"bia_level,omitempty"`
+	BmcFirmware *string                 `json:"bmc_firmware,omitempty"`
+	BmcIp       *string                 `json:"bmc_ip,omitempty"`
+	BmcType     *string                 `json:"bmc_type,omitempty"`
+	IpAddress   *string                 `json:"ip_address,omitempty"`
+	LocationId  *openapi_types.UUID     `json:"location_id,omitempty"`
+	Model       *string                 `json:"model,omitempty"`
+	Name        *string                 `json:"name,omitempty"`
+	RackId      *openapi_types.UUID     `json:"rack_id,omitempty"`
+	SerialNumber *string                `json:"serial_number,omitempty"`
+	Status      *string                 `json:"status,omitempty"`
+	Tags        *[]string               `json:"tags,omitempty"`
+	Vendor      *string                 `json:"vendor,omitempty"`
 }
 
 // QueryAuditEventsParams defines parameters for QueryAuditEvents.

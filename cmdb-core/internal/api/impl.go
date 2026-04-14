@@ -325,6 +325,9 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 		SerialNumber:   pgtype.Text{String: req.SerialNumber, Valid: req.SerialNumber != ""},
 		Attributes:     attrsJSON,
 		Tags:           req.Tags,
+		BmcIp:          textFromPtr(req.BmcIp),
+		BmcType:        textFromPtr(req.BmcType),
+		BmcFirmware:    textFromPtr(req.BmcFirmware),
 	}
 
 	// Quality gate: check minimum data quality before creation.
@@ -436,6 +439,15 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 	}
 	if req.Tags != nil {
 		params.Tags = *req.Tags
+	}
+	if req.BmcIp != nil {
+		params.BmcIp = pgtype.Text{String: *req.BmcIp, Valid: true}
+	}
+	if req.BmcType != nil {
+		params.BmcType = pgtype.Text{String: *req.BmcType, Valid: true}
+	}
+	if req.BmcFirmware != nil {
+		params.BmcFirmware = pgtype.Text{String: *req.BmcFirmware, Valid: true}
 	}
 
 	// Field-level authority check: prevent low-priority API source from

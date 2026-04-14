@@ -180,6 +180,9 @@ async def _create_asset(
     control_number = raw.fields.get("control_number")
 
     ip_address = raw.fields.get("ip_address")
+    bmc_ip = raw.fields.get("bmc_ip")
+    bmc_type = raw.fields.get("bmc_type")
+    bmc_firmware = raw.fields.get("bmc_firmware")
     tags_str = raw.fields.get("tags")
     tags = [t.strip() for t in tags_str.split(",")] if tags_str else None
 
@@ -217,12 +220,14 @@ async def _create_asset(
                 id, tenant_id, asset_tag, name, type, sub_type,
                 status, bia_level, vendor, model, serial_number,
                 property_number, control_number, attributes,
-                ip_address, location_id, rack_id, tags
+                ip_address, location_id, rack_id, tags,
+                bmc_ip, bmc_type, bmc_firmware
             ) VALUES (
                 $1, $2, $3, $4, $5, $6,
                 $7, $8, $9, $10, $11,
                 $12, $13, $14,
-                $15, $16, $17, $18
+                $15, $16, $17, $18,
+                $19, $20, $21
             )""",
             asset_id,
             tenant_id,
@@ -242,6 +247,9 @@ async def _create_asset(
             location_id,
             rack_id,
             tags,
+            bmc_ip,
+            bmc_type,
+            bmc_firmware,
         )
 
     return asset_id

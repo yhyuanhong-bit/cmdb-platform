@@ -24,6 +24,9 @@ EXPECTED_HEADERS = [
     "location",
     "rack",
     "tags",
+    "bmc_ip",
+    "bmc_type",
+    "bmc_firmware",
 ]
 
 REQUIRED_FIELDS = {"asset_tag", "name", "type"}

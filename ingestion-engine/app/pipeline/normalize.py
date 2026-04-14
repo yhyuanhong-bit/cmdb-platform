@@ -27,6 +27,20 @@ FIELD_ALIASES: dict[str, str] = {
     "cabinet": "rack_name",
     "tags": "tags",
     "label": "tags",
+    # BMC/IPMI English aliases
+    "bmc": "bmc_ip",
+    "bmc_address": "bmc_ip",
+    "ilo": "bmc_ip",
+    "ilo_ip": "bmc_ip",
+    "idrac": "bmc_ip",
+    "idrac_ip": "bmc_ip",
+    "ipmi": "bmc_ip",
+    "ipmi_ip": "bmc_ip",
+    "bmc_version": "bmc_firmware",
+    "firmware": "bmc_firmware",
+    "ilo_version": "bmc_firmware",
+    "idrac_version": "bmc_firmware",
+    "management_type": "bmc_type",
     # Chinese aliases (Traditional)
     "資產編號": "asset_tag",
     "設備編號": "asset_tag",
@@ -51,6 +65,15 @@ FIELD_ALIASES: dict[str, str] = {
     "機房": "location_name",
     "機櫃": "rack_name",
     "標籤": "tags",
+    # BMC Chinese aliases (Traditional)
+    "管理IP": "bmc_ip",
+    "帶外管理IP": "bmc_ip",
+    "iLO IP": "bmc_ip",
+    "iDRAC IP": "bmc_ip",
+    "管理介面": "bmc_type",
+    "帶外管理類型": "bmc_type",
+    "韌體版本": "bmc_firmware",
+    "BMC韌體": "bmc_firmware",
     # Simplified Chinese aliases
     "资产编号": "asset_tag",
     "设备编号": "asset_tag",
@@ -70,6 +93,12 @@ FIELD_ALIASES: dict[str, str] = {
     "机房": "location_name",
     "机柜": "rack_name",
     "标签": "tags",
+    # BMC Chinese aliases (Simplified)
+    "带外管理IP": "bmc_ip",
+    "管理接口": "bmc_type",
+    "带外管理类型": "bmc_type",
+    "固件版本": "bmc_firmware",
+    "BMC固件": "bmc_firmware",
 }
 
 VALID_ASSET_FIELDS: set[str] = {
@@ -88,6 +117,9 @@ VALID_ASSET_FIELDS: set[str] = {
     "location_name",  # virtual: resolved to location_id in processor
     "rack_name",      # virtual: resolved to rack_id in processor
     "tags",
+    "bmc_ip",
+    "bmc_type",
+    "bmc_firmware",
 }
 
 

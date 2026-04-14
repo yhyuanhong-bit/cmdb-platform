@@ -32,11 +32,13 @@ SELECT * FROM assets WHERE asset_tag = $1;
 INSERT INTO assets (
     tenant_id, asset_tag, property_number, control_number, name,
     type, sub_type, status, bia_level, location_id,
-    rack_id, vendor, model, serial_number, attributes, tags
+    rack_id, vendor, model, serial_number, attributes, tags,
+    bmc_ip, bmc_type, bmc_firmware
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
-    $11, $12, $13, $14, $15, $16
+    $11, $12, $13, $14, $15, $16,
+    $17, $18, $19
 ) RETURNING *;
 
 -- name: UpdateAsset :one
@@ -56,6 +58,9 @@ UPDATE assets SET
     serial_number   = COALESCE(sqlc.narg('serial_number'), serial_number),
     attributes      = COALESCE(sqlc.narg('attributes'), attributes),
     tags            = COALESCE(sqlc.narg('tags'), tags),
+    bmc_ip          = COALESCE(sqlc.narg('bmc_ip'), bmc_ip),
+    bmc_type        = COALESCE(sqlc.narg('bmc_type'), bmc_type),
+    bmc_firmware    = COALESCE(sqlc.narg('bmc_firmware'), bmc_firmware),
     updated_at      = now()
 WHERE id = sqlc.arg('id')
 RETURNING *;

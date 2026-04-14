@@ -74,12 +74,14 @@ const createAsset = `-- name: CreateAsset :one
 INSERT INTO assets (
     tenant_id, asset_tag, property_number, control_number, name,
     type, sub_type, status, bia_level, location_id,
-    rack_id, vendor, model, serial_number, attributes, tags
+    rack_id, vendor, model, serial_number, attributes, tags,
+    bmc_ip, bmc_type, bmc_firmware
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
-    $11, $12, $13, $14, $15, $16
-) RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version
+    $11, $12, $13, $14, $15, $16,
+    $17, $18, $19
+) RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware
 `
 
 type CreateAssetParams struct {
@@ -99,6 +101,9 @@ type CreateAssetParams struct {
 	SerialNumber   pgtype.Text     `json:"serial_number"`
 	Attributes     json.RawMessage `json:"attributes"`
 	Tags           []string        `json:"tags"`
+	BmcIp          pgtype.Text     `json:"bmc_ip"`
+	BmcType        pgtype.Text     `json:"bmc_type"`
+	BmcFirmware    pgtype.Text     `json:"bmc_firmware"`
 }
 
 func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error) {
@@ -119,6 +124,9 @@ func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset
 		arg.SerialNumber,
 		arg.Attributes,
 		arg.Tags,
+		arg.BmcIp,
+		arg.BmcType,
+		arg.BmcFirmware,
 	)
 	var i Asset
 	err := row.Scan(
@@ -144,6 +152,9 @@ func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset
 		&i.IpAddress,
 		&i.DeletedAt,
 		&i.SyncVersion,
+		&i.BmcIp,
+		&i.BmcType,
+		&i.BmcFirmware,
 	)
 	return i, err
 }
@@ -163,7 +174,7 @@ func (q *Queries) DeleteAsset(ctx context.Context, arg DeleteAssetParams) error 
 }
 
 const findAssetBySerialOrTag = `-- name: FindAssetBySerialOrTag :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version FROM assets
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware FROM assets
 WHERE tenant_id = $1
   AND (serial_number = $2 OR asset_tag = $3)
 LIMIT 1
@@ -201,12 +212,15 @@ func (q *Queries) FindAssetBySerialOrTag(ctx context.Context, arg FindAssetBySer
 		&i.IpAddress,
 		&i.DeletedAt,
 		&i.SyncVersion,
+		&i.BmcIp,
+		&i.BmcType,
+		&i.BmcFirmware,
 	)
 	return i, err
 }
 
 const getAsset = `-- name: GetAsset :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version FROM assets WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware FROM assets WHERE id = $1 AND tenant_id = $2
 `
 
 type GetAssetParams struct {
@@ -240,12 +254,15 @@ func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, erro
 		&i.IpAddress,
 		&i.DeletedAt,
 		&i.SyncVersion,
+		&i.BmcIp,
+		&i.BmcType,
+		&i.BmcFirmware,
 	)
 	return i, err
 }
 
 const getAssetByTag = `-- name: GetAssetByTag :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version FROM assets WHERE asset_tag = $1
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware FROM assets WHERE asset_tag = $1
 `
 
 func (q *Queries) GetAssetByTag(ctx context.Context, assetTag string) (Asset, error) {
@@ -274,12 +291,15 @@ func (q *Queries) GetAssetByTag(ctx context.Context, assetTag string) (Asset, er
 		&i.IpAddress,
 		&i.DeletedAt,
 		&i.SyncVersion,
+		&i.BmcIp,
+		&i.BmcType,
+		&i.BmcFirmware,
 	)
 	return i, err
 }
 
 const listAssets = `-- name: ListAssets :many
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version FROM assets
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware FROM assets
 WHERE tenant_id = $1
   AND deleted_at IS NULL
   AND ($4::varchar IS NULL OR type = $4)
@@ -346,6 +366,9 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 			&i.IpAddress,
 			&i.DeletedAt,
 			&i.SyncVersion,
+			&i.BmcIp,
+			&i.BmcType,
+			&i.BmcFirmware,
 		); err != nil {
 			return nil, err
 		}
@@ -374,9 +397,12 @@ UPDATE assets SET
     serial_number   = COALESCE($13, serial_number),
     attributes      = COALESCE($14, attributes),
     tags            = COALESCE($15, tags),
+    bmc_ip          = COALESCE($16, bmc_ip),
+    bmc_type        = COALESCE($17, bmc_type),
+    bmc_firmware    = COALESCE($18, bmc_firmware),
     updated_at      = now()
-WHERE id = $16
-RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version
+WHERE id = $19
+RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware
 `
 
 type UpdateAssetParams struct {
@@ -395,6 +421,9 @@ type UpdateAssetParams struct {
 	SerialNumber   pgtype.Text `json:"serial_number"`
 	Attributes     []byte      `json:"attributes"`
 	Tags           []string    `json:"tags"`
+	BmcIp          pgtype.Text `json:"bmc_ip"`
+	BmcType        pgtype.Text `json:"bmc_type"`
+	BmcFirmware    pgtype.Text `json:"bmc_firmware"`
 	ID             uuid.UUID   `json:"id"`
 }
 
@@ -415,6 +444,9 @@ func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset
 		arg.SerialNumber,
 		arg.Attributes,
 		arg.Tags,
+		arg.BmcIp,
+		arg.BmcType,
+		arg.BmcFirmware,
 		arg.ID,
 	)
 	var i Asset
@@ -441,6 +473,9 @@ func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset
 		&i.IpAddress,
 		&i.DeletedAt,
 		&i.SyncVersion,
+		&i.BmcIp,
+		&i.BmcType,
+		&i.BmcFirmware,
 	)
 	return i, err
 }

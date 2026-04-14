@@ -218,6 +218,9 @@ func toAPIAsset(db dbgen.Asset) Asset {
 		SerialNumber:   pgtextToStr(db.SerialNumber),
 		Attributes:     rawJSONToMapVal(db.Attributes),
 		Tags:           db.Tags,
+		BmcIp:          pgtextToPtr(db.BmcIp),
+		BmcType:        pgtextToPtr(db.BmcType),
+		BmcFirmware:    pgtextToPtr(db.BmcFirmware),
 		CreatedAt:      db.CreatedAt,
 		UpdatedAt:      db.UpdatedAt,
 	}

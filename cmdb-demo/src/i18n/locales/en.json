@@ -253,6 +253,9 @@
     "field_location": "Location",
     "field_rack": "Rack",
     "field_tags": "Tags",
+    "field_bmc_ip": "BMC/iLO/iDRAC IP",
+    "field_bmc_type": "BMC Type",
+    "field_bmc_firmware": "BMC Firmware",
     "field_custom_attribute": "Custom Attribute",
     "btn_confirm_import": "Confirm Import",
     "btn_cancel": "Cancel"

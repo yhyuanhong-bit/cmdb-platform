@@ -253,6 +253,9 @@
     "field_location": "位置",
     "field_rack": "機櫃",
     "field_tags": "標籤",
+    "field_bmc_ip": "帶外管理 IP (iLO/iDRAC)",
+    "field_bmc_type": "帶外管理類型",
+    "field_bmc_firmware": "BMC 韌體版本",
     "field_custom_attribute": "自定義屬性",
     "btn_confirm_import": "確認匯入",
     "btn_cancel": "取消"

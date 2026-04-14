@@ -62,6 +62,9 @@ type Asset struct {
 	IpAddress      pgtype.Text        `json:"ip_address"`
 	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
 	SyncVersion    int64              `json:"sync_version"`
+	BmcIp          pgtype.Text        `json:"bmc_ip"`
+	BmcType        pgtype.Text        `json:"bmc_type"`
+	BmcFirmware    pgtype.Text        `json:"bmc_firmware"`
 }
 
 type AssetDependency struct {
