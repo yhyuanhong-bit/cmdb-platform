@@ -1,8 +1,8 @@
 import { toast } from 'sonner'
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useRacks, useRootLocations, useLocationChildren } from "../hooks/useTopology";
+import { useRacks, useRootLocations, useLocationChildren, useUpdateRack, useDeleteRack } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import type { Rack } from "../lib/api/topology";
@@ -67,6 +67,18 @@ export default function RackManagement() {
   const { data: racksResponse, isLoading: racksLoading, error } = useRacks(locationId);
   const isLoading = racksLoading || (!contextLocationId && (rootQ.isLoading || territoryChildrenQ.isLoading || regionChildrenQ.isLoading || cityChildrenQ.isLoading));
   const racks: Rack[] = racksResponse?.data ?? [];
+
+  const updateRack = useUpdateRack();
+  const deleteRack = useDeleteRack();
+  const [editingRack, setEditingRack] = useState<Rack | null>(null);
+  const [menuRackId, setMenuRackId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!menuRackId) return;
+    const handler = () => setMenuRackId(null);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [menuRackId]);
 
   if (isLoading) {
     return (
@@ -253,19 +265,49 @@ export default function RackManagement() {
                           <span className="material-symbols-outlined text-[18px]">visibility</span>
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); navigate(`/racks/${rack.id}`); }}
+                          onClick={(e) => { e.stopPropagation(); setEditingRack(rack); }}
                           className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-primary"
                           aria-label={`Edit ${rack.id}`}
                         >
                           <span className="material-symbols-outlined text-[18px]">edit</span>
                         </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toast.info('Coming Soon'); }}
-                          className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-primary"
-                          aria-label={`More options for ${rack.id}`}
-                        >
-                          <span className="material-symbols-outlined text-[18px]">more_vert</span>
-                        </button>
+                        <div className="relative">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setMenuRackId(menuRackId === rack.id ? null : rack.id); }}
+                            className="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant hover:text-primary"
+                            aria-label={`More options for ${rack.id}`}
+                          >
+                            <span className="material-symbols-outlined text-[18px]">more_vert</span>
+                          </button>
+                          {menuRackId === rack.id && (
+                            <div className="absolute right-0 top-full mt-1 bg-surface-container-high rounded-lg shadow-lg py-1 z-20 min-w-[160px]">
+                              <button
+                                onClick={() => {
+                                  updateRack.mutate({ id: rack.id, data: { status: rack.status === 'MAINTENANCE' ? 'ACTIVE' : 'MAINTENANCE' } });
+                                  setMenuRackId(null);
+                                  toast.success(rack.status === 'MAINTENANCE' ? 'Rack set to Active' : 'Rack set to Maintenance');
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest"
+                              >
+                                <span className="material-symbols-outlined text-base align-middle mr-2">engineering</span>
+                                {rack.status === 'MAINTENANCE' ? 'Set Active' : 'Set Maintenance'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm('Are you sure you want to delete this rack?')) {
+                                    deleteRack.mutate(rack.id);
+                                    toast.success('Rack deleted');
+                                  }
+                                  setMenuRackId(null);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-error hover:bg-surface-container-highest"
+                              >
+                                <span className="material-symbols-outlined text-base align-middle mr-2">delete</span>
+                                Delete Rack
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -374,6 +416,61 @@ export default function RackManagement() {
           </div>
         </div>
       </div>
+
+      {editingRack && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingRack(null)}>
+          <div className="bg-[#1a1f2e] p-6 rounded-xl w-[28rem] space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white">Edit Rack</h3>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Name</label>
+              <input defaultValue={editingRack.name} id="edit-rack-name"
+                className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Total U</label>
+                <input type="number" defaultValue={editingRack.total_u} id="edit-rack-total-u"
+                  className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Power Capacity (kW)</label>
+                <input type="number" step="0.1" defaultValue={editingRack.power_capacity_kw} id="edit-rack-power"
+                  className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Status</label>
+              <select defaultValue={editingRack.status} id="edit-rack-status"
+                className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm">
+                <option value="ACTIVE">Active</option>
+                <option value="MAINTENANCE">Maintenance</option>
+                <option value="DECOMMISSIONED">Decommissioned</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2">
+              <button onClick={() => setEditingRack(null)} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">Cancel</button>
+              <button
+                onClick={() => {
+                  const name = (document.getElementById('edit-rack-name') as HTMLInputElement).value;
+                  const total_u = parseInt((document.getElementById('edit-rack-total-u') as HTMLInputElement).value);
+                  const power_capacity_kw = parseFloat((document.getElementById('edit-rack-power') as HTMLInputElement).value);
+                  const status = (document.getElementById('edit-rack-status') as HTMLSelectElement).value;
+                  updateRack.mutate({ id: editingRack.id, data: { name, total_u, power_capacity_kw, status } }, {
+                    onSuccess: () => { setEditingRack(null); toast.success('Rack updated'); }
+                  });
+                }}
+                className="px-4 py-2 rounded bg-blue-600 text-white text-sm"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
