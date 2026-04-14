@@ -9,8 +9,11 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app.dependencies import get_db_pool
+from nats.aio.client import Client as NATSClient
+
+from app.dependencies import get_db_pool, get_nats
 from app.tasks.discovery_task import process_discovery_task
+from app.tasks.mac_scan_task import run_mac_scan
 
 logger = logging.getLogger(__name__)
 
@@ -152,3 +155,16 @@ async def get_task(
     if not row:
         raise HTTPException(status_code=404, detail="Task not found")
     return dict(row)
+
+
+@router.post("/discovery/mac-scan")
+async def trigger_mac_scan(
+    pool: asyncpg.Pool = Depends(get_db_pool),
+    nats_client: NATSClient | None = Depends(get_nats),
+):
+    """Trigger an immediate MAC/CDP table scan for all network assets."""
+    from app.config import settings
+
+    tenant_id = settings.tenant_id
+    count = await run_mac_scan(pool, nats_client, tenant_id)
+    return {"status": "ok", "entries_collected": count}
