@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config holds all configuration for the cmdb-core service.
@@ -70,15 +71,17 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("TENANT_ID is required in edge deploy mode")
 	}
 
-	// Reject insecure JWT secret in non-development mode
-	if cfg.JWTSecret == "dev-secret-change-me" && cfg.DeployMode != "edge" {
-		if os.Getenv("DEPLOY_MODE") != "" {
-			// Explicit non-dev deploy mode — reject default secret
-			return nil, fmt.Errorf("JWT_SECRET must be set to a secure value (minimum 32 characters) in %s mode", cfg.DeployMode)
+	// Enforce secure credentials in production (cloud) mode.
+	// Edge mode allows defaults for development convenience.
+	if cfg.JWTSecret == "dev-secret-change-me" {
+		if cfg.DeployMode == "cloud" {
+			return nil, fmt.Errorf("JWT_SECRET must be changed from default for production deployment")
 		}
+		// Edge mode allows default for development convenience
+		fmt.Println("WARNING: JWT_SECRET is shorter than 32 characters — this is insecure for production")
 	}
-	if len(cfg.JWTSecret) < 32 {
-		fmt.Fprintf(os.Stderr, "WARNING: JWT_SECRET is shorter than 32 characters — this is insecure for production\n")
+	if cfg.DeployMode == "cloud" && strings.Contains(cfg.DatabaseURL, "changeme") {
+		return nil, fmt.Errorf("DATABASE_URL contains default password 'changeme' — set a secure password for production")
 	}
 
 	return cfg, nil
