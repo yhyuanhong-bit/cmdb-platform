@@ -2,7 +2,7 @@ import { toast } from 'sonner'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useAssets } from '../hooks/useAssets'
+import { useAssets, useLifecycleStats, useCapacityPlanning } from '../hooks/useAssets'
 import { useAlerts } from '../hooks/useMonitoring'
 
 /* ------------------------------------------------------------------ */
@@ -46,14 +46,27 @@ export default function EquipmentHealthOverview() {
   const { data: alertsResp } = useAlerts({ severity: 'warning' })
   const allAlerts = (alertsResp as any)?.data || []
 
+  // Lifecycle stats for warranty-aware scoring
+  const { data: lifecycleResp } = useLifecycleStats()
+  const lifecycleStats = (lifecycleResp as any)?.data ?? {}
+
+  // Capacity planning forecasts
+  const { data: capacityData } = useCapacityPlanning()
+  const capacityForecasts = (capacityData as any) ?? []
+
   const serverAssets = allAssets || []
   const operationalCount = serverAssets.filter((a: any) => a.status === 'operational').length
   const totalCount = serverAssets.length || 1
-  const healthScore = Math.round((operationalCount / totalCount) * 100 * 10) / 10
+
+  // Enhancement 2: Warranty-aware health score
+  const warrantyExpiredCount = lifecycleStats.warranty_expired_count ?? 0
+  const effectiveHealthy = operationalCount - Math.min(warrantyExpiredCount, operationalCount) * 0.2
+  const healthScore = Math.round((effectiveHealthy / totalCount) * 100 * 10) / 10
 
   const metrics = [
     { labelKey: 'equipment_health_overview.metric_service_stability', value: Math.round((operationalCount / totalCount) * 100), max: 100, badgeKey: null, badgeColor: '', barColor: 'bg-[#69db7c]' },
-    { labelKey: 'equipment_health_overview.metric_hardware_lifespan', value: Math.round(((totalCount - serverAssets.filter((a: any) => a.status === 'maintenance').length) / totalCount) * 100), max: 100, badgeKey: null, badgeColor: '', barColor: 'bg-primary' },
+    // Enhancement 1: Real warranty data for hardware lifespan
+    { labelKey: 'equipment_health_overview.metric_hardware_lifespan', value: totalCount > 0 ? Math.round(((totalCount - (lifecycleStats.warranty_expired_count ?? 0)) / totalCount) * 100) : 100, max: 100, badgeKey: null, badgeColor: '', barColor: 'bg-primary' },
     { labelKey: 'equipment_health_overview.metric_storage_stability', value: allAlerts.length > 0 ? Math.max(50, 100 - allAlerts.length * 5) : 100, max: 100, badgeKey: null, badgeColor: '', barColor: 'bg-[#ffa94d]' },
     { labelKey: 'equipment_health_overview.metric_network_connectivity', value: 95, max: 100, badgeKey: 'equipment_health_overview.badge_optimal', badgeColor: 'bg-[#69db7c]/15 text-[#69db7c]', barColor: 'bg-[#69db7c]' },
   ]
@@ -69,6 +82,34 @@ export default function EquipmentHealthOverview() {
     body: criticalCount > 0 ? `${criticalCount} critical alert(s) detected across monitored assets.` : 'No critical alerts. Systems operating within normal parameters.',
     riskLevel: criticalCount > 3 ? 'HIGH' : criticalCount > 0 ? 'ELEVATED' : 'LOW',
     remainingLife: Math.max(5, 100 - criticalCount * 15),
+  }
+
+  // Enhancement 4: Download report handler
+  const handleDownloadReport = () => {
+    const report = {
+      generated_at: new Date().toISOString(),
+      health_score: healthScore,
+      total_assets: totalCount,
+      operational: operationalCount,
+      warranty_expired: lifecycleStats.warranty_expired_count ?? 0,
+      approaching_eol: lifecycleStats.approaching_eol_count ?? 0,
+      risk_level: riskAssessment.riskLevel,
+      critical_alerts: criticalCount,
+      warning_alerts: allAlerts.length,
+      assets: serverAssets.map((a: any) => ({
+        asset_tag: a.asset_tag, name: a.name, type: a.type,
+        status: a.status, vendor: a.vendor, model: a.model,
+        warranty_end: a.warranty_end, eol_date: a.eol_date,
+      })),
+    }
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `health-report-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(t('equipment_health_overview.report_downloaded', 'Report downloaded'))
   }
 
   return (
@@ -90,7 +131,7 @@ export default function EquipmentHealthOverview() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => toast.info('Coming Soon')} className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer">
+          <button onClick={handleDownloadReport} className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer">
             <span className="material-symbols-outlined text-base">
               download
             </span>
@@ -234,6 +275,68 @@ export default function EquipmentHealthOverview() {
               {warningMessage.body}
             </p>
           </div>
+
+          {/* Enhancement 3: Device Health Table */}
+          <div className="rounded-lg bg-surface-container p-6">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">
+              {t('equipment_health_overview.device_table_title', 'Device Health Breakdown')}
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-surface-container-highest text-left text-xs text-on-surface-variant">
+                    <th className="px-3 py-2">{t('equipment_health_overview.col_asset', 'Asset')}</th>
+                    <th className="px-3 py-2">{t('equipment_health_overview.col_type', 'Type')}</th>
+                    <th className="px-3 py-2">{t('equipment_health_overview.col_status', 'Status')}</th>
+                    <th className="px-3 py-2">{t('equipment_health_overview.col_warranty', 'Warranty')}</th>
+                    <th className="px-3 py-2">{t('equipment_health_overview.col_risk', 'Risk')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {serverAssets.slice(0, 20).map((asset: any) => {
+                    const isExpiredWarranty = asset.warranty_end && new Date(asset.warranty_end) < new Date()
+                    const isOperational = asset.status === 'operational'
+                    const hasAlerts = allAlerts.some((a: any) => a.ci_id === asset.id || a.asset_id === asset.id)
+                    const risk = !isOperational ? 'HIGH' : hasAlerts ? 'ELEVATED' : isExpiredWarranty ? 'MEDIUM' : 'LOW'
+                    const riskColor = risk === 'HIGH' ? 'text-error' : risk === 'ELEVATED' ? 'text-tertiary' : risk === 'MEDIUM' ? 'text-[#fbbf24]' : 'text-[#69db7c]'
+                    return (
+                      <tr key={asset.id} className="border-b border-surface-container-highest hover:bg-surface-container-high cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>
+                        <td className="px-3 py-2.5">
+                          <div className="font-medium text-on-surface">{asset.name}</div>
+                          <div className="text-xs text-on-surface-variant">{asset.asset_tag}</div>
+                        </td>
+                        <td className="px-3 py-2.5 text-on-surface-variant">{asset.type}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`text-xs font-semibold ${isOperational ? 'text-[#69db7c]' : 'text-error'}`}>
+                            {asset.status?.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {asset.warranty_end ? (
+                            <span className={`text-xs ${isExpiredWarranty ? 'text-error' : 'text-[#69db7c]'}`}>
+                              {isExpiredWarranty ? t('equipment_health_overview.warranty_expired', 'Expired') : `${t('equipment_health_overview.warranty_active', 'Until')} ${asset.warranty_end}`}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-on-surface-variant">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className={`text-xs font-bold ${riskColor}`}>{risk}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {serverAssets.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-6 text-center text-xs text-on-surface-variant">
+                        No asset data available.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         {/* ---- Right panel ---- */}
@@ -276,6 +379,39 @@ export default function EquipmentHealthOverview() {
             >
               {t('equipment_health_overview.btn_create_work_order')}
             </button>
+          </div>
+
+          {/* Enhancement 5: Capacity Summary */}
+          <div className="rounded-lg bg-surface-container p-5">
+            <h3 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              {t('equipment_health_overview.capacity_title', 'Capacity Overview')}
+            </h3>
+            <div className="space-y-3">
+              {Array.isArray(capacityForecasts) && capacityForecasts.filter((f: any) => f.resource_type === 'infrastructure').map((f: any, i: number) => (
+                <div key={i}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-on-surface-variant">{f.resource_name}</span>
+                    <span className={`font-semibold ${f.severity === 'critical' ? 'text-error' : f.severity === 'warning' ? 'text-tertiary' : 'text-on-surface'}`}>
+                      {f.usage_percent > 0 ? `${f.usage_percent}%` : `${Math.round(f.current_usage)} total`}
+                    </span>
+                  </div>
+                  {f.usage_percent > 0 && (
+                    <div className="w-full h-1.5 bg-surface-container-lowest rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${f.severity === 'critical' ? 'bg-error' : f.severity === 'warning' ? 'bg-tertiary' : 'bg-primary'}`}
+                        style={{ width: `${Math.min(f.usage_percent, 100)}%` }} />
+                    </div>
+                  )}
+                  {f.months_until_full != null && (
+                    <p className="text-[10px] text-on-surface-variant mt-0.5">
+                      ~{f.months_until_full} months until threshold
+                    </p>
+                  )}
+                </div>
+              ))}
+              {(!Array.isArray(capacityForecasts) || capacityForecasts.length === 0) && (
+                <p className="text-xs text-on-surface-variant">No capacity data yet.</p>
+              )}
+            </div>
           </div>
 
           {/* Quick actions */}

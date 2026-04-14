@@ -1734,7 +1734,21 @@
     "action_view_maint_history": "檢視維護歷史",
     "action_performance_trends": "效能趨勢分析",
     "action_spare_parts_query": "備品庫存查詢",
-    "action_export_full_report": "匯出完整報告"
+    "action_export_full_report": "匯出完整報告",
+    "device_table_title": "設備健康明細",
+    "col_asset": "資產",
+    "col_type": "類型",
+    "col_status": "狀態",
+    "col_warranty": "保固",
+    "col_risk": "風險",
+    "warranty_expired": "已過保",
+    "warranty_active": "保固中",
+    "risk_high": "高",
+    "risk_elevated": "升高",
+    "risk_medium": "中",
+    "risk_low": "低",
+    "report_downloaded": "健康報告已下載",
+    "capacity_title": "容量概覽"
   },
   "equipment_status_cards": {
     "title": "機架設備狀態清單",

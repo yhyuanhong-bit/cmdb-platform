@@ -1734,7 +1734,21 @@
     "action_view_maint_history": "View Maintenance History",
     "action_performance_trends": "Performance Trend Analysis",
     "action_spare_parts_query": "Spare Parts Inventory Query",
-    "action_export_full_report": "Export Full Report"
+    "action_export_full_report": "Export Full Report",
+    "device_table_title": "Device Health Breakdown",
+    "col_asset": "Asset",
+    "col_type": "Type",
+    "col_status": "Status",
+    "col_warranty": "Warranty",
+    "col_risk": "Risk",
+    "warranty_expired": "Expired",
+    "warranty_active": "Active",
+    "risk_high": "HIGH",
+    "risk_elevated": "ELEVATED",
+    "risk_medium": "MEDIUM",
+    "risk_low": "LOW",
+    "report_downloaded": "Health report downloaded",
+    "capacity_title": "Capacity Overview"
   },
   "equipment_status_cards": {
     "title": "Rack Equipment Status List",

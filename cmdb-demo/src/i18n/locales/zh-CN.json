@@ -1734,7 +1734,21 @@
     "action_view_maint_history": "查看维护历史",
     "action_performance_trends": "效能趋势分析",
     "action_spare_parts_query": "备品库存查询",
-    "action_export_full_report": "导出完整报告"
+    "action_export_full_report": "导出完整报告",
+    "device_table_title": "设备健康明细",
+    "col_asset": "资产",
+    "col_type": "类型",
+    "col_status": "状态",
+    "col_warranty": "质保",
+    "col_risk": "风险",
+    "warranty_expired": "已过保",
+    "warranty_active": "质保中",
+    "risk_high": "高",
+    "risk_elevated": "升高",
+    "risk_medium": "中",
+    "risk_low": "低",
+    "report_downloaded": "健康报告已下载",
+    "capacity_title": "容量概览"
   },
   "equipment_status_cards": {
     "title": "机架设备状态清单",
