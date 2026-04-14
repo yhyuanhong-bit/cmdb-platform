@@ -48,4 +48,6 @@ const (
 	SubjectAssetLocationChanged = "asset.location_changed"
 
 	SubjectScanDifferencesDetected = "scan.differences_detected"
+
+	SubjectBMCDefaultPassword = "scan.bmc_default_password"
 )
