@@ -61,6 +61,7 @@ const navSections: NavSection[] = [
       { labelKey: 'nav.sub.topology', to: '/monitoring/topology' },
       { labelKey: 'nav.sub.sensor_config', to: '/monitoring/sensors' },
       { labelKey: 'nav.sub.energy', to: '/monitoring/energy' },
+      { labelKey: 'nav.sub.location_detect', to: '/monitoring/location-detect' },
     ],
   },
   {

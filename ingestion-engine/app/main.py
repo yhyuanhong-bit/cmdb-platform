@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -16,6 +17,28 @@ from app.routes.scan_targets import router as scan_targets_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+MAC_SCAN_INTERVAL_SECONDS = 300  # 5 minutes
+
+
+async def _periodic_mac_scan(application: FastAPI) -> None:
+    """Background loop that runs MAC table scanning every 5 minutes."""
+    await asyncio.sleep(60)  # Wait 1 min after startup for services to stabilise
+    while True:
+        try:
+            from app.tasks.mac_scan_task import run_mac_scan
+
+            pool = application.state.db_pool
+            nats_client = application.state.nats_client
+            result = await run_mac_scan(pool, nats_client, settings.tenant_id)
+            logger.info(
+                "Periodic MAC scan completed: scanned_ips=%s entries=%s",
+                result.get("scanned_ips", 0),
+                result.get("entries", 0),
+            )
+        except Exception:
+            logger.warning("Periodic MAC scan failed", exc_info=True)
+        await asyncio.sleep(MAC_SCAN_INTERVAL_SECONDS)
+
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
@@ -27,10 +50,19 @@ async def lifespan(application: FastAPI):
 
     application.state.nats_client = await connect_nats(settings.nats_url)
 
+    # Start periodic MAC scan background task
+    scan_task = asyncio.create_task(_periodic_mac_scan(application))
+    logger.info("Periodic MAC scan scheduled (every %ds)", MAC_SCAN_INTERVAL_SECONDS)
+
     yield
 
     # Shutdown
     logger.info("Shutting down ingestion engine...")
+    scan_task.cancel()
+    try:
+        await scan_task
+    except asyncio.CancelledError:
+        pass
     await close_nats(application.state.nats_client)
     await close_pool(application.state.db_pool)
     logger.info("Shutdown complete")

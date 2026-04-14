@@ -39,6 +39,7 @@ const SystemHealth = lazy(() => import('./pages/SystemHealth'))
 const SensorConfiguration = lazy(() => import('./pages/SensorConfiguration'))
 const EnergyMonitor = lazy(() => import('./pages/EnergyMonitor'))
 const AlertTopologyAnalysis = lazy(() => import('./pages/AlertTopologyAnalysis'))
+const LocationDetection = lazy(() => import('./pages/LocationDetection'))
 
 // Maintenance (unified)
 const MaintenanceHub = lazy(() => import('./pages/MaintenanceHub'))
@@ -140,6 +141,7 @@ export default function App() {
           <Route path="/monitoring/sensors" element={<SensorConfiguration />} />
           <Route path="/monitoring/energy" element={<EnergyMonitor />} />
           <Route path="/monitoring/topology" element={<AlertTopologyAnalysis />} />
+          <Route path="/monitoring/location-detect" element={<LocationDetection />} />
 
           {/* Maintenance */}
           <Route path="/maintenance" element={<MaintenanceHub />} />

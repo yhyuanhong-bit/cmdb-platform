@@ -21,14 +21,17 @@ func (s *Service) StartPeriodicDetection(ctx context.Context, tenantID uuid.UUID
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				s.runDetection(ctx, tenantID)
+				s.RunDetection(ctx, tenantID)
 			}
 		}
 	}()
 	zap.L().Info("Location detection started (5m interval)")
 }
 
-func (s *Service) runDetection(ctx context.Context, tenantID uuid.UUID) {
+// RunDetection performs a single location detection cycle: compares locations,
+// processes diffs (auto-confirm, alerts, discovery), and runs anomaly detection.
+// It is called both by the periodic ticker and immediately after MAC cache updates.
+func (s *Service) RunDetection(ctx context.Context, tenantID uuid.UUID) {
 	diffs, err := s.CompareLocations(ctx, tenantID)
 	if err != nil {
 		zap.L().Warn("location detection failed", zap.Error(err))
