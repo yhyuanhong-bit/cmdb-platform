@@ -328,11 +328,21 @@ export default function AssetManagementUnified() {
           onChange={handleImport}
         />
         <button
-          onClick={() => {
+          onClick={async () => {
             const a = document.createElement('a')
-            a.href = '/api/v1/assets/import-template'
+            const token = sessionStorage.getItem('cmdb-auth')
+            const parsed = token ? JSON.parse(token) : null
+            const accessToken = parsed?.state?.accessToken || ''
+            const res = await fetch('/api/v1/assets/import-template', {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            })
+            if (!res.ok) { toast.error('Failed to download template'); return }
+            const blob = await res.blob()
+            const url = URL.createObjectURL(blob)
+            a.href = url
             a.download = 'asset-import-template.csv'
             a.click()
+            URL.revokeObjectURL(url)
           }}
           className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"
         >
