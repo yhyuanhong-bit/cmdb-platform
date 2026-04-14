@@ -2,22 +2,51 @@ import { toast } from 'sonner'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useAsset } from '../hooks/useAssets'
-import { ASSET_FALLBACK, TIMELINE_STAGES, FINANCIALS, COMPLIANCE } from '../data/fallbacks/lifecycle'
+import { useAsset, useAssetLifecycle } from '../hooks/useAssets'
+import { ASSET_FALLBACK, TIMELINE_STAGES, COMPLIANCE } from '../data/fallbacks/lifecycle'
+import type { LifecycleEvent } from '../lib/api/assets'
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
+// Map an API lifecycle event type to an icon name and color class.
+function eventIconAndColor(evt: LifecycleEvent): { icon: string; color: string } {
+  switch (evt.type) {
+    case 'created': return { icon: 'rocket_launch', color: 'text-primary' }
+    case 'status_change': return { icon: 'sync_alt', color: 'text-[#818cf8]' }
+    case 'warranty_start': return { icon: 'shield', color: 'text-[#34d399]' }
+    case 'warranty_end': return { icon: 'shield_with_heart', color: 'text-[#fbbf24]' }
+    case 'eol': return { icon: 'power_off', color: 'text-error' }
+    case 'deleted': return { icon: 'delete', color: 'text-error' }
+    default: return { icon: 'edit', color: 'text-on-surface-variant' }
+  }
+}
+
+function eventDotColor(evt: LifecycleEvent): string {
+  switch (evt.type) {
+    case 'created': return 'bg-primary'
+    case 'status_change': return 'bg-[#818cf8]'
+    case 'warranty_start': return 'bg-[#34d399]'
+    case 'warranty_end': return 'bg-[#fbbf24]'
+    case 'eol': return 'bg-error'
+    case 'deleted': return 'bg-error'
+    default: return 'bg-on-surface-variant'
+  }
+}
+
 export default function AssetLifecycleTimeline() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { assetId } = useParams<{ assetId: string }>()
-  const [expandedStage, setExpandedStage] = useState<number | null>(3)
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
 
-  // Fetch asset from API
+  // Fetch asset basic info and lifecycle timeline
   const assetQ = useAsset(assetId ?? '')
+  const lifecycleQ = useAssetLifecycle(assetId ?? '')
   const apiAsset = assetQ.data?.data
+  const lifecycleData = lifecycleQ.data?.data
+  const summary = lifecycleData?.summary
 
   const asset = {
     ...ASSET_FALLBACK,
@@ -28,6 +57,10 @@ export default function AssetLifecycleTimeline() {
     avgLatency: (apiAsset?.attributes?.avg_latency as string) ?? ASSET_FALLBACK.avgLatency,
     uptime: (apiAsset?.attributes?.uptime as string) ?? ASSET_FALLBACK.uptime,
   }
+
+  // Use real timeline events when available, fall back to TIMELINE_STAGES for demo
+  const hasRealTimeline = (lifecycleData?.timeline?.length ?? 0) > 0
+  const useRealTimeline = hasRealTimeline
 
   if (assetQ.isLoading) {
     return (
@@ -81,87 +114,109 @@ export default function AssetLifecycleTimeline() {
           </h2>
 
           <div className="relative pl-8">
-            {TIMELINE_STAGES.map((stage, idx) => (
-              <div key={stage.id} className="relative pb-8 last:pb-0">
-                {/* Vertical line */}
-                {idx < TIMELINE_STAGES.length - 1 && (
-                  <div
-                    className={`absolute left-[-20px] top-4 h-full w-0.5 ${stage.lineColor}`}
-                  />
-                )}
-                {/* Dot */}
-                <div
-                  className={`absolute left-[-24px] top-1 h-3 w-3 rounded-full ${stage.dotColor} ${
-                    stage.highlighted ? 'ring-4 ring-[#ffa94d]/20' : ''
-                  }`}
-                />
-
-                {/* Stage content */}
-                <div
-                  className={`rounded-lg p-4 transition-colors cursor-pointer ${
-                    stage.highlighted
-                      ? 'bg-[#ffa94d]/5'
-                      : expandedStage === stage.id
-                        ? 'bg-surface-container-high'
-                        : 'bg-surface-container-low hover:bg-surface-container-high'
-                  }`}
-                  onClick={() =>
-                    setExpandedStage(
-                      expandedStage === stage.id ? null : stage.id,
-                    )
-                  }
-                >
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-xs font-bold tracking-widest text-on-surface">
-                      {t(stage.phaseKey)}
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold tracking-widest ${stage.statusColor}`}
+            {useRealTimeline ? (
+              /* Real timeline from audit_events + warranty milestones */
+              lifecycleData!.timeline.map((evt, idx) => {
+                const { icon, color } = eventIconAndColor(evt)
+                const dotColor = eventDotColor(evt)
+                const isExpanded = expandedIndex === idx
+                const dateLabel = new Date(evt.date).toLocaleDateString()
+                return (
+                  <div key={idx} className="relative pb-8 last:pb-0">
+                    {idx < lifecycleData!.timeline.length - 1 && (
+                      <div className="absolute left-[-20px] top-4 h-full w-0.5 bg-surface-container-high" />
+                    )}
+                    <div className={`absolute left-[-24px] top-1 h-3 w-3 rounded-full ${dotColor}`} />
+                    <div
+                      className={`rounded-lg p-4 transition-colors cursor-pointer ${
+                        isExpanded ? 'bg-surface-container-high' : 'bg-surface-container-low hover:bg-surface-container-high'
+                      }`}
+                      onClick={() => setExpandedIndex(isExpanded ? null : idx)}
                     >
-                      {t(stage.statusKey)}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-4 text-[10px] tracking-widest text-on-surface-variant">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-xs">
-                        calendar_today
-                      </span>
-                      {stage.date}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-xs">
-                        person
-                      </span>
-                      {stage.technician}
-                    </span>
-                  </div>
-
-                  {expandedStage === stage.id && (
-                    <div className="mt-3 space-y-3">
-                      <p className="text-sm leading-relaxed text-on-surface-variant">
-                        {stage.description}
-                      </p>
-                      {stage.costEstimate && (
-                        <div className="text-xs text-on-surface-variant">
-                          {t('asset_lifecycle_timeline.label_cost_estimate')}:{' '}
-                          <span className="font-mono text-primary">
-                            {stage.costEstimate}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`material-symbols-outlined text-base ${color}`}>{icon}</span>
+                        <span className="text-xs font-bold tracking-widest text-on-surface">
+                          {evt.description ?? evt.action}
+                        </span>
+                        {evt.from_status && evt.to_status && (
+                          <span className="text-[10px] font-mono text-on-surface-variant">
+                            {evt.from_status} → {evt.to_status}
                           </span>
-                        </div>
-                      )}
-                      {stage.hasDetail && (
-                        <button onClick={() => setExpandedStage(stage.id === expandedStage ? null : stage.id)} className="flex items-center gap-1 text-[10px] font-bold tracking-widest text-primary hover:underline cursor-pointer">
-                          {t('asset_lifecycle_timeline.btn_view_details')}
-                          <span className="material-symbols-outlined text-sm">
-                            arrow_forward
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-4 text-[10px] tracking-widest text-on-surface-variant">
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-xs">calendar_today</span>
+                          {dateLabel}
+                        </span>
+                        {evt.operator_id && (
+                          <span className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-xs">person</span>
+                            {evt.operator_id.slice(0, 8)}…
                           </span>
-                        </button>
-                      )}
+                        )}
+                      </div>
                     </div>
+                  </div>
+                )
+              })
+            ) : (
+              /* Fallback demo timeline when no real events exist */
+              TIMELINE_STAGES.map((stage, idx) => (
+                <div key={stage.id} className="relative pb-8 last:pb-0">
+                  {idx < TIMELINE_STAGES.length - 1 && (
+                    <div className={`absolute left-[-20px] top-4 h-full w-0.5 ${stage.lineColor}`} />
                   )}
+                  <div
+                    className={`absolute left-[-24px] top-1 h-3 w-3 rounded-full ${stage.dotColor} ${
+                      stage.highlighted ? 'ring-4 ring-[#ffa94d]/20' : ''
+                    }`}
+                  />
+                  <div
+                    className={`rounded-lg p-4 transition-colors cursor-pointer ${
+                      stage.highlighted
+                        ? 'bg-[#ffa94d]/5'
+                        : expandedIndex === stage.id
+                          ? 'bg-surface-container-high'
+                          : 'bg-surface-container-low hover:bg-surface-container-high'
+                    }`}
+                    onClick={() => setExpandedIndex(expandedIndex === stage.id ? null : stage.id)}
+                  >
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-xs font-bold tracking-widest text-on-surface">
+                        {t(stage.phaseKey)}
+                      </span>
+                      <span className={`text-[10px] font-bold tracking-widest ${stage.statusColor}`}>
+                        {t(stage.statusKey)}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-4 text-[10px] tracking-widest text-on-surface-variant">
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-xs">calendar_today</span>
+                        {stage.date}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-xs">person</span>
+                        {stage.technician}
+                      </span>
+                    </div>
+                    {expandedIndex === stage.id && (
+                      <div className="mt-3 space-y-3">
+                        <p className="text-sm leading-relaxed text-on-surface-variant">
+                          {stage.description}
+                        </p>
+                        {stage.costEstimate && (
+                          <div className="text-xs text-on-surface-variant">
+                            {t('asset_lifecycle_timeline.label_cost_estimate')}:{' '}
+                            <span className="font-mono text-primary">{stage.costEstimate}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -178,35 +233,44 @@ export default function AssetLifecycleTimeline() {
                   {t('asset_lifecycle_timeline.label_acquisition_cost')}
                 </div>
                 <div className="mt-1 font-mono text-xl font-bold text-on-surface">
-                  {FINANCIALS.acquisitionCost}
+                  {summary?.purchase_cost != null
+                    ? `$${Number(summary.purchase_cost).toLocaleString()}`
+                    : '—'}
                 </div>
               </div>
-              <div>
-                <div className="text-[10px] tracking-widest text-on-surface-variant">
-                  {t('asset_lifecycle_timeline.label_depreciated_value')}
-                </div>
-                <div className="mt-1 font-mono text-xl font-bold text-[#69db7c]">
-                  {FINANCIALS.depreciatedValue}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] tracking-widest text-on-surface-variant">
-                  {t('asset_lifecycle_timeline.label_maintenance_roi')}
-                </div>
-                <div className="mt-2 flex items-center gap-3">
-                  <span className="font-mono text-lg font-bold text-on-surface">
-                    {FINANCIALS.maintenanceRoi}%
-                  </span>
-                  <div className="flex-1">
-                    <div className="h-2 overflow-hidden rounded-full bg-surface-container-low">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${FINANCIALS.maintenanceRoi * 5}%` }}
-                      />
-                    </div>
+              {summary?.warranty_vendor && (
+                <div>
+                  <div className="text-[10px] tracking-widest text-on-surface-variant">
+                    {t('asset_lifecycle_timeline.label_warranty_vendor', 'Warranty Vendor')}
+                  </div>
+                  <div className="mt-1 font-mono text-sm font-bold text-on-surface">
+                    {summary.warranty_vendor}
                   </div>
                 </div>
-              </div>
+              )}
+              {summary?.warranty_end && (
+                <div>
+                  <div className="text-[10px] tracking-widest text-on-surface-variant">
+                    {t('asset_lifecycle_timeline.label_warranty_end', 'Warranty Expires')}
+                  </div>
+                  <div className="mt-1 font-mono text-sm font-bold text-[#fbbf24]">
+                    {summary.warranty_end}
+                  </div>
+                </div>
+              )}
+              {summary?.eol_date && (
+                <div>
+                  <div className="text-[10px] tracking-widest text-on-surface-variant">
+                    {t('asset_lifecycle_timeline.label_eol_date', 'End of Life')}
+                  </div>
+                  <div className="mt-1 font-mono text-sm font-bold text-error">
+                    {summary.eol_date}
+                  </div>
+                </div>
+              )}
+              {!summary && (
+                <p className="text-[10px] text-on-surface-variant italic">No financial data available.</p>
+              )}
             </div>
           </div>
 

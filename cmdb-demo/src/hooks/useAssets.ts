@@ -1,6 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { assetApi, type Asset } from '../lib/api/assets'
 
+export function useAssetLifecycle(assetId: string) {
+  return useQuery({
+    queryKey: ['assetLifecycle', assetId],
+    queryFn: () => assetApi.getLifecycle(assetId),
+    enabled: !!assetId,
+  })
+}
+
+export function useLifecycleStats() {
+  return useQuery({
+    queryKey: ['lifecycleStats'],
+    queryFn: () => assetApi.getLifecycleStats(),
+  })
+}
+
 export function useAssets(params?: Record<string, string>) {
   return useQuery({
     queryKey: ['assets', params],

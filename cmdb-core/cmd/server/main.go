@@ -360,6 +360,7 @@ func main() {
 	// Phase 4 Group 1 routes
 	v1.GET("/prediction/rul/:id", apiServer.GetAssetRUL)
 	v1.GET("/prediction/failure-distribution", apiServer.GetFailureDistribution)
+	v1.GET("/assets/:id/lifecycle", apiServer.GetAssetLifecycle)
 	v1.GET("/assets/:id/upgrade-recommendations", apiServer.GetAssetUpgradeRecommendations)
 	v1.POST("/assets/:id/upgrade-recommendations/:category/accept", apiServer.AcceptUpgradeRecommendation)
 	v1.GET("/upgrade-rules", apiServer.GetUpgradeRules)

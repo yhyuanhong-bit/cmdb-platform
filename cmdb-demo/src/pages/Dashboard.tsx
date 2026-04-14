@@ -205,7 +205,7 @@ function Dashboard() {
 
   // Compute lifecycle financial breakdown from real API data
   const lifecycleBreakdown = useMemo(() => {
-    const byStatus = lifecycleData?.by_status;
+    const byStatus = lifecycleData?.data?.by_status ?? (lifecycleData as any)?.by_status;
     if (!byStatus) return null;
     const operational = byStatus.operational ?? 0;
     const maintenance = byStatus.maintenance ?? 0;

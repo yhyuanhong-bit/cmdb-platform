@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
-import { useAssets } from '../hooks/useAssets'
+import { useAssets, useLifecycleStats } from '../hooks/useAssets'
 import type { Asset } from '../lib/api/assets'
 
 // SummaryCard interface removed — cards are now inline with API data
@@ -40,18 +40,6 @@ const stageColors: Record<string, string> = {
   Disposal: 'text-error',
 }
 
-interface FinancialItem {
-  label: string
-  value: string
-  subtext: string
-}
-
-const financialItemsData = [
-  { labelKey: 'asset_lifecycle.total_asset_value', value: '$48.2M', subtextKey: 'asset_lifecycle.current_book_value' },
-  { labelKey: 'asset_lifecycle.annual_depreciation', value: '$12.6M', subtextKey: 'asset_lifecycle.straight_line_method' },
-  { labelKey: 'asset_lifecycle.maintenance_spend_ytd', value: '$3.1M', subtextKey: 'asset_lifecycle.includes_warranty' },
-  { labelKey: 'asset_lifecycle.disposal_recovery', value: '$890K', subtextKey: 'asset_lifecycle.revenue_from_decommissioned' },
-]
 
 export default function AssetLifecycle() {
   const { t } = useTranslation()
@@ -59,6 +47,10 @@ export default function AssetLifecycle() {
 
   // Fetch assets from API to populate lifecycle table
   const { data: apiData, isLoading, error, refetch } = useAssets()
+
+  // Fetch aggregated lifecycle/financial stats
+  const { data: statsData } = useLifecycleStats()
+  const lcStats = statsData?.data
   const assets: Asset[] = apiData?.data ?? []
   const totalAssets = apiData?.pagination?.total ?? assets.length
 
@@ -243,7 +235,7 @@ export default function AssetLifecycle() {
         })}
       </div>
 
-      {/* Financial Summary */}
+      {/* Financial & Warranty Summary */}
       <div className="bg-surface-container rounded p-5">
         <div className="flex items-center gap-2 mb-5">
           <Icon name="account_balance" className="text-[22px] text-primary" />
@@ -252,15 +244,40 @@ export default function AssetLifecycle() {
           </h2>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {financialItemsData.map((item) => (
+          {[
+            {
+              labelKey: 'asset_lifecycle.total_asset_value',
+              value: lcStats?.total_purchase_cost != null
+                ? `$${Number(lcStats.total_purchase_cost).toLocaleString()}`
+                : '—',
+              subtextKey: 'asset_lifecycle.current_book_value',
+            },
+            {
+              labelKey: 'asset_lifecycle.under_warranty',
+              value: lcStats != null ? `${lcStats.warranty_active_count} assets` : '—',
+              subtextKey: 'asset_lifecycle.active_coverage',
+            },
+            {
+              labelKey: 'asset_lifecycle.warranty_expired',
+              value: lcStats != null ? `${lcStats.warranty_expired_count} assets` : '—',
+              subtextKey: 'asset_lifecycle.coverage_lapsed',
+            },
+            {
+              labelKey: 'asset_lifecycle.approaching_eol',
+              value: lcStats != null ? `${lcStats.approaching_eol_count} assets` : '—',
+              subtextKey: 'asset_lifecycle.within_6_months',
+            },
+          ].map((item) => (
             <div key={item.labelKey} className="bg-surface-container-low rounded p-4">
               <span className="text-[0.6875rem] font-semibold uppercase tracking-wider text-on-surface-variant">
-                {t(item.labelKey)}
+                {t(item.labelKey, item.labelKey.split('.').pop() ?? item.labelKey)}
               </span>
               <div className="font-headline text-2xl font-bold text-on-surface mt-2">
                 {item.value}
               </div>
-              <p className="text-[0.6875rem] text-on-surface-variant mt-1">{t(item.subtextKey)}</p>
+              <p className="text-[0.6875rem] text-on-surface-variant mt-1">
+                {t(item.subtextKey, item.subtextKey.split('.').pop() ?? item.subtextKey)}
+              </p>
             </div>
           ))}
         </div>
