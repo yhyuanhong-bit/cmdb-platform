@@ -1,0 +1,149 @@
+package workflows
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// CustomRESTAdapter implements MetricsAdapter for any REST API with configurable JSON path.
+type CustomRESTAdapter struct{}
+
+type customRESTConfig struct {
+	URL            string            `json:"url"`             // Full URL (overrides endpoint if set)
+	Headers        map[string]string `json:"headers"`         // Custom headers (e.g., Authorization)
+	Method         string            `json:"method"`          // GET or POST, default GET
+	Body           string            `json:"body"`            // Request body for POST
+	ResultPath     string            `json:"result_path"`     // JSONPath-like dot notation to results array, e.g., "data.metrics"
+	NameField      string            `json:"name_field"`      // Field name for metric name, default "name"
+	ValueField     string            `json:"value_field"`     // Field name for value, default "value"
+	TimestampField string            `json:"timestamp_field"` // Field name for timestamp, default "timestamp"
+	IPField        string            `json:"ip_field"`        // Field name for IP, default "ip"
+}
+
+func (a *CustomRESTAdapter) Fetch(ctx context.Context, endpoint string, config json.RawMessage) ([]MetricPoint, error) {
+	var cfg customRESTConfig
+	json.Unmarshal(config, &cfg) //nolint:errcheck
+
+	targetURL := endpoint
+	if cfg.URL != "" {
+		targetURL = cfg.URL
+	}
+	method := "GET"
+	if cfg.Method != "" {
+		method = strings.ToUpper(cfg.Method)
+	}
+
+	var bodyReader *strings.Reader
+	if cfg.Body != "" {
+		bodyReader = strings.NewReader(cfg.Body)
+	}
+
+	var req *http.Request
+	var err error
+	if bodyReader != nil {
+		req, err = http.NewRequestWithContext(ctx, method, targetURL, bodyReader)
+	} else {
+		req, err = http.NewRequestWithContext(ctx, method, targetURL, nil)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range cfg.Headers {
+		req.Header.Set(k, v)
+	}
+
+	client := http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("http %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// Parse response
+	var raw interface{}
+	json.Unmarshal(respBody, &raw) //nolint:errcheck
+
+	// Navigate to result path
+	data := raw
+	if cfg.ResultPath != "" {
+		for _, key := range strings.Split(cfg.ResultPath, ".") {
+			if m, ok := data.(map[string]interface{}); ok {
+				data = m[key]
+			}
+		}
+	}
+
+	// Extract metric points
+	arr, ok := data.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("result_path did not resolve to an array")
+	}
+
+	nameField := cfg.NameField
+	if nameField == "" {
+		nameField = "name"
+	}
+	valueField := cfg.ValueField
+	if valueField == "" {
+		valueField = "value"
+	}
+	timestampField := cfg.TimestampField
+	if timestampField == "" {
+		timestampField = "timestamp"
+	}
+	ipField := cfg.IPField
+	if ipField == "" {
+		ipField = "ip"
+	}
+
+	var points []MetricPoint
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		name, _ := m[nameField].(string)
+		val := 0.0
+		switch v := m[valueField].(type) {
+		case float64:
+			val = v
+		case string:
+			val, _ = strconv.ParseFloat(v, 64)
+		}
+		ip, _ := m[ipField].(string)
+
+		ts := time.Now()
+		if tsRaw, ok := m[timestampField]; ok {
+			switch v := tsRaw.(type) {
+			case float64:
+				ts = time.Unix(int64(v), 0)
+			case string:
+				if parsed, err := time.Parse(time.RFC3339, v); err == nil {
+					ts = parsed
+				}
+			}
+		}
+
+		points = append(points, MetricPoint{
+			Name:      name,
+			Value:     val,
+			Timestamp: ts,
+			IP:        ip,
+			Labels:    map[string]string{},
+		})
+	}
+
+	return points, nil
+}

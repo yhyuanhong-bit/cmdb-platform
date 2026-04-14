@@ -2215,6 +2215,34 @@
     "col_score": "Score",
     "col_issues": "Issues"
   },
+  "adapter_types": {
+    "prometheus": "Prometheus",
+    "zabbix": "Zabbix",
+    "custom_rest": "Custom REST API",
+    "snmp": "SNMP (via Ingestion Engine)",
+    "datadog": "Datadog (coming soon)",
+    "nagios": "Nagios/Icinga (coming soon)",
+    "dify": "Dify (AI Workflow)"
+  },
+  "adapter_config": {
+    "api_token": "API Token",
+    "username": "Username",
+    "password": "Password",
+    "host_groups": "Host Groups (comma separated)",
+    "zabbix_items": "Monitoring Items (one per line)",
+    "zabbix_items_placeholder": "system.cpu.util\nvm.memory.utilization\nvfs.fs.pused",
+    "custom_url": "URL (optional, overrides endpoint)",
+    "custom_headers": "Custom Headers (key:value per line)",
+    "custom_method": "HTTP Method",
+    "custom_body": "Request Body (JSON)",
+    "result_path": "Result Path (dot notation)",
+    "result_path_placeholder": "data.metrics",
+    "name_field": "Metric Name Field",
+    "value_field": "Value Field",
+    "timestamp_field": "Timestamp Field",
+    "ip_field": "IP Field",
+    "coming_soon": "Coming soon — use Custom REST adapter as workaround"
+  },
   "adapter_modal": {
     "title": "Create Adapter",
     "name_label": "Name",

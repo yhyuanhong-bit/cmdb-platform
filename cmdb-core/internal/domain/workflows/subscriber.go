@@ -581,22 +581,12 @@ func (w *WorkflowSubscriber) pullMetricsFromAdapters(ctx context.Context) {
 			continue
 		}
 
-		var cfg struct {
-			Queries             []string `json:"queries"`
-			PullIntervalSeconds int      `json:"pull_interval_seconds"`
-		}
-		json.Unmarshal(configRaw, &cfg)
-
-		if len(cfg.Queries) == 0 {
-			zap.L().Debug("metrics puller: no queries configured", zap.String("adapter", name))
-			continue
-		}
-
-		pullErr := w.pullFromAdapter(ctx, id, tenantID, name, *endpoint, cfg.Queries)
+		pullErr := w.pullFromAdapter(ctx, id, tenantID, name, adapterType, *endpoint, configRaw)
 		if pullErr != nil {
 			w.adapterFailures[id]++
 			zap.L().Warn("metrics puller: pull failed",
 				zap.String("adapter", name),
+				zap.String("type", adapterType),
 				zap.Int("consecutive_failures", w.adapterFailures[id]),
 				zap.Error(pullErr))
 			if w.adapterFailures[id] >= 3 {
@@ -608,36 +598,43 @@ func (w *WorkflowSubscriber) pullMetricsFromAdapters(ctx context.Context) {
 	}
 }
 
-func (w *WorkflowSubscriber) pullFromAdapter(ctx context.Context, adapterID, tenantID uuid.UUID, name, endpoint string, queries []string) error {
-	for _, query := range queries {
-		results, err := fetchPromMetrics(ctx, endpoint, query)
-		if err != nil {
-			return fmt.Errorf("query %q: %w", query, err)
-		}
-
-		for _, r := range results {
-			var assetID pgtype.UUID
-			if r.IP != "" {
-				asset, err := w.queries.FindAssetByIP(ctx, dbgen.FindAssetByIPParams{
-					TenantID:  tenantID,
-					IpAddress: pgtype.Text{String: r.IP, Valid: true},
-				})
-				if err == nil {
-					assetID = pgtype.UUID{Bytes: asset.ID, Valid: true}
-				}
-			}
-
-			labelsJSON, _ := json.Marshal(r.Labels)
-			w.pool.Exec(ctx,
-				"INSERT INTO metrics (time, asset_id, tenant_id, name, value, labels) VALUES ($1, $2, $3, $4, $5, $6)",
-				r.Timestamp, assetID, tenantID, r.MetricName, r.Value, labelsJSON)
-		}
-
-		zap.L().Debug("metrics puller: stored metrics",
-			zap.String("adapter", name),
-			zap.String("query", query),
-			zap.Int("count", len(results)))
+func (w *WorkflowSubscriber) pullFromAdapter(ctx context.Context, adapterID, tenantID uuid.UUID, name, adapterType, endpoint string, configRaw []byte) error {
+	adapter := GetAdapter(adapterType)
+	if adapter == nil {
+		// Fallback: try as prometheus for backward compat with type="rest"
+		adapter = GetAdapter("prometheus")
 	}
+	if adapter == nil {
+		return fmt.Errorf("unsupported adapter type: %s", adapterType)
+	}
+
+	points, err := adapter.Fetch(ctx, endpoint, configRaw)
+	if err != nil {
+		return err
+	}
+
+	for _, pt := range points {
+		var assetID pgtype.UUID
+		if pt.IP != "" {
+			asset, err := w.queries.FindAssetByIP(ctx, dbgen.FindAssetByIPParams{
+				TenantID:  tenantID,
+				IpAddress: pgtype.Text{String: pt.IP, Valid: true},
+			})
+			if err == nil {
+				assetID = pgtype.UUID{Bytes: asset.ID, Valid: true}
+			}
+		}
+		labelsJSON, _ := json.Marshal(pt.Labels)
+		w.pool.Exec(ctx,
+			"INSERT INTO metrics (time, asset_id, tenant_id, name, value, labels) VALUES ($1, $2, $3, $4, $5, $6)",
+			pt.Timestamp, assetID, tenantID, pt.Name, pt.Value, labelsJSON)
+	}
+
+	zap.L().Debug("metrics puller: stored metrics",
+		zap.String("adapter", name),
+		zap.String("type", adapterType),
+		zap.Int("count", len(points)))
+
 	return nil
 }
 

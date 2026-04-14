@@ -2215,6 +2215,34 @@
     "col_score": "分數",
     "col_issues": "問題"
   },
+  "adapter_types": {
+    "prometheus": "Prometheus",
+    "zabbix": "Zabbix",
+    "custom_rest": "自訂 REST API",
+    "snmp": "SNMP（透過 Ingestion Engine）",
+    "datadog": "Datadog（即將推出）",
+    "nagios": "Nagios/Icinga（即將推出）",
+    "dify": "Dify（AI 工作流）"
+  },
+  "adapter_config": {
+    "api_token": "API Token",
+    "username": "使用者名稱",
+    "password": "密碼",
+    "host_groups": "主機群組（逗號分隔）",
+    "zabbix_items": "監控項目（每行一個）",
+    "zabbix_items_placeholder": "system.cpu.util\nvm.memory.utilization\nvfs.fs.pused",
+    "custom_url": "URL（選填，覆蓋 Endpoint）",
+    "custom_headers": "自訂標頭（每行 key:value）",
+    "custom_method": "HTTP 方法",
+    "custom_body": "請求內容（JSON）",
+    "result_path": "結果路徑（點號分隔）",
+    "result_path_placeholder": "data.metrics",
+    "name_field": "指標名稱欄位",
+    "value_field": "數值欄位",
+    "timestamp_field": "時間戳欄位",
+    "ip_field": "IP 欄位",
+    "coming_soon": "即將推出 — 可用自訂 REST 作為替代方案"
+  },
   "adapter_modal": {
     "title": "新建適配器",
     "name_label": "名稱",

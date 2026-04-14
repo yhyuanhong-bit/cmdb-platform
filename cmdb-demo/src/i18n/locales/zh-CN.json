@@ -2215,6 +2215,34 @@
     "col_score": "分数",
     "col_issues": "问题"
   },
+  "adapter_types": {
+    "prometheus": "Prometheus",
+    "zabbix": "Zabbix",
+    "custom_rest": "自定义 REST API",
+    "snmp": "SNMP（通过 Ingestion Engine）",
+    "datadog": "Datadog（即将推出）",
+    "nagios": "Nagios/Icinga（即将推出）",
+    "dify": "Dify（AI 工作流）"
+  },
+  "adapter_config": {
+    "api_token": "API Token",
+    "username": "用户名",
+    "password": "密码",
+    "host_groups": "主机组（逗号分隔）",
+    "zabbix_items": "监控项（每行一个）",
+    "zabbix_items_placeholder": "system.cpu.util\nvm.memory.utilization\nvfs.fs.pused",
+    "custom_url": "URL（选填，覆盖 Endpoint）",
+    "custom_headers": "自定义头（每行 key:value）",
+    "custom_method": "HTTP 方法",
+    "custom_body": "请求内容（JSON）",
+    "result_path": "结果路径（点号分隔）",
+    "result_path_placeholder": "data.metrics",
+    "name_field": "指标名称字段",
+    "value_field": "数值字段",
+    "timestamp_field": "时间戳字段",
+    "ip_field": "IP 字段",
+    "coming_soon": "即将推出 — 可用自定义 REST 作为替代方案"
+  },
   "adapter_modal": {
     "title": "新建适配器",
     "name_label": "名称",
