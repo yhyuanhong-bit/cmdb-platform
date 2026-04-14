@@ -34,6 +34,7 @@ func TestSubjectConstants(t *testing.T) {
 		{"SubjectPredictionCreated", SubjectPredictionCreated},
 		{"SubjectAuditRecorded", SubjectAuditRecorded},
 		{"SubjectNotificationCreated", SubjectNotificationCreated},
+		{"SubjectAssetLocationChanged", SubjectAssetLocationChanged},
 	}
 
 	for _, s := range subjects {
@@ -70,6 +71,7 @@ func TestSubjectNamingConvention(t *testing.T) {
 		{"prediction created", SubjectPredictionCreated, "prediction"},
 		{"audit recorded", SubjectAuditRecorded, "audit"},
 		{"notification created", SubjectNotificationCreated, "notification"},
+		{"asset location changed", SubjectAssetLocationChanged, "asset"},
 	}
 
 	for _, tt := range tests {
@@ -111,6 +113,7 @@ func TestSubjectUniqueness(t *testing.T) {
 		SubjectPredictionCreated,
 		SubjectAuditRecorded,
 		SubjectNotificationCreated,
+		SubjectAssetLocationChanged,
 	}
 
 	seen := make(map[string]bool)

@@ -18,6 +18,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/discovery"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
+	location_detect "github.com/cmdb-platform/cmdb-core/internal/domain/location_detect"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
@@ -57,8 +58,9 @@ type APIServer struct {
 	integrationSvc *integration.Service
 	biaSvc         *bia.Service
 	qualitySvc     *quality.Service
-	discoverySvc   *discovery.Service
-	syncSvc        *sync.Service
+	discoverySvc       *discovery.Service
+	syncSvc            *sync.Service
+	locationDetectSvc  *location_detect.Service
 }
 
 // NewAPIServer constructs an APIServer with all required domain services.
@@ -81,6 +83,7 @@ func NewAPIServer(
 	qualitySvc *quality.Service,
 	discoverySvc *discovery.Service,
 	syncSvc *sync.Service,
+	locationDetectSvc *location_detect.Service,
 ) *APIServer {
 	return &APIServer{
 		pool:           pool,
@@ -99,8 +102,9 @@ func NewAPIServer(
 		integrationSvc: integrationSvc,
 		biaSvc:         biaSvc,
 		qualitySvc:     qualitySvc,
-		discoverySvc:   discoverySvc,
-		syncSvc:        syncSvc,
+		discoverySvc:       discoverySvc,
+		syncSvc:            syncSvc,
+		locationDetectSvc:  locationDetectSvc,
 	}
 }
 

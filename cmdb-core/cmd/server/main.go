@@ -19,6 +19,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/bia"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/discovery"
+	location_detect "github.com/cmdb-platform/cmdb-core/internal/domain/location_detect"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
@@ -75,7 +76,7 @@ func main() {
 
 	// 4b. Verify database migration version matches code expectations
 	{
-		const expectedMigration = 31 // bump this when adding new migrations
+		const expectedMigration = 32 // bump this when adding new migrations
 		var dbVersion int
 		err := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&dbVersion)
 		if err != nil {
@@ -130,6 +131,9 @@ func main() {
 	qualitySvc := quality.NewService(queries)
 	discoverySvc := discovery.NewService(queries)
 
+	// Location detection
+	locationDetectSvc := location_detect.NewService(pool, bus)
+
 	// AI Registry
 	aiRegistry := ai.NewRegistry()
 	if err := aiRegistry.LoadFromDB(ctx, &ai.QueriesAdapter{Q: queries}); err != nil {
@@ -163,7 +167,7 @@ func main() {
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
-		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc,
+		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
 	)
 
 	// 10. Set up Gin router
@@ -268,6 +272,13 @@ func main() {
 	v1.PUT("/sensors/:id", apiServer.UpdateSensor)
 	v1.DELETE("/sensors/:id", apiServer.DeleteSensor)
 	v1.POST("/sensors/:id/heartbeat", apiServer.SensorHeartbeat)
+
+	// Discovery + credentials routes are registered via api.RegisterHandlers (line 207)
+
+	// Location detection endpoints
+	v1.GET("/location-detect/diffs", apiServer.LocationDetectGetDiffs)
+	v1.GET("/location-detect/summary", apiServer.LocationDetectGetSummary)
+	v1.GET("/assets/:id/location-history", apiServer.LocationDetectGetHistory)
 
 	// Sync endpoints
 	v1.GET("/sync/changes", apiServer.SyncGetChanges)
