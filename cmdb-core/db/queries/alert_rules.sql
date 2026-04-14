@@ -22,3 +22,6 @@ UPDATE alert_rules SET
     enabled     = COALESCE(sqlc.narg('enabled'), enabled)
 WHERE id = sqlc.arg('id')
 RETURNING *;
+
+-- name: DeleteAlertRule :exec
+DELETE FROM alert_rules WHERE id = $1;

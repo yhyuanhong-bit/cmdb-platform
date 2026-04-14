@@ -89,6 +89,11 @@ func (s *Service) CreateRule(ctx context.Context, params dbgen.CreateAlertRulePa
 	return &rule, nil
 }
 
+// DeleteRule deletes an alert rule by ID.
+func (s *Service) DeleteRule(ctx context.Context, id uuid.UUID) error {
+	return s.queries.DeleteAlertRule(ctx, id)
+}
+
 // UpdateRule updates an existing alert rule.
 func (s *Service) UpdateRule(ctx context.Context, params dbgen.UpdateAlertRuleParams) (*dbgen.AlertRule, error) {
 	rule, err := s.queries.UpdateAlertRule(ctx, params)

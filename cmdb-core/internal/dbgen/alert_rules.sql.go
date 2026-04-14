@@ -64,6 +64,15 @@ func (q *Queries) CreateAlertRule(ctx context.Context, arg CreateAlertRuleParams
 	return i, err
 }
 
+const deleteAlertRule = `-- name: DeleteAlertRule :exec
+DELETE FROM alert_rules WHERE id = $1
+`
+
+func (q *Queries) DeleteAlertRule(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteAlertRule, id)
+	return err
+}
+
 const listAlertRules = `-- name: ListAlertRules :many
 SELECT id, tenant_id, name, metric_name, condition, severity, enabled, created_at, sync_version FROM alert_rules
 WHERE tenant_id = $1
