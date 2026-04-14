@@ -1748,7 +1748,13 @@
     "risk_medium": "中",
     "risk_low": "低",
     "report_downloaded": "健康报告已下载",
-    "capacity_title": "容量概览"
+    "capacity_title": "容量概览",
+    "sensor_temperature": "平均温度",
+    "sensor_power": "平均功耗",
+    "sensor_uptime": "运行设备数",
+    "connect_monitoring": "连接监控系统以启用",
+    "awaiting_data": "等待监控数据",
+    "trend_7d": "7 天趋势"
   },
   "equipment_status_cards": {
     "title": "机架设备状态清单",

@@ -62,3 +62,11 @@ export function useDeleteAlertRule() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alertRules'] }),
   })
 }
+
+export function useFleetMetrics() {
+  return useQuery({
+    queryKey: ['fleetMetrics'],
+    queryFn: () => monitoringApi.getFleetMetrics(),
+    refetchInterval: 60000,
+  })
+}

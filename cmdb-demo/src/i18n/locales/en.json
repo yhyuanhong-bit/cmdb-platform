@@ -1748,7 +1748,13 @@
     "risk_medium": "MEDIUM",
     "risk_low": "LOW",
     "report_downloaded": "Health report downloaded",
-    "capacity_title": "Capacity Overview"
+    "capacity_title": "Capacity Overview",
+    "sensor_temperature": "Avg Temperature",
+    "sensor_power": "Avg Power Draw",
+    "sensor_uptime": "Fleet Uptime",
+    "connect_monitoring": "Connect monitoring to enable",
+    "awaiting_data": "Awaiting monitoring data",
+    "trend_7d": "7-day trend"
   },
   "equipment_status_cards": {
     "title": "Rack Equipment Status List",

@@ -47,4 +47,6 @@ export const monitoringApi = {
     apiClient.put<ApiResponse<AlertRule>>(`/monitoring/rules/${id}`, data),
   deleteAlertRule: (id: string) =>
     apiClient.del(`/monitoring/rules/${id}`),
+  getFleetMetrics: () =>
+    apiClient.get<ApiResponse<any>>('/fleet-metrics'),
 }

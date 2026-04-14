@@ -54,6 +54,7 @@ var resourceMap = map[string]string{
 	"sync":          "sync",
 	"notifications":     "system",
 	"capacity-planning": "assets",
+	"fleet-metrics":     "monitoring",
 }
 
 // methodToAction converts an HTTP method to an RBAC action.

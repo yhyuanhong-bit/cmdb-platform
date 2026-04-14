@@ -413,6 +413,9 @@ func main() {
 	// Capacity planning
 	v1.GET("/capacity-planning", apiServer.GetCapacityPlanning)
 
+	// Fleet metrics summary
+	v1.GET("/fleet-metrics", apiServer.GetFleetMetricsSummary)
+
 	// Sync endpoints
 	v1.GET("/sync/changes", apiServer.SyncGetChanges)
 	v1.GET("/sync/state", apiServer.SyncGetState)

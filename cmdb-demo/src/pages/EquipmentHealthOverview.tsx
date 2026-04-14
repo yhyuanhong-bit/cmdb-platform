@@ -3,36 +3,31 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAssets, useLifecycleStats, useCapacityPlanning } from '../hooks/useAssets'
-import { useAlerts } from '../hooks/useMonitoring'
+import { useAlerts, useFleetMetrics } from '../hooks/useMonitoring'
 
 /* ------------------------------------------------------------------ */
-/*  Static Data                                                        */
+/*  Mini Sparkline                                                      */
 /* ------------------------------------------------------------------ */
 
-const sensorReadings = [
-  {
-    id: 'NODE_01_TEMP_CORE',
-    icon: 'thermostat',
-    value: '24.2°C',
-    status: 'normal',
-  },
-  {
-    id: 'NODE_01_ELT_INPUT',
-    icon: 'electric_bolt',
-    value: '248.1V',
-    status: 'normal',
-  },
-  {
-    id: 'NODE_01_UPTIME',
-    icon: 'schedule',
-    value: '1248h 15m',
-    status: 'normal',
-  },
-]
-
+function MiniSparkline({ data, color = '#9ecaff' }: { data: number[]; color?: string }) {
+  if (data.length < 2) return null
+  const max = Math.max(...data)
+  const min = Math.min(...data)
+  const range = max - min || 1
+  const w = 80
+  const h = 24
+  const points = data
+    .map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`)
+    .join(' ')
+  return (
+    <svg width={w} height={h} className="ml-2 inline-block opacity-60">
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
+    </svg>
+  )
+}
 
 /* ------------------------------------------------------------------ */
-/*  Component                                                          */
+/*  Component                                                           */
 /* ------------------------------------------------------------------ */
 
 export default function EquipmentHealthOverview() {
@@ -54,6 +49,12 @@ export default function EquipmentHealthOverview() {
   const { data: capacityData } = useCapacityPlanning()
   const capacityForecasts = (capacityData as any) ?? []
 
+  // Fleet metrics from monitoring system
+  const { data: fleetMetricsResp } = useFleetMetrics()
+  const fleetMetrics: any[] = (fleetMetricsResp as any)?.data ?? []
+
+  const getMetric = (name: string) => fleetMetrics.find((m: any) => m.name === name)
+
   const serverAssets = allAssets || []
   const operationalCount = serverAssets.filter((a: any) => a.status === 'operational').length
   const totalCount = serverAssets.length || 1
@@ -63,23 +64,128 @@ export default function EquipmentHealthOverview() {
   const effectiveHealthy = operationalCount - Math.min(warrantyExpiredCount, operationalCount) * 0.2
   const healthScore = Math.round((effectiveHealthy / totalCount) * 100 * 10) / 10
 
+  // Fleet metric lookups
+  const diskMetric = getMetric('disk_usage')
+  const networkMetric = getMetric('network_in_bytes')
+  const cpuMetric = getMetric('cpu_usage')
+  const memMetric = getMetric('memory_usage')
+  const temperatureMetric = getMetric('temperature')
+  const powerMetric = getMetric('power_kw')
+
+  // Derived metric values with graceful fallback
+  const storageStability =
+    diskMetric?.avg_value != null
+      ? Math.round(100 - diskMetric.avg_value) // low disk usage = high stability
+      : Math.max(50, 100 - allAlerts.length * 5)
+  const storageNoData = diskMetric?.avg_value == null
+
+  const networkConnectivity =
+    networkMetric?.data_points > 0
+      ? Math.min(100, Math.round(100 - (networkMetric?.p95_value ?? 0) / 1000))
+      : null
+  const networkNoData = networkConnectivity === null
+
   const metrics = [
-    { labelKey: 'equipment_health_overview.metric_service_stability', value: Math.round((operationalCount / totalCount) * 100), max: 100, badgeKey: null, badgeColor: '', barColor: 'bg-[#69db7c]' },
-    // Enhancement 1: Real warranty data for hardware lifespan
-    { labelKey: 'equipment_health_overview.metric_hardware_lifespan', value: totalCount > 0 ? Math.round(((totalCount - (lifecycleStats.warranty_expired_count ?? 0)) / totalCount) * 100) : 100, max: 100, badgeKey: null, badgeColor: '', barColor: 'bg-primary' },
-    { labelKey: 'equipment_health_overview.metric_storage_stability', value: allAlerts.length > 0 ? Math.max(50, 100 - allAlerts.length * 5) : 100, max: 100, badgeKey: null, badgeColor: '', barColor: 'bg-[#ffa94d]' },
-    { labelKey: 'equipment_health_overview.metric_network_connectivity', value: 95, max: 100, badgeKey: 'equipment_health_overview.badge_optimal', badgeColor: 'bg-[#69db7c]/15 text-[#69db7c]', barColor: 'bg-[#69db7c]' },
+    {
+      labelKey: 'equipment_health_overview.metric_service_stability',
+      value: Math.round((operationalCount / totalCount) * 100),
+      max: 100,
+      badgeKey: null,
+      badgeColor: '',
+      barColor: 'bg-[#69db7c]',
+      noData: false,
+      sparkline: cpuMetric?.sparkline ?? [],
+    },
+    {
+      // Enhancement 1: Real warranty data for hardware lifespan
+      labelKey: 'equipment_health_overview.metric_hardware_lifespan',
+      value:
+        totalCount > 0
+          ? Math.round(((totalCount - (lifecycleStats.warranty_expired_count ?? 0)) / totalCount) * 100)
+          : 100,
+      max: 100,
+      badgeKey: null,
+      badgeColor: '',
+      barColor: 'bg-primary',
+      noData: false,
+      sparkline: memMetric?.sparkline ?? [],
+    },
+    {
+      labelKey: 'equipment_health_overview.metric_storage_stability',
+      value: storageStability,
+      max: 100,
+      badgeKey: null,
+      badgeColor: '',
+      barColor: 'bg-[#ffa94d]',
+      noData: storageNoData,
+      sparkline: diskMetric?.sparkline ?? [],
+    },
+    {
+      labelKey: 'equipment_health_overview.metric_network_connectivity',
+      value: networkConnectivity ?? 0,
+      max: 100,
+      badgeKey: networkConnectivity !== null ? 'equipment_health_overview.badge_optimal' : null,
+      badgeColor: 'bg-[#69db7c]/15 text-[#69db7c]',
+      barColor: 'bg-[#69db7c]',
+      noData: networkNoData,
+      sparkline: networkMetric?.sparkline ?? [],
+    },
+  ]
+
+  // Dynamic sensor readings
+  const sensorReadings = [
+    {
+      id: 'TEMP',
+      icon: 'thermostat',
+      label: t('equipment_health_overview.sensor_temperature', 'Avg Temperature'),
+      value:
+        temperatureMetric?.avg_value != null
+          ? `${temperatureMetric.avg_value.toFixed(1)}°C`
+          : null,
+      status:
+        temperatureMetric?.avg_value != null
+          ? temperatureMetric.avg_value > 35
+            ? 'warning'
+            : 'normal'
+          : 'no_data',
+    },
+    {
+      id: 'POWER',
+      icon: 'electric_bolt',
+      label: t('equipment_health_overview.sensor_power', 'Avg Power Draw'),
+      value:
+        powerMetric?.avg_value != null ? `${powerMetric.avg_value.toFixed(1)} kW` : null,
+      status: powerMetric?.avg_value != null ? 'normal' : 'no_data',
+    },
+    {
+      id: 'UPTIME',
+      icon: 'schedule',
+      label: t('equipment_health_overview.sensor_uptime', 'Fleet Uptime'),
+      value: `${operationalCount}/${totalCount}`,
+      status: operationalCount === totalCount ? 'normal' : 'warning',
+    },
   ]
 
   const latestWarning = allAlerts[0]
   const warningMessage = latestWarning
-    ? { titleKey: 'equipment_health_overview.warning_title', assetRef: latestWarning.message || 'Active Warning', body: `Asset: ${latestWarning.ci_id?.slice(0, 8) || 'Unknown'}` }
-    : { titleKey: 'equipment_health_overview.warning_title', assetRef: 'No active warnings', body: 'All systems operating normally' }
+    ? {
+        titleKey: 'equipment_health_overview.warning_title',
+        assetRef: latestWarning.message || 'Active Warning',
+        body: `Asset: ${latestWarning.ci_id?.slice(0, 8) || 'Unknown'}`,
+      }
+    : {
+        titleKey: 'equipment_health_overview.warning_title',
+        assetRef: 'No active warnings',
+        body: 'All systems operating normally',
+      }
 
   const criticalCount = allAlerts.filter((a: any) => a.severity === 'critical').length
   const riskAssessment = {
     titleKey: 'equipment_health_overview.risk_title',
-    body: criticalCount > 0 ? `${criticalCount} critical alert(s) detected across monitored assets.` : 'No critical alerts. Systems operating within normal parameters.',
+    body:
+      criticalCount > 0
+        ? `${criticalCount} critical alert(s) detected across monitored assets.`
+        : 'No critical alerts. Systems operating within normal parameters.',
     riskLevel: criticalCount > 3 ? 'HIGH' : criticalCount > 0 ? 'ELEVATED' : 'LOW',
     remainingLife: Math.max(5, 100 - criticalCount * 15),
   }
@@ -96,10 +202,22 @@ export default function EquipmentHealthOverview() {
       risk_level: riskAssessment.riskLevel,
       critical_alerts: criticalCount,
       warning_alerts: allAlerts.length,
+      fleet_metrics: fleetMetrics.map((m: any) => ({
+        name: m.name,
+        label: m.label,
+        avg_value: m.avg_value,
+        unit: m.unit,
+        data_points: m.data_points,
+      })),
       assets: serverAssets.map((a: any) => ({
-        asset_tag: a.asset_tag, name: a.name, type: a.type,
-        status: a.status, vendor: a.vendor, model: a.model,
-        warranty_end: a.warranty_end, eol_date: a.eol_date,
+        asset_tag: a.asset_tag,
+        name: a.name,
+        type: a.type,
+        status: a.status,
+        vendor: a.vendor,
+        model: a.model,
+        warranty_end: a.warranty_end,
+        eol_date: a.eol_date,
       })),
     }
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
@@ -131,16 +249,18 @@ export default function EquipmentHealthOverview() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleDownloadReport} className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer">
-            <span className="material-symbols-outlined text-base">
-              download
-            </span>
+          <button
+            onClick={handleDownloadReport}
+            className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-base">download</span>
             {t('equipment_health_overview.btn_download_report')}
           </button>
-          <button onClick={() => navigate('/monitoring/sensors')} className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer">
-            <span className="material-symbols-outlined text-base">
-              notifications
-            </span>
+          <button
+            onClick={() => navigate('/monitoring/sensors')}
+            className="flex items-center gap-2 rounded bg-surface-container px-4 py-2.5 text-[10px] font-bold tracking-widest text-on-surface-variant transition-colors hover:bg-surface-container-high cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-base">notifications</span>
             {t('equipment_health_overview.btn_alert_settings')}
           </button>
         </div>
@@ -154,19 +274,8 @@ export default function EquipmentHealthOverview() {
           <div className="rounded-lg bg-surface-container p-6">
             <div className="flex items-center gap-8">
               <div className="relative flex h-40 w-40 flex-shrink-0 items-center justify-center">
-                {/* Score ring background */}
-                <svg
-                  className="absolute inset-0"
-                  viewBox="0 0 160 160"
-                  fill="none"
-                >
-                  <circle
-                    cx="80"
-                    cy="80"
-                    r="68"
-                    stroke="#202b32"
-                    strokeWidth="10"
-                  />
+                <svg className="absolute inset-0" viewBox="0 0 160 160" fill="none">
+                  <circle cx="80" cy="80" r="68" stroke="#202b32" strokeWidth="10" />
                   <circle
                     cx="80"
                     cy="80"
@@ -199,10 +308,7 @@ export default function EquipmentHealthOverview() {
           {/* Metric cards */}
           <div className="grid grid-cols-2 gap-4">
             {metrics.map((m) => (
-              <div
-                key={m.labelKey}
-                className="rounded-lg bg-surface-container p-5"
-              >
+              <div key={m.labelKey} className="rounded-lg bg-surface-container p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-xs font-bold tracking-wider text-on-surface">
                     {t(m.labelKey)}
@@ -215,18 +321,30 @@ export default function EquipmentHealthOverview() {
                     </span>
                   )}
                 </div>
-                <div className="mb-2 font-mono text-2xl font-bold text-on-surface">
-                  {m.value}
-                  <span className="text-sm text-on-surface-variant">
-                    /{m.max}
-                  </span>
-                </div>
+                {m.noData ? (
+                  <p className="mb-2 text-xs italic text-on-surface-variant">
+                    {t('equipment_health_overview.awaiting_data', 'Awaiting monitoring data')}
+                  </p>
+                ) : (
+                  <div className="mb-2 flex items-center font-mono text-2xl font-bold text-on-surface">
+                    {m.value}
+                    <span className="text-sm text-on-surface-variant">/{m.max}</span>
+                    {m.sparkline.length > 1 && (
+                      <MiniSparkline data={m.sparkline} />
+                    )}
+                  </div>
+                )}
                 <div className="h-1.5 overflow-hidden rounded-full bg-surface-container-low">
                   <div
                     className={`h-full rounded-full ${m.barColor}`}
-                    style={{ width: `${(m.value / m.max) * 100}%` }}
+                    style={{ width: `${m.noData ? 0 : (m.value / m.max) * 100}%` }}
                   />
                 </div>
+                {m.sparkline.length > 1 && (
+                  <p className="mt-1 text-[10px] text-on-surface-variant">
+                    {t('equipment_health_overview.trend_7d', '7-day trend')}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -237,22 +355,42 @@ export default function EquipmentHealthOverview() {
               {t('equipment_health_overview.section_sensor_readings')}
             </h2>
             <div className="grid grid-cols-3 gap-4">
-              {sensorReadings.map((s) => (
+              {sensorReadings.map((sensor) => (
                 <div
-                  key={s.id}
-                  className="rounded bg-surface-container-low p-4"
+                  key={sensor.id}
+                  className="flex items-center gap-3 rounded-lg bg-surface-container-low p-3"
                 >
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-base text-primary">
-                      {s.icon}
-                    </span>
-                    <span className="text-[10px] tracking-widest text-on-surface-variant">
-                      {s.id}
-                    </span>
+                  <span className="material-symbols-outlined text-xl text-primary">
+                    {sensor.icon}
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-xs text-on-surface-variant">{sensor.label}</p>
+                    {sensor.value != null ? (
+                      <p
+                        className={`text-sm font-bold ${
+                          sensor.status === 'warning' ? 'text-tertiary' : 'text-on-surface'
+                        }`}
+                      >
+                        {sensor.value}
+                      </p>
+                    ) : (
+                      <p className="text-xs italic text-on-surface-variant">
+                        {t(
+                          'equipment_health_overview.connect_monitoring',
+                          'Connect monitoring to enable'
+                        )}
+                      </p>
+                    )}
                   </div>
-                  <div className="font-mono text-xl font-bold text-on-surface">
-                    {s.value}
-                  </div>
+                  {sensor.status === 'normal' && (
+                    <span className="h-2 w-2 rounded-full bg-[#69db7c]" />
+                  )}
+                  {sensor.status === 'warning' && (
+                    <span className="h-2 w-2 rounded-full bg-tertiary" />
+                  )}
+                  {sensor.status === 'no_data' && (
+                    <span className="h-2 w-2 rounded-full bg-on-surface-variant/30" />
+                  )}
                 </div>
               ))}
             </div>
@@ -261,24 +399,18 @@ export default function EquipmentHealthOverview() {
           {/* Warning section */}
           <div className="rounded-lg bg-[#ffa94d]/5 p-6">
             <div className="mb-3 flex items-center gap-2">
-              <span className="material-symbols-outlined text-lg text-[#ffa94d]">
-                warning
-              </span>
+              <span className="material-symbols-outlined text-lg text-[#ffa94d]">warning</span>
               <h2 className="text-xs font-bold tracking-wider text-[#ffa94d]">
                 {t(warningMessage.titleKey)}
               </h2>
             </div>
-            <p className="mb-2 text-xs font-semibold text-on-surface">
-              {warningMessage.assetRef}
-            </p>
-            <p className="text-sm leading-relaxed text-on-surface-variant">
-              {warningMessage.body}
-            </p>
+            <p className="mb-2 text-xs font-semibold text-on-surface">{warningMessage.assetRef}</p>
+            <p className="text-sm leading-relaxed text-on-surface-variant">{warningMessage.body}</p>
           </div>
 
-          {/* Enhancement 3: Device Health Table */}
+          {/* Device Health Table */}
           <div className="rounded-lg bg-surface-container p-6">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">
+            <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-on-surface-variant">
               {t('equipment_health_overview.device_table_title', 'Device Health Breakdown')}
             </h3>
             <div className="overflow-x-auto">
@@ -294,27 +426,55 @@ export default function EquipmentHealthOverview() {
                 </thead>
                 <tbody>
                   {serverAssets.slice(0, 20).map((asset: any) => {
-                    const isExpiredWarranty = asset.warranty_end && new Date(asset.warranty_end) < new Date()
+                    const isExpiredWarranty =
+                      asset.warranty_end && new Date(asset.warranty_end) < new Date()
                     const isOperational = asset.status === 'operational'
-                    const hasAlerts = allAlerts.some((a: any) => a.ci_id === asset.id || a.asset_id === asset.id)
-                    const risk = !isOperational ? 'HIGH' : hasAlerts ? 'ELEVATED' : isExpiredWarranty ? 'MEDIUM' : 'LOW'
-                    const riskColor = risk === 'HIGH' ? 'text-error' : risk === 'ELEVATED' ? 'text-tertiary' : risk === 'MEDIUM' ? 'text-[#fbbf24]' : 'text-[#69db7c]'
+                    const hasAlerts = allAlerts.some(
+                      (a: any) => a.ci_id === asset.id || a.asset_id === asset.id
+                    )
+                    const risk = !isOperational
+                      ? 'HIGH'
+                      : hasAlerts
+                        ? 'ELEVATED'
+                        : isExpiredWarranty
+                          ? 'MEDIUM'
+                          : 'LOW'
+                    const riskColor =
+                      risk === 'HIGH'
+                        ? 'text-error'
+                        : risk === 'ELEVATED'
+                          ? 'text-tertiary'
+                          : risk === 'MEDIUM'
+                            ? 'text-[#fbbf24]'
+                            : 'text-[#69db7c]'
                     return (
-                      <tr key={asset.id} className="border-b border-surface-container-highest hover:bg-surface-container-high cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>
+                      <tr
+                        key={asset.id}
+                        className="cursor-pointer border-b border-surface-container-highest hover:bg-surface-container-high"
+                        onClick={() => navigate(`/assets/${asset.id}`)}
+                      >
                         <td className="px-3 py-2.5">
                           <div className="font-medium text-on-surface">{asset.name}</div>
                           <div className="text-xs text-on-surface-variant">{asset.asset_tag}</div>
                         </td>
                         <td className="px-3 py-2.5 text-on-surface-variant">{asset.type}</td>
                         <td className="px-3 py-2.5">
-                          <span className={`text-xs font-semibold ${isOperational ? 'text-[#69db7c]' : 'text-error'}`}>
+                          <span
+                            className={`text-xs font-semibold ${
+                              isOperational ? 'text-[#69db7c]' : 'text-error'
+                            }`}
+                          >
                             {asset.status?.toUpperCase()}
                           </span>
                         </td>
                         <td className="px-3 py-2.5">
                           {asset.warranty_end ? (
-                            <span className={`text-xs ${isExpiredWarranty ? 'text-error' : 'text-[#69db7c]'}`}>
-                              {isExpiredWarranty ? t('equipment_health_overview.warranty_expired', 'Expired') : `${t('equipment_health_overview.warranty_active', 'Until')} ${asset.warranty_end}`}
+                            <span
+                              className={`text-xs ${isExpiredWarranty ? 'text-error' : 'text-[#69db7c]'}`}
+                            >
+                              {isExpiredWarranty
+                                ? t('equipment_health_overview.warranty_expired', 'Expired')
+                                : `${t('equipment_health_overview.warranty_active', 'Until')} ${asset.warranty_end}`}
                             </span>
                           ) : (
                             <span className="text-xs text-on-surface-variant">—</span>
@@ -347,7 +507,15 @@ export default function EquipmentHealthOverview() {
               <h2 className="text-[10px] font-bold tracking-widest text-on-surface-variant">
                 {t(riskAssessment.titleKey)}
               </h2>
-              <span className={`rounded px-2 py-0.5 text-[10px] font-bold tracking-widest ${riskAssessment.riskLevel === 'HIGH' ? 'bg-error/15 text-error' : riskAssessment.riskLevel === 'ELEVATED' ? 'bg-[#ffa94d]/15 text-[#ffa94d]' : 'bg-[#69db7c]/15 text-[#69db7c]'}`}>
+              <span
+                className={`rounded px-2 py-0.5 text-[10px] font-bold tracking-widest ${
+                  riskAssessment.riskLevel === 'HIGH'
+                    ? 'bg-error/15 text-error'
+                    : riskAssessment.riskLevel === 'ELEVATED'
+                      ? 'bg-[#ffa94d]/15 text-[#ffa94d]'
+                      : 'bg-[#69db7c]/15 text-[#69db7c]'
+                }`}
+              >
                 {riskAssessment.riskLevel}
               </span>
             </div>
@@ -375,7 +543,7 @@ export default function EquipmentHealthOverview() {
 
             <button
               onClick={() => navigate('/maintenance/add')}
-              className="mt-5 w-full rounded bg-surface-container-high py-3 text-[10px] font-bold tracking-widest text-primary transition-colors hover:bg-surface-container-low cursor-pointer"
+              className="mt-5 w-full cursor-pointer rounded bg-surface-container-high py-3 text-[10px] font-bold tracking-widest text-primary transition-colors hover:bg-surface-container-low"
             >
               {t('equipment_health_overview.btn_create_work_order')}
             </button>
@@ -387,27 +555,48 @@ export default function EquipmentHealthOverview() {
               {t('equipment_health_overview.capacity_title', 'Capacity Overview')}
             </h3>
             <div className="space-y-3">
-              {Array.isArray(capacityForecasts) && capacityForecasts.filter((f: any) => f.resource_type === 'infrastructure').map((f: any, i: number) => (
-                <div key={i}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-on-surface-variant">{f.resource_name}</span>
-                    <span className={`font-semibold ${f.severity === 'critical' ? 'text-error' : f.severity === 'warning' ? 'text-tertiary' : 'text-on-surface'}`}>
-                      {f.usage_percent > 0 ? `${f.usage_percent}%` : `${Math.round(f.current_usage)} total`}
-                    </span>
-                  </div>
-                  {f.usage_percent > 0 && (
-                    <div className="w-full h-1.5 bg-surface-container-lowest rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${f.severity === 'critical' ? 'bg-error' : f.severity === 'warning' ? 'bg-tertiary' : 'bg-primary'}`}
-                        style={{ width: `${Math.min(f.usage_percent, 100)}%` }} />
+              {Array.isArray(capacityForecasts) &&
+                capacityForecasts
+                  .filter((f: any) => f.resource_type === 'infrastructure')
+                  .map((f: any, i: number) => (
+                    <div key={i}>
+                      <div className="mb-1 flex justify-between text-xs">
+                        <span className="text-on-surface-variant">{f.resource_name}</span>
+                        <span
+                          className={`font-semibold ${
+                            f.severity === 'critical'
+                              ? 'text-error'
+                              : f.severity === 'warning'
+                                ? 'text-tertiary'
+                                : 'text-on-surface'
+                          }`}
+                        >
+                          {f.usage_percent > 0
+                            ? `${f.usage_percent}%`
+                            : `${Math.round(f.current_usage)} total`}
+                        </span>
+                      </div>
+                      {f.usage_percent > 0 && (
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-container-lowest">
+                          <div
+                            className={`h-full rounded-full ${
+                              f.severity === 'critical'
+                                ? 'bg-error'
+                                : f.severity === 'warning'
+                                  ? 'bg-tertiary'
+                                  : 'bg-primary'
+                            }`}
+                            style={{ width: `${Math.min(f.usage_percent, 100)}%` }}
+                          />
+                        </div>
+                      )}
+                      {f.months_until_full != null && (
+                        <p className="mt-0.5 text-[10px] text-on-surface-variant">
+                          ~{f.months_until_full} months until threshold
+                        </p>
+                      )}
                     </div>
-                  )}
-                  {f.months_until_full != null && (
-                    <p className="text-[10px] text-on-surface-variant mt-0.5">
-                      ~{f.months_until_full} months until threshold
-                    </p>
-                  )}
-                </div>
-              ))}
+                  ))}
               {(!Array.isArray(capacityForecasts) || capacityForecasts.length === 0) && (
                 <p className="text-xs text-on-surface-variant">No capacity data yet.</p>
               )}
@@ -444,8 +633,12 @@ export default function EquipmentHealthOverview() {
               ].map((item) => (
                 <button
                   key={item.labelKey}
-                  onClick={() => item.action === '__export__' ? toast.info('Coming Soon') : item.action && navigate(item.action)}
-                  className="flex w-full items-center gap-3 rounded bg-surface-container-low px-4 py-3 text-left text-xs font-bold tracking-wider text-on-surface transition-colors hover:bg-surface-container-high cursor-pointer"
+                  onClick={() =>
+                    item.action === '__export__'
+                      ? toast.info('Coming Soon')
+                      : item.action && navigate(item.action)
+                  }
+                  className="flex w-full cursor-pointer items-center gap-3 rounded bg-surface-container-low px-4 py-3 text-left text-xs font-bold tracking-wider text-on-surface transition-colors hover:bg-surface-container-high"
                 >
                   <span className="material-symbols-outlined text-base text-primary">
                     {item.icon}
