@@ -28,31 +28,55 @@ async def deduplicate(
 ) -> DeduplicateResult:
     """Try to match incoming data to an existing asset.
 
-    Match order: serial_number first, then asset_tag.
+    Match order (highest precision first):
+    1. serial_number — most reliable hardware identifier
+    2. bmc_ip — unique per server BMC interface
+    3. ip_address — unique per network interface
+    4. asset_tag — organizational identifier
     """
+    select_cols = (
+        "id, asset_tag, name, type, sub_type, status, bia_level, "
+        "vendor, model, serial_number, property_number, control_number, "
+        "ip_address, bmc_ip, bmc_type, bmc_firmware"
+    )
+
     async with pool.acquire() as conn:
-        # Try serial_number match first
+        # 1. serial_number (highest priority)
         serial = raw.fields.get("serial_number")
         if serial:
             row = await conn.fetchrow(
-                "SELECT id, asset_tag, name, type, sub_type, status, bia_level, "
-                "vendor, model, serial_number, property_number, control_number "
-                "FROM assets WHERE tenant_id = $1 AND serial_number = $2",
-                tenant_id,
-                serial,
+                f"SELECT {select_cols} FROM assets WHERE tenant_id = $1 AND serial_number = $2 AND deleted_at IS NULL",
+                tenant_id, serial,
             )
             if row:
                 return _row_to_result(row)
 
-        # Try asset_tag match
+        # 2. bmc_ip
+        bmc_ip = raw.fields.get("bmc_ip")
+        if bmc_ip:
+            row = await conn.fetchrow(
+                f"SELECT {select_cols} FROM assets WHERE tenant_id = $1 AND bmc_ip = $2 AND deleted_at IS NULL",
+                tenant_id, bmc_ip,
+            )
+            if row:
+                return _row_to_result(row)
+
+        # 3. ip_address
+        ip_address = raw.fields.get("ip_address")
+        if ip_address:
+            row = await conn.fetchrow(
+                f"SELECT {select_cols} FROM assets WHERE tenant_id = $1 AND ip_address = $2 AND deleted_at IS NULL",
+                tenant_id, ip_address,
+            )
+            if row:
+                return _row_to_result(row)
+
+        # 4. asset_tag (lowest priority)
         asset_tag = raw.fields.get("asset_tag")
         if asset_tag:
             row = await conn.fetchrow(
-                "SELECT id, asset_tag, name, type, sub_type, status, bia_level, "
-                "vendor, model, serial_number, property_number, control_number "
-                "FROM assets WHERE tenant_id = $1 AND asset_tag = $2",
-                tenant_id,
-                asset_tag,
+                f"SELECT {select_cols} FROM assets WHERE tenant_id = $1 AND asset_tag = $2 AND deleted_at IS NULL",
+                tenant_id, asset_tag,
             )
             if row:
                 return _row_to_result(row)

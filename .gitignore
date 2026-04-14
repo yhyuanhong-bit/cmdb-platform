@@ -47,6 +47,7 @@ docker-compose.override.yml
 # ========================
 *.sql
 !cmdb-core/db/**/*.sql
+!ingestion-engine/db/**/*.sql
 *.sqlite
 *.sqlite3
 *.db
