@@ -231,6 +231,47 @@ export default function OverviewTab({ asset, assetId, impactedSystems = [] }: { 
             <DataRow label={t('asset_detail.label_vlan')} value={asset.vlan} mono />
           </div>
         </div>
+
+        {/* BMC / Out-of-Band Management */}
+        {asset.bmc_ip && (
+          <div className="bg-surface-container rounded-lg p-5">
+            <SectionLabel>{t('asset_detail.bmc_section')}</SectionLabel>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <DataRow
+                label={t('asset_detail.bmc_ip')}
+                value={
+                  <a
+                    href={`https://${asset.bmc_ip}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline flex items-center gap-1"
+                  >
+                    {asset.bmc_ip}
+                    <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                  </a>
+                }
+                mono
+              />
+              <DataRow
+                label={t('asset_detail.bmc_type')}
+                value={
+                  asset.bmc_type ? (
+                    <span className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold uppercase tracking-wider bg-[#1e3a5f] text-on-primary-container">
+                      {asset.bmc_type.toUpperCase()}
+                    </span>
+                  ) : (
+                    <span className="text-on-surface-variant">—</span>
+                  )
+                }
+              />
+              <DataRow
+                label={t('asset_detail.bmc_firmware')}
+                value={asset.bmc_firmware || '—'}
+                mono
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

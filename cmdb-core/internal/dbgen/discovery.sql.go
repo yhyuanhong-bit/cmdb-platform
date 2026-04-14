@@ -112,7 +112,7 @@ func (q *Queries) CreateDiscoveredAsset(ctx context.Context, arg CreateDiscovere
 }
 
 const findAssetByIP = `-- name: FindAssetByIP :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware FROM assets WHERE tenant_id = $1 AND ip_address = $2 LIMIT 1
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware FROM assets WHERE tenant_id = $1 AND (ip_address = $2 OR bmc_ip = $2) AND deleted_at IS NULL LIMIT 1
 `
 
 type FindAssetByIPParams struct {

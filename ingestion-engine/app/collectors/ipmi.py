@@ -182,6 +182,28 @@ def _collect_single_sync(
 # Async IPMI Collector
 # ---------------------------------------------------------------------------
 
+async def get_bmc_targets_from_assets(pool, tenant_id: str) -> list[dict]:
+    """Get BMC scan targets from assets table where bmc_ip is set."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id, asset_tag, name, bmc_ip, bmc_type
+               FROM assets
+               WHERE tenant_id = $1 AND bmc_ip IS NOT NULL AND deleted_at IS NULL""",
+            tenant_id,
+        )
+        return [dict(row) for row in rows]
+
+
+async def update_bmc_firmware(pool, asset_id: str, firmware_version: str) -> None:
+    """Update asset BMC firmware version after a successful IPMI scan."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE assets SET bmc_firmware = $1, updated_at = now() WHERE id = $2",
+            firmware_version,
+            asset_id,
+        )
+
+
 class IPMICollector:
     """Out-of-band hardware collector via IPMI/BMC (pyghmi)."""
 
@@ -199,22 +221,50 @@ class IPMICollector:
             FieldMapping(field_name="firmware_version", authority=False),
         ]
 
-    async def collect(self, target: CollectTarget) -> list[RawAssetData]:
+    async def collect(self, target: CollectTarget, pool=None, tenant_id: str | None = None) -> list[RawAssetData]:
         credentials = target.credentials or {}
         options = target.options or {}
         concurrency = int(options.get("concurrency", 20))
         semaphore = asyncio.Semaphore(concurrency)
 
         ips = expand_cidrs(target.endpoint)
+
+        # Merge asset-derived BMC targets so known assets are always scanned
+        asset_ip_map: dict[str, dict] = {}
+        if pool is not None and tenant_id is not None:
+            try:
+                asset_rows = await get_bmc_targets_from_assets(pool, tenant_id)
+                for row in asset_rows:
+                    bmc_ip = row.get("bmc_ip")
+                    if bmc_ip and bmc_ip not in ips:
+                        ips.append(bmc_ip)
+                    if bmc_ip:
+                        asset_ip_map[bmc_ip] = row
+            except Exception as exc:
+                logger.warning("Failed to load BMC targets from assets: %s", exc)
+
         results: list[RawAssetData] = []
 
         async def _scan(ip: str) -> None:
             async with semaphore:
-                asset = await asyncio.to_thread(
+                raw = await asyncio.to_thread(
                     _collect_single_sync, ip, credentials, options
                 )
-                if asset:
-                    results.append(asset)
+                if raw is None:
+                    return
+                results.append(raw)
+                # If this IP belongs to a known asset, write firmware back
+                if pool is not None and ip in asset_ip_map:
+                    fw = raw.fields.get("firmware_version")
+                    if fw:
+                        asset_row = asset_ip_map[ip]
+                        try:
+                            await update_bmc_firmware(pool, str(asset_row["id"]), fw)
+                        except Exception as exc:
+                            logger.warning(
+                                "Failed to update bmc_firmware for asset %s: %s",
+                                asset_row.get("asset_tag"), exc,
+                            )
 
         await asyncio.gather(*[_scan(ip) for ip in ips], return_exceptions=True)
         return results

@@ -1358,7 +1358,12 @@
     "tab_usage": "使用分析",
     "tab_maintenance": "维护历史",
     "field_property_number": "财产编号",
-    "field_control_number": "管制编号"
+    "field_control_number": "管制编号",
+    "bmc_section": "BMC / 带外管理",
+    "bmc_ip": "管理 IP",
+    "bmc_type": "BMC 类型",
+    "bmc_firmware": "固件版本",
+    "bmc_open_console": "打开管理控制台"
   },
   "asset_lifecycle_timeline": {
     "breadcrumb_asset_lifecycle": "资产生命周期",

@@ -20,6 +20,9 @@ const initial = {
   serial_number: '',
   property_number: '',
   control_number: '',
+  bmc_ip: '',
+  bmc_type: '',
+  bmc_firmware: '',
 }
 
 export default function CreateAssetModal({ open, onClose }: Props) {
@@ -114,6 +117,51 @@ export default function CreateAssetModal({ open, onClose }: Props) {
           <input value={formData.control_number} onChange={e => setFormData(p => ({ ...p, control_number: e.target.value }))}
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
             placeholder={t('asset_modal.placeholder_control')} />
+        </div>
+
+        {/* BMC Management */}
+        <div className="border-t border-gray-700 pt-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            {t('asset_detail.bmc_section')}
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">{t('asset_detail.bmc_ip')}</label>
+              <input
+                value={formData.bmc_ip}
+                onChange={e => setFormData(p => ({ ...p, bmc_ip: e.target.value }))}
+                className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
+                placeholder="10.0.100.5"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">{t('asset_detail.bmc_type')}</label>
+              <select
+                value={formData.bmc_type}
+                onChange={e => setFormData(p => ({ ...p, bmc_type: e.target.value }))}
+                className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
+              >
+                <option value="">—</option>
+                <option value="ilo">iLO</option>
+                <option value="idrac">iDRAC</option>
+                <option value="ipmi">IPMI</option>
+                <option value="ami">AMI</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">{t('asset_detail.bmc_firmware')}</label>
+              <input
+                value={formData.bmc_firmware}
+                onChange={e => setFormData(p => ({ ...p, bmc_firmware: e.target.value }))}
+                className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
+                placeholder="iLO 5 v2.72"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="flex gap-2 justify-end pt-2">

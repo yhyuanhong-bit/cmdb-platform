@@ -1358,7 +1358,12 @@
     "tab_usage": "Usage Analytics",
     "tab_maintenance": "Maintenance History",
     "field_property_number": "Property Number",
-    "field_control_number": "Control Number"
+    "field_control_number": "Control Number",
+    "bmc_section": "BMC / Out-of-Band Management",
+    "bmc_ip": "Management IP",
+    "bmc_type": "BMC Type",
+    "bmc_firmware": "Firmware Version",
+    "bmc_open_console": "Open Management Console"
   },
   "asset_lifecycle_timeline": {
     "breadcrumb_asset_lifecycle": "ASSET LIFECYCLE",
