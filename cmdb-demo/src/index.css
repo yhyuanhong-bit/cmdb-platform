@@ -7,6 +7,14 @@
   border: none !important;
 }
 
+/* Pulsing dot animation for map markers */
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
 @theme {
   --color-primary: #9ecaff;
   --color-primary-fixed-dim: #9ecaff;

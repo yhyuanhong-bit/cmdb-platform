@@ -368,31 +368,46 @@ const GlobalOverview: React.FC = () => {
                   attribution='&copy; <a href="https://carto.com/">CARTO</a>'
                   url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                 />
-                {TERRITORIES.filter(t => t.latitude != null && t.longitude != null).map(territory => (
-                  <Marker
-                    key={territory.slug}
-                    position={[territory.latitude!, territory.longitude!]}
-                    icon={L.divIcon({
-                      className: 'custom-marker',
-                      html: `<div style="font-size:1.5rem;cursor:pointer;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5))">${territory.flag}</div>`,
-                      iconSize: [30, 30],
-                      iconAnchor: [15, 15],
-                    })}
-                    eventHandlers={{
-                      click: () => navigate(`/locations/${territory.slug}`),
-                    }}
-                  >
-                    <Popup>
-                      <div style={{ textAlign: 'center', minWidth: '120px' }}>
-                        <strong>{territory.flag} {territory.nameCn}</strong><br />
-                        {territory.nameEn}<br />
-                        <span style={{ fontSize: '0.85em', color: '#666' }}>
-                          {territory.totalAssets} assets
-                        </span>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
+                {TERRITORIES.filter(t => t.latitude != null && t.longitude != null).map(territory => {
+                  const isAlert = territory.criticalAlerts > 0
+                  const dotColor = isAlert ? '#fb923c' : '#4ade80'
+                  const ringColor = isAlert ? 'rgba(251,146,60,0.3)' : 'rgba(74,222,128,0.3)'
+                  return (
+                    <Marker
+                      key={territory.slug}
+                      position={[territory.latitude!, territory.longitude!]}
+                      icon={L.divIcon({
+                        className: 'custom-marker',
+                        html: `
+                          <div style="display:flex;flex-direction:column;align-items:center;cursor:pointer">
+                            <span style="position:relative;display:inline-block;width:20px;height:20px">
+                              <span style="position:absolute;inset:0;border-radius:50%;background:${dotColor};opacity:0.4;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite"></span>
+                              <span style="position:relative;display:inline-block;width:20px;height:20px;border-radius:50%;background:${dotColor};box-shadow:0 0 0 4px ${ringColor}"></span>
+                            </span>
+                            <span style="margin-top:4px;font-size:11px;font-weight:700;color:#e2e8f0;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,0.8)">${territory.nameEn}</span>
+                            <span style="font-size:9px;color:#94a3b8;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,0.8)">${territory.idcCount} IDC</span>
+                          </div>`,
+                        iconSize: [80, 50],
+                        iconAnchor: [40, 10],
+                      })}
+                      eventHandlers={{
+                        click: () => navigate(`/locations/${territory.slug}`),
+                      }}
+                    >
+                      <Popup>
+                        <div style={{ textAlign: 'center', minWidth: '140px' }}>
+                          <strong>{territory.flag} {territory.nameCn}</strong><br />
+                          {territory.nameEn}<br />
+                          <span style={{ fontSize: '0.85em', color: '#94a3b8' }}>
+                            {territory.totalAssets} assets &middot; {territory.idcCount} IDC
+                          </span>
+                          {isAlert && <br />}
+                          {isAlert && <span style={{ fontSize: '0.8em', color: '#fb923c' }}>{territory.criticalAlerts} critical alerts</span>}
+                        </div>
+                      </Popup>
+                    </Marker>
+                  )
+                })}
               </MapContainer>
             </div>
           </div>
