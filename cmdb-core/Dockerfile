@@ -14,9 +14,11 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder /bin/cmdb-core /usr/local/bin/cmdb-core
-COPY --from=builder /src/migrations /migrations
+COPY --from=builder /src/db/migrations /migrations
+COPY --from=builder /src/db/seed /seed
 
 ENV MIGRATIONS_DIR=/migrations
+ENV SEED_DIR=/seed
 
 EXPOSE 8080
 

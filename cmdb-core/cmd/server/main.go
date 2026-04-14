@@ -142,6 +142,36 @@ func main() {
 	// 5. Create dbgen.Queries from the pool
 	queries := dbgen.New(pool)
 
+	// 5a. Auto-seed: create default tenant, admin user, and roles if DB is empty
+	{
+		var userCount int
+		pool.QueryRow(ctx, "SELECT count(*) FROM users").Scan(&userCount)
+		if userCount == 0 {
+			zap.L().Info("database is empty — running initial seed")
+			seedDir := os.Getenv("SEED_DIR")
+			if seedDir == "" {
+				seedDir = "db/seed"
+			}
+			seedFile := filepath.Join(seedDir, "seed.sql")
+			if sqlBytes, err := os.ReadFile(seedFile); err == nil {
+				_, err = pool.Exec(ctx, string(sqlBytes))
+				if err != nil {
+					zap.L().Error("seed: failed to apply", zap.Error(err))
+				} else {
+					zap.L().Info("seed: initial data loaded successfully")
+				}
+			} else {
+				// Seed file not found — create minimal admin only
+				zap.L().Warn("seed file not found, creating minimal admin user", zap.String("path", seedFile))
+				pool.Exec(ctx, `INSERT INTO tenants (id, name, slug) VALUES ('a0000000-0000-0000-0000-000000000001', 'Default', 'default') ON CONFLICT DO NOTHING`)
+				pool.Exec(ctx, `INSERT INTO users (id, tenant_id, username, display_name, email, password_hash, status, source) VALUES ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'admin', 'System Admin', 'admin@cmdb.local', '$2b$12$niWDiwVIKZByjN77EhkxpekWRJdznin84cHR7WyyUT/TenYwl78SS', 'active', 'local') ON CONFLICT DO NOTHING`)
+				pool.Exec(ctx, `INSERT INTO roles (id, tenant_id, name, description, permissions, is_system) VALUES ('c0000000-0000-0000-0000-000000000001', NULL, 'super-admin', 'Full system access', '{"*": ["*"]}', true) ON CONFLICT DO NOTHING`)
+				pool.Exec(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001') ON CONFLICT DO NOTHING`)
+				zap.L().Info("seed: minimal admin user created (admin / admin123)")
+			}
+		}
+	}
+
 	// 6. Create Redis client
 	redisClient, err := cache.NewRedisClient(cfg.RedisURL)
 	if err != nil {
