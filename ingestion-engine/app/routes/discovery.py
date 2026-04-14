@@ -166,5 +166,9 @@ async def trigger_mac_scan(
     from app.config import settings
 
     tenant_id = settings.tenant_id
-    count = await run_mac_scan(pool, nats_client, tenant_id)
-    return {"status": "ok", "entries_collected": count}
+    result = await run_mac_scan(pool, nats_client, tenant_id)
+    return {
+        "status": "ok",
+        "scanned_ips": result.get("scanned_ips", 0),
+        "entries_collected": result.get("entries", 0),
+    }

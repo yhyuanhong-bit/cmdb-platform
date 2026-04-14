@@ -516,6 +516,13 @@ function LocationDetectionTab() {
   })
   const s = summary as Record<string, unknown> | undefined
 
+  const { data: diffsData, isLoading: diffsLoading, refetch: refetchDiffs } = useQuery({
+    queryKey: ['locationDetectDiffs'],
+    queryFn: () => apiClient.get('/location-detect/diffs'),
+    refetchInterval: 5 * 60 * 1000,
+  })
+  const diffs = ((diffsData as Record<string, unknown>)?.data as Array<Record<string, unknown>> ?? []).filter((d: Record<string, unknown>) => d.diff_type !== 'consistent')
+
   const [scanning, setScanning] = useState(false)
 
   const handleScan = async () => {
@@ -622,6 +629,84 @@ function LocationDetectionTab() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Detection Results */}
+      <div className="bg-surface-container rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="font-headline font-bold text-on-surface flex items-center gap-2">
+            <span className="material-symbols-outlined text-lg">compare_arrows</span>
+            {t('location_detect.results_title', 'Detection Results')}
+          </h4>
+          <button onClick={() => refetchDiffs()} className="text-xs text-primary hover:underline">
+            {t('common.refresh', 'Refresh')}
+          </button>
+        </div>
+
+        {diffsLoading ? (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+          </div>
+        ) : diffs.length === 0 ? (
+          <div className="text-center py-8 text-on-surface-variant text-sm">
+            {t('location_detect.no_diffs', 'All asset locations are consistent')}
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[10px] text-on-surface-variant uppercase tracking-widest border-b border-surface-container-high">
+                <th className="px-3 py-2">{t('location_detect.col_asset', 'Asset')}</th>
+                <th className="px-3 py-2">{t('location_detect.col_type', 'Type')}</th>
+                <th className="px-3 py-2">{t('location_detect.col_cmdb_location', 'CMDB Location')}</th>
+                <th className="px-3 py-2">{t('location_detect.col_actual_location', 'Detected Location')}</th>
+                <th className="px-3 py-2">{t('location_detect.col_action', 'Action')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {diffs.map((d: Record<string, unknown>, i: number) => (
+                <tr key={(d.asset_id as string) || i} className="border-b border-surface-container-high/50 hover:bg-surface-container-low transition-colors">
+                  <td className="px-3 py-2.5">
+                    <span className="font-medium text-on-surface">{(d.asset_tag as string) || (d.mac_address as string) || '\u2014'}</span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                      d.diff_type === 'relocated' ? 'bg-tertiary-container text-tertiary' :
+                      d.diff_type === 'missing' ? 'bg-error-container text-error' :
+                      d.diff_type === 'new_device' ? 'bg-primary-container text-primary' :
+                      'bg-surface-container-high text-on-surface-variant'
+                    }`}>
+                      {d.diff_type === 'relocated' ? t('location_detect.relocated', 'RELOCATED') :
+                       d.diff_type === 'missing' ? t('location_detect.missing', 'MISSING') :
+                       d.diff_type === 'new_device' ? t('location_detect.new_device', 'NEW DEVICE') :
+                       t('location_detect.consistent', 'OK')}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-on-surface-variant">{(d.cmdb_rack_name as string) || '\u2014'}</td>
+                  <td className="px-3 py-2.5 text-on-surface-variant">{(d.actual_rack_name as string) || '\u2014'}</td>
+                  <td className="px-3 py-2.5">
+                    {d.diff_type === 'relocated' && !d.has_work_order && (
+                      <button
+                        onClick={() => {
+                          if (d.asset_id && d.actual_rack_id) {
+                            apiClient.post(`/assets/${d.asset_id}/confirm-location`, { rack_id: d.actual_rack_id })
+                              .then(() => { toast.success(t('location_detect.location_confirmed', 'Location confirmed')); refetchDiffs(); })
+                              .catch(() => toast.error(t('location_detect.confirm_failed', 'Failed to confirm')))
+                          }
+                        }}
+                        className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-primary-container text-primary hover:opacity-90 transition-opacity"
+                      >
+                        {t('location_detect.confirm', 'Confirm')}
+                      </button>
+                    )}
+                    {d.diff_type === 'relocated' && Boolean(d.has_work_order) && (
+                      <span className="text-[10px] text-[#69db7c]">{t('location_detect.auto_confirmed', 'Auto-confirmed')}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
