@@ -2397,7 +2397,11 @@
     "status_inactive": "Inactive",
     "btn_cancel": "Cancel",
     "btn_create": "Create",
-    "btn_creating": "Creating..."
+    "btn_creating": "Creating...",
+    "country_label": "Country / Region",
+    "select_country": "Select country/region...",
+    "custom_location": "Custom (manual input)",
+    "back_to_list": "← Back to list"
   },
   "rca_modal": {
     "title": "New RCA Analysis",

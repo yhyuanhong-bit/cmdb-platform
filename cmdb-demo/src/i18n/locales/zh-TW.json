@@ -2397,7 +2397,11 @@
     "status_inactive": "停用",
     "btn_cancel": "取消",
     "btn_create": "建立",
-    "btn_creating": "建立中..."
+    "btn_creating": "建立中...",
+    "country_label": "國家 / 地區",
+    "select_country": "選擇國家/地區...",
+    "custom_location": "自訂（手動輸入）",
+    "back_to_list": "← 返回列表"
   },
   "rca_modal": {
     "title": "新建根因分析",
