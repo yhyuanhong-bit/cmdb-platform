@@ -75,35 +75,47 @@ INSERT INTO assets (
     tenant_id, asset_tag, property_number, control_number, name,
     type, sub_type, status, bia_level, location_id,
     rack_id, vendor, model, serial_number, attributes, tags,
-    bmc_ip, bmc_type, bmc_firmware
+    bmc_ip, bmc_type, bmc_firmware,
+    purchase_date, purchase_cost, warranty_start, warranty_end,
+    warranty_vendor, warranty_contract, expected_lifespan_months, eol_date
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16,
-    $17, $18, $19
-) RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware
+    $17, $18, $19,
+    $20, $21, $22, $23,
+    $24, $25, $26, $27
+) RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date
 `
 
 type CreateAssetParams struct {
-	TenantID       uuid.UUID       `json:"tenant_id"`
-	AssetTag       string          `json:"asset_tag"`
-	PropertyNumber pgtype.Text     `json:"property_number"`
-	ControlNumber  pgtype.Text     `json:"control_number"`
-	Name           string          `json:"name"`
-	Type           string          `json:"type"`
-	SubType        pgtype.Text     `json:"sub_type"`
-	Status         string          `json:"status"`
-	BiaLevel       string          `json:"bia_level"`
-	LocationID     pgtype.UUID     `json:"location_id"`
-	RackID         pgtype.UUID     `json:"rack_id"`
-	Vendor         pgtype.Text     `json:"vendor"`
-	Model          pgtype.Text     `json:"model"`
-	SerialNumber   pgtype.Text     `json:"serial_number"`
-	Attributes     json.RawMessage `json:"attributes"`
-	Tags           []string        `json:"tags"`
-	BmcIp          pgtype.Text     `json:"bmc_ip"`
-	BmcType        pgtype.Text     `json:"bmc_type"`
-	BmcFirmware    pgtype.Text     `json:"bmc_firmware"`
+	TenantID               uuid.UUID       `json:"tenant_id"`
+	AssetTag               string          `json:"asset_tag"`
+	PropertyNumber         pgtype.Text     `json:"property_number"`
+	ControlNumber          pgtype.Text     `json:"control_number"`
+	Name                   string          `json:"name"`
+	Type                   string          `json:"type"`
+	SubType                pgtype.Text     `json:"sub_type"`
+	Status                 string          `json:"status"`
+	BiaLevel               string          `json:"bia_level"`
+	LocationID             pgtype.UUID     `json:"location_id"`
+	RackID                 pgtype.UUID     `json:"rack_id"`
+	Vendor                 pgtype.Text     `json:"vendor"`
+	Model                  pgtype.Text     `json:"model"`
+	SerialNumber           pgtype.Text     `json:"serial_number"`
+	Attributes             json.RawMessage `json:"attributes"`
+	Tags                   []string        `json:"tags"`
+	BmcIp                  pgtype.Text     `json:"bmc_ip"`
+	BmcType                pgtype.Text     `json:"bmc_type"`
+	BmcFirmware            pgtype.Text     `json:"bmc_firmware"`
+	PurchaseDate           pgtype.Date     `json:"purchase_date"`
+	PurchaseCost           pgtype.Numeric  `json:"purchase_cost"`
+	WarrantyStart          pgtype.Date     `json:"warranty_start"`
+	WarrantyEnd            pgtype.Date     `json:"warranty_end"`
+	WarrantyVendor         pgtype.Text     `json:"warranty_vendor"`
+	WarrantyContract       pgtype.Text     `json:"warranty_contract"`
+	ExpectedLifespanMonths pgtype.Int4     `json:"expected_lifespan_months"`
+	EolDate                pgtype.Date     `json:"eol_date"`
 }
 
 func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error) {
@@ -127,6 +139,14 @@ func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset
 		arg.BmcIp,
 		arg.BmcType,
 		arg.BmcFirmware,
+		arg.PurchaseDate,
+		arg.PurchaseCost,
+		arg.WarrantyStart,
+		arg.WarrantyEnd,
+		arg.WarrantyVendor,
+		arg.WarrantyContract,
+		arg.ExpectedLifespanMonths,
+		arg.EolDate,
 	)
 	var i Asset
 	err := row.Scan(
@@ -155,6 +175,14 @@ func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset
 		&i.BmcIp,
 		&i.BmcType,
 		&i.BmcFirmware,
+		&i.PurchaseDate,
+		&i.PurchaseCost,
+		&i.WarrantyStart,
+		&i.WarrantyEnd,
+		&i.WarrantyVendor,
+		&i.WarrantyContract,
+		&i.ExpectedLifespanMonths,
+		&i.EolDate,
 	)
 	return i, err
 }
@@ -174,7 +202,7 @@ func (q *Queries) DeleteAsset(ctx context.Context, arg DeleteAssetParams) error 
 }
 
 const findAssetBySerialOrTag = `-- name: FindAssetBySerialOrTag :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware FROM assets
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date FROM assets
 WHERE tenant_id = $1
   AND (serial_number = $2 OR asset_tag = $3)
 LIMIT 1
@@ -215,12 +243,20 @@ func (q *Queries) FindAssetBySerialOrTag(ctx context.Context, arg FindAssetBySer
 		&i.BmcIp,
 		&i.BmcType,
 		&i.BmcFirmware,
+		&i.PurchaseDate,
+		&i.PurchaseCost,
+		&i.WarrantyStart,
+		&i.WarrantyEnd,
+		&i.WarrantyVendor,
+		&i.WarrantyContract,
+		&i.ExpectedLifespanMonths,
+		&i.EolDate,
 	)
 	return i, err
 }
 
 const getAsset = `-- name: GetAsset :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware FROM assets WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date FROM assets WHERE id = $1 AND tenant_id = $2
 `
 
 type GetAssetParams struct {
@@ -257,12 +293,20 @@ func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, erro
 		&i.BmcIp,
 		&i.BmcType,
 		&i.BmcFirmware,
+		&i.PurchaseDate,
+		&i.PurchaseCost,
+		&i.WarrantyStart,
+		&i.WarrantyEnd,
+		&i.WarrantyVendor,
+		&i.WarrantyContract,
+		&i.ExpectedLifespanMonths,
+		&i.EolDate,
 	)
 	return i, err
 }
 
 const getAssetByTag = `-- name: GetAssetByTag :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware FROM assets WHERE asset_tag = $1
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date FROM assets WHERE asset_tag = $1
 `
 
 func (q *Queries) GetAssetByTag(ctx context.Context, assetTag string) (Asset, error) {
@@ -294,12 +338,20 @@ func (q *Queries) GetAssetByTag(ctx context.Context, assetTag string) (Asset, er
 		&i.BmcIp,
 		&i.BmcType,
 		&i.BmcFirmware,
+		&i.PurchaseDate,
+		&i.PurchaseCost,
+		&i.WarrantyStart,
+		&i.WarrantyEnd,
+		&i.WarrantyVendor,
+		&i.WarrantyContract,
+		&i.ExpectedLifespanMonths,
+		&i.EolDate,
 	)
 	return i, err
 }
 
 const listAssets = `-- name: ListAssets :many
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware FROM assets
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date FROM assets
 WHERE tenant_id = $1
   AND deleted_at IS NULL
   AND ($4::varchar IS NULL OR type = $4)
@@ -369,6 +421,14 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 			&i.BmcIp,
 			&i.BmcType,
 			&i.BmcFirmware,
+			&i.PurchaseDate,
+			&i.PurchaseCost,
+			&i.WarrantyStart,
+			&i.WarrantyEnd,
+			&i.WarrantyVendor,
+			&i.WarrantyContract,
+			&i.ExpectedLifespanMonths,
+			&i.EolDate,
 		); err != nil {
 			return nil, err
 		}
@@ -397,34 +457,50 @@ UPDATE assets SET
     serial_number   = COALESCE($13, serial_number),
     attributes      = COALESCE($14, attributes),
     tags            = COALESCE($15, tags),
-    bmc_ip          = COALESCE($16, bmc_ip),
-    bmc_type        = COALESCE($17, bmc_type),
-    bmc_firmware    = COALESCE($18, bmc_firmware),
-    updated_at      = now()
-WHERE id = $19
-RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware
+    bmc_ip                   = COALESCE($16, bmc_ip),
+    bmc_type                 = COALESCE($17, bmc_type),
+    bmc_firmware             = COALESCE($18, bmc_firmware),
+    purchase_date            = COALESCE($19, purchase_date),
+    purchase_cost            = COALESCE($20, purchase_cost),
+    warranty_start           = COALESCE($21, warranty_start),
+    warranty_end             = COALESCE($22, warranty_end),
+    warranty_vendor          = COALESCE($23, warranty_vendor),
+    warranty_contract        = COALESCE($24, warranty_contract),
+    expected_lifespan_months = COALESCE($25, expected_lifespan_months),
+    eol_date                 = COALESCE($26, eol_date),
+    updated_at               = now()
+WHERE id = $27
+RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date
 `
 
 type UpdateAssetParams struct {
-	AssetTag       pgtype.Text `json:"asset_tag"`
-	PropertyNumber pgtype.Text `json:"property_number"`
-	ControlNumber  pgtype.Text `json:"control_number"`
-	Name           pgtype.Text `json:"name"`
-	Type           pgtype.Text `json:"type"`
-	SubType        pgtype.Text `json:"sub_type"`
-	Status         pgtype.Text `json:"status"`
-	BiaLevel       pgtype.Text `json:"bia_level"`
-	LocationID     pgtype.UUID `json:"location_id"`
-	RackID         pgtype.UUID `json:"rack_id"`
-	Vendor         pgtype.Text `json:"vendor"`
-	Model          pgtype.Text `json:"model"`
-	SerialNumber   pgtype.Text `json:"serial_number"`
-	Attributes     []byte      `json:"attributes"`
-	Tags           []string    `json:"tags"`
-	BmcIp          pgtype.Text `json:"bmc_ip"`
-	BmcType        pgtype.Text `json:"bmc_type"`
-	BmcFirmware    pgtype.Text `json:"bmc_firmware"`
-	ID             uuid.UUID   `json:"id"`
+	AssetTag               pgtype.Text    `json:"asset_tag"`
+	PropertyNumber         pgtype.Text    `json:"property_number"`
+	ControlNumber          pgtype.Text    `json:"control_number"`
+	Name                   pgtype.Text    `json:"name"`
+	Type                   pgtype.Text    `json:"type"`
+	SubType                pgtype.Text    `json:"sub_type"`
+	Status                 pgtype.Text    `json:"status"`
+	BiaLevel               pgtype.Text    `json:"bia_level"`
+	LocationID             pgtype.UUID    `json:"location_id"`
+	RackID                 pgtype.UUID    `json:"rack_id"`
+	Vendor                 pgtype.Text    `json:"vendor"`
+	Model                  pgtype.Text    `json:"model"`
+	SerialNumber           pgtype.Text    `json:"serial_number"`
+	Attributes             []byte         `json:"attributes"`
+	Tags                   []string       `json:"tags"`
+	BmcIp                  pgtype.Text    `json:"bmc_ip"`
+	BmcType                pgtype.Text    `json:"bmc_type"`
+	BmcFirmware            pgtype.Text    `json:"bmc_firmware"`
+	PurchaseDate           pgtype.Date    `json:"purchase_date"`
+	PurchaseCost           pgtype.Numeric `json:"purchase_cost"`
+	WarrantyStart          pgtype.Date    `json:"warranty_start"`
+	WarrantyEnd            pgtype.Date    `json:"warranty_end"`
+	WarrantyVendor         pgtype.Text    `json:"warranty_vendor"`
+	WarrantyContract       pgtype.Text    `json:"warranty_contract"`
+	ExpectedLifespanMonths pgtype.Int4    `json:"expected_lifespan_months"`
+	EolDate                pgtype.Date    `json:"eol_date"`
+	ID                     uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset, error) {
@@ -447,6 +523,14 @@ func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset
 		arg.BmcIp,
 		arg.BmcType,
 		arg.BmcFirmware,
+		arg.PurchaseDate,
+		arg.PurchaseCost,
+		arg.WarrantyStart,
+		arg.WarrantyEnd,
+		arg.WarrantyVendor,
+		arg.WarrantyContract,
+		arg.ExpectedLifespanMonths,
+		arg.EolDate,
 		arg.ID,
 	)
 	var i Asset
@@ -476,6 +560,14 @@ func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset
 		&i.BmcIp,
 		&i.BmcType,
 		&i.BmcFirmware,
+		&i.PurchaseDate,
+		&i.PurchaseCost,
+		&i.WarrantyStart,
+		&i.WarrantyEnd,
+		&i.WarrantyVendor,
+		&i.WarrantyContract,
+		&i.ExpectedLifespanMonths,
+		&i.EolDate,
 	)
 	return i, err
 }

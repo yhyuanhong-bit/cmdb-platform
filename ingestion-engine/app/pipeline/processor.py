@@ -186,6 +186,18 @@ async def _create_asset(
     tags_str = raw.fields.get("tags")
     tags = [t.strip() for t in tags_str.split(",")] if tags_str else None
 
+    # Warranty & lifecycle fields (all optional)
+    purchase_date = raw.fields.get("purchase_date") or None
+    purchase_cost_raw = raw.fields.get("purchase_cost")
+    purchase_cost = float(purchase_cost_raw) if purchase_cost_raw else None
+    warranty_start = raw.fields.get("warranty_start") or None
+    warranty_end = raw.fields.get("warranty_end") or None
+    warranty_vendor = raw.fields.get("warranty_vendor") or None
+    warranty_contract = raw.fields.get("warranty_contract") or None
+    lifespan_raw = raw.fields.get("expected_lifespan_months")
+    expected_lifespan_months = int(lifespan_raw) if lifespan_raw else None
+    eol_date = raw.fields.get("eol_date") or None
+
     # Resolve location name → location_id
     location_id = None
     location_name = raw.fields.get("location_name")
@@ -221,13 +233,17 @@ async def _create_asset(
                 status, bia_level, vendor, model, serial_number,
                 property_number, control_number, attributes,
                 ip_address, location_id, rack_id, tags,
-                bmc_ip, bmc_type, bmc_firmware
+                bmc_ip, bmc_type, bmc_firmware,
+                purchase_date, purchase_cost, warranty_start, warranty_end,
+                warranty_vendor, warranty_contract, expected_lifespan_months, eol_date
             ) VALUES (
                 $1, $2, $3, $4, $5, $6,
                 $7, $8, $9, $10, $11,
                 $12, $13, $14,
                 $15, $16, $17, $18,
-                $19, $20, $21
+                $19, $20, $21,
+                $22, $23, $24, $25,
+                $26, $27, $28, $29
             )""",
             asset_id,
             tenant_id,
@@ -250,6 +266,14 @@ async def _create_asset(
             bmc_ip,
             bmc_type,
             bmc_firmware,
+            purchase_date,
+            purchase_cost,
+            warranty_start,
+            warranty_end,
+            warranty_vendor,
+            warranty_contract,
+            expected_lifespan_months,
+            eol_date,
         )
 
     return asset_id

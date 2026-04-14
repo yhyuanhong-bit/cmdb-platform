@@ -153,6 +153,33 @@ func textFromPtr(s *string) pgtype.Text {
 	return pgtype.Text{String: *s, Valid: true}
 }
 
+func dateFromPtr(s *string) pgtype.Date {
+	if s == nil || *s == "" {
+		return pgtype.Date{}
+	}
+	t, err := time.Parse("2006-01-02", *s)
+	if err != nil {
+		return pgtype.Date{}
+	}
+	return pgtype.Date{Time: t, Valid: true}
+}
+
+func numericFromFloat64Ptr(f *float64) pgtype.Numeric {
+	if f == nil {
+		return pgtype.Numeric{}
+	}
+	var n pgtype.Numeric
+	_ = n.Scan(fmt.Sprintf("%f", *f))
+	return n
+}
+
+func int4FromIntPtr(i *int) pgtype.Int4 {
+	if i == nil {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: int32(*i), Valid: true}
+}
+
 func pguuidFromPtr(v *uuid.UUID) pgtype.UUID {
 	if v == nil {
 		return pgtype.UUID{}
@@ -325,9 +352,17 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 		SerialNumber:   pgtype.Text{String: req.SerialNumber, Valid: req.SerialNumber != ""},
 		Attributes:     attrsJSON,
 		Tags:           req.Tags,
-		BmcIp:          textFromPtr(req.BmcIp),
-		BmcType:        textFromPtr(req.BmcType),
-		BmcFirmware:    textFromPtr(req.BmcFirmware),
+		BmcIp:                  textFromPtr(req.BmcIp),
+		BmcType:                textFromPtr(req.BmcType),
+		BmcFirmware:            textFromPtr(req.BmcFirmware),
+		PurchaseDate:           dateFromPtr(req.PurchaseDate),
+		PurchaseCost:           numericFromFloat64Ptr(req.PurchaseCost),
+		WarrantyStart:          dateFromPtr(req.WarrantyStart),
+		WarrantyEnd:            dateFromPtr(req.WarrantyEnd),
+		WarrantyVendor:         textFromPtr(req.WarrantyVendor),
+		WarrantyContract:       textFromPtr(req.WarrantyContract),
+		ExpectedLifespanMonths: int4FromIntPtr(req.ExpectedLifespanMonths),
+		EolDate:                dateFromPtr(req.EolDate),
 	}
 
 	// Quality gate: check minimum data quality before creation.
@@ -448,6 +483,30 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 	}
 	if req.BmcFirmware != nil {
 		params.BmcFirmware = pgtype.Text{String: *req.BmcFirmware, Valid: true}
+	}
+	if req.PurchaseDate != nil {
+		params.PurchaseDate = dateFromPtr(req.PurchaseDate)
+	}
+	if req.PurchaseCost != nil {
+		params.PurchaseCost = numericFromFloat64Ptr(req.PurchaseCost)
+	}
+	if req.WarrantyStart != nil {
+		params.WarrantyStart = dateFromPtr(req.WarrantyStart)
+	}
+	if req.WarrantyEnd != nil {
+		params.WarrantyEnd = dateFromPtr(req.WarrantyEnd)
+	}
+	if req.WarrantyVendor != nil {
+		params.WarrantyVendor = pgtype.Text{String: *req.WarrantyVendor, Valid: true}
+	}
+	if req.WarrantyContract != nil {
+		params.WarrantyContract = pgtype.Text{String: *req.WarrantyContract, Valid: true}
+	}
+	if req.ExpectedLifespanMonths != nil {
+		params.ExpectedLifespanMonths = int4FromIntPtr(req.ExpectedLifespanMonths)
+	}
+	if req.EolDate != nil {
+		params.EolDate = dateFromPtr(req.EolDate)
 	}
 
 	// Field-level authority check: prevent low-priority API source from

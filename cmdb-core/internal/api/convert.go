@@ -202,28 +202,44 @@ func convertSlice[F any, T any](items []F, fn func(F) T) []T {
 
 func toAPIAsset(db dbgen.Asset) Asset {
 	return Asset{
-		Id:             db.ID,
-		AssetTag:       db.AssetTag,
-		PropertyNumber: pgtextToPtr(db.PropertyNumber),
-		ControlNumber:  pgtextToPtr(db.ControlNumber),
-		Name:           db.Name,
-		Type:           db.Type,
-		SubType:        pgtextToStr(db.SubType),
-		Status:         db.Status,
-		BiaLevel:       db.BiaLevel,
-		LocationId:     pguuidToUUIDPtr(db.LocationID),
-		RackId:         pguuidToUUIDPtr(db.RackID),
-		Vendor:         pgtextToStr(db.Vendor),
-		Model:          pgtextToStr(db.Model),
-		SerialNumber:   pgtextToStr(db.SerialNumber),
-		Attributes:     rawJSONToMapVal(db.Attributes),
-		Tags:           db.Tags,
-		BmcIp:          pgtextToPtr(db.BmcIp),
-		BmcType:        pgtextToPtr(db.BmcType),
-		BmcFirmware:    pgtextToPtr(db.BmcFirmware),
-		CreatedAt:      db.CreatedAt,
-		UpdatedAt:      db.UpdatedAt,
+		Id:                     db.ID,
+		AssetTag:               db.AssetTag,
+		PropertyNumber:         pgtextToPtr(db.PropertyNumber),
+		ControlNumber:          pgtextToPtr(db.ControlNumber),
+		Name:                   db.Name,
+		Type:                   db.Type,
+		SubType:                pgtextToStr(db.SubType),
+		Status:                 db.Status,
+		BiaLevel:               db.BiaLevel,
+		LocationId:             pguuidToUUIDPtr(db.LocationID),
+		RackId:                 pguuidToUUIDPtr(db.RackID),
+		Vendor:                 pgtextToStr(db.Vendor),
+		Model:                  pgtextToStr(db.Model),
+		SerialNumber:           pgtextToStr(db.SerialNumber),
+		Attributes:             rawJSONToMapVal(db.Attributes),
+		Tags:                   db.Tags,
+		BmcIp:                  pgtextToPtr(db.BmcIp),
+		BmcType:                pgtextToPtr(db.BmcType),
+		BmcFirmware:            pgtextToPtr(db.BmcFirmware),
+		PurchaseDate:           pgdateToPtr(db.PurchaseDate),
+		PurchaseCost:           pgnumToPtr(db.PurchaseCost),
+		WarrantyStart:          pgdateToPtr(db.WarrantyStart),
+		WarrantyEnd:            pgdateToPtr(db.WarrantyEnd),
+		WarrantyVendor:         pgtextToPtr(db.WarrantyVendor),
+		WarrantyContract:       pgtextToPtr(db.WarrantyContract),
+		ExpectedLifespanMonths: pgint4ToIntPtr(db.ExpectedLifespanMonths),
+		EolDate:                pgdateToPtr(db.EolDate),
+		CreatedAt:              db.CreatedAt,
+		UpdatedAt:              db.UpdatedAt,
 	}
+}
+
+func pgint4ToIntPtr(v pgtype.Int4) *int {
+	if !v.Valid {
+		return nil
+	}
+	i := int(v.Int32)
+	return &i
 }
 
 // pguuidToUUIDPtr converts a pgtype.UUID to *uuid.UUID (compatible with openapi_types.UUID).

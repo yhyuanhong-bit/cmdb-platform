@@ -43,27 +43,35 @@ type AlertRule struct {
 
 // Asset defines model for Asset.
 type Asset struct {
-	AssetTag       string                 `json:"asset_tag"`
-	Attributes     map[string]interface{} `json:"attributes"`
-	BiaLevel       string                 `json:"bia_level"`
-	BmcFirmware    *string                `json:"bmc_firmware,omitempty"`
-	BmcIp          *string                `json:"bmc_ip,omitempty"`
-	BmcType        *string                `json:"bmc_type,omitempty"`
-	ControlNumber  *string                `json:"control_number,omitempty"`
-	CreatedAt      time.Time              `json:"created_at"`
-	Id             openapi_types.UUID     `json:"id"`
-	LocationId     *openapi_types.UUID    `json:"location_id,omitempty"`
-	Model          string                 `json:"model"`
-	Name           string                 `json:"name"`
-	PropertyNumber *string                `json:"property_number,omitempty"`
-	RackId         *openapi_types.UUID    `json:"rack_id,omitempty"`
-	SerialNumber   string                 `json:"serial_number"`
-	Status         string                 `json:"status"`
-	SubType        string                 `json:"sub_type"`
-	Tags           []string               `json:"tags"`
-	Type           string                 `json:"type"`
-	UpdatedAt      time.Time              `json:"updated_at"`
-	Vendor         string                 `json:"vendor"`
+	AssetTag               string                 `json:"asset_tag"`
+	Attributes             map[string]interface{} `json:"attributes"`
+	BiaLevel               string                 `json:"bia_level"`
+	BmcFirmware            *string                `json:"bmc_firmware,omitempty"`
+	BmcIp                  *string                `json:"bmc_ip,omitempty"`
+	BmcType                *string                `json:"bmc_type,omitempty"`
+	ControlNumber          *string                `json:"control_number,omitempty"`
+	CreatedAt              time.Time              `json:"created_at"`
+	EolDate                *string                `json:"eol_date,omitempty"`
+	ExpectedLifespanMonths *int                   `json:"expected_lifespan_months,omitempty"`
+	Id                     openapi_types.UUID     `json:"id"`
+	LocationId             *openapi_types.UUID    `json:"location_id,omitempty"`
+	Model                  string                 `json:"model"`
+	Name                   string                 `json:"name"`
+	PropertyNumber         *string                `json:"property_number,omitempty"`
+	PurchaseCost           *float64               `json:"purchase_cost,omitempty"`
+	PurchaseDate           *string                `json:"purchase_date,omitempty"`
+	RackId                 *openapi_types.UUID    `json:"rack_id,omitempty"`
+	SerialNumber           string                 `json:"serial_number"`
+	Status                 string                 `json:"status"`
+	SubType                string                 `json:"sub_type"`
+	Tags                   []string               `json:"tags"`
+	Type                   string                 `json:"type"`
+	UpdatedAt              time.Time              `json:"updated_at"`
+	Vendor                 string                 `json:"vendor"`
+	WarrantyContract       *string                `json:"warranty_contract,omitempty"`
+	WarrantyEnd            *string                `json:"warranty_end,omitempty"`
+	WarrantyStart          *string                `json:"warranty_start,omitempty"`
+	WarrantyVendor         *string                `json:"warranty_vendor,omitempty"`
 }
 
 // AuditEvent defines model for AuditEvent.
@@ -529,20 +537,28 @@ type ListAssetsParams struct {
 
 // UpdateAssetJSONBody defines parameters for UpdateAsset.
 type UpdateAssetJSONBody struct {
-	Attributes  *map[string]interface{} `json:"attributes,omitempty"`
-	BiaLevel    *string                 `json:"bia_level,omitempty"`
-	BmcFirmware *string                 `json:"bmc_firmware,omitempty"`
-	BmcIp       *string                 `json:"bmc_ip,omitempty"`
-	BmcType     *string                 `json:"bmc_type,omitempty"`
-	IpAddress   *string                 `json:"ip_address,omitempty"`
-	LocationId  *openapi_types.UUID     `json:"location_id,omitempty"`
-	Model       *string                 `json:"model,omitempty"`
-	Name        *string                 `json:"name,omitempty"`
-	RackId      *openapi_types.UUID     `json:"rack_id,omitempty"`
-	SerialNumber *string                `json:"serial_number,omitempty"`
-	Status      *string                 `json:"status,omitempty"`
-	Tags        *[]string               `json:"tags,omitempty"`
-	Vendor      *string                 `json:"vendor,omitempty"`
+	Attributes             *map[string]interface{} `json:"attributes,omitempty"`
+	BiaLevel               *string                 `json:"bia_level,omitempty"`
+	BmcFirmware            *string                 `json:"bmc_firmware,omitempty"`
+	BmcIp                  *string                 `json:"bmc_ip,omitempty"`
+	BmcType                *string                 `json:"bmc_type,omitempty"`
+	EolDate                *string                 `json:"eol_date,omitempty"`
+	ExpectedLifespanMonths *int                    `json:"expected_lifespan_months,omitempty"`
+	IpAddress              *string                 `json:"ip_address,omitempty"`
+	LocationId             *openapi_types.UUID     `json:"location_id,omitempty"`
+	Model                  *string                 `json:"model,omitempty"`
+	Name                   *string                 `json:"name,omitempty"`
+	PurchaseCost           *float64                `json:"purchase_cost,omitempty"`
+	PurchaseDate           *string                 `json:"purchase_date,omitempty"`
+	RackId                 *openapi_types.UUID     `json:"rack_id,omitempty"`
+	SerialNumber           *string                 `json:"serial_number,omitempty"`
+	Status                 *string                 `json:"status,omitempty"`
+	Tags                   *[]string               `json:"tags,omitempty"`
+	Vendor                 *string                 `json:"vendor,omitempty"`
+	WarrantyContract       *string                 `json:"warranty_contract,omitempty"`
+	WarrantyEnd            *string                 `json:"warranty_end,omitempty"`
+	WarrantyStart          *string                 `json:"warranty_start,omitempty"`
+	WarrantyVendor         *string                 `json:"warranty_vendor,omitempty"`
 }
 
 // QueryAuditEventsParams defines parameters for QueryAuditEvents.

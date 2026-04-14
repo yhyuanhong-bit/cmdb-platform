@@ -27,6 +27,14 @@ EXPECTED_HEADERS = [
     "bmc_ip",
     "bmc_type",
     "bmc_firmware",
+    "purchase_date",
+    "purchase_cost",
+    "warranty_start",
+    "warranty_end",
+    "warranty_vendor",
+    "warranty_contract",
+    "expected_lifespan_months",
+    "eol_date",
 ]
 
 REQUIRED_FIELDS = {"asset_tag", "name", "type"}

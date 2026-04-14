@@ -272,6 +272,51 @@ export default function OverviewTab({ asset, assetId, impactedSystems = [] }: { 
             </div>
           </div>
         )}
+
+        {/* Warranty & Lifecycle */}
+        {(asset.warranty_end || asset.purchase_date) && (
+          <div className="bg-surface-container rounded-lg p-5">
+            <SectionLabel>{t('asset_detail.warranty_section')}</SectionLabel>
+            <div className="grid grid-cols-2 gap-4">
+              {asset.purchase_date && (
+                <DataRow label={t('asset_detail.purchase_date')} value={asset.purchase_date} />
+              )}
+              {asset.purchase_cost != null && (
+                <DataRow
+                  label={t('asset_detail.purchase_cost')}
+                  value={`$${Number(asset.purchase_cost).toLocaleString()}`}
+                  mono
+                />
+              )}
+              {asset.warranty_start && asset.warranty_end && (
+                <DataRow
+                  label={t('asset_detail.warranty_period')}
+                  value={`${asset.warranty_start} — ${asset.warranty_end}`}
+                />
+              )}
+              {asset.warranty_end && (
+                <DataRow
+                  label={t('asset_detail.warranty_status')}
+                  value={
+                    new Date(asset.warranty_end) > new Date()
+                      ? `${t('asset_detail.warranty_active')} (${Math.ceil((new Date(asset.warranty_end).getTime() - Date.now()) / 86400000)} ${t('asset_detail.warranty_days_left')})`
+                      : t('asset_detail.warranty_expired')
+                  }
+                  valueColor={new Date(asset.warranty_end) > new Date() ? 'text-[#34d399]' : 'text-error'}
+                />
+              )}
+              {asset.warranty_vendor && (
+                <DataRow label={t('asset_detail.warranty_vendor')} value={asset.warranty_vendor} />
+              )}
+              {asset.warranty_contract && (
+                <DataRow label={t('asset_detail.warranty_contract')} value={asset.warranty_contract} mono />
+              )}
+              {asset.eol_date && (
+                <DataRow label={t('asset_detail.eol_date')} value={asset.eol_date} />
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
