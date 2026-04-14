@@ -78,7 +78,7 @@ func main() {
 
 	// 4b. Verify database migration version matches code expectations
 	{
-		const expectedMigration = 32 // bump this when adding new migrations
+		const expectedMigration = 33 // bump this when adding new migrations
 		var dbVersion int
 		err := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&dbVersion)
 		if err != nil {
@@ -168,6 +168,11 @@ func main() {
 			if len(entries) > 0 {
 				locationDetectSvc.UpdateMACCache(ctx, tenantID, entries)
 				zap.L().Info("MAC cache updated from SNMP scan", zap.Int("entries", len(entries)))
+
+				// Immediately run location comparison after cache update
+				go func() {
+					locationDetectSvc.RunDetection(context.Background(), tenantID)
+				}()
 			}
 			return nil
 		})

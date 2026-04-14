@@ -1,11 +1,24 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
 import { useRootLocations } from '../../hooks/useTopology';
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { useAlerts } from '../../hooks/useMonitoring';
 import CreateLocationModal from '../../components/CreateLocationModal';
 import type { Location } from '../../lib/api/topology';
+
+// ---------------------------------------------------------------------------
+// Fix Leaflet default icon (webpack/vite asset resolution issue)
+// ---------------------------------------------------------------------------
+
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
 
 // ---------------------------------------------------------------------------
 // Mock Data (kept: alerts need backend aggregation endpoint)
@@ -33,27 +46,28 @@ interface TerritoryData {
   rackOccupancy: number;
   criticalAlerts: number;
   powerTrend: number[];
-  mapLeft: string;
-  mapTop: string;
-  markerSize: string;
+  latitude?: number;
+  longitude?: number;
   healthy: boolean;
 }
 
-// Map position metadata for known locations (keyed by slug)
-const MAP_META: Record<string, { flag: string; mapLeft: string; mapTop: string; markerSize: string }> = {
-  china:     { flag: '\u{1F1E8}\u{1F1F3}', mapLeft: '70%', mapTop: '35%', markerSize: '3rem' },
-  japan:     { flag: '\u{1F1EF}\u{1F1F5}', mapLeft: '80%', mapTop: '30%', markerSize: '2.25rem' },
-  singapore: { flag: '\u{1F1F8}\u{1F1EC}', mapLeft: '72%', mapTop: '55%', markerSize: '1.75rem' },
-  tw:        { flag: '\u{1F1F9}\u{1F1FC}', mapLeft: '78%', mapTop: '38%', markerSize: '2rem' },
+// Flag emoji map for known location slugs
+const FLAG_MAP: Record<string, string> = {
+  china:     '\u{1F1E8}\u{1F1F3}',
+  japan:     '\u{1F1EF}\u{1F1F5}',
+  singapore: '\u{1F1F8}\u{1F1EC}',
+  tw:        '\u{1F1F9}\u{1F1FC}',
 };
 
 function locationToTerritory(loc: Location): TerritoryData {
-  const meta = MAP_META[loc.slug] ?? { flag: '\u{1F30D}', mapLeft: '50%', mapTop: '50%', markerSize: '2rem' };
+  const flag = FLAG_MAP[loc.slug] ?? '\u{1F30D}';
   return {
     slug: loc.slug,
     nameCn: loc.name,
     nameEn: loc.name_en || loc.name,
-    ...meta,
+    flag,
+    latitude: loc.latitude ?? undefined,
+    longitude: loc.longitude ?? undefined,
     // These stats are not yet in the Location schema; use metadata or fallback
     idcCount: (loc.metadata?.idc_count as number) ?? 0,
     regionCount: (loc.metadata?.region_count as number) ?? 0,
@@ -144,57 +158,6 @@ function KpiCard({ icon, label, value, accent }: { icon: string; label: string; 
         <p className="text-on-surface text-xl font-bold font-headline">{typeof value === 'number' ? formatNumber(value) : value}</p>
       </div>
     </div>
-  );
-}
-
-function MapMarker({ territory, onClick }: { territory: TerritoryData; onClick: () => void }) {
-  const { t } = useTranslation();
-  const [hovered, setHovered] = useState(false);
-  const markerColor = territory.criticalAlerts > 3 ? 'bg-orange-400' : 'bg-green-400';
-  const ringColor = territory.criticalAlerts > 3 ? 'ring-orange-400/30' : 'ring-green-400/30';
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="absolute flex flex-col items-center group focus:outline-none"
-      style={{ left: territory.mapLeft, top: territory.mapTop, transform: 'translate(-50%, -50%)' }}
-      aria-label={`${territory.nameEn} - ${territory.idcCount} IDCs`}
-    >
-      {/* Pulsing marker */}
-      <span
-        className={`relative rounded-full ${markerColor} ring-4 ${ringColor} transition-transform duration-200 ${hovered ? 'scale-125' : 'scale-100'}`}
-        style={{ width: territory.markerSize, height: territory.markerSize }}
-      >
-        <span className={`absolute inset-0 rounded-full ${markerColor} opacity-40 animate-ping`} />
-      </span>
-
-      {/* Label */}
-      <span className="mt-1.5 text-xs font-bold font-headline text-on-surface whitespace-nowrap">
-        {territory.nameEn}
-      </span>
-      <span className="text-[10px] text-on-surface-variant whitespace-nowrap">
-        {territory.idcCount} IDC
-      </span>
-
-      {/* Hover tooltip */}
-      {hovered && (
-        <div className="absolute top-full mt-2 bg-surface-container-high rounded-lg p-3 min-w-[180px] z-10 text-left shadow-lg">
-          <p className="text-sm font-bold text-on-surface font-headline">{territory.flag} {territory.nameCn} {territory.nameEn}</p>
-          <div className="mt-2 space-y-1 text-xs text-on-surface-variant font-body">
-            <p>{territory.idcCount} IDCs across {territory.regionCount} Region{territory.regionCount > 1 ? 's' : ''}</p>
-            <p>{formatNumber(territory.totalAssets)} Assets</p>
-            <p>PUE {territory.pue.toFixed(2)}</p>
-            <p>{t('locations.rack_occupancy')} {territory.rackOccupancy}%</p>
-            {territory.criticalAlerts > 0 && (
-              <p className="text-error font-semibold">{territory.criticalAlerts} Critical Alert{territory.criticalAlerts > 1 ? 's' : ''}</p>
-            )}
-          </div>
-        </div>
-      )}
-    </button>
   );
 }
 
@@ -384,55 +347,53 @@ const GlobalOverview: React.FC = () => {
         {/* Main Content: Map + Summary                                      */}
         {/* --------------------------------------------------------------- */}
         <section className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4">
-          {/* Left: World Map */}
+          {/* Left: Leaflet World Map */}
           <div
-            className="bg-surface-container-low rounded-lg p-6 relative overflow-hidden"
-            style={{
-              minHeight: '400px',
-              backgroundImage:
-                'radial-gradient(circle, rgba(158,202,255,0.06) 1px, transparent 1px)',
-              backgroundSize: '24px 24px',
-            }}
+            className="bg-surface-container-low rounded-lg p-6"
+            style={{ minHeight: '400px' }}
           >
             <h2 className="font-headline text-sm font-bold uppercase tracking-wider text-on-surface-variant mb-4">
               <span className="material-symbols-outlined text-base align-middle mr-1.5">map</span>
               GLOBAL INFRASTRUCTURE MAP
             </h2>
 
-            {/* Simplified continent outlines using CSS shapes */}
-            <div className="absolute inset-0" style={{ top: '60px' }}>
-              {/* Subtle region labels */}
-              <span className="absolute text-[10px] text-on-surface-variant/30 uppercase tracking-widest" style={{ left: '12%', top: '28%' }}>
-                Europe
-              </span>
-              <span className="absolute text-[10px] text-on-surface-variant/30 uppercase tracking-widest" style={{ left: '55%', top: '18%' }}>
-                East Asia
-              </span>
-              <span className="absolute text-[10px] text-on-surface-variant/30 uppercase tracking-widest" style={{ left: '58%', top: '60%' }}>
-                SE Asia
-              </span>
-              <span className="absolute text-[10px] text-on-surface-variant/30 uppercase tracking-widest" style={{ left: '25%', top: '40%' }}>
-                Middle East
-              </span>
-              <span className="absolute text-[10px] text-on-surface-variant/30 uppercase tracking-widest" style={{ left: '8%', top: '58%' }}>
-                Africa
-              </span>
-
-              {/* Territory markers */}
-              {TERRITORIES.map((territory) => (
-                <MapMarker
-                  key={territory.slug}
-                  territory={territory}
-                  onClick={() => navigate(`/locations/${territory.slug}`)}
+            <div style={{ height: '340px', borderRadius: '0.75rem', overflow: 'hidden' }}>
+              <MapContainer
+                center={[25, 110]}
+                zoom={3}
+                style={{ height: '100%', width: '100%' }}
+                scrollWheelZoom={true}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-              ))}
-
-              {/* Connection lines between markers (decorative) */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true">
-                <line x1="70%" y1="35%" x2="80%" y2="30%" stroke="rgba(158,202,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
-                <line x1="70%" y1="35%" x2="72%" y2="55%" stroke="rgba(158,202,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
-                <line x1="80%" y1="30%" x2="72%" y2="55%" stroke="rgba(158,202,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
-              </svg>
+                {TERRITORIES.filter(t => t.latitude != null && t.longitude != null).map(territory => (
+                  <Marker
+                    key={territory.slug}
+                    position={[territory.latitude!, territory.longitude!]}
+                    icon={L.divIcon({
+                      className: 'custom-marker',
+                      html: `<div style="font-size:1.5rem;cursor:pointer;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5))">${territory.flag}</div>`,
+                      iconSize: [30, 30],
+                      iconAnchor: [15, 15],
+                    })}
+                    eventHandlers={{
+                      click: () => navigate(`/locations/${territory.slug}`),
+                    }}
+                  >
+                    <Popup>
+                      <div style={{ textAlign: 'center', minWidth: '120px' }}>
+                        <strong>{territory.flag} {territory.nameCn}</strong><br />
+                        {territory.nameEn}<br />
+                        <span style={{ fontSize: '0.85em', color: '#666' }}>
+                          {territory.totalAssets} assets
+                        </span>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
             </div>
           </div>
 

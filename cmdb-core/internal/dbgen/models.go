@@ -74,6 +74,17 @@ type AssetDependency struct {
 	CreatedAt      time.Time   `json:"created_at"`
 }
 
+type AssetLocationHistory struct {
+	ID          uuid.UUID          `json:"id"`
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	AssetID     uuid.UUID          `json:"asset_id"`
+	FromRackID  pgtype.UUID        `json:"from_rack_id"`
+	ToRackID    pgtype.UUID        `json:"to_rack_id"`
+	DetectedBy  string             `json:"detected_by"`
+	WorkOrderID pgtype.UUID        `json:"work_order_id"`
+	DetectedAt  pgtype.Timestamptz `json:"detected_at"`
+}
+
 type AuditEvent struct {
 	ID         uuid.UUID   `json:"id"`
 	TenantID   uuid.UUID   `json:"tenant_id"`
@@ -256,6 +267,21 @@ type Location struct {
 	UpdatedAt   time.Time          `json:"updated_at"`
 	SyncVersion int64              `json:"sync_version"`
 	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
+	Latitude    pgtype.Float8      `json:"latitude"`
+	Longitude   pgtype.Float8      `json:"longitude"`
+}
+
+type MacAddressCache struct {
+	ID             uuid.UUID          `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	MacAddress     string             `json:"mac_address"`
+	SwitchAssetID  uuid.UUID          `json:"switch_asset_id"`
+	PortName       string             `json:"port_name"`
+	VlanID         pgtype.Int4        `json:"vlan_id"`
+	AssetID        pgtype.UUID        `json:"asset_id"`
+	DetectedRackID pgtype.UUID        `json:"detected_rack_id"`
+	FirstSeen      pgtype.Timestamptz `json:"first_seen"`
+	LastSeen       pgtype.Timestamptz `json:"last_seen"`
 }
 
 type Metric struct {
@@ -437,6 +463,17 @@ type Sensor struct {
 	LastHeartbeat   pgtype.Timestamptz `json:"last_heartbeat"`
 	CreatedAt       time.Time          `json:"created_at"`
 	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+type SwitchPortMapping struct {
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	SwitchAssetID      uuid.UUID          `json:"switch_asset_id"`
+	PortName           string             `json:"port_name"`
+	ConnectedRackID    pgtype.UUID        `json:"connected_rack_id"`
+	ConnectedUPosition pgtype.Int4        `json:"connected_u_position"`
+	Description        pgtype.Text        `json:"description"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
 type SyncConflict struct {

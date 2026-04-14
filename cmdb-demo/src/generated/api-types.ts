@@ -691,6 +691,8 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+            latitude?: number | null;
+            longitude?: number | null;
         };
         Rack: {
             /** Format: uuid */

@@ -246,7 +246,9 @@ type InventoryTask struct {
 type Location struct {
 	CreatedAt time.Time              `json:"created_at"`
 	Id        openapi_types.UUID     `json:"id"`
+	Latitude  *float64               `json:"latitude,omitempty"`
 	Level     string                 `json:"level"`
+	Longitude *float64               `json:"longitude,omitempty"`
 	Metadata  map[string]interface{} `json:"metadata"`
 	Name      string                 `json:"name"`
 	NameEn    string                 `json:"name_en"`

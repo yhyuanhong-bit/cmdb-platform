@@ -236,6 +236,14 @@ func pguuidToUUIDPtr(v pgtype.UUID) *uuid.UUID {
 // 2. toAPILocation
 // ---------------------------------------------------------------------------
 
+func pgFloat8ToPtr(v pgtype.Float8) *float64 {
+	if !v.Valid {
+		return nil
+	}
+	f := v.Float64
+	return &f
+}
+
 func toAPILocation(db dbgen.Location) Location {
 	return Location{
 		Id:        db.ID,
@@ -250,6 +258,8 @@ func toAPILocation(db dbgen.Location) Location {
 		SortOrder: int(db.SortOrder),
 		CreatedAt: db.CreatedAt,
 		UpdatedAt: db.UpdatedAt,
+		Latitude:  pgFloat8ToPtr(db.Latitude),
+		Longitude: pgFloat8ToPtr(db.Longitude),
 	}
 }
 
