@@ -46,4 +46,6 @@ const (
 	SubjectOrderAnomaly = "maintenance.order_anomaly"
 
 	SubjectAssetLocationChanged = "asset.location_changed"
+
+	SubjectScanDifferencesDetected = "scan.differences_detected"
 )

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
@@ -46,6 +47,7 @@ func (w *WorkflowSubscriber) Register() {
 	w.bus.Subscribe(eventbus.SubjectAssetCreated, w.onAssetCreatedNotify)
 	w.bus.Subscribe(eventbus.SubjectInventoryTaskCompleted, w.onInventoryCompletedNotify)
 	w.bus.Subscribe(eventbus.SubjectImportCompleted, w.onImportCompletedNotify)
+	w.bus.Subscribe(eventbus.SubjectScanDifferencesDetected, w.onScanDifferencesDetected)
 
 	zap.L().Info("workflow subscribers registered")
 }
@@ -656,4 +658,260 @@ func (w *WorkflowSubscriber) disableAdapter(ctx context.Context, adapterID, tena
 			"integration_adapter", adapterID)
 	}
 	delete(w.adapterFailures, adapterID)
+}
+
+// --- Auto Work Order 1: Warranty Expiry → Renewal Evaluation ---
+
+// StartWarrantyChecker runs daily to check for assets approaching warranty expiry.
+func (w *WorkflowSubscriber) StartWarrantyChecker(ctx context.Context) {
+	ticker := time.NewTicker(24 * time.Hour)
+	go func() {
+		w.checkWarrantyExpiry(ctx)
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				w.checkWarrantyExpiry(ctx)
+			}
+		}
+	}()
+	zap.L().Info("Warranty expiry checker started (24h interval)")
+}
+
+func (w *WorkflowSubscriber) checkWarrantyExpiry(ctx context.Context) {
+	rows, err := w.pool.Query(ctx,
+		`SELECT a.id, a.tenant_id, a.asset_tag, a.name, a.warranty_end, a.warranty_vendor
+		 FROM assets a
+		 WHERE a.warranty_end IS NOT NULL
+		   AND a.warranty_end > now()
+		   AND a.warranty_end <= now() + interval '30 days'
+		   AND a.deleted_at IS NULL
+		   AND NOT EXISTS (
+		     SELECT 1 FROM work_orders wo
+		     WHERE wo.asset_id = a.id
+		     AND wo.type = 'warranty_renewal'
+		     AND wo.status NOT IN ('completed','verified','rejected')
+		     AND wo.deleted_at IS NULL
+		   )`)
+	if err != nil {
+		zap.L().Warn("warranty checker: query failed", zap.Error(err))
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var assetID, tenantID uuid.UUID
+		var assetTag, name string
+		var warrantyEnd time.Time
+		var warrantyVendor *string
+		if rows.Scan(&assetID, &tenantID, &assetTag, &name, &warrantyEnd, &warrantyVendor) != nil {
+			continue
+		}
+
+		daysLeft := int(time.Until(warrantyEnd).Hours() / 24)
+		vendor := "N/A"
+		if warrantyVendor != nil {
+			vendor = *warrantyVendor
+		}
+
+		order, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+			Title:       fmt.Sprintf("Warranty Renewal: %s (%s)", name, assetTag),
+			Type:        "warranty_renewal",
+			Priority:    "medium",
+			AssetID:     &assetID,
+			Description: fmt.Sprintf("Asset '%s' warranty expires in %d days (vendor: %s, expiry: %s). Evaluate: renew warranty, plan replacement, or accept risk.", name, daysLeft, vendor, warrantyEnd.Format("2006-01-02")),
+		})
+		if err != nil {
+			zap.L().Debug("warranty checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+			continue
+		}
+
+		admins := w.opsAdminUserIDs(ctx, tenantID)
+		for _, adminID := range admins {
+			w.createNotification(ctx, tenantID, adminID,
+				"warranty_expiry",
+				fmt.Sprintf("Warranty expiring: %s", assetTag),
+				fmt.Sprintf("Asset '%s' warranty expires in %d days. Work order created.", name, daysLeft),
+				"work_order", order.ID)
+		}
+
+		zap.L().Info("warranty checker: created renewal WO",
+			zap.String("asset", assetTag),
+			zap.Int("days_left", daysLeft))
+	}
+}
+
+// --- Auto Work Order 2: CMDB record not seen by scan → Asset Verification ---
+
+// StartAssetVerificationChecker runs weekly to find assets not detected by any network scan.
+func (w *WorkflowSubscriber) StartAssetVerificationChecker(ctx context.Context) {
+	ticker := time.NewTicker(7 * 24 * time.Hour)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				w.checkMissingAssets(ctx)
+			}
+		}
+	}()
+	zap.L().Info("Asset verification checker started (7d interval)")
+}
+
+func (w *WorkflowSubscriber) checkMissingAssets(ctx context.Context) {
+	rows, err := w.pool.Query(ctx,
+		`SELECT a.id, a.tenant_id, a.asset_tag, a.name, a.ip_address, a.bmc_ip
+		 FROM assets a
+		 WHERE a.deleted_at IS NULL
+		   AND a.status NOT IN ('disposed', 'decommission', 'procurement')
+		   AND (a.ip_address IS NOT NULL OR a.bmc_ip IS NOT NULL)
+		   AND NOT EXISTS (
+		     SELECT 1 FROM discovered_assets da
+		     WHERE da.tenant_id = a.tenant_id
+		     AND (da.ip_address = a.ip_address OR da.ip_address = a.bmc_ip)
+		     AND da.created_at > now() - interval '30 days'
+		   )
+		   AND NOT EXISTS (
+		     SELECT 1 FROM work_orders wo
+		     WHERE wo.asset_id = a.id
+		     AND wo.type = 'asset_verification'
+		     AND wo.status NOT IN ('completed','verified','rejected')
+		     AND wo.deleted_at IS NULL
+		   )`)
+	if err != nil {
+		zap.L().Warn("asset verification checker: query failed", zap.Error(err))
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var assetID, tenantID uuid.UUID
+		var assetTag, name string
+		var ipAddress, bmcIP *string
+		if rows.Scan(&assetID, &tenantID, &assetTag, &name, &ipAddress, &bmcIP) != nil {
+			continue
+		}
+
+		ip := "N/A"
+		if ipAddress != nil {
+			ip = *ipAddress
+		} else if bmcIP != nil {
+			ip = *bmcIP
+		}
+
+		order, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+			Title:       fmt.Sprintf("Asset Verification: %s (%s)", name, assetTag),
+			Type:        "asset_verification",
+			Priority:    "low",
+			AssetID:     &assetID,
+			Description: fmt.Sprintf("Asset '%s' (IP: %s) has not been detected by any network scan in the last 30 days. Please verify: is the asset still physically present? Has it been relocated? Is it powered off?", name, ip),
+		})
+		if err != nil {
+			zap.L().Debug("asset verification checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+			continue
+		}
+
+		admins := w.opsAdminUserIDs(ctx, tenantID)
+		for _, adminID := range admins {
+			w.createNotification(ctx, tenantID, adminID,
+				"asset_verification",
+				fmt.Sprintf("Asset not detected: %s", assetTag),
+				fmt.Sprintf("Asset '%s' not seen by scans in 30 days. Work order created for verification.", name),
+				"work_order", order.ID)
+		}
+
+		zap.L().Info("asset verification checker: created WO",
+			zap.String("asset", assetTag))
+	}
+}
+
+// --- Auto Work Order 3: Scan data differs from CMDB → Data Correction ---
+
+// scanDifferencesPayload is the expected event payload for scan differences.
+type scanDifferencesPayload struct {
+	AssetID   string                 `json:"asset_id"`
+	AssetTag  string                 `json:"asset_tag"`
+	AssetName string                 `json:"asset_name"`
+	Diffs     map[string]interface{} `json:"diffs"`
+}
+
+// onScanDifferencesDetected handles SubjectScanDifferencesDetected events published by the
+// IPMI collector or discovery pipeline when field values diverge from CMDB records.
+func (w *WorkflowSubscriber) onScanDifferencesDetected(ctx context.Context, event eventbus.Event) error {
+	var payload scanDifferencesPayload
+	if err := json.Unmarshal(event.Payload, &payload); err != nil {
+		zap.L().Warn("workflow: failed to parse scan differences payload", zap.Error(err))
+		return nil
+	}
+
+	tenantID, _ := uuid.Parse(event.TenantID)
+	assetID, err := uuid.Parse(payload.AssetID)
+	if err != nil || tenantID == uuid.Nil {
+		return nil
+	}
+
+	w.checkScanDifferences(ctx, tenantID, assetID, payload.AssetTag, payload.AssetName, payload.Diffs)
+	return nil
+}
+
+// checkScanDifferences creates a data correction WO when scan results differ from CMDB.
+// It can be called directly from the IPMI collector or via the SubjectScanDifferencesDetected event.
+func (w *WorkflowSubscriber) checkScanDifferences(ctx context.Context, tenantID, assetID uuid.UUID, assetTag, assetName string, diffs map[string]interface{}) {
+	if len(diffs) == 0 {
+		return
+	}
+
+	var existingCount int
+	w.pool.QueryRow(ctx,
+		`SELECT count(*) FROM work_orders
+		 WHERE asset_id = $1 AND type = 'data_correction'
+		 AND status NOT IN ('completed','verified','rejected')
+		 AND deleted_at IS NULL`,
+		assetID).Scan(&existingCount)
+	if existingCount > 0 {
+		return
+	}
+
+	diffLines := make([]string, 0, len(diffs))
+	for field, val := range diffs {
+		if m, ok := val.(map[string]interface{}); ok {
+			diffLines = append(diffLines, fmt.Sprintf("- %s: CMDB='%v' → Scanned='%v'", field, m["cmdb"], m["scanned"]))
+		}
+	}
+	if len(diffLines) == 0 {
+		return
+	}
+
+	description := fmt.Sprintf(
+		"Network scan detected data inconsistencies for asset '%s' (%s):\n\n%s\n\nPlease verify and update CMDB records.",
+		assetName, assetTag, strings.Join(diffLines, "\n"))
+
+	order, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		Title:       fmt.Sprintf("Data Correction: %s (%s)", assetName, assetTag),
+		Type:        "data_correction",
+		Priority:    "low",
+		AssetID:     &assetID,
+		Description: description,
+	})
+	if err != nil {
+		zap.L().Debug("data correction: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+		return
+	}
+
+	admins := w.opsAdminUserIDs(ctx, tenantID)
+	for _, adminID := range admins {
+		w.createNotification(ctx, tenantID, adminID,
+			"data_correction",
+			fmt.Sprintf("Data mismatch: %s", assetTag),
+			fmt.Sprintf("%d field(s) differ between scan and CMDB for '%s'.", len(diffs), assetName),
+			"work_order", order.ID)
+	}
+
+	zap.L().Info("data correction WO created",
+		zap.String("asset", assetTag),
+		zap.Int("diff_count", len(diffs)))
 }

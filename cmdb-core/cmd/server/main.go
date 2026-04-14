@@ -481,6 +481,8 @@ func main() {
 		wfSub.StartSessionCleanup(ctx)
 		wfSub.StartConflictAndDiscoveryCleanup(ctx)
 		wfSub.StartMetricsPuller(ctx)
+		wfSub.StartWarrantyChecker(ctx)
+		wfSub.StartAssetVerificationChecker(ctx)
 	}
 
 	// Webhook dispatcher
