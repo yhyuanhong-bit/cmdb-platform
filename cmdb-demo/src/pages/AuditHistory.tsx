@@ -190,11 +190,11 @@ function AuditHistory() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-surface-container-high">
-            <Icon name="dns" className="text-2xl text-primary" />
+            <Icon name="receipt_long" className="text-2xl text-primary" />
           </div>
           <div>
             <h1 className="font-headline text-2xl font-bold text-on-surface">
-              SRV-PROD-001
+              {t('audit.breadcrumb_audit_history')}
             </h1>
             <div className="mt-1 flex items-center gap-3">
               <span className="inline-flex items-center gap-1.5 rounded bg-[#69db7c]/15 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[#69db7c]">
@@ -202,7 +202,7 @@ function AuditHistory() {
                 {t('audit.status_operational')}
               </span>
               <span className="text-xs text-on-surface-variant">
-                {t('audit.last_heartbeat')}: <span className="font-semibold text-on-surface">2m {t('audit.ago')}</span>
+                {auditEvents.length} {t('audit.total_events')}
               </span>
             </div>
           </div>
