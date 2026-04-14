@@ -275,6 +275,11 @@ func main() {
 
 	// Discovery + credentials routes are registered via api.RegisterHandlers (line 207)
 
+	// QR code endpoints
+	v1.GET("/assets/:id/qr-data", apiServer.QRGetAssetData)
+	v1.GET("/racks/:id/qr-data", apiServer.QRGetRackData)
+	v1.POST("/assets/:id/confirm-location", apiServer.QRConfirmLocation)
+
 	// Location detection endpoints
 	v1.GET("/location-detect/diffs", apiServer.LocationDetectGetDiffs)
 	v1.GET("/location-detect/summary", apiServer.LocationDetectGetSummary)

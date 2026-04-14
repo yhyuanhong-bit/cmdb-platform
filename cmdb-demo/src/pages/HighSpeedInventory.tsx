@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useInventoryTasks, useCompleteTask, useImportInventoryItems, useDeleteInventoryTask, useResolveDiscrepancy } from "../hooks/useInventory";
 import CreateInventoryTaskModal from "../components/CreateInventoryTaskModal";
+import QRScanner from "../components/QRScanner";
 import { apiClient } from "../lib/api/client";
 import { useLocationContext } from "../contexts/LocationContext";
 
@@ -57,6 +58,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   const navigate = useNavigate();
   const [showErrors, setShowErrors] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   const { path } = useLocationContext()
   const locationId = path.idc?.id || path.campus?.id || path.city?.id || path.region?.id || path.territory?.id
@@ -74,6 +76,21 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   const currentTaskId = currentTask?.id;
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleQRScan = async (data: { t: string; id: string; tag?: string; name?: string }) => {
+    setShowScanner(false)
+    if (data.t === 'rack') {
+      toast.success(`Rack: ${data.name}`)
+    } else if (data.t === 'asset') {
+      if (!currentTask) { toast.error('No active task'); return }
+      try {
+        await apiClient.post(`/assets/${data.id}/confirm-location`, { rack_id: data.id })
+        toast.success(`Location confirmed: ${data.tag || data.name}`)
+      } catch {
+        toast.info(`Scanned: ${data.tag || data.name}`)
+      }
+    }
+  }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -225,11 +242,11 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
             <Icon name="add" className="text-lg" />
             New Task
           </button>
-          <button onClick={() => toast.info('Scan: Coming Soon')} className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
+          <button onClick={() => setShowScanner(true)} className="bg-primary hover:opacity-90 text-on-primary px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-opacity">
             <Icon name="qr_code_scanner" className="text-lg" />
             {t('inventory.scan_rack_qr')}
           </button>
-          <button onClick={() => toast.info('Manual QR: Coming Soon')} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
+          <button onClick={() => setShowScanner(true)} className="bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant px-4 py-2 rounded-xl text-sm font-label font-bold flex items-center gap-2 transition-colors">
             <Icon name="edit" className="text-lg" />
             {t('inventory.manual_qr')}
           </button>
@@ -637,6 +654,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
       </div>
 
       <CreateInventoryTaskModal open={showCreateTask} onClose={() => setShowCreateTask(false)} />
+      {showScanner && <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />}
     </div>
   );
 });
