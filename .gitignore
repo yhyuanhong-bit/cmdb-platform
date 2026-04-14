@@ -105,3 +105,6 @@ desktop.ini
 *.swp
 *.swo
 *~
+cmdb-core/cmdb-core
+cmdb-core/cmdb-server
+chaos-test-results.log
