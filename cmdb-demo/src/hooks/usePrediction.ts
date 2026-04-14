@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { predictionApi } from '../lib/api/prediction'
+import type { VerifyRCAData } from '../lib/api/prediction'
 
 export function usePredictionModels() {
   return useQuery({
@@ -27,7 +28,7 @@ export function useCreateRCA() {
 export function useVerifyRCA() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => predictionApi.verifyRCA(id, data),
+    mutationFn: ({ id, data }: { id: string; data: VerifyRCAData }) => predictionApi.verifyRCA(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['predictions'] }),
   })
 }

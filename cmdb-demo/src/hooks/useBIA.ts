@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { biaApi } from '../lib/api/bia'
+import type { CreateBIAAssessmentData, UpdateBIAAssessmentData, UpdateBIARuleData, CreateBIADependencyData } from '../lib/api/bia'
 
 export function useBIAAssessments(params?: Record<string, string>) {
   return useQuery({
@@ -19,7 +20,7 @@ export function useBIAAssessment(id: string) {
 export function useCreateBIAAssessment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: Record<string, unknown>) => biaApi.createAssessment(data),
+    mutationFn: (data: CreateBIAAssessmentData) => biaApi.createAssessment(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['biaAssessments'] })
       qc.invalidateQueries({ queryKey: ['biaStats'] })
@@ -30,7 +31,7 @@ export function useCreateBIAAssessment() {
 export function useUpdateBIAAssessment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateBIAAssessmentData }) =>
       biaApi.updateAssessment(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['biaAssessments'] })
@@ -59,7 +60,7 @@ export function useBIAScoringRules() {
 export function useUpdateBIAScoringRule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateBIARuleData }) =>
       biaApi.updateRule(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['biaScoringRules'] })
@@ -83,7 +84,7 @@ export function useCreateBIADependency() {
       data,
     }: {
       assessmentId: string
-      data: Record<string, unknown>
+      data: CreateBIADependencyData
     }) => biaApi.createDependency(assessmentId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['biaDependencies'] })

@@ -33,7 +33,9 @@ export const useAuthStore = create<AuthState>()(
       })
       const json = await res.json()
       if (!res.ok) {
-        console.error('Login failed:', json)
+        if (import.meta.env.DEV) {
+          console.error('Login failed:', json)
+        }
         return false
       }
 
@@ -47,7 +49,9 @@ export const useAuthStore = create<AuthState>()(
       await get().fetchCurrentUser()
       return true
     } catch (err) {
-      console.error('Login network error (CORS or server unreachable?):', err)
+      if (import.meta.env.DEV) {
+        console.error('Login network error (CORS or server unreachable?):', err)
+      }
       return false
     }
   },

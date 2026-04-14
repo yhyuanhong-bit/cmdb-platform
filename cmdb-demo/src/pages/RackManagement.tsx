@@ -8,23 +8,14 @@ import { useActivityFeed } from "../hooks/useActivityFeed";
 import type { Rack } from "../lib/api/topology";
 
 
+// Rack layout preview: static fixture for display only.
+// Full slot data is available on the rack detail page via /racks/:id/slots API.
 const rackA01Layout: Array<{
   startU: number;
   endU: number;
   label: string;
   color: string;
-}> = [
-  { startU: 1, endU: 2, label: "PDU / Cable Mgmt", color: "bg-surface-container-highest" },
-  { startU: 3, endU: 6, label: "DELL R750xs #1", color: "bg-on-primary-container/30" },
-  { startU: 7, endU: 10, label: "DELL R750xs #2", color: "bg-on-primary-container/30" },
-  { startU: 11, endU: 12, label: "Cisco C9300-48T", color: "bg-tertiary-container" },
-  { startU: 15, endU: 18, label: "HP DL380 Gen10", color: "bg-on-primary-container/30" },
-  { startU: 20, endU: 23, label: "DELL R750xs #3", color: "bg-on-primary-container/30" },
-  { startU: 25, endU: 28, label: "Storage: NetApp AFF", color: "bg-secondary-container" },
-  { startU: 30, endU: 33, label: "DELL R750xs #4", color: "bg-on-primary-container/30" },
-  { startU: 35, endU: 38, label: "DELL PowerEdge R750", color: "bg-on-primary-container/30" },
-  { startU: 40, endU: 42, label: "UPS / Power Dist", color: "bg-surface-container-highest" },
-];
+}> = [];
 
 function getStatusStyle(status: string) {
   switch (status) {

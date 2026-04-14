@@ -96,7 +96,7 @@ export function useCreateItemNote() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ taskId, itemId, data }: { taskId: string; itemId: string; data: Record<string, unknown> }) =>
-      inventoryApi.createItemNote(taskId, itemId, data),
+      inventoryApi.createItemNote(taskId, itemId, data as import('../lib/api/inventory').ItemNote),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['itemNotes'] }),
   })
 }

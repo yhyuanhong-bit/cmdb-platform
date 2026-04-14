@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { maintenanceApi } from '../lib/api/maintenance'
+import type { UpdateWorkOrderData, WorkOrderComment } from '../lib/api/maintenance'
 
 export function useWorkOrders(params?: Record<string, string>) {
   return useQuery({
@@ -27,7 +28,7 @@ export function useCreateWorkOrder() {
 export function useUpdateWorkOrder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateWorkOrderData }) =>
       maintenanceApi.update(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrders'] }),
   })
@@ -61,7 +62,7 @@ export function useWorkOrderComments(orderId: string) {
 export function useCreateWorkOrderComment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ orderId, data }: { orderId: string; data: Record<string, unknown> }) =>
+    mutationFn: ({ orderId, data }: { orderId: string; data: WorkOrderComment }) =>
       maintenanceApi.createComment(orderId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrderComments'] }),
   })

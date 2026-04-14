@@ -6,6 +6,7 @@ import L from 'leaflet';
 import { useRootLocations, useLocationAssetCounts } from '../../hooks/useTopology';
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { useAlerts } from '../../hooks/useMonitoring';
+import { useSyncState } from '../../hooks/useSync';
 import CreateLocationModal from '../../components/CreateLocationModal';
 import type { Location } from '../../lib/api/topology';
 
@@ -19,20 +20,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
-
-// ---------------------------------------------------------------------------
-// Mock Data (kept: alerts need backend aggregation endpoint)
-// ---------------------------------------------------------------------------
-
-const LAST_SYNC = '2026-03-28T14:32:08Z';
-
-// TODO: needs backend endpoint for summary KPIs (PUE, uptime, energy trend)
-const SUMMARY_KPI = {
-  averagePUE: 1.24,
-  totalPowerKW: 12_950,
-  globalUptime: 99.97,
-  energyTrend: [82, 79, 84, 81, 78, 80, 77],
-};
 
 interface TerritoryData {
   slug: string;
@@ -53,10 +40,41 @@ interface TerritoryData {
 
 // Flag emoji map for known location slugs
 const FLAG_MAP: Record<string, string> = {
-  china:     '\u{1F1E8}\u{1F1F3}',
-  japan:     '\u{1F1EF}\u{1F1F5}',
-  singapore: '\u{1F1F8}\u{1F1EC}',
-  tw:        '\u{1F1F9}\u{1F1FC}',
+  china:       '\u{1F1E8}\u{1F1F3}',
+  japan:       '\u{1F1EF}\u{1F1F5}',
+  singapore:   '\u{1F1F8}\u{1F1EC}',
+  tw:          '\u{1F1F9}\u{1F1FC}',
+  us:          '\u{1F1FA}\u{1F1F8}',
+  usa:         '\u{1F1FA}\u{1F1F8}',
+  uk:          '\u{1F1EC}\u{1F1E7}',
+  germany:     '\u{1F1E9}\u{1F1EA}',
+  de:          '\u{1F1E9}\u{1F1EA}',
+  france:      '\u{1F1EB}\u{1F1F7}',
+  fr:          '\u{1F1EB}\u{1F1F7}',
+  korea:       '\u{1F1F0}\u{1F1F7}',
+  kr:          '\u{1F1F0}\u{1F1F7}',
+  australia:   '\u{1F1E6}\u{1F1FA}',
+  au:          '\u{1F1E6}\u{1F1FA}',
+  india:       '\u{1F1EE}\u{1F1F3}',
+  in:          '\u{1F1EE}\u{1F1F3}',
+  brazil:      '\u{1F1E7}\u{1F1F7}',
+  br:          '\u{1F1E7}\u{1F1F7}',
+  canada:      '\u{1F1E8}\u{1F1E6}',
+  ca:          '\u{1F1E8}\u{1F1E6}',
+  mexico:      '\u{1F1F2}\u{1F1FD}',
+  mx:          '\u{1F1F2}\u{1F1FD}',
+  thailand:    '\u{1F1F9}\u{1F1ED}',
+  th:          '\u{1F1F9}\u{1F1ED}',
+  vietnam:     '\u{1F1FB}\u{1F1F3}',
+  vn:          '\u{1F1FB}\u{1F1F3}',
+  indonesia:   '\u{1F1EE}\u{1F1E9}',
+  id:          '\u{1F1EE}\u{1F1E9}',
+  malaysia:    '\u{1F1F2}\u{1F1FE}',
+  my:          '\u{1F1F2}\u{1F1FE}',
+  philippines: '\u{1F1F5}\u{1F1ED}',
+  ph:          '\u{1F1F5}\u{1F1ED}',
+  hk:          '\u{1F1ED}\u{1F1F0}',
+  hongkong:    '\u{1F1ED}\u{1F1F0}',
 };
 
 function locationToTerritory(
@@ -113,6 +131,10 @@ function apiAlertToAlertData(a: any): AlertData {
     timeAgo: a.fired_at ? timeAgo(a.fired_at) : '',
   };
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -265,7 +287,16 @@ const GlobalOverview: React.FC = () => {
   const dashStatsQ = useDashboardStats();
   const alertsQ = useAlerts({ status: 'firing' });
   const assetCountsQ = useLocationAssetCounts();
+  const syncStateQ = useSyncState();
   const stats = dashStatsQ.data?.data;
+
+  // Derive last sync time from sync state API (most recent sync_at across all entities)
+  const lastSyncAt = useMemo(() => {
+    const states = (syncStateQ.data as { data?: Array<{ last_sync_at: string }> })?.data ?? [];
+    if (states.length === 0) return null;
+    return states.reduce((latest, s) =>
+      s.last_sync_at > latest ? s.last_sync_at : latest, states[0].last_sync_at);
+  }, [syncStateQ.data]);
 
   // Convert API alerts to display format
   const ALERTS: AlertData[] = useMemo(() => {
@@ -294,9 +325,12 @@ const GlobalOverview: React.FC = () => {
     totalAssets: stats?.total_assets ?? TERRITORIES.reduce((s, c) => s + c.totalAssets, 0),
   }), [TERRITORIES, stats]);
 
-  const syncDate = new Date(LAST_SYNC);
-  const syncTimeStr = syncDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-  const syncDateStr = syncDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  const syncTimeStr = lastSyncAt
+    ? new Date(lastSyncAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+    : '—';
+  const syncDateStr = lastSyncAt
+    ? new Date(lastSyncAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+    : '—';
 
   if (rootLocationsQ.isLoading) {
     return (
@@ -453,8 +487,8 @@ const GlobalOverview: React.FC = () => {
                   <span className="material-symbols-outlined text-lg text-primary">speed</span>
                   {t('locations.avg_pue')}
                 </span>
-                <span className={`text-lg font-bold font-headline ${SUMMARY_KPI.averagePUE < 1.3 ? 'text-green-400' : 'text-orange-400'}`}>
-                  {SUMMARY_KPI.averagePUE.toFixed(2)}
+                <span className="text-lg font-bold font-headline text-on-surface-variant">
+                  —
                 </span>
               </div>
 
@@ -464,7 +498,7 @@ const GlobalOverview: React.FC = () => {
                   <span className="material-symbols-outlined text-lg text-primary">bolt</span>
                   {t('locations.total_power')}
                 </span>
-                <span className="text-lg font-bold text-on-surface font-headline">{formatNumber(SUMMARY_KPI.totalPowerKW)} kW</span>
+                <span className="text-lg font-bold text-on-surface font-headline">—</span>
               </div>
 
               {/* Critical Alerts */}
@@ -484,16 +518,7 @@ const GlobalOverview: React.FC = () => {
                   <span className="material-symbols-outlined text-lg text-green-400">check_circle</span>
                   {t('locations.global_uptime')}
                 </span>
-                <span className="text-lg font-bold text-green-400 font-headline">{SUMMARY_KPI.globalUptime}%</span>
-              </div>
-
-              {/* Energy Trend */}
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-on-surface-variant font-body flex items-center gap-2">
-                  <span className="material-symbols-outlined text-lg text-primary">trending_down</span>
-                  {t('locations.energy_trend')}
-                </span>
-                <Sparkline data={SUMMARY_KPI.energyTrend} color="#4ade80" width={100} height={28} />
+                <span className="text-lg font-bold font-headline text-on-surface-variant">—</span>
               </div>
             </div>
           </div>

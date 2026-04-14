@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { qualityApi } from '../lib/api/quality'
+import type { CreateQualityRuleData } from '../lib/api/quality'
 
 export function useQualityDashboard() {
   return useQuery({ queryKey: ['qualityDashboard'], queryFn: () => qualityApi.getDashboard() })
@@ -28,7 +29,7 @@ export function useTriggerQualityScan() {
 export function useCreateQualityRule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: Record<string, unknown>) => qualityApi.createRule(data),
+    mutationFn: (data: CreateQualityRuleData) => qualityApi.createRule(data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['qualityRules'] }) }
   })
 }

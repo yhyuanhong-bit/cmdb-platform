@@ -79,43 +79,7 @@ interface AlertRule {
   enabled: boolean;
 }
 
-const INITIAL_RULES: AlertRule[] = [
-  {
-    id: "RULE-001",
-    name: "Temperature Breach Auto-Escalate",
-    condition: "Temperature > Critical for 5 min",
-    action: "Page on-call + Activate HVAC-AUX",
-    enabled: true,
-  },
-  {
-    id: "RULE-002",
-    name: "Humidity Drift Alert",
-    condition: "Humidity > Warning for 15 min",
-    action: "Notify Facilities Team",
-    enabled: true,
-  },
-  {
-    id: "RULE-003",
-    name: "Power Overload Protection",
-    condition: "Power Draw > 90% capacity",
-    action: "Shed non-critical loads + Alert NOC",
-    enabled: true,
-  },
-  {
-    id: "RULE-004",
-    name: "Sensor Offline Detection",
-    condition: "No heartbeat for 3 polling cycles",
-    action: "Create incident ticket + Notify",
-    enabled: false,
-  },
-  {
-    id: "RULE-005",
-    name: "Security Door Tamper",
-    condition: "Door open > 60 sec during off-hours",
-    action: "Security alert + Camera snapshot",
-    enabled: true,
-  },
-];
+// Alert rules are loaded from the API via useAlertRules — no static fallback.
 
 const POLLING_OPTIONS = [5, 10, 15, 30, 60, 120, 300];
 
@@ -236,7 +200,7 @@ function SensorConfiguration() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiSensors.length, apiSensors.map((s: any) => s.id).join()]);
-  const [rules, setRules] = useState(INITIAL_RULES);
+  const [rules, setRules] = useState<AlertRule[]>([]);
   const [thresholds, setThresholds] = useState<ThresholdConfig[]>(THRESHOLDS);
 
   useEffect(() => {
