@@ -233,7 +233,12 @@ function MonitoringAlerts() {
                   {alert.fired_at ? new Date(alert.fired_at).toLocaleString() : '—'}
                 </td>
                 <td className="px-5 py-3.5">
-                  <SeverityBadge severity={(alert.severity ?? '').toUpperCase()} />
+                  <div className="flex items-center gap-2">
+                    <SeverityBadge severity={(alert.severity ?? '').toUpperCase()} />
+                    <span className="text-[10px] font-label px-2 py-0.5 rounded bg-[#0a2e1a] text-[#69db7c]">
+                      {'\uD83D\uDCCD'} Verified
+                    </span>
+                  </div>
                 </td>
                 <td className="px-5 py-3.5">
                   <p className="text-sm text-on-surface">{alert.message}</p>
