@@ -137,16 +137,22 @@ export default function DataCenter3D() {
 
   // Fetch ALL territories and their descendants to build the complete tree
   const { data: rootResp } = useRootLocations();
-  const territories = rootResp?.data ?? [];
+  const territories = useMemo(() => rootResp?.data ?? [], [rootResp?.data]);
+
+  // Stable list of territory IDs for useQueries
+  const territoryIds = useMemo(() => territories.map(t => t.id), [territories]);
 
   // Fetch all descendants for every territory in parallel
   const allDescQueries = useQueries({
-    queries: territories.map(t => ({
-      queryKey: ['locations', t.id, 'descendants'] as const,
-      queryFn: () => topologyApi.listDescendants(t.id),
-      enabled: !!t.id,
+    queries: territoryIds.map(id => ({
+      queryKey: ['locations', id, 'descendants'] as const,
+      queryFn: () => topologyApi.listDescendants(id),
+      enabled: !!id,
     })),
   });
+
+  // Stable key: only recompute when actual data changes (not query object references)
+  const descDataKey = allDescQueries.map(q => q.dataUpdatedAt).join(',');
 
   // Merge all territories' descendants into one flat list (deduped by id)
   const allLocations = useMemo(() => {
@@ -161,7 +167,8 @@ export default function DataCenter3D() {
       }
     }
     return result;
-  }, [allDescQueries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [descDataKey]);
 
   const [selectedLocationId, setSelectedLocationId] = useState('');
 
@@ -232,15 +239,17 @@ export default function DataCenter3D() {
   const [hoveredRack, setHoveredRack] = useState<string | null>(null);
   const [treeExpanded, setTreeExpanded] = useState<Record<string, boolean>>({});
 
-  // Auto-expand all nodes when data loads
+  // Auto-expand all nodes when data loads — use stable key to avoid infinite loop
+  const allLocationIds = useMemo(() => allLocations.map(l => l.id).join(','), [allLocations]);
   useEffect(() => {
-    if (territories.length > 0 && allLocations.length > 0) {
+    if (territoryIds.length > 0 && allLocations.length > 0) {
       const expanded: Record<string, boolean> = {};
-      territories.forEach(t => { expanded[t.id] = true; });
+      territoryIds.forEach(id => { expanded[id] = true; });
       allLocations.forEach(loc => { expanded[loc.id] = true; });
       setTreeExpanded(expanded);
     }
-  }, [territories, allLocations]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allLocationIds, territoryIds]);
 
   const tabs = [
     { id: "global", label: t('datacenter_3d.tab_global_view'), icon: "public" },
