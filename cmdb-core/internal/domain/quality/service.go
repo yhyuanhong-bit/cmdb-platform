@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 // Service provides data quality governance operations.
@@ -94,9 +95,11 @@ func (s *Service) ScanAllAssets(ctx context.Context, tenantID uuid.UUID) (int, e
 		// Location consistency bonus check via MAC cache
 		if s.pool != nil && asset.RackID.Valid {
 			var detectedRackID *uuid.UUID
-			_ = s.pool.QueryRow(ctx,
+			if err := s.pool.QueryRow(ctx,
 				"SELECT detected_rack_id FROM mac_address_cache WHERE asset_id = $1 AND tenant_id = $2",
-				asset.ID, tenantID).Scan(&detectedRackID)
+				asset.ID, tenantID).Scan(&detectedRackID); err != nil {
+				zap.L().Debug("quality: mac cache lookup failed", zap.String("asset", asset.ID.String()), zap.Error(err))
+			}
 
 			if detectedRackID != nil {
 				assetRack := uuid.UUID(asset.RackID.Bytes)

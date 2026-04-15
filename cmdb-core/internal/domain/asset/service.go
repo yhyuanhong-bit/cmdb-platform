@@ -6,6 +6,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"go.uber.org/zap"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -140,5 +141,7 @@ func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uui
 	if s.pool == nil {
 		return
 	}
-	_, _ = s.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", table), id)
+	if _, err := s.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", table), id); err != nil {
+		zap.L().Error("asset: failed to increment sync_version", zap.String("table", table), zap.Error(err))
+	}
 }

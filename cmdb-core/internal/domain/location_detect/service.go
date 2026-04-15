@@ -164,15 +164,19 @@ func (s *Service) UpdateMACCache(ctx context.Context, tenantID uuid.UUID, entrie
 	for _, e := range entries {
 		// Look up which rack this switch port maps to
 		var rackID *uuid.UUID
-		_ = s.pool.QueryRow(ctx,
+		if err := s.pool.QueryRow(ctx,
 			"SELECT connected_rack_id FROM switch_port_mapping WHERE switch_asset_id = $1 AND port_name = $2 AND tenant_id = $3",
-			e.SwitchAssetID, e.PortName, tenantID).Scan(&rackID)
+			e.SwitchAssetID, e.PortName, tenantID).Scan(&rackID); err != nil {
+			zap.L().Debug("mac cache: switch port mapping not found", zap.String("mac", e.MACAddress), zap.Error(err))
+		}
 
 		// Try to match MAC to an existing asset
 		var assetID *uuid.UUID
-		_ = s.pool.QueryRow(ctx,
+		if err := s.pool.QueryRow(ctx,
 			"SELECT id FROM assets WHERE attributes->>'mac_address' = $1 AND tenant_id = $2 AND deleted_at IS NULL",
-			e.MACAddress, tenantID).Scan(&assetID)
+			e.MACAddress, tenantID).Scan(&assetID); err != nil {
+			zap.L().Debug("mac cache: asset lookup by mac failed", zap.String("mac", e.MACAddress), zap.Error(err))
+		}
 
 		// Upsert into cache
 		_, err := s.pool.Exec(ctx, `
@@ -193,10 +197,12 @@ func (s *Service) UpdateMACCache(ctx context.Context, tenantID uuid.UUID, entrie
 
 // RecordLocationChange records a location change in history.
 func (s *Service) RecordLocationChange(ctx context.Context, tenantID, assetID uuid.UUID, fromRackID, toRackID *uuid.UUID, detectedBy string, workOrderID *uuid.UUID) {
-	_, _ = s.pool.Exec(ctx, `
+	if _, err := s.pool.Exec(ctx, `
 		INSERT INTO asset_location_history (tenant_id, asset_id, from_rack_id, to_rack_id, detected_by, work_order_id)
 		VALUES ($1, $2, $3, $4, $5, $6)
-	`, tenantID, assetID, fromRackID, toRackID, detectedBy, workOrderID)
+	`, tenantID, assetID, fromRackID, toRackID, detectedBy, workOrderID); err != nil {
+		zap.L().Error("location detect: failed to record location change", zap.Error(err))
+	}
 }
 
 // GetLocationHistory returns location change history for an asset.

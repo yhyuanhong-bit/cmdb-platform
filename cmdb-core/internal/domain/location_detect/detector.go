@@ -154,10 +154,12 @@ func (s *Service) autoConfirmRelocation(ctx context.Context, tenantID uuid.UUID,
 
 func (s *Service) createLocationAlert(ctx context.Context, tenantID uuid.UUID, d LocationDiff, severity, message string) {
 	// Insert alert event
-	_, _ = s.pool.Exec(ctx, `
+	if _, err := s.pool.Exec(ctx, `
 		INSERT INTO alert_events (tenant_id, asset_id, severity, status, message, fired_at)
 		VALUES ($1, $2, $3, 'firing', $4, now())
-	`, tenantID, d.AssetID, severity, message)
+	`, tenantID, d.AssetID, severity, message); err != nil {
+		zap.L().Error("location detect: failed to create alert", zap.Error(err))
+	}
 
 	// Publish event for WebSocket/notification
 	if s.bus != nil {

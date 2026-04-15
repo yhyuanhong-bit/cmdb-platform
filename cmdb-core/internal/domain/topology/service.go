@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 // Service provides topology operations on locations and racks.
@@ -227,7 +228,9 @@ func (s *Service) CreateRackSlot(ctx context.Context, params dbgen.CreateRackSlo
 	s.incrementSyncVersion(ctx, "racks", params.RackID)
 	// Fix #20: synchronize assets.rack_id with rack_slots
 	if s.pool != nil {
-		_, _ = s.pool.Exec(ctx, "UPDATE assets SET rack_id = $1, updated_at = now() WHERE id = $2 AND (rack_id IS NULL OR rack_id != $1)", pgtype.UUID{Bytes: params.RackID, Valid: true}, params.AssetID)
+		if _, err := s.pool.Exec(ctx, "UPDATE assets SET rack_id = $1, updated_at = now() WHERE id = $2 AND (rack_id IS NULL OR rack_id != $1)", pgtype.UUID{Bytes: params.RackID, Valid: true}, params.AssetID); err != nil {
+			zap.L().Error("topology: failed to sync asset rack_id on slot create", zap.Error(err))
+		}
 	}
 	return &slot, nil
 }
@@ -238,7 +241,9 @@ func (s *Service) DeleteRackSlot(ctx context.Context, tenantID, slotID uuid.UUID
 	// Capture slot info before deleting so we can update the asset's rack_id
 	var rackID, assetID uuid.UUID
 	if s.pool != nil {
-		_ = s.pool.QueryRow(ctx, "SELECT rack_id, asset_id FROM rack_slots WHERE id = $1", slotID).Scan(&rackID, &assetID)
+		if err := s.pool.QueryRow(ctx, "SELECT rack_id, asset_id FROM rack_slots WHERE id = $1", slotID).Scan(&rackID, &assetID); err != nil {
+			zap.L().Error("topology: failed to read slot before delete", zap.Error(err))
+		}
 	}
 
 	if err := s.queries.DeleteRackSlot(ctx, dbgen.DeleteRackSlotParams{ID: slotID, TenantID: tenantID}); err != nil {
@@ -253,9 +258,13 @@ func (s *Service) DeleteRackSlot(ctx context.Context, tenantID, slotID uuid.UUID
 	// Fix #20: clear assets.rack_id if no other rack_slots link this asset to this rack
 	if s.pool != nil && assetID != uuid.Nil && rackID != uuid.Nil {
 		var remaining int64
-		_ = s.pool.QueryRow(ctx, "SELECT count(*) FROM rack_slots WHERE rack_id = $1 AND asset_id = $2", rackID, assetID).Scan(&remaining)
+		if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM rack_slots WHERE rack_id = $1 AND asset_id = $2", rackID, assetID).Scan(&remaining); err != nil {
+			zap.L().Error("topology: failed to count remaining slots", zap.Error(err))
+		}
 		if remaining == 0 {
-			_, _ = s.pool.Exec(ctx, "UPDATE assets SET rack_id = NULL, updated_at = now() WHERE id = $1 AND rack_id = $2", assetID, pgtype.UUID{Bytes: rackID, Valid: true})
+			if _, err := s.pool.Exec(ctx, "UPDATE assets SET rack_id = NULL, updated_at = now() WHERE id = $1 AND rack_id = $2", assetID, pgtype.UUID{Bytes: rackID, Valid: true}); err != nil {
+				zap.L().Error("topology: failed to clear asset rack_id on slot delete", zap.Error(err))
+			}
 		}
 	}
 	return nil
@@ -278,5 +287,7 @@ func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uui
 	if s.pool == nil {
 		return
 	}
-	_, _ = s.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", table), id)
+	if _, err := s.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", table), id); err != nil {
+		zap.L().Error("topology: failed to increment sync_version", zap.String("table", table), zap.Error(err))
+	}
 }
