@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import LanguageSwitcher from '../components/LanguageSwitcher'
+import { useAuthStore } from '../stores/authStore'
 
 interface SubItem {
   labelKey: string
@@ -254,10 +255,17 @@ export default function MainLayout() {
             <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center">
               <Icon name="person" className="text-[16px] text-on-surface-variant" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="text-xs font-semibold text-on-surface">{t('nav.admin_user')}</div>
               <div className="text-[0.6rem] text-on-surface-variant">{t('nav.system_administrator')}</div>
             </div>
+            <button
+              onClick={() => { useAuthStore.getState().logout(); navigate('/login'); }}
+              title={t('nav.logout', 'Logout')}
+              className="p-1.5 rounded hover:bg-error-container/30 text-on-surface-variant hover:text-error transition-colors"
+            >
+              <Icon name="logout" className="text-[18px]" />
+            </button>
           </div>
         </div>
       </aside>

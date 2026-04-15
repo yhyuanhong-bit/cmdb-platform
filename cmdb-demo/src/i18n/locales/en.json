@@ -111,6 +111,7 @@
     "cmd_k": "CMD+K",
     "admin_user": "Admin User",
     "system_administrator": "System Administrator",
+    "logout": "Logout",
     "telemetry": "Telemetry",
     "analytics": "Analytics",
     "reports": "Reports",
