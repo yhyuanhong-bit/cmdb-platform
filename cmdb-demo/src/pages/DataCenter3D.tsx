@@ -134,9 +134,14 @@ export default function DataCenter3D() {
   const navigate = useNavigate();
   const { path } = useLocationContext();
 
-  // Fetch API-driven location tree
+  // Fetch API-driven location tree — prefer the territory with the most descendants
   const { data: rootResp } = useRootLocations();
-  const territory = rootResp?.data?.[0];
+  const territories = rootResp?.data ?? [];
+  // Prefer the territory from LocationContext, otherwise pick the one with highest sort_order (main territory)
+  const contextTerritoryId = path.territory?.id;
+  const territory = territories.find(t => t.id === contextTerritoryId)
+    || [...territories].sort((a, b) => (b.sort_order ?? 0) - (a.sort_order ?? 0))[0]
+    || territories[0];
   const { data: descResp } = useLocationDescendants(territory?.id || '');
   const allLocations = descResp?.data || [];
 
