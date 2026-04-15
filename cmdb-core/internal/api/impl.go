@@ -764,7 +764,7 @@ func (s *APIServer) CreateLocation(c *gin.Context) {
 
 	tenantID := tenantIDFromContext(c)
 
-	var metadataJSON json.RawMessage
+	metadataJSON := json.RawMessage(`{}`)
 	if req.Metadata != nil {
 		metadataJSON, _ = json.Marshal(req.Metadata)
 	}
@@ -821,6 +821,7 @@ func (s *APIServer) CreateLocation(c *gin.Context) {
 			response.Err(c, 409, "DUPLICATE", "A location with this slug already exists")
 			return
 		}
+		zap.L().Error("failed to create location", zap.Error(err))
 		response.InternalError(c, "failed to create location")
 		return
 	}
