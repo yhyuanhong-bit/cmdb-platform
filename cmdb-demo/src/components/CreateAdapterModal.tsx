@@ -161,7 +161,7 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
         {isPrometheus && (
           <>
             <div>
-              <label className={labelCls}>Metric Queries (one per line)</label>
+              <label className={labelCls}>{t('adapter_config.metric_queries')}</label>
               <textarea
                 value={formData.queries}
                 onChange={e => setFormData(p => ({ ...p, queries: e.target.value }))}
@@ -171,14 +171,14 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
               />
             </div>
             <div>
-              <label className={labelCls}>Pull Interval</label>
+              <label className={labelCls}>{t('adapter_config.pull_interval')}</label>
               <select value={formData.pull_interval} onChange={e => setFormData(p => ({ ...p, pull_interval: e.target.value }))}
                 className={inputCls}>
-                <option value="60">1 minute</option>
-                <option value="300">5 minutes (default)</option>
-                <option value="900">15 minutes</option>
-                <option value="1800">30 minutes</option>
-                <option value="3600">1 hour</option>
+                <option value="60">{t('adapter_config.interval_1m')}</option>
+                <option value="300">{t('adapter_config.interval_5m')}</option>
+                <option value="900">{t('adapter_config.interval_15m')}</option>
+                <option value="1800">{t('adapter_config.interval_30m')}</option>
+                <option value="3600">{t('adapter_config.interval_1h')}</option>
               </select>
             </div>
           </>

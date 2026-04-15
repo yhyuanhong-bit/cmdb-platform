@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { usePermission } from '../hooks/usePermission'
 import { useSyncState, useSyncConflicts, useResolveConflict, useSyncStats } from '../hooks/useSync'
@@ -24,12 +25,13 @@ function syncStatusColor(status: string, lastSyncAt: string): { color: string; l
 }
 
 export default function SyncManagement() {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<'status' | 'conflicts'>('status')
   const canResolve = usePermission('sync', 'write')
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold text-on-surface mb-6">Sync Management</h1>
+      <h1 className="text-2xl font-bold text-on-surface mb-6">{t('sync.title')}</h1>
 
       <div className="flex gap-1 mb-6">
         {(['status', 'conflicts'] as const).map((tab) => (
@@ -42,7 +44,7 @@ export default function SyncManagement() {
                 : 'text-on-surface-variant hover:bg-surface-container'
             }`}
           >
-            {tab === 'status' ? 'Sync Status' : 'Conflicts'}
+            {tab === 'status' ? t('sync.tab_status') : t('sync.tab_conflicts')}
           </button>
         ))}
       </div>
@@ -54,6 +56,7 @@ export default function SyncManagement() {
 }
 
 function SummaryCards({ states, conflictCount }: { states: any[]; conflictCount: number }) {
+  const { t } = useTranslation()
   const uniqueNodes = new Set(states.map((s: any) => s.node_id))
   const okCount = states.filter((s: any) => {
     if (s.status === 'error') return false
@@ -75,7 +78,7 @@ function SummaryCards({ states, conflictCount }: { states: any[]; conflictCount:
     <div className="grid grid-cols-3 gap-4 mb-6">
       <div className="bg-surface-container rounded-lg p-4 text-center">
         <div className="text-2xl font-bold text-on-surface">{uniqueNodes.size}</div>
-        <div className="text-xs text-on-surface-variant mt-1">Total Nodes</div>
+        <div className="text-xs text-on-surface-variant mt-1">{t('sync.total_nodes')}</div>
       </div>
       <div className="bg-surface-container rounded-lg p-4 text-center">
         <div className="text-sm font-semibold text-on-surface">
@@ -83,19 +86,20 @@ function SummaryCards({ states, conflictCount }: { states: any[]; conflictCount:
           {lagCount > 0 && <span className="text-yellow-500 ml-2">{lagCount} Lag</span>}
           {errorCount > 0 && <span className="text-red-500 ml-2">{errorCount} Error</span>}
         </div>
-        <div className="text-xs text-on-surface-variant mt-1">Sync Health</div>
+        <div className="text-xs text-on-surface-variant mt-1">{t('sync.sync_health')}</div>
       </div>
       <div className="bg-surface-container rounded-lg p-4 text-center">
         <div className="text-sm font-semibold text-on-surface">
           {conflictCount} conflicts · {errorCount} errors
         </div>
-        <div className="text-xs text-on-surface-variant mt-1">Pending</div>
+        <div className="text-xs text-on-surface-variant mt-1">{t('sync.pending')}</div>
       </div>
     </div>
   )
 }
 
 function VersionGapChart({ stats }: { stats: any[] }) {
+  const { t } = useTranslation()
   const chartData = stats
     .map((s: any) => ({
       entity_type: s.entity_type.replace(/_/g, ' '),
@@ -106,14 +110,14 @@ function VersionGapChart({ stats }: { stats: any[] }) {
   if (chartData.length === 0) {
     return (
       <div className="bg-surface-container rounded-lg p-4 mb-6 text-center text-on-surface-variant text-sm">
-        All nodes are up to date — no version gaps.
+        {t('sync.all_up_to_date')}
       </div>
     )
   }
 
   return (
     <div className="bg-surface-container rounded-lg p-4 mb-6">
-      <h3 className="text-sm font-bold text-on-surface mb-3">Version Gap by Entity Type</h3>
+      <h3 className="text-sm font-bold text-on-surface mb-3">{t('sync.version_gap_title')}</h3>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={chartData}>
           <XAxis dataKey="entity_type" tick={{ fontSize: 11 }} />
@@ -131,13 +135,14 @@ function VersionGapChart({ stats }: { stats: any[] }) {
 }
 
 function ErrorList({ states }: { states: any[] }) {
+  const { t } = useTranslation()
   const errors = states.filter((s: any) => s.status === 'error' || (Date.now() - new Date(s.last_sync_at).getTime()) / 3600000 > 24)
 
   if (errors.length === 0) return null
 
   return (
     <div className="mt-6">
-      <h3 className="text-sm font-bold text-on-surface mb-3">Sync Errors</h3>
+      <h3 className="text-sm font-bold text-on-surface mb-3">{t('sync.sync_errors')}</h3>
       <div className="space-y-2">
         {errors.map((s: any) => (
           <div key={`${s.node_id}-${s.entity_type}`} className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
@@ -155,6 +160,7 @@ function ErrorList({ states }: { states: any[] }) {
 }
 
 function SyncStatusTab() {
+  const { t } = useTranslation()
   const { data: stateResp, isLoading: stateLoading } = useSyncState()
   const { data: conflictsResp } = useSyncConflicts()
   const { data: statsResp, isLoading: statsLoading } = useSyncStats()
@@ -169,7 +175,7 @@ function SyncStatusTab() {
   if (states.length === 0) {
     return (
       <div className="bg-surface-container rounded-lg p-8 text-center text-on-surface-variant">
-        No sync nodes registered yet.
+        {t('sync.no_nodes')}
       </div>
     )
   }
@@ -191,10 +197,10 @@ function SyncStatusTab() {
           <div key={nodeId} className="bg-surface-container rounded-lg p-4">
             <h3 className="text-sm font-bold text-on-surface mb-3 uppercase tracking-wide">{nodeId}</h3>
             <div className="grid grid-cols-[1fr_80px_100px_60px] gap-2 text-sm">
-              <div className="text-on-surface-variant font-semibold">Entity</div>
-              <div className="text-on-surface-variant font-semibold">Version</div>
-              <div className="text-on-surface-variant font-semibold">Last Sync</div>
-              <div className="text-on-surface-variant font-semibold">Status</div>
+              <div className="text-on-surface-variant font-semibold">{t('sync.col_entity')}</div>
+              <div className="text-on-surface-variant font-semibold">{t('sync.col_version')}</div>
+              <div className="text-on-surface-variant font-semibold">{t('sync.col_last_sync')}</div>
+              <div className="text-on-surface-variant font-semibold">{t('sync.col_status')}</div>
               {(nodeStates as any[]).map((s: any) => {
                 const { color, label } = syncStatusColor(s.status, s.last_sync_at)
                 return (
@@ -227,6 +233,7 @@ function SyncStatusTab() {
 }
 
 function ConflictsTab({ canResolve }: { canResolve: boolean }) {
+  const { t } = useTranslation()
   const { data: resp, isLoading } = useSyncConflicts()
   const conflicts: SyncConflict[] = (resp as any)?.data ?? []
   const [selectedConflict, setSelectedConflict] = useState<SyncConflict | null>(null)
@@ -263,13 +270,13 @@ function ConflictsTab({ canResolve }: { canResolve: boolean }) {
     )
     await Promise.all(promises)
     setSelectedIds(new Set())
-    toast.success(`Resolved ${promises.length} conflicts as ${resolution.replace('_', ' ')}`)
+    toast.success(t('sync.batch_resolved', { count: promises.length, resolution: resolution.replace('_', ' ') }))
   }
 
   const handleResolve = async (id: string, resolution: 'local_wins' | 'remote_wins') => {
     await resolveConflict.mutateAsync({ id, resolution })
     setSelectedConflict(null)
-    toast.success('Conflict resolved')
+    toast.success(t('sync.conflict_resolved'))
   }
 
   if (isLoading) {
@@ -279,7 +286,7 @@ function ConflictsTab({ canResolve }: { canResolve: boolean }) {
   if (conflicts.length === 0) {
     return (
       <div className="bg-surface-container rounded-lg p-8 text-center text-on-surface-variant">
-        No pending conflicts. Sync is running smoothly.
+        {t('sync.no_conflicts')}
       </div>
     )
   }
@@ -292,7 +299,7 @@ function ConflictsTab({ canResolve }: { canResolve: boolean }) {
           onChange={(e) => setFilterType(e.target.value)}
           className="bg-surface-container rounded-lg px-3 py-2 text-sm text-on-surface"
         >
-          <option value="">All types</option>
+          <option value="">{t('sync.all_types')}</option>
           {entityTypes.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
@@ -303,13 +310,13 @@ function ConflictsTab({ canResolve }: { canResolve: boolean }) {
               onClick={() => batchResolve('local_wins')}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
             >
-              Local Wins ({selectedIds.size})
+              {t('sync.local_wins')} ({selectedIds.size})
             </button>
             <button
               onClick={() => batchResolve('remote_wins')}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700"
             >
-              Remote Wins ({selectedIds.size})
+              {t('sync.remote_wins')} ({selectedIds.size})
             </button>
           </div>
         )}
@@ -319,7 +326,7 @@ function ConflictsTab({ canResolve }: { canResolve: boolean }) {
         {canResolve && filtered.length > 0 && (
           <label className="flex items-center gap-2 text-xs text-on-surface-variant mb-1 cursor-pointer">
             <input type="checkbox" checked={selectedIds.size === filtered.length} onChange={toggleAll} />
-            Select all
+            {t('sync.select_all')}
           </label>
         )}
         {filtered.map((conflict) => (
@@ -343,7 +350,7 @@ function ConflictsTab({ canResolve }: { canResolve: boolean }) {
               onClick={() => setSelectedConflict(conflict)}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-container-high text-on-surface hover:bg-surface-container-highest"
             >
-              View Details
+              {t('sync.view_details')}
             </button>
           </div>
         ))}
@@ -361,13 +368,13 @@ function ConflictsTab({ canResolve }: { canResolve: boolean }) {
 
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div>
-                <div className="text-xs font-semibold text-on-surface-variant mb-2">Local (v{selectedConflict.local_version})</div>
+                <div className="text-xs font-semibold text-on-surface-variant mb-2">{t('sync.local')} (v{selectedConflict.local_version})</div>
                 <pre className="bg-surface-container rounded-lg p-3 text-xs text-on-surface overflow-auto max-h-60">
                   {JSON.stringify(selectedConflict.local_diff, null, 2)}
                 </pre>
               </div>
               <div>
-                <div className="text-xs font-semibold text-on-surface-variant mb-2">Remote (v{selectedConflict.remote_version})</div>
+                <div className="text-xs font-semibold text-on-surface-variant mb-2">{t('sync.remote')} (v{selectedConflict.remote_version})</div>
                 <pre className="bg-surface-container rounded-lg p-3 text-xs text-on-surface overflow-auto max-h-60">
                   {JSON.stringify(selectedConflict.remote_diff, null, 2)}
                 </pre>
@@ -381,14 +388,14 @@ function ConflictsTab({ canResolve }: { canResolve: boolean }) {
                   disabled={resolveConflict.isPending}
                   className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  Local Wins
+                  {t('sync.local_wins')}
                 </button>
                 <button
                   onClick={() => handleResolve(selectedConflict.id, 'remote_wins')}
                   disabled={resolveConflict.isPending}
                   className="px-4 py-2 rounded-lg text-sm font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
                 >
-                  Remote Wins
+                  {t('sync.remote_wins')}
                 </button>
               </div>
             )}

@@ -290,8 +290,8 @@ function VisualizationTab({
               /* No equipment data available */
               <div className="bg-surface-container-low rounded p-8 text-center text-on-surface-variant">
                 <span className="material-symbols-outlined text-[36px] mb-2 block opacity-30">inventory_2</span>
-                <p className="text-sm">No equipment</p>
-                <p className="text-[10px] mt-1 opacity-60">No assets have been assigned to this rack yet</p>
+                <p className="text-sm">{t('rack_detail.no_equipment')}</p>
+                <p className="text-[10px] mt-1 opacity-60">{t('rack_detail.no_equipment_hint')}</p>
               </div>
             )}
           </div>
@@ -343,7 +343,7 @@ function VisualizationTab({
             ) : (
               <div className="text-center py-8 text-on-surface-variant">
                 <span className="material-symbols-outlined text-[36px] mb-2 block opacity-30">touch_app</span>
-                <p className="text-sm">Select equipment from the rack to view details</p>
+                <p className="text-sm">{t('rack_detail.select_equipment_prompt')}</p>
               </div>
             )}
           </div>
@@ -353,7 +353,7 @@ function VisualizationTab({
             <div className="flex items-center gap-2 mb-4">
               <span className="material-symbols-outlined text-tertiary text-[18px]">notification_important</span>
               <h2 className="text-xs font-headline font-bold tracking-widest uppercase text-on-surface-variant">
-                Active Alerts
+                {t('rack_detail.active_alerts')}
               </h2>
             </div>
             {liveAlerts && liveAlerts.length > 0 ? (
@@ -379,7 +379,7 @@ function VisualizationTab({
             ) : (
               <div className="text-center py-6 text-on-surface-variant">
                 <span className="material-symbols-outlined text-[28px] mb-1 block opacity-30">check_circle</span>
-                <p className="text-xs">No active alerts</p>
+                <p className="text-xs">{t('rack_detail.no_active_alerts')}</p>
               </div>
             )}
           </div>
@@ -468,7 +468,7 @@ function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; sl
         {/* Configuration */}
         <div className="col-span-4">
           <h3 className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-3">
-            Configuration
+            {t('rack_console.section_configuration')}
           </h3>
           <div className="space-y-2 text-xs">
             {[
@@ -494,7 +494,7 @@ function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; sl
         {/* Recent Activity */}
         <div className="col-span-4">
           <h3 className="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-3">
-            Recent Activity
+            {t('rack_console.section_recent_activity')}
           </h3>
           <div className="space-y-1.5">
             {recentActivity.map((item, i) => (
@@ -515,15 +515,15 @@ function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; sl
         {/* Map */}
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-3">
-            <h2 className="text-sm font-headline font-semibold text-on-surface">U-Position Map</h2>
+            <h2 className="text-sm font-headline font-semibold text-on-surface">{t('rack_console.section_u_position_map')}</h2>
             <div className="flex items-center gap-4 ml-4">
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded bg-on-primary-container/40" />
-                <span className="text-[10px] text-on-surface-variant">Occupied ({occupiedCount})</span>
+                <span className="text-[10px] text-on-surface-variant">{t('rack_console.legend_occupied')} ({occupiedCount})</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded bg-surface-container-highest/30" />
-                <span className="text-[10px] text-on-surface-variant">Vacant ({vacantCount})</span>
+                <span className="text-[10px] text-on-surface-variant">{t('rack_console.legend_vacant')} ({vacantCount})</span>
               </div>
             </div>
           </div>
@@ -588,7 +588,7 @@ function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; sl
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="material-symbols-outlined text-primary text-lg">analytics</span>
-                  <h3 className="text-sm font-headline font-semibold text-on-surface">Slot Analytics</h3>
+                  <h3 className="text-sm font-headline font-semibold text-on-surface">{t('rack_console.section_slot_analytics')}</h3>
                 </div>
                 <p className="text-xs text-on-surface-variant">{selectedSlot.label}</p>
               </div>
@@ -613,7 +613,7 @@ function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; sl
 
               {/* Power */}
               <div className="bg-surface-container-low rounded-xl p-3">
-                <h4 className="text-[11px] font-semibold text-on-surface-variant mb-2">Power Draw</h4>
+                <h4 className="text-[11px] font-semibold text-on-surface-variant mb-2">{t('rack_console.section_power_draw')}</h4>
                 <div className="flex items-baseline gap-1">
                   <span className="text-lg font-headline font-bold text-on-surface">
                     {selectedSlot.type === "network" ? "185" : "340"}
@@ -630,14 +630,14 @@ function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; sl
 
               {/* Thermal */}
               <div className="bg-surface-container-low rounded-xl p-3">
-                <h4 className="text-[11px] font-semibold text-on-surface-variant mb-2">Thermal</h4>
+                <h4 className="text-[11px] font-semibold text-on-surface-variant mb-2">{t('rack_console.section_thermal')}</h4>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-on-surface-variant">Intake</span>
+                    <span className="text-on-surface-variant">{t('rack_console.label_intake')}</span>
                     <p className="text-on-surface font-medium">{selectedSlot.warning ? "31.2\u00b0C" : "23.8\u00b0C"}</p>
                   </div>
                   <div>
-                    <span className="text-on-surface-variant">Exhaust</span>
+                    <span className="text-on-surface-variant">{t('rack_console.label_exhaust')}</span>
                     <p className="text-on-surface font-medium">{selectedSlot.warning ? "42.1\u00b0C" : "34.5\u00b0C"}</p>
                   </div>
                 </div>
@@ -645,7 +645,7 @@ function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; sl
 
               {/* Quick Actions */}
               <div>
-                <h4 className="text-[11px] font-semibold text-on-surface-variant mb-2">Quick Actions</h4>
+                <h4 className="text-[11px] font-semibold text-on-surface-variant mb-2">{t('rack_console.section_quick_actions')}</h4>
                 <div className="flex gap-2">
                   <button className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-surface-container-high text-on-surface text-xs font-medium hover:bg-surface-container-highest transition-colors">
                     <span className="material-symbols-outlined text-sm">qr_code_scanner</span>
@@ -661,7 +661,7 @@ function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; sl
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-on-surface-variant">
               <span className="material-symbols-outlined text-4xl mb-2">touch_app</span>
-              <p className="text-xs">Select a slot to view analytics</p>
+              <p className="text-xs">{t('rack_console.prompt_select_slot')}</p>
             </div>
           )}
         </div>

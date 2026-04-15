@@ -92,7 +92,7 @@ export default function RackManagement() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <span className="material-symbols-outlined text-error text-4xl">error</span>
-        <p className="text-error text-sm">Failed to load racks</p>
+        <p className="text-error text-sm">{t('racks.load_failed')}</p>
       </div>
     );
   }
@@ -285,25 +285,25 @@ export default function RackManagement() {
                                 onClick={() => {
                                   updateRack.mutate({ id: rack.id, data: { status: rack.status === 'MAINTENANCE' ? 'ACTIVE' : 'MAINTENANCE' } });
                                   setMenuRackId(null);
-                                  toast.success(rack.status === 'MAINTENANCE' ? 'Rack set to Active' : 'Rack set to Maintenance');
+                                  toast.success(rack.status === 'MAINTENANCE' ? t('racks.toast_set_active') : t('racks.toast_set_maintenance'));
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest"
                               >
                                 <span className="material-symbols-outlined text-base align-middle mr-2">engineering</span>
-                                {rack.status === 'MAINTENANCE' ? 'Set Active' : 'Set Maintenance'}
+                                {rack.status === 'MAINTENANCE' ? t('racks.set_active') : t('racks.set_maintenance')}
                               </button>
                               <button
                                 onClick={() => {
-                                  if (confirm('Are you sure you want to delete this rack?')) {
+                                  if (confirm(t('racks.confirm_delete'))) {
                                     deleteRack.mutate(rack.id);
-                                    toast.success('Rack deleted');
+                                    toast.success(t('racks.toast_deleted'));
                                   }
                                   setMenuRackId(null);
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-error hover:bg-surface-container-highest"
                               >
                                 <span className="material-symbols-outlined text-base align-middle mr-2">delete</span>
-                                Delete Rack
+                                {t('racks.delete_rack')}
                               </button>
                             </div>
                           )}
@@ -437,48 +437,48 @@ export default function RackManagement() {
       {editingRack && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingRack(null)}>
           <div className="bg-[#1a1f2e] p-6 rounded-xl w-[28rem] space-y-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white">Edit Rack</h3>
+            <h3 className="text-lg font-bold text-white">{t('racks.edit_title')}</h3>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Name</label>
+              <label className="block text-sm text-gray-400 mb-1">{t('racks.field_name')}</label>
               <input value={editName} onChange={e => setEditName(e.target.value)}
                 className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Total U</label>
+                <label className="block text-sm text-gray-400 mb-1">{t('racks.field_total_u')}</label>
                 <input type="number" value={editTotalU} onChange={e => setEditTotalU(parseInt(e.target.value) || 0)}
                   className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Power Capacity (kW)</label>
+                <label className="block text-sm text-gray-400 mb-1">{t('racks.field_power_capacity')}</label>
                 <input type="number" step="0.1" value={editPower} onChange={e => setEditPower(parseFloat(e.target.value) || 0)}
                   className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Status</label>
+              <label className="block text-sm text-gray-400 mb-1">{t('racks.field_status')}</label>
               <select value={editStatus} onChange={e => setEditStatus(e.target.value)}
                 className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm">
-                <option value="ACTIVE">Active</option>
-                <option value="MAINTENANCE">Maintenance</option>
-                <option value="DECOMMISSIONED">Decommissioned</option>
+                <option value="ACTIVE">{t('racks.status_active')}</option>
+                <option value="MAINTENANCE">{t('racks.status_maintenance_label')}</option>
+                <option value="DECOMMISSIONED">{t('racks.status_decommissioned_label')}</option>
               </select>
             </div>
 
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setEditingRack(null)} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">Cancel</button>
+              <button onClick={() => setEditingRack(null)} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('racks.btn_cancel')}</button>
               <button
                 onClick={() => {
                   updateRack.mutate({ id: editingRack.id, data: { name: editName, total_u: editTotalU, power_capacity_kw: editPower, status: editStatus } }, {
-                    onSuccess: () => { setEditingRack(null); toast.success('Rack updated'); }
+                    onSuccess: () => { setEditingRack(null); toast.success(t('racks.toast_updated')); }
                   });
                 }}
                 className="px-4 py-2 rounded bg-blue-600 text-white text-sm"
               >
-                Save
+                {t('racks.btn_save')}
               </button>
             </div>
           </div>
