@@ -27,6 +27,11 @@ func (s *Service) ListRootLocations(ctx context.Context, tenantID uuid.UUID) ([]
 	return s.queries.ListRootLocations(ctx, tenantID)
 }
 
+// ListAllLocations returns all locations for a tenant (flat list ordered by path).
+func (s *Service) ListAllLocations(ctx context.Context, tenantID uuid.UUID) ([]dbgen.Location, error) {
+	return s.queries.ListAllLocations(ctx, tenantID)
+}
+
 // GetLocation returns a single location by ID, scoped to the given tenant.
 func (s *Service) GetLocation(ctx context.Context, tenantID, id uuid.UUID) (dbgen.Location, error) {
 	return s.queries.GetLocation(ctx, dbgen.GetLocationParams{ID: id, TenantID: tenantID})

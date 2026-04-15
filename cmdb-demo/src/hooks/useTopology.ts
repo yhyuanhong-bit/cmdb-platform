@@ -8,6 +8,13 @@ export function useRootLocations() {
   })
 }
 
+export function useAllLocations() {
+  return useQuery({
+    queryKey: ['locations', 'all'],
+    queryFn: () => topologyApi.listAllLocations(),
+  })
+}
+
 export function useLocation(id: string) {
   return useQuery({
     queryKey: ['locations', id],

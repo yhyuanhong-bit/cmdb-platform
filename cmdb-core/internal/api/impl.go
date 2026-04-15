@@ -649,6 +649,7 @@ func (s *APIServer) DeleteAsset(c *gin.Context, id IdPath) {
 // ---------------------------------------------------------------------------
 
 // ListLocations returns root locations, or looks up a location by slug+level.
+// Supports ?all=true to return all locations (flat list for tree building).
 // (GET /locations)
 func (s *APIServer) ListLocations(c *gin.Context, params ListLocationsParams) {
 	tenantID := tenantIDFromContext(c)
@@ -660,6 +661,17 @@ func (s *APIServer) ListLocations(c *gin.Context, params ListLocationsParams) {
 			return
 		}
 		response.OK(c, toAPILocation(*loc))
+		return
+	}
+
+	// ?all=true → return every location for this tenant
+	if c.Query("all") == "true" {
+		locations, err := s.topologySvc.ListAllLocations(c.Request.Context(), tenantID)
+		if err != nil {
+			response.InternalError(c, "failed to list all locations")
+			return
+		}
+		response.OK(c, convertSlice(locations, toAPILocation))
 		return
 	}
 

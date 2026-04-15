@@ -230,6 +230,50 @@ func (q *Queries) GetLocationBySlug(ctx context.Context, arg GetLocationBySlugPa
 	return i, err
 }
 
+const listAllLocations = `-- name: ListAllLocations :many
+SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at, latitude, longitude FROM locations
+WHERE tenant_id = $1 AND deleted_at IS NULL
+ORDER BY path, sort_order
+`
+
+func (q *Queries) ListAllLocations(ctx context.Context, tenantID uuid.UUID) ([]Location, error) {
+	rows, err := q.db.Query(ctx, listAllLocations, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Location{}
+	for rows.Next() {
+		var i Location
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.NameEn,
+			&i.Slug,
+			&i.Level,
+			&i.ParentID,
+			&i.Path,
+			&i.Status,
+			&i.Metadata,
+			&i.SortOrder,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SyncVersion,
+			&i.DeletedAt,
+			&i.Latitude,
+			&i.Longitude,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAncestors = `-- name: ListAncestors :many
 SELECT id, tenant_id, name, name_en, slug, level, parent_id, path, status, metadata, sort_order, created_at, updated_at, sync_version, deleted_at, latitude, longitude FROM locations
 WHERE tenant_id = $1 AND path @> $2::ltree

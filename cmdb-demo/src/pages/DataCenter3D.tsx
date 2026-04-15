@@ -2,12 +2,11 @@ import { toast } from 'sonner'
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueries } from "@tanstack/react-query";
-import { useRacks, useRootLocations } from "../hooks/useTopology";
+import { useQuery } from "@tanstack/react-query";
+import { useRacks, useAllLocations } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import { useAlerts } from "../hooks/useMonitoring";
 import { apiClient } from "../lib/api/client";
-import { topologyApi } from "../lib/api/topology";
 import type { Rack, Location } from "../lib/api/topology";
 import type { AlertEvent } from "../lib/api/monitoring";
 
@@ -135,40 +134,15 @@ export default function DataCenter3D() {
   const navigate = useNavigate();
   const { path } = useLocationContext();
 
-  // Fetch ALL territories and their descendants to build the complete tree
-  const { data: rootResp } = useRootLocations();
-  const territories = useMemo(() => rootResp?.data ?? [], [rootResp?.data]);
+  // Single query: fetch ALL locations for this tenant
+  const { data: allLocResp } = useAllLocations();
+  const allLocations = allLocResp?.data ?? [];
 
-  // Stable list of territory IDs for useQueries
-  const territoryIds = useMemo(() => territories.map(t => t.id), [territories]);
-
-  // Fetch all descendants for every territory in parallel
-  const allDescQueries = useQueries({
-    queries: territoryIds.map(id => ({
-      queryKey: ['locations', id, 'descendants'] as const,
-      queryFn: () => topologyApi.listDescendants(id),
-      enabled: !!id,
-    })),
-  });
-
-  // Stable key: only recompute when actual data changes (not query object references)
-  const descDataKey = allDescQueries.map(q => q.dataUpdatedAt).join(',');
-
-  // Merge all territories' descendants into one flat list (deduped by id)
-  const allLocations = useMemo(() => {
-    const seen = new Set<string>();
-    const result: Location[] = [];
-    for (const q of allDescQueries) {
-      for (const loc of q.data?.data ?? []) {
-        if (!seen.has(loc.id)) {
-          seen.add(loc.id);
-          result.push(loc);
-        }
-      }
-    }
-    return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [descDataKey]);
+  // Derive territories (root nodes with no parent)
+  const territories = useMemo(
+    () => allLocations.filter(l => !l.parent_id),
+    [allLocations]
+  );
 
   const [selectedLocationId, setSelectedLocationId] = useState('');
 
@@ -239,17 +213,14 @@ export default function DataCenter3D() {
   const [hoveredRack, setHoveredRack] = useState<string | null>(null);
   const [treeExpanded, setTreeExpanded] = useState<Record<string, boolean>>({});
 
-  // Auto-expand all nodes when data loads — use stable key to avoid infinite loop
-  const allLocationIds = useMemo(() => allLocations.map(l => l.id).join(','), [allLocations]);
+  // Auto-expand all nodes when data loads
   useEffect(() => {
-    if (territoryIds.length > 0 && allLocations.length > 0) {
+    if (allLocations.length > 0) {
       const expanded: Record<string, boolean> = {};
-      territoryIds.forEach(id => { expanded[id] = true; });
       allLocations.forEach(loc => { expanded[loc.id] = true; });
       setTreeExpanded(expanded);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allLocationIds, territoryIds]);
+  }, [allLocations]);
 
   const tabs = [
     { id: "global", label: t('datacenter_3d.tab_global_view'), icon: "public" },

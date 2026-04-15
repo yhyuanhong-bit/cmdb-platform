@@ -61,6 +61,8 @@ export interface CreateNetworkConnectionInput {
 export const topologyApi = {
   listRootLocations: () =>
     apiClient.get<ApiResponse<Location[]>>('/locations'),
+  listAllLocations: () =>
+    apiClient.get<ApiResponse<Location[]>>('/locations', { all: 'true' }),
   getLocation: (id: string) =>
     apiClient.get<ApiResponse<Location>>(`/locations/${id}`),
   listChildren: (id: string) =>

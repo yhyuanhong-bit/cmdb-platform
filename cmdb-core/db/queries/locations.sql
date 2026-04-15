@@ -3,6 +3,11 @@ SELECT * FROM locations
 WHERE tenant_id = $1 AND parent_id IS NULL
 ORDER BY sort_order, name;
 
+-- name: ListAllLocations :many
+SELECT * FROM locations
+WHERE tenant_id = $1 AND deleted_at IS NULL
+ORDER BY path, sort_order;
+
 -- name: GetLocation :one
 SELECT * FROM locations WHERE id = $1 AND tenant_id = $2;
 
