@@ -2,12 +2,13 @@ import { toast } from 'sonner'
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { useRacks, useRootLocations, useLocationDescendants } from "../hooks/useTopology";
+import { useQuery, useQueries } from "@tanstack/react-query";
+import { useRacks, useRootLocations } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import { useAlerts } from "../hooks/useMonitoring";
 import { apiClient } from "../lib/api/client";
-import type { Rack } from "../lib/api/topology";
+import { topologyApi } from "../lib/api/topology";
+import type { Rack, Location } from "../lib/api/topology";
 import type { AlertEvent } from "../lib/api/monitoring";
 
 interface TreeNode {
@@ -134,16 +135,33 @@ export default function DataCenter3D() {
   const navigate = useNavigate();
   const { path } = useLocationContext();
 
-  // Fetch API-driven location tree — prefer the territory with the most descendants
+  // Fetch ALL territories and their descendants to build the complete tree
   const { data: rootResp } = useRootLocations();
   const territories = rootResp?.data ?? [];
-  // Prefer the territory from LocationContext, otherwise pick the one with highest sort_order (main territory)
-  const contextTerritoryId = path.territory?.id;
-  const territory = territories.find(t => t.id === contextTerritoryId)
-    || [...territories].sort((a, b) => (b.sort_order ?? 0) - (a.sort_order ?? 0))[0]
-    || territories[0];
-  const { data: descResp } = useLocationDescendants(territory?.id || '');
-  const allLocations = descResp?.data || [];
+
+  // Fetch all descendants for every territory in parallel
+  const allDescQueries = useQueries({
+    queries: territories.map(t => ({
+      queryKey: ['locations', t.id, 'descendants'] as const,
+      queryFn: () => topologyApi.listDescendants(t.id),
+      enabled: !!t.id,
+    })),
+  });
+
+  // Merge all territories' descendants into one flat list (deduped by id)
+  const allLocations = useMemo(() => {
+    const seen = new Set<string>();
+    const result: Location[] = [];
+    for (const q of allDescQueries) {
+      for (const loc of q.data?.data ?? []) {
+        if (!seen.has(loc.id)) {
+          seen.add(loc.id);
+          result.push(loc);
+        }
+      }
+    }
+    return result;
+  }, [allDescQueries]);
 
   const [selectedLocationId, setSelectedLocationId] = useState('');
 
@@ -177,13 +195,15 @@ export default function DataCenter3D() {
       });
   }
 
-  const locationTree: TreeNode[] = territory
-    ? [{
-        id: territory.id,
-        label: territory.name_en || territory.name,
-        children: buildTree(territory.id),
-      }]
-    : [];
+  // Build a tree node for EACH territory (root level)
+  const locationTree: TreeNode[] = territories
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(t => ({
+      id: t.id,
+      label: t.name_en || t.name,
+      children: buildTree(t.id),
+      active: t.id === selectedLocationId,
+    }));
 
   // Fallback to Neihu campus if no location context set
   const contextLocationId = path.idc?.id ?? path.campus?.id ?? 'd0000000-0000-0000-0000-000000000004';
@@ -214,12 +234,13 @@ export default function DataCenter3D() {
 
   // Auto-expand all nodes when data loads
   useEffect(() => {
-    if (territory && allLocations.length > 0) {
-      const expanded: Record<string, boolean> = { [territory.id]: true };
+    if (territories.length > 0 && allLocations.length > 0) {
+      const expanded: Record<string, boolean> = {};
+      territories.forEach(t => { expanded[t.id] = true; });
       allLocations.forEach(loc => { expanded[loc.id] = true; });
       setTreeExpanded(expanded);
     }
-  }, [territory, allLocations]);
+  }, [territories, allLocations]);
 
   const tabs = [
     { id: "global", label: t('datacenter_3d.tab_global_view'), icon: "public" },
@@ -237,7 +258,7 @@ export default function DataCenter3D() {
     }
   };
 
-  const selectedLocation = allLocations.find(l => l.id === selectedLocationId) || territory;
+  const selectedLocation = allLocations.find(l => l.id === selectedLocationId) || territories[0];
   const subtitle = selectedLocation ? (selectedLocation.name_en || selectedLocation.name) : 'Data Center';
 
   const getRackColor = (status: RackCell["status"], isHovered: boolean) => {
