@@ -109,25 +109,37 @@ func (s *APIServer) LocationDetectGetReport(c *gin.Context) {
 	interval := fmt.Sprintf("%d days", days)
 
 	var totalAssets, trackedAssets int64
-	_ = s.pool.QueryRow(ctx, "SELECT count(*) FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL", tenantID).Scan(&totalAssets)
-	_ = s.pool.QueryRow(ctx, "SELECT count(*) FROM mac_address_cache WHERE tenant_id = $1 AND asset_id IS NOT NULL", tenantID).Scan(&trackedAssets)
+	if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL", tenantID).Scan(&totalAssets); err != nil {
+		zap.L().Error("location analytics: failed to count assets", zap.Error(err))
+	}
+	if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM mac_address_cache WHERE tenant_id = $1 AND asset_id IS NOT NULL", tenantID).Scan(&trackedAssets); err != nil {
+		zap.L().Error("location analytics: failed to count tracked assets", zap.Error(err))
+	}
 
 	var totalRelocations, authorizedRelocations, unauthorizedRelocations int64
-	_ = s.pool.QueryRow(ctx,
+	if err := s.pool.QueryRow(ctx,
 		"SELECT count(*) FROM asset_location_history WHERE tenant_id = $1 AND detected_at > now() - $2::interval",
-		tenantID, interval).Scan(&totalRelocations)
-	_ = s.pool.QueryRow(ctx,
+		tenantID, interval).Scan(&totalRelocations); err != nil {
+		zap.L().Error("location analytics: failed to count relocations", zap.Error(err))
+	}
+	if err := s.pool.QueryRow(ctx,
 		"SELECT count(*) FROM asset_location_history WHERE tenant_id = $1 AND detected_at > now() - $2::interval AND work_order_id IS NOT NULL",
-		tenantID, interval).Scan(&authorizedRelocations)
+		tenantID, interval).Scan(&authorizedRelocations); err != nil {
+		zap.L().Error("location analytics: failed to count authorized relocations", zap.Error(err))
+	}
 	unauthorizedRelocations = totalRelocations - authorizedRelocations
 
 	var unregisteredDevices int64
-	_ = s.pool.QueryRow(ctx, "SELECT count(*) FROM mac_address_cache WHERE tenant_id = $1 AND asset_id IS NULL", tenantID).Scan(&unregisteredDevices)
+	if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM mac_address_cache WHERE tenant_id = $1 AND asset_id IS NULL", tenantID).Scan(&unregisteredDevices); err != nil {
+		zap.L().Error("location analytics: failed to count unregistered devices", zap.Error(err))
+	}
 
 	var locationAlerts int64
-	_ = s.pool.QueryRow(ctx,
+	if err := s.pool.QueryRow(ctx,
 		"SELECT count(*) FROM alert_events WHERE tenant_id = $1 AND (message LIKE '%relocation%' OR message LIKE '%missing%' OR message LIKE '%Unregistered%') AND fired_at > now() - $2::interval",
-		tenantID, interval).Scan(&locationAlerts)
+		tenantID, interval).Scan(&locationAlerts); err != nil {
+		zap.L().Error("location analytics: failed to count alerts", zap.Error(err))
+	}
 
 	coveragePct := float64(0)
 	if totalAssets > 0 {

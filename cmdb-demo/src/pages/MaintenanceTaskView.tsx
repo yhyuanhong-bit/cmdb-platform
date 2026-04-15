@@ -288,7 +288,7 @@ export default function MaintenanceTaskView() {
             </h2>
             <div className="relative flex flex-col gap-0">
               {(logsData?.data && logsData.data.length > 0 ? logsData.data : timeline).map((event: any, i: number, arr: any[]) => (
-                <div key={i} className="flex gap-3 pb-5 last:pb-0">
+                <div key={event.id ?? `${event.label}-${i}`} className="flex gap-3 pb-5 last:pb-0">
                   <div className="relative flex flex-col items-center">
                     <div className={`h-3 w-3 rounded-full ${event.color ?? 'bg-on-primary-container'} shrink-0 mt-0.5`} />
                     {i < arr.length - 1 && (

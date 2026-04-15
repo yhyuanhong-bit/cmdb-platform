@@ -73,12 +73,11 @@ func Load() (*Config, error) {
 
 	// Enforce secure credentials in production (cloud) mode.
 	// Edge mode allows defaults for development convenience.
-	if cfg.JWTSecret == "dev-secret-change-me" {
+	if cfg.JWTSecret == "dev-secret-change-me" || len(cfg.JWTSecret) < 32 {
 		if cfg.DeployMode == "cloud" {
-			return nil, fmt.Errorf("JWT_SECRET must be changed from default for production deployment")
+			return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters and not the default value for production deployment")
 		}
-		// Edge mode allows default for development convenience
-		fmt.Println("WARNING: JWT_SECRET is shorter than 32 characters — this is insecure for production")
+		fmt.Fprintf(os.Stderr, "WARNING: JWT_SECRET is insecure (default or shorter than 32 chars) — set a strong secret before production use\n")
 	}
 	if cfg.DeployMode == "cloud" && strings.Contains(cfg.DatabaseURL, "changeme") {
 		return nil, fmt.Errorf("DATABASE_URL contains default password 'changeme' — set a secure password for production")

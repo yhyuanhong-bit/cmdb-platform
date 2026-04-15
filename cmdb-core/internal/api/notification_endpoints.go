@@ -3,6 +3,7 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
@@ -64,9 +65,11 @@ func (s *APIServer) CountUnreadNotifications(c *gin.Context) {
 	userID := userIDFromContext(c)
 	tenantID := tenantIDFromContext(c)
 	var count int64
-	_ = s.pool.QueryRow(c.Request.Context(),
+	if err := s.pool.QueryRow(c.Request.Context(),
 		"SELECT count(*) FROM notifications WHERE user_id = $1 AND tenant_id = $2 AND is_read = false",
-		userID, tenantID).Scan(&count)
+		userID, tenantID).Scan(&count); err != nil {
+		zap.L().Error("notifications: failed to count unread", zap.Error(err))
+	}
 	response.OK(c, gin.H{"count": count})
 }
 
@@ -79,9 +82,13 @@ func (s *APIServer) MarkNotificationRead(c *gin.Context) {
 		response.BadRequest(c, "invalid notification ID")
 		return
 	}
-	_, _ = s.pool.Exec(c.Request.Context(),
+	if _, err = s.pool.Exec(c.Request.Context(),
 		"UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2 AND tenant_id = $3",
-		notifID, userID, tenantID)
+		notifID, userID, tenantID); err != nil {
+		zap.L().Error("notifications: failed to mark read", zap.Error(err))
+		response.InternalError(c, "failed to mark notification as read")
+		return
+	}
 	c.Status(204)
 }
 
@@ -89,8 +96,12 @@ func (s *APIServer) MarkNotificationRead(c *gin.Context) {
 func (s *APIServer) MarkAllNotificationsRead(c *gin.Context) {
 	userID := userIDFromContext(c)
 	tenantID := tenantIDFromContext(c)
-	_, _ = s.pool.Exec(c.Request.Context(),
+	if _, err := s.pool.Exec(c.Request.Context(),
 		"UPDATE notifications SET is_read = true WHERE user_id = $1 AND tenant_id = $2 AND is_read = false",
-		userID, tenantID)
+		userID, tenantID); err != nil {
+		zap.L().Error("notifications: failed to mark all read", zap.Error(err))
+		response.InternalError(c, "failed to mark notifications as read")
+		return
+	}
 	c.Status(204)
 }

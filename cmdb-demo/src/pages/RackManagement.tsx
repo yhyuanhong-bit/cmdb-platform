@@ -409,7 +409,7 @@ export default function RackManagement() {
             <div className="flex flex-col gap-1">
               {recentEvents.map((event: any, i: number) => (
                 <div
-                  key={i}
+                  key={event.id ?? `${event.time}-${event.message}-${i}`}
                   className="bg-surface-container-low rounded p-3 flex items-start gap-3"
                 >
                   <span

@@ -1,6 +1,6 @@
 import { toast } from 'sonner'
 import { memo, useState, useRef } from "react";
-import * as XLSX from 'xlsx'
+import type * as XLSXTypes from 'xlsx'
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -132,8 +132,9 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
     }
 
     const reader = new FileReader()
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
+        const XLSX = await import('xlsx')
         const data = evt.target?.result
         const workbook = XLSX.read(data, { type: 'array' })
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
@@ -179,7 +180,8 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
     e.target.value = ''
   }
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
+    const XLSX = await import('xlsx')
     const headers = ['asset_tag', 'serial_number', 'property_number', 'control_number', 'expected_location']
     const exampleRow = ['SRV-PROD-001', 'SN-DELL-001', 'P-2025-0001', 'CTRL-TW-A-0001', 'RACK-A01']
     const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow])
@@ -555,9 +557,9 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
                 {currentTaskId ? "No discrepancies found." : "Select a task to view discrepancies."}
               </div>
             )}
-            {DISCREPANCIES.map((d: any, i: number) => (
+            {DISCREPANCIES.map((d: any) => (
               <div
-                key={`${d.id}-${i}`}
+                key={d.id}
                 onClick={() => navigate('/inventory/detail')}
                 className={`rounded-xl p-3 cursor-pointer hover:opacity-80 transition-opacity ${
                   d.resolved

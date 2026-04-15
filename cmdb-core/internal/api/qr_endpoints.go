@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
@@ -96,9 +97,11 @@ func (s *APIServer) QRConfirmLocation(c *gin.Context) {
 
 	// Get current rack
 	var currentRackID *uuid.UUID
-	_ = s.pool.QueryRow(c.Request.Context(),
+	if err := s.pool.QueryRow(c.Request.Context(),
 		"SELECT rack_id FROM assets WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
-		assetID, tenantID).Scan(&currentRackID)
+		assetID, tenantID).Scan(&currentRackID); err != nil {
+		zap.L().Error("qr: failed to get current rack", zap.Error(err))
+	}
 
 	// Update location
 	_, err = s.pool.Exec(c.Request.Context(),
