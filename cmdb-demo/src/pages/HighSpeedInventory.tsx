@@ -10,6 +10,58 @@ import QRScanner from "../components/QRScanner";
 import { apiClient } from "../lib/api/client";
 import { useLocationContext } from "../contexts/LocationContext";
 
+interface RackSummaryRow {
+  rack_name: string
+  rack_id: string
+  status: string
+  discrepancy: number
+  scanned: number
+  total: number
+}
+
+interface DiscrepancyRow {
+  id: string
+  asset_name?: string
+  asset_tag?: string
+  rack_name?: string
+  location_name?: string
+  serial_number?: string
+  status: string
+}
+
+interface RackTile {
+  id: string
+  rack_id: string
+  status: string
+  scanned: number
+  total: number
+}
+
+interface DiscrepancyTile {
+  itemId: string
+  id: string
+  location: string
+  issue: string
+  type: string
+  resolved: boolean
+}
+
+interface ImportItemRow {
+  asset_tag?: string
+  serial_number?: string
+  property_number?: string
+  control_number?: string
+  expected_location?: string
+}
+
+interface InventoryExportItem {
+  expected?: Record<string, string>
+  status?: string
+  scanned_at?: string
+  rack_id?: string
+}
+
+
 const IMPORT_ERRORS = [
   { row: 23, field: "Serial Number", error: "Duplicate entry" },
   { row: 67, field: "Location", error: "Invalid rack reference" },
@@ -138,7 +190,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
         const data = evt.target?.result
         const workbook = XLSX.read(data, { type: 'array' })
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
-        const rows: any[] = XLSX.utils.sheet_to_json(firstSheet)
+        const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(firstSheet)
 
         if (rows.length === 0) {
           toast.error(t('inventory.import_no_data'))
@@ -146,13 +198,13 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
         }
 
         // Map Excel rows to API format — accept both English and Chinese column names
-        const items = rows.map((row: any) => ({
+        const items = rows.map((row: Record<string, unknown>) => ({
           asset_tag: row.asset_tag || row['Asset Tag'] || row['资产编号'] || row['資產編號'] || undefined,
           serial_number: row.serial_number || row['Serial Number'] || row['序列号'] || row['序號'] || undefined,
           property_number: row.property_number || row['Property Number'] || row['财产编号'] || row['財產編號'] || undefined,
           control_number: row.control_number || row['Control Number'] || row['管制编号'] || row['管制編號'] || undefined,
           expected_location: row.expected_location || row['Expected Location'] || row['预期位置'] || row['預期位置'] || undefined,
-        })).filter((item: any) =>
+        })).filter((item) =>
           item.asset_tag || item.serial_number || item.property_number || item.control_number
         )
 
@@ -162,7 +214,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
         }
 
         importItems.mutate({ taskId: currentTask.id, items }, {
-          onSuccess: (resp: any) => {
+          onSuccess: (resp: { data?: Record<string, number> }) => {
             const d = resp?.data ?? {}
             toast.success(t('inventory.import_success', {
               matched: d.matched ?? 0,
@@ -196,9 +248,9 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
     queryFn: () => apiClient.get(`/inventory/tasks/${currentTaskId}/racks-summary`),
     enabled: !!currentTaskId,
   });
-  const racksRaw = (racksSummaryData as any)?.racks ?? [];
+  const racksRaw: RackSummaryRow[] = (racksSummaryData as { racks?: RackSummaryRow[] })?.racks ?? [];
   // Map API rack data to tile format: derive status from API fields
-  const RACKS = racksRaw.map((r: any) => ({
+  const RACKS: RackTile[] = racksRaw.map((r: RackSummaryRow) => ({
     id: r.rack_name,
     rack_id: r.rack_id,
     status: r.status === "completed"
@@ -215,9 +267,9 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
     queryFn: () => apiClient.get(`/inventory/tasks/${currentTaskId}/discrepancies`),
     enabled: !!currentTaskId,
   });
-  const discrepanciesRaw = (discrepancyData as any)?.discrepancies ?? [];
+  const discrepanciesRaw: DiscrepancyRow[] = (discrepancyData as { discrepancies?: DiscrepancyRow[] })?.discrepancies ?? [];
   // Map API discrepancy data to display format
-  const DISCREPANCIES = discrepanciesRaw.map((d: any) => ({
+  const DISCREPANCIES: DiscrepancyTile[] = discrepanciesRaw.map((d: DiscrepancyRow) => ({
     itemId: d.id,
     id: d.asset_name ?? d.asset_tag ?? d.id,
     location: [d.rack_name, d.location_name].filter(Boolean).join(" / "),
@@ -226,8 +278,8 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
     resolved: false,
   }));
 
-  const scannedCount = RACKS.filter((r: any) => r.status === "scanned").length;
-  const pendingCount = RACKS.filter((r: any) => r.status === "pending").length;
+  const scannedCount = RACKS.filter((r: RackTile) => r.status === "scanned").length;
+  const pendingCount = RACKS.filter((r: RackTile) => r.status === "pending").length;
 
   if (isLoading) {
     return (
@@ -291,7 +343,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
                 const items = json.data ?? []
                 if (items.length === 0) { toast.info(t('inventory.no_items_to_export')); return }
                 const headers = ['asset_tag', 'serial_number', 'status', 'scanned_at', 'rack_id']
-                const rows = items.map((item: any) => {
+                const rows = (items as InventoryExportItem[]).map((item) => {
                   const exp = item.expected ?? {}
                   return [
                     exp.asset_tag ?? '',
@@ -460,7 +512,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
                 {currentTaskId ? "No racks found for this task." : "Select a task to view racks."}
               </div>
             ) : (
-              RACKS.map((rack: any) => {
+              RACKS.map((rack: RackTile) => {
                 const bg =
                   rack.status === "scanned"
                     ? "bg-[#0a2e1a]"
@@ -547,7 +599,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
               {t('inventory.discrepancy_closing')}
             </h3>
             <span className="ml-auto text-[10px] font-label text-error">
-              {DISCREPANCIES.filter((d: any) => !d.resolved).length} {t('inventory.open')}
+              {DISCREPANCIES.filter((d: DiscrepancyTile) => !d.resolved).length} {t('inventory.open')}
             </span>
           </div>
 
@@ -557,7 +609,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
                 {currentTaskId ? "No discrepancies found." : "Select a task to view discrepancies."}
               </div>
             )}
-            {DISCREPANCIES.map((d: any) => (
+            {DISCREPANCIES.map((d: DiscrepancyTile) => (
               <div
                 key={d.id}
                 onClick={() => navigate('/inventory/detail')}
@@ -695,7 +747,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
             <span className="text-xs font-label text-on-surface-variant">
               {t('inventory.discrepancies')}:{" "}
               <span className="text-on-surface font-bold tabular-nums">
-                {DISCREPANCIES.filter((d: any) => !d.resolved).length}
+                {DISCREPANCIES.filter((d: DiscrepancyTile) => !d.resolved).length}
               </span>
             </span>
           </div>

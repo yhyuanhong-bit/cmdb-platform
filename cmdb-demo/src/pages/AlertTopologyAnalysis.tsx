@@ -7,21 +7,56 @@ import {
   type Node,
   type Edge,
   type NodeProps,
+  type NodeMouseHandler,
   Handle,
   Position,
   useNodesState,
   useEdgesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import type { ElkNode } from "elkjs/lib/elk-api";
 import Icon from "../components/Icon";
 import StatusBadge from "../components/StatusBadge";
 import { useAlerts } from "../hooks/useMonitoring";
+import type { AlertEvent } from "../lib/api/monitoring";
 import { useTopologyGraph } from "../hooks/useTopology";
 import { FALLBACK_ALERTS } from "../data/fallbacks/alerts";
 
 /* ──────────────────────────────────────────────
    Types
    ────────────────────────────────────────────── */
+
+interface ApiTopologyNode {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  has_active_alert: boolean;
+  ip_address?: string;
+  model?: string;
+  rack_name?: string;
+  bia_level?: number;
+  metrics?: {
+    cpu?: number;
+    memory?: number;
+    disk_io?: number;
+  };
+  tags?: string[];
+}
+
+interface ApiTopologyEdge {
+  source?: string;
+  from?: string;
+  target?: string;
+  to?: string;
+  isFaultPath?: boolean;
+  is_fault_path?: boolean;
+}
+
+interface TopologyGraphResponse {
+  nodes: ApiTopologyNode[];
+  edges: ApiTopologyEdge[];
+}
 
 interface TopologyNodeData {
   label: string;
@@ -204,19 +239,19 @@ function AlertTopologyAnalysis() {
   const locationId = "d0000000-0000-0000-0000-000000000004";
 
   const { data: graphData, isLoading: graphLoading } = useTopologyGraph(locationId);
-  const apiNodes = (graphData as any)?.nodes ?? [];
-  const apiEdges = (graphData as any)?.edges ?? [];
+  const apiNodes = (graphData as unknown as TopologyGraphResponse)?.nodes ?? [];
+  const apiEdges = (graphData as unknown as TopologyGraphResponse)?.edges ?? [];
 
   // Find first critical node for root cause badge
   const firstCriticalId = useMemo(() => {
-    const crit = apiNodes.find((n: any) => n.has_active_alert);
+    const crit = apiNodes.find((n: ApiTopologyNode) => n.has_active_alert);
     return crit?.id ?? null;
   }, [apiNodes]);
 
   // Filter API nodes by current filters
   const filteredApiNodes = useMemo(
     () =>
-      apiNodes.filter((n: any) => {
+      apiNodes.filter((n: ApiTopologyNode) => {
         if (biaFilter !== "all" && String(n.bia_level || 3) !== biaFilter) return false;
         if (domainFilter !== "all") {
           const domainMap: Record<string, string[]> = {
@@ -231,9 +266,9 @@ function AlertTopologyAnalysis() {
     [apiNodes, biaFilter, domainFilter]
   );
 
-  // Map API node → data payload (stable ref)
+  // Map API node => data payload (stable ref)
   const buildNodeData = useCallback(
-    (n: any): TopologyNodeData => ({
+    (n: ApiTopologyNode): TopologyNodeData => ({
       label: n.name,
       type: n.type,
       icon: n.type === "server" ? "dns" : n.type === "network" ? "router" : n.type === "storage" ? "storage" : "bolt",
@@ -251,15 +286,15 @@ function AlertTopologyAnalysis() {
     [firstCriticalId]
   );
 
-  // Convert API edges → ReactFlow edges
+  // Convert API edges => ReactFlow edges
   const flowEdges: Edge[] = useMemo(
     () =>
-      apiEdges.map((e: any) => {
+      apiEdges.map((e: ApiTopologyEdge) => {
         const isFault = e.isFaultPath || e.is_fault_path || false;
         return {
-          id: `${e.source || e.from}-${e.target || e.to}`,
-          source: e.source || e.from,
-          target: e.target || e.to,
+          id: `${e.source ?? e.from ?? ""}-${e.target ?? e.to ?? ""}`,
+          source: e.source ?? e.from ?? "",
+          target: e.target ?? e.to ?? "",
           animated: isFault,
           style: {
             stroke: isFault ? "#ffb4ab" : "#555",
@@ -289,11 +324,11 @@ function AlertTopologyAnalysis() {
     const NODE_HEIGHT = 72;
 
     // Build initial nodes with grid fallback positions
-    const initialNodes: Node[] = filteredApiNodes.map((n: any, i: number) => ({
+    const initialNodes: Node[] = filteredApiNodes.map((n: ApiTopologyNode, i: number) => ({
       id: n.id,
       type: "asset",
       position: { x: (i % 4) * 230 + 30, y: Math.floor(i / 4) * 110 + 30 },
-      data: buildNodeData(n),
+      data: buildNodeData(n) as unknown as Record<string, unknown>,
     }));
 
     // If no edges, just use grid layout
@@ -317,28 +352,28 @@ function AlertTopologyAnalysis() {
           "elk.layered.spacing.nodeNodeBetweenLayers": "80",
           "elk.edgeRouting": "ORTHOGONAL",
         },
-        children: filteredApiNodes.map((n: any) => ({
+        children: filteredApiNodes.map((n: ApiTopologyNode) => ({
           id: n.id,
           width: NODE_WIDTH,
           height: NODE_HEIGHT,
         })),
-        edges: apiEdges.map((e: any) => ({
-          id: `e-${e.source || e.from}-${e.target || e.to}`,
-          sources: [e.source || e.from],
-          targets: [e.target || e.to],
+        edges: apiEdges.map((e: ApiTopologyEdge) => ({
+          id: `e-${e.source ?? e.from ?? ""}-${e.target ?? e.to ?? ""}`,
+          sources: [e.source ?? e.from ?? ""],
+          targets: [e.target ?? e.to ?? ""],
         })),
       };
 
       elk
         .layout(graph)
-        .then((result: any) => {
-          const layoutedNodes: Node[] = (result.children || []).map((elkNode: any) => {
-            const apiNode = filteredApiNodes.find((n: any) => n.id === elkNode.id);
+        .then((result: ElkNode) => {
+          const layoutedNodes: Node[] = (result.children || []).map((elkNode: ElkNode) => {
+            const apiNode = filteredApiNodes.find((n: ApiTopologyNode) => n.id === elkNode.id);
             return {
               id: elkNode.id,
               type: "asset",
               position: { x: elkNode.x ?? 0, y: elkNode.y ?? 0 },
-              data: apiNode ? buildNodeData(apiNode) : {},
+              data: apiNode ? buildNodeData(apiNode) as unknown as Record<string, unknown> : {},
             };
           });
           setNodes(layoutedNodes);
@@ -356,7 +391,7 @@ function AlertTopologyAnalysis() {
   }, [filteredApiNodes.length, apiEdges.length, biaFilter, domainFilter]);
 
   // Handle node click
-  const onNodeClick = useCallback((_: any, node: Node) => {
+  const onNodeClick = useCallback<NodeMouseHandler>((_event, node) => {
     setSelectedNodeId(node.id);
   }, []);
 
@@ -379,12 +414,12 @@ function AlertTopologyAnalysis() {
   const apiAlerts = alertsResponse?.data ?? [];
   const ALERTS: AlertItem[] =
     apiAlerts.length > 0
-      ? apiAlerts.map((a: any) => ({
+      ? apiAlerts.map((a: AlertEvent) => ({
           id: a.id,
           severity: (a.severity ?? "").toUpperCase() as "CRITICAL" | "WARNING",
           assetName: a.ci_id ?? "Unknown",
           description: a.message ?? "",
-          timestamp: a.fired_at ? new Date(a.fired_at).toLocaleString() : "—",
+          timestamp: a.fired_at ? new Date(a.fired_at).toLocaleString() : "\u2014",
           nodeId: "node-1",
         }))
       : FALLBACK_ALERTS;
@@ -557,7 +592,7 @@ function AlertTopologyAnalysis() {
       <section className="bg-surface-container rounded-lg p-5">
         {!selectedNodeFull ? (
           <div className="flex items-center justify-center py-6 text-sm text-on-surface-variant">
-            {graphLoading ? "Loading topology…" : "Select a node to view details"}
+            {graphLoading ? "Loading topology\u2026" : "Select a node to view details"}
           </div>
         ) : (
           <>

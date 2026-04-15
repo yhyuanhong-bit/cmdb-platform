@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useCreateRack, useRootLocations, useLocationChildren } from '../hooks/useTopology'
+import type { Location } from '../lib/api/topology'
+
 import { useLocationContext } from '../contexts/LocationContext'
 
 export default function AddNewRack() {
@@ -51,10 +53,10 @@ export default function AddNewRack() {
   const rackSlots = Array.from({ length: totalU }, (_, i) => ({ u: totalU - i, occupied: false }))
 
   // Selected location names for breadcrumb
-  const selectedCountry = countries.find((c: any) => c.id === selectedTerritoryId)
-  const selectedRegion = regions.find((r: any) => r.id === selectedRegionId)
-  const selectedCity = cities.find((c: any) => c.id === selectedCityId)
-  const selectedCampus = campuses.find((c: any) => c.id === selectedCampusId)
+  const selectedCountry = countries.find((c: Location) => c.id === selectedTerritoryId)
+  const selectedRegion = regions.find((r: Location) => r.id === selectedRegionId)
+  const selectedCity = cities.find((c: Location) => c.id === selectedCityId)
+  const selectedCampus = campuses.find((c: Location) => c.id === selectedCampusId)
 
   return (
     <div className="min-h-screen bg-surface p-6 font-body text-on-surface">
@@ -162,7 +164,7 @@ export default function AddNewRack() {
                 <select value={selectedTerritoryId} onChange={e => setSelectedTerritoryId(e.target.value)}
                   className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 appearance-none">
                   <option value="">{t('add_new_rack.select_territory')}</option>
-                  {countries.map((c: any) => <option key={c.id} value={c.id}>{c.name_en || c.name}</option>)}
+                  {(countries as Location[]).map((c) => <option key={c.id} value={c.id}>{c.name_en || c.name}</option>)}
                 </select>
               </div>
               {/* Region */}
@@ -174,7 +176,7 @@ export default function AddNewRack() {
                   disabled={!selectedTerritoryId}
                   className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 appearance-none disabled:opacity-40">
                   <option value="">{t('add_new_rack.select_region')}</option>
-                  {regions.map((r: any) => <option key={r.id} value={r.id}>{r.name_en || r.name}</option>)}
+                  {(regions as Location[]).map((r) => <option key={r.id} value={r.id}>{r.name_en || r.name}</option>)}
                 </select>
               </div>
               {/* City */}
@@ -186,7 +188,7 @@ export default function AddNewRack() {
                   disabled={!selectedRegionId}
                   className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 appearance-none disabled:opacity-40">
                   <option value="">{t('add_new_rack.select_city')}</option>
-                  {cities.map((c: any) => <option key={c.id} value={c.id}>{c.name_en || c.name}</option>)}
+                  {(cities as Location[]).map((c) => <option key={c.id} value={c.id}>{c.name_en || c.name}</option>)}
                 </select>
               </div>
               {/* Campus */}
@@ -198,7 +200,7 @@ export default function AddNewRack() {
                   disabled={!selectedCityId}
                   className="w-full bg-surface-container-low rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40 appearance-none disabled:opacity-40">
                   <option value="">{t('add_new_rack.select_campus')}</option>
-                  {campuses.map((c: any) => <option key={c.id} value={c.id}>{c.name_en || c.name}</option>)}
+                  {(campuses as Location[]).map((c) => <option key={c.id} value={c.id}>{c.name_en || c.name}</option>)}
                 </select>
               </div>
             </div>
@@ -267,8 +269,8 @@ export default function AddNewRack() {
                   },
                   {
                     onSuccess: () => navigate('/racks'),
-                    onError: (err: any) => {
-                      if (err?.code === 'DUPLICATE') {
+                    onError: (err: Error) => {
+                      if ((err as import('../lib/api/client').ApiRequestError)?.code === 'DUPLICATE') {
                         toast.error('A rack with this name already exists in this location')
                       } else {
                         toast.error(t('add_new_rack.error_create_failed'))

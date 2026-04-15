@@ -3,12 +3,41 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useRack, useRackAssets, useRackSlots, useUpdateRack, useDeleteRack, useRackNetworkConnections, useDeleteNetworkConnection } from "../hooks/useTopology";
+import type { Rack, Asset, NetworkConnection } from "../lib/api/topology";
+import type { AlertEvent } from "../lib/api/monitoring";
 import AssignAssetToRackModal from '../components/AssignAssetToRackModal';
 import AddNetworkConnectionModal from '../components/AddNetworkConnectionModal';
 import { useAlerts } from "../hooks/useMonitoring";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { apiClient } from "../lib/api/client";
 import { useMetrics } from "../hooks/useMetrics";
+
+// ---------------------------------------------------------------------------
+// Local extended types (augment base API types with extra runtime fields)
+// ---------------------------------------------------------------------------
+
+/** RackSlot as returned by the list-slots endpoint — includes denormalised asset info */
+interface RackSlotDetail {
+  id: string;
+  rack_id: string;
+  asset_id: string;
+  start_u: number;
+  end_u: number;
+  height_u: number;
+  side: string;
+  asset_name?: string;
+  asset_tag?: string;
+  asset_type?: string;
+  type?: string;
+  bia_level?: string;
+}
+
+/** NetworkConnection as returned by the API — includes legacy field aliases */
+type NetworkConnectionExt = NetworkConnection & {
+  port?: string;
+  device?: string;
+  vlan?: number | string;
+};
 
 // ---------------------------------------------------------------------------
 // Shared types & data (equipment slots — no API for sub-rack assets yet)
@@ -120,10 +149,10 @@ function VisualizationTab({
   selectedAsset: Equipment | null;
   setSelectedAsset: (eq: Equipment | null) => void;
   equipmentList?: Equipment[];
-  rackSlots?: any[];
+  rackSlots?: RackSlotDetail[];
   totalU?: number;
   liveAlerts?: LiveAlert[];
-  selectedAssetData?: any;
+  selectedAssetData?: Asset;
 }) {
   const eqList = equipmentList ?? [];
   const { t } = useTranslation();
@@ -134,7 +163,7 @@ function VisualizationTab({
   const gridU = totalU || 42;
   const uPositions = Array.from({ length: gridU }, (_, i) => gridU - i);
   const viewSlots = hasSlots
-    ? rackSlots.filter((s: any) => (s.side || 'front') === view.toLowerCase())
+    ? rackSlots.filter((s: RackSlotDetail) => (s.side || 'front') === view.toLowerCase())
     : [];
 
   return (
@@ -203,7 +232,7 @@ function VisualizationTab({
               /* Real slot-based rendering with BIA colors */
               <div className="border-2 border-outline-variant/30 rounded-lg bg-surface-container-low p-1">
                 {uPositions.map(u => {
-                  const slot = viewSlots.find((s: any) => u >= s.start_u && u <= s.end_u);
+                  const slot = viewSlots.find((s: RackSlotDetail) => u >= s.start_u && u <= s.end_u);
                   const isTopU = slot && u === slot.end_u;
 
                   return (
@@ -216,7 +245,7 @@ function VisualizationTab({
                           isTopU && (
                             <div
                               className={`absolute inset-x-0 z-10 m-px rounded flex items-center justify-center text-[10px] font-bold tracking-wide
-                                ${SLOT_BIA_COLORS[slot.bia_level] || SLOT_BIA_COLORS.normal}`}
+                                ${SLOT_BIA_COLORS[slot.bia_level ?? 'normal'] || SLOT_BIA_COLORS.normal}`}
                               style={{ height: `${(slot.end_u - slot.start_u + 1) * 24 - 4}px` }}
                               title={`${slot.asset_name} (${slot.asset_tag}) — BIA: ${slot.bia_level}`}
                             >
@@ -433,7 +462,7 @@ function GaugeWidget({
   );
 }
 
-function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; slots: USlot[]; rack?: any }) {
+function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: Array<{ action: string; time: string; icon: string }>; slots: USlot[]; rack?: Rack }) {
   const { t } = useTranslation();
   const [selectedSlot, setSelectedSlot] = useState<USlot | null>(
     slots.find((s) => s.label === "NEXUS-C93180YC") ?? slots[0] ?? null,
@@ -674,7 +703,7 @@ function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; sl
 // Tab 3: Network
 // ---------------------------------------------------------------------------
 
-function NetworkTab({ networkConnections, rackId, onAddConnection }: { networkConnections: any[]; rackId: string; onAddConnection: () => void }) {
+function NetworkTab({ networkConnections, rackId, onAddConnection }: { networkConnections: NetworkConnectionExt[]; rackId: string; onAddConnection: () => void }) {
   const { t } = useTranslation();
   const deleteConn = useDeleteNetworkConnection();
 
@@ -922,12 +951,12 @@ export default function RackDetailUnified() {
   const { data: rackAssetsResponse } = useRackAssets(rackId ?? "");
   const rackAssets = rackAssetsResponse?.data;
   const { data: slotsResp } = useRackSlots(rackId ?? "");
-  const rackSlots = slotsResp?.data || [];
+  const rackSlots: RackSlotDetail[] = (slotsResp?.data || []) as RackSlotDetail[];
 
   // Build console slots from real rack slots API (falls back to hardcoded uSlots)
   const consoleSlots: USlot[] = useMemo(() => {
     if (!rackSlots || rackSlots.length === 0) return []
-    return rackSlots.map((slot: any) => {
+    return rackSlots.map((slot: RackSlotDetail) => {
       const assetType = (slot.asset_type || slot.type || '').toLowerCase()
       let slotType: string = 'compute'
       if (assetType.includes('network') || assetType.includes('switch')) slotType = 'network'
@@ -946,9 +975,9 @@ export default function RackDetailUnified() {
   // Build equipment list from real rack assets API (empty array if no data yet)
   const liveEquipment: Equipment[] = useMemo(() => {
     if (!rackAssets || rackAssets.length === 0) return [];
-    return rackAssets.map((a: any) => ({
-      startU: a.attributes?.start_u ?? a.start_u ?? 1,
-      endU: a.attributes?.end_u ?? a.end_u ?? 1,
+    return rackAssets.map((a: Asset) => ({
+      startU: (a.attributes?.start_u as number | undefined) ?? 1,
+      endU: (a.attributes?.end_u as number | undefined) ?? 1,
       label: a.name ?? `${a.vendor} ${a.model}`,
       assetTag: a.asset_tag ?? a.id,
       type: (a.type?.toLowerCase() ?? 'compute') as Equipment['type'],
@@ -957,7 +986,7 @@ export default function RackDetailUnified() {
 
   // Network connections from API
   const { data: netData } = useRackNetworkConnections(rackId ?? "");
-  const networkConnections = (netData as any)?.connections ?? [];
+  const networkConnections = (netData as unknown as { connections?: NetworkConnectionExt[] })?.connections ?? [];
 
   // Maintenance history from API
   const { data: maintData } = useQuery({
@@ -965,7 +994,8 @@ export default function RackDetailUnified() {
     queryFn: () => apiClient.get(`/racks/${rackId}/maintenance`),
     enabled: !!rackId,
   })
-  const maintenanceHistory = ((maintData as any)?.maintenance ?? []).map((wo: any) => ({
+  type WorkOrder = { scheduled_start?: string; created_at: string; type?: string; title: string; status: string };
+  const maintenanceHistory = ((maintData as unknown as { maintenance?: WorkOrder[] })?.maintenance ?? []).map((wo: WorkOrder) => ({
     date: wo.scheduled_start ? new Date(wo.scheduled_start).toLocaleDateString() : new Date(wo.created_at).toLocaleDateString(),
     type: wo.type ?? 'inspection',
     description: wo.title,
@@ -975,8 +1005,10 @@ export default function RackDetailUnified() {
 
   // Activity feed from API
   const { data: activityData } = useActivityFeed('rack', rackId ?? "");
-  const recentActivity = ((activityData as any)?.events ?? []).map((e: any) => ({
-    action: e.description || e.action,
+  type ActivityEvent = { description?: string; action?: string; timestamp: string; event_type?: string };
+  type RecentActivityItem = { action: string; time: string; icon: string };
+  const recentActivity = ((activityData as unknown as { events?: ActivityEvent[] })?.events ?? []).map((e: ActivityEvent): RecentActivityItem => ({
+    action: e.description ?? e.action ?? '',
     time: new Date(e.timestamp).toLocaleString(),
     icon: e.event_type === 'alert' ? 'warning' : e.event_type === 'maintenance' ? 'build' : 'history',
   }));
@@ -987,14 +1019,14 @@ export default function RackDetailUnified() {
 
   const rackAssetIds = useMemo(() => {
     if (!rackAssets) return new Set<string>();
-    return new Set(rackAssets.map((a: any) => a.id as string));
+    return new Set(rackAssets.map((a: Asset) => a.id));
   }, [rackAssets]);
 
   const filteredAlerts: LiveAlert[] = useMemo(() => {
     if (allAlerts.length === 0 || rackAssetIds.size === 0) return [];
     return allAlerts
-      .filter((alert: any) => rackAssetIds.has(alert.ci_id))
-      .map((alert: any) => ({
+      .filter((alert: AlertEvent) => rackAssetIds.has(alert.ci_id))
+      .map((alert: AlertEvent) => ({
         severity: alert.severity ?? 'info',
         text: alert.message ?? '',
         time: alert.fired_at
@@ -1027,7 +1059,7 @@ export default function RackDetailUnified() {
   );
 
   // Selected asset data looked up from API rack assets
-  const selectedAssetData = rackAssets?.find((a: any) =>
+  const selectedAssetData = rackAssets?.find((a: Asset) =>
     a.asset_tag === selectedAsset?.assetTag || a.id === selectedAsset?.assetTag
   )
 

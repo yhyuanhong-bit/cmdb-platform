@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { usePermission } from '../hooks/usePermission'
 import { useSyncState, useSyncConflicts, useResolveConflict, useSyncStats } from '../hooks/useSync'
-import type { SyncConflict } from '../lib/api/sync'
+import type { SyncConflict, SyncState, SyncEntityStats } from '../lib/api/sync'
 
 function formatTimeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -55,20 +55,20 @@ export default function SyncManagement() {
   )
 }
 
-function SummaryCards({ states, conflictCount }: { states: any[]; conflictCount: number }) {
+function SummaryCards({ states, conflictCount }: { states: SyncState[]; conflictCount: number }) {
   const { t } = useTranslation()
-  const uniqueNodes = new Set(states.map((s: any) => s.node_id))
-  const okCount = states.filter((s: any) => {
+  const uniqueNodes = new Set(states.map((s) => s.node_id))
+  const okCount = states.filter((s) => {
     if (s.status === 'error') return false
     const hoursSince = (Date.now() - new Date(s.last_sync_at).getTime()) / 3600000
     return hoursSince <= 1
   }).length
-  const lagCount = states.filter((s: any) => {
+  const lagCount = states.filter((s) => {
     if (s.status === 'error') return false
     const hoursSince = (Date.now() - new Date(s.last_sync_at).getTime()) / 3600000
     return hoursSince > 1 && hoursSince <= 24
   }).length
-  const errorCount = states.filter((s: any) => {
+  const errorCount = states.filter((s) => {
     if (s.status === 'error') return true
     const hoursSince = (Date.now() - new Date(s.last_sync_at).getTime()) / 3600000
     return hoursSince > 24
@@ -98,14 +98,14 @@ function SummaryCards({ states, conflictCount }: { states: any[]; conflictCount:
   )
 }
 
-function VersionGapChart({ stats }: { stats: any[] }) {
+function VersionGapChart({ stats }: { stats: SyncEntityStats[] }) {
   const { t } = useTranslation()
   const chartData = stats
-    .map((s: any) => ({
+    .map((s) => ({
       entity_type: s.entity_type.replace(/_/g, ' '),
-      gap: Math.max(0, ...s.nodes.map((n: any) => n.gap), 0),
+      gap: Math.max(0, ...s.nodes.map((n) => n.gap), 0),
     }))
-    .filter((d: any) => d.gap > 0)
+    .filter((d) => d.gap > 0)
 
   if (chartData.length === 0) {
     return (
@@ -124,7 +124,7 @@ function VersionGapChart({ stats }: { stats: any[] }) {
           <YAxis tick={{ fontSize: 11 }} />
           <Tooltip />
           <Bar dataKey="gap" fill="#f59e0b" radius={[4, 4, 0, 0]}>
-            {chartData.map((_: any, i: number) => (
+            {chartData.map((_, i: number) => (
               <Cell key={i} fill={chartData[i].gap > 50 ? '#ef4444' : '#f59e0b'} />
             ))}
           </Bar>
@@ -134,9 +134,9 @@ function VersionGapChart({ stats }: { stats: any[] }) {
   )
 }
 
-function ErrorList({ states }: { states: any[] }) {
+function ErrorList({ states }: { states: SyncState[] }) {
   const { t } = useTranslation()
-  const errors = states.filter((s: any) => s.status === 'error' || (Date.now() - new Date(s.last_sync_at).getTime()) / 3600000 > 24)
+  const errors = states.filter((s) => s.status === 'error' || (Date.now() - new Date(s.last_sync_at).getTime()) / 3600000 > 24)
 
   if (errors.length === 0) return null
 
@@ -144,7 +144,7 @@ function ErrorList({ states }: { states: any[] }) {
     <div className="mt-6">
       <h3 className="text-sm font-bold text-on-surface mb-3">{t('sync.sync_errors')}</h3>
       <div className="space-y-2">
-        {errors.map((s: any) => (
+        {errors.map((s) => (
           <div key={`${s.node_id}-${s.entity_type}`} className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
             <div className="text-sm font-semibold text-on-surface">
               {s.node_id} / {s.entity_type}
@@ -164,9 +164,9 @@ function SyncStatusTab() {
   const { data: stateResp, isLoading: stateLoading } = useSyncState()
   const { data: conflictsResp } = useSyncConflicts()
   const { data: statsResp, isLoading: statsLoading } = useSyncStats()
-  const states = (stateResp as any)?.data ?? []
-  const conflicts = (conflictsResp as any)?.data ?? []
-  const stats = (statsResp as any)?.data ?? []
+  const states: SyncState[] = stateResp?.data ?? []
+  const conflicts: SyncConflict[] = conflictsResp?.data ?? []
+  const stats: SyncEntityStats[] = statsResp?.data ?? []
 
   if (stateLoading) {
     return <div className="text-on-surface-variant">Loading sync state...</div>
@@ -201,7 +201,7 @@ function SyncStatusTab() {
               <div className="text-on-surface-variant font-semibold">{t('sync.col_version')}</div>
               <div className="text-on-surface-variant font-semibold">{t('sync.col_last_sync')}</div>
               <div className="text-on-surface-variant font-semibold">{t('sync.col_status')}</div>
-              {(nodeStates as any[]).map((s: any) => {
+              {nodeStates.map((s) => {
                 const { color, label } = syncStatusColor(s.status, s.last_sync_at)
                 return (
                   <div key={s.entity_type} className="contents">
@@ -216,9 +216,9 @@ function SyncStatusTab() {
                 )
               })}
             </div>
-            {(nodeStates as any[]).some((s: any) => s.error_message) && (
+            {nodeStates.some((s) => s.error_message) && (
               <div className="mt-3 text-xs text-red-400">
-                {(nodeStates as any[]).filter((s: any) => s.error_message).map((s: any) => (
+                {nodeStates.filter((s) => s.error_message).map((s) => (
                   <div key={s.entity_type}>{s.entity_type}: {s.error_message}</div>
                 ))}
               </div>
@@ -235,7 +235,7 @@ function SyncStatusTab() {
 function ConflictsTab({ canResolve }: { canResolve: boolean }) {
   const { t } = useTranslation()
   const { data: resp, isLoading } = useSyncConflicts()
-  const conflicts: SyncConflict[] = (resp as any)?.data ?? []
+  const conflicts: SyncConflict[] = resp?.data ?? []
   const [selectedConflict, setSelectedConflict] = useState<SyncConflict | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [filterType, setFilterType] = useState<string>('')

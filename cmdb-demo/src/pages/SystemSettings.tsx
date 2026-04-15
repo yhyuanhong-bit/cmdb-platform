@@ -10,6 +10,35 @@ import { useCredentials, useDeleteCredential } from '../hooks/useCredentials'
 import CreateAdapterModal from '../components/CreateAdapterModal'
 import CreateWebhookModal from '../components/CreateWebhookModal'
 import CreateCredentialModal from '../components/CreateCredentialModal'
+import type { User, Role } from '../lib/api/identity'
+import type { AdapterConfig, WebhookSubscription } from '../lib/api/integration'
+
+interface Credential {
+  id: string
+  name: string
+  type: string
+  created_at?: string
+}
+
+
+
+// The API User schema is minimal; the backend also returns roles at runtime
+type UserWithRoles = import('../lib/api/identity').User & {
+  roles?: Array<{ id: string; name: string }>
+}
+
+interface MappedUser {
+  id: string
+  name: string
+  email: string
+  username: string
+  role: string
+  roleId: string
+  region: string
+  status: string
+  avatar: string
+  _raw: User
+}
 
 export default function SystemSettings() {
   const { t } = useTranslation()
@@ -17,7 +46,7 @@ export default function SystemSettings() {
   const canManageUsers = usePermission('identity', 'write')
   const [activeTab, setActiveTab] = useState('permissions')
   const [showUserModal, setShowUserModal] = useState(false)
-  const [editingUser, setEditingUser] = useState<any>(null)
+  const [editingUser, setEditingUser] = useState<MappedUser | null>(null)
   const [newUserData, setNewUserData] = useState({ username: '', display_name: '', email: '', password: '', role_id: '' })
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
@@ -26,7 +55,7 @@ export default function SystemSettings() {
   const [showCreateAdapter, setShowCreateAdapter] = useState(false)
   const [showCreateWebhook, setShowCreateWebhook] = useState(false)
   const [showCreateCredential, setShowCreateCredential] = useState(false)
-  const [editingCredential, setEditingCredential] = useState<any>(null)
+  const [editingCredential, setEditingCredential] = useState<Credential | null>(null)
 
   const { data: usersResp, isLoading: usersLoading } = useUsers()
   const { data: rolesResp } = useRoles()
@@ -44,7 +73,7 @@ export default function SystemSettings() {
   const credentials = (credentialsResp as any)?.data ?? []
 
   // Map API users to display format
-  const users = apiUsers.map((u: any) => ({
+  const users: MappedUser[] = (apiUsers as UserWithRoles[]).map((u) => ({
     id: u.id,
     name: u.display_name,
     email: u.email,
@@ -53,7 +82,7 @@ export default function SystemSettings() {
     roleId: u.roles?.[0]?.id ?? '',
     region: 'TW',
     status: u.status === 'active' ? 'Active' : 'Inactive',
-    avatar: u.display_name?.split(' ').map((w: any) => w[0]).join('').slice(0, 2).toUpperCase() ?? '??',
+    avatar: u.display_name?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() ?? '??',
     _raw: u,
   }))
 
@@ -147,7 +176,7 @@ export default function SystemSettings() {
             <p className="text-sm text-on-surface-variant px-3 py-4">{t('system_settings.no_credentials')}</p>
           )}
 
-          {credentials.map((cred: any, i: number) => (
+          {(credentials as Credential[]).map((cred, i: number) => (
             <div
               key={cred.id}
               className={`grid grid-cols-[2fr_1fr_1fr_auto] gap-3 items-center px-3 py-3 rounded-lg ${
@@ -196,7 +225,7 @@ export default function SystemSettings() {
             </div>
             <div className="flex flex-col gap-2">
               {adapters.length === 0 && <p className="text-sm text-on-surface-variant">{t('system_settings.no_adapters')}</p>}
-              {adapters.map((a: any) => (
+              {(adapters as AdapterConfig[]).map((a) => (
                 <div key={a.id} className="flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3">
                   <span className="text-sm text-on-surface font-semibold">{a.name}</span>
                   <span className="text-xs text-on-surface-variant">{a.type} / {a.direction}</span>
@@ -222,7 +251,7 @@ export default function SystemSettings() {
             </div>
             <div className="flex flex-col gap-2">
               {webhooks.length === 0 && <p className="text-sm text-on-surface-variant">{t('system_settings.no_webhooks')}</p>}
-              {webhooks.map((w: any) => (
+              {(webhooks as WebhookSubscription[]).map((w) => (
                 <div key={w.id} className="flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3">
                   <span className="text-sm text-on-surface font-semibold">{w.name}</span>
                   <span className="text-xs text-on-surface-variant truncate max-w-[200px]">{w.url}</span>
@@ -269,7 +298,7 @@ export default function SystemSettings() {
           </div>
 
           {/* Table Rows */}
-          {users.map((user: any, i: number) => (
+          {users.map((user: MappedUser, i: number) => (
             <div
               key={user.id ?? i}
               className={`grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-3 items-center px-3 py-3 rounded-lg ${
@@ -298,7 +327,7 @@ export default function SystemSettings() {
                     className="bg-surface-container-low border border-surface-container-highest rounded px-2 py-1 text-xs text-on-surface"
                   >
                     <option value="">{t('system_settings.select_role')}</option>
-                    {apiRoles.map((r: any) => (
+                    {(apiRoles as Role[]).map((r) => (
                       <option key={r.id} value={r.id}>{r.name}</option>
                     ))}
                   </select>
@@ -458,7 +487,7 @@ export default function SystemSettings() {
                 required
               >
                 <option value="">{t('system_settings.select_role')}</option>
-                {apiRoles.map((r: any) => (
+                {(apiRoles as Role[]).map((r) => (
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
               </select>
@@ -477,7 +506,7 @@ export default function SystemSettings() {
                   if (!newUserData.role_id) { toast.error(t('system_settings.role_required')); return }
                   const { role_id, ...userData } = newUserData
                   createUser.mutate(userData, {
-                    onSuccess: (resp: any) => {
+                    onSuccess: (resp: { data?: { id?: string } }) => {
                       const userId = resp?.data?.id
                       if (userId && role_id) {
                         assignRole.mutate({ userId, roleId: role_id })

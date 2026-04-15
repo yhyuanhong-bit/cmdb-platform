@@ -3,7 +3,21 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAssets, useLifecycleStats, useCapacityPlanning } from '../hooks/useAssets'
+import type { Asset } from '../lib/api/assets'
+import type { AlertEvent } from '../lib/api/monitoring'
+import type { CapacityForecast } from '../lib/api/assets'
 import { useAlerts, useFleetMetrics } from '../hooks/useMonitoring'
+
+interface FleetMetricItem {
+  name: string
+  label?: string
+  avg_value?: number | null
+  p95_value?: number | null
+  unit?: string
+  data_points?: number
+  sparkline?: number[]
+}
+
 
 /* ------------------------------------------------------------------ */
 /*  Mini Sparkline                                                      */
@@ -30,6 +44,15 @@ function MiniSparkline({ data, color = '#9ecaff' }: { data: number[]; color?: st
 /*  Component                                                           */
 /* ------------------------------------------------------------------ */
 
+// The API Asset schema is minimal; the backend also returns lifecycle fields at runtime
+type AssetWithLifecycle = import('../lib/api/assets').Asset & {
+  warranty_end?: string | null
+  eol_date?: string | null
+  vendor?: string
+  model?: string
+}
+
+
 export default function EquipmentHealthOverview() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -51,12 +74,12 @@ export default function EquipmentHealthOverview() {
 
   // Fleet metrics from monitoring system
   const { data: fleetMetricsResp } = useFleetMetrics()
-  const fleetMetrics: any[] = (fleetMetricsResp as any)?.data ?? []
+  const fleetMetrics: FleetMetricItem[] = (fleetMetricsResp as unknown as { data?: FleetMetricItem[] })?.data ?? []
 
-  const getMetric = (name: string) => fleetMetrics.find((m: any) => m.name === name)
+  const getMetric = (name: string): FleetMetricItem | undefined => fleetMetrics.find((m) => m.name === name)
 
   const serverAssets = allAssets || []
-  const operationalCount = serverAssets.filter((a: any) => a.status === 'operational').length
+  const operationalCount = serverAssets.filter((a: AssetWithLifecycle) => a.status === 'operational').length
   const totalCount = serverAssets.length || 1
 
   // Enhancement 2: Warranty-aware health score
@@ -80,7 +103,7 @@ export default function EquipmentHealthOverview() {
   const storageNoData = diskMetric?.avg_value == null
 
   const networkConnectivity =
-    networkMetric?.data_points > 0
+    (networkMetric?.data_points ?? 0) > 0
       ? Math.min(100, Math.round(100 - (networkMetric?.p95_value ?? 0) / 1000))
       : null
   const networkNoData = networkConnectivity === null
@@ -179,7 +202,7 @@ export default function EquipmentHealthOverview() {
         body: 'All systems operating normally',
       }
 
-  const criticalCount = allAlerts.filter((a: any) => a.severity === 'critical').length
+  const criticalCount = allAlerts.filter((a: AlertEvent) => a.severity === 'critical').length
   const riskAssessment = {
     titleKey: 'equipment_health_overview.risk_title',
     body:
@@ -202,14 +225,14 @@ export default function EquipmentHealthOverview() {
       risk_level: riskAssessment.riskLevel,
       critical_alerts: criticalCount,
       warning_alerts: allAlerts.length,
-      fleet_metrics: fleetMetrics.map((m: any) => ({
+      fleet_metrics: fleetMetrics.map((m: FleetMetricItem) => ({
         name: m.name,
         label: m.label,
         avg_value: m.avg_value,
         unit: m.unit,
         data_points: m.data_points,
       })),
-      assets: serverAssets.map((a: any) => ({
+      assets: (serverAssets as AssetWithLifecycle[]).map((a) => ({
         asset_tag: a.asset_tag,
         name: a.name,
         type: a.type,
@@ -425,12 +448,12 @@ export default function EquipmentHealthOverview() {
                   </tr>
                 </thead>
                 <tbody>
-                  {serverAssets.slice(0, 20).map((asset: any) => {
+                  {(serverAssets as AssetWithLifecycle[]).slice(0, 20).map((asset) => {
                     const isExpiredWarranty =
                       asset.warranty_end && new Date(asset.warranty_end) < new Date()
                     const isOperational = asset.status === 'operational'
                     const hasAlerts = allAlerts.some(
-                      (a: any) => a.ci_id === asset.id || a.asset_id === asset.id
+                      (a: AlertEvent) => a.ci_id === asset.id
                     )
                     const risk = !isOperational
                       ? 'HIGH'
@@ -557,8 +580,8 @@ export default function EquipmentHealthOverview() {
             <div className="space-y-3">
               {Array.isArray(capacityForecasts) &&
                 capacityForecasts
-                  .filter((f: any) => f.resource_type === 'infrastructure')
-                  .map((f: any, i: number) => (
+                  .filter((f: CapacityForecast) => f.resource_type === 'infrastructure')
+                  .map((f: CapacityForecast, i: number) => (
                     <div key={i}>
                       <div className="mb-1 flex justify-between text-xs">
                         <span className="text-on-surface-variant">{f.resource_name}</span>
