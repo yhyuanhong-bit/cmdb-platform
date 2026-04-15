@@ -50,7 +50,7 @@ export function useUpdateAlertRule() {
 export function useCreateAlertRule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: Record<string, unknown>) => monitoringApi.createAlertRule(data),
+    mutationFn: (data: Parameters<typeof monitoringApi.createAlertRule>[0]) => monitoringApi.createAlertRule(data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['alertRules'] }),
   })
 }

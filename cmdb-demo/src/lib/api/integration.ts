@@ -18,15 +18,39 @@ export interface WebhookSubscription {
   enabled: boolean
 }
 
+export interface WebhookDelivery {
+  id: string
+  webhook_id: string
+  event: string
+  status: string
+  response_code: number
+  delivered_at: string
+}
+
+export interface CreateAdapterInput {
+  name: string
+  type: string
+  direction: string
+  endpoint: string
+  enabled?: boolean
+}
+
+export interface CreateWebhookInput {
+  name: string
+  url: string
+  events: string[]
+  enabled?: boolean
+}
+
 export const integrationApi = {
   listAdapters: () =>
     apiClient.get<ApiResponse<AdapterConfig[]>>('/integration/adapters'),
-  createAdapter: (data: any) =>
+  createAdapter: (data: CreateAdapterInput) =>
     apiClient.post<ApiResponse<AdapterConfig>>('/integration/adapters', data),
   listWebhooks: () =>
     apiClient.get<ApiResponse<WebhookSubscription[]>>('/integration/webhooks'),
-  createWebhook: (data: any) =>
+  createWebhook: (data: CreateWebhookInput) =>
     apiClient.post<ApiResponse<WebhookSubscription>>('/integration/webhooks', data),
   listDeliveries: (webhookID: string) =>
-    apiClient.get<ApiResponse<any[]>>(`/integration/webhooks/${webhookID}/deliveries`),
+    apiClient.get<ApiResponse<WebhookDelivery[]>>(`/integration/webhooks/${webhookID}/deliveries`),
 }

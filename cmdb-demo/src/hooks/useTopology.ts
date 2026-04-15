@@ -125,7 +125,7 @@ export function useRackSlots(rackId: string) {
 export function useCreateRackSlot() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ rackId, data }: { rackId: string; data: Record<string, unknown> }) => topologyApi.createRackSlot(rackId, data),
+    mutationFn: ({ rackId, data }: { rackId: string; data: Parameters<typeof topologyApi.createRackSlot>[1] }) => topologyApi.createRackSlot(rackId, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['rackSlots'] }) }
   })
 }
@@ -149,7 +149,7 @@ export function useAssetDependencies(assetId: string) {
 export function useCreateDependency() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: Record<string, unknown>) => topologyApi.createDependency(data),
+    mutationFn: (data: Parameters<typeof topologyApi.createDependency>[0]) => topologyApi.createDependency(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['assetDependencies'] })
       qc.invalidateQueries({ queryKey: ['topologyGraph'] })
@@ -179,7 +179,7 @@ export function useRackNetworkConnections(rackId: string) {
 export function useCreateNetworkConnection() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ rackId, data }: { rackId: string; data: Record<string, unknown> }) =>
+    mutationFn: ({ rackId, data }: { rackId: string; data: Parameters<typeof topologyApi.createNetworkConnection>[1] }) =>
       topologyApi.createNetworkConnection(rackId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rackNetworkConnections'] }),
   })

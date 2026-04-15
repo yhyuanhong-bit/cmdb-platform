@@ -5,20 +5,48 @@ import type { components } from '../../generated/api-types'
 export type User = components['schemas']['User']
 export type Role = components['schemas']['Role']
 
+export interface CreateUserInput {
+  username: string
+  display_name: string
+  email: string
+  phone?: string
+  password: string
+  status?: string
+}
+
+export interface UpdateUserInput {
+  display_name?: string
+  email?: string
+  phone?: string
+  status?: string
+}
+
+export interface CreateRoleInput {
+  name: string
+  description: string
+  permissions?: Record<string, string[]>
+}
+
+export interface UpdateRoleInput {
+  name?: string
+  description?: string
+  permissions?: Record<string, string[]>
+}
+
 export const identityApi = {
   listUsers: (params?: Record<string, string>) =>
     apiClient.get<ApiListResponse<User>>('/users', params),
   getUser: (id: string) =>
     apiClient.get<ApiResponse<User>>(`/users/${id}`),
-  createUser: (data: any) =>
+  createUser: (data: CreateUserInput) =>
     apiClient.post<ApiResponse<User>>('/users', data),
-  updateUser: (id: string, data: any) =>
+  updateUser: (id: string, data: UpdateUserInput) =>
     apiClient.put<ApiResponse<User>>(`/users/${id}`, data),
   listRoles: () =>
     apiClient.get<ApiResponse<Role[]>>('/roles'),
-  createRole: (data: any) =>
+  createRole: (data: CreateRoleInput) =>
     apiClient.post<ApiResponse<Role>>('/roles', data),
-  updateRole: (id: string, data: any) =>
+  updateRole: (id: string, data: UpdateRoleInput) =>
     apiClient.put<ApiResponse<Role>>(`/roles/${id}`, data),
   deleteRole: (id: string) =>
     apiClient.del(`/roles/${id}`),
