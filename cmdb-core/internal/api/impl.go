@@ -201,7 +201,7 @@ func (s *APIServer) recordAudit(c *gin.Context, action, module, targetType strin
 	operatorID := userIDFromContext(c)
 	if err := s.auditSvc.Record(c.Request.Context(), tenantID, action, module, targetType, targetID, operatorID, diff, "api"); err != nil {
 		// Log but don't fail the request
-		fmt.Printf("audit record error: %v\n", err)
+		zap.L().Error("audit record error", zap.Error(err))
 	}
 }
 
@@ -212,7 +212,7 @@ func (s *APIServer) publishEvent(ctx context.Context, subject, tenantID string, 
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
-		fmt.Printf("event marshal error: %v\n", err)
+		zap.L().Error("event marshal error", zap.Error(err))
 		return
 	}
 	if err := s.eventBus.Publish(ctx, eventbus.Event{
@@ -220,7 +220,7 @@ func (s *APIServer) publishEvent(ctx context.Context, subject, tenantID string, 
 		TenantID: tenantID,
 		Payload:  data,
 	}); err != nil {
-		fmt.Printf("event publish error: %v\n", err)
+		zap.L().Error("event publish error", zap.Error(err))
 	}
 }
 
@@ -2918,7 +2918,7 @@ func (s *APIServer) UpdateBIAAssessment(c *gin.Context, id IdPath) {
 	// Propagate BIA level to linked assets if tier changed
 	if req.Tier != nil {
 		if err := s.biaSvc.PropagateBIALevel(c.Request.Context(), updated.ID); err != nil {
-			fmt.Printf("BIA propagation error: %v\n", err)
+			zap.L().Error("BIA propagation error", zap.Error(err))
 		}
 	}
 

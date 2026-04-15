@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
@@ -85,30 +86,36 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 
 	// Latest PUE
 	var pue float64
-	_ = s.pool.QueryRow(c.Request.Context(), `
+	if err := s.pool.QueryRow(c.Request.Context(), `
 		SELECT COALESCE(value, 1.0) FROM metrics
 		WHERE tenant_id = $1 AND name = 'pue'
 		ORDER BY time DESC LIMIT 1
-	`, tenantID).Scan(&pue)
+	`, tenantID).Scan(&pue); err != nil {
+		zap.L().Error("energy: failed to query PUE", zap.Error(err))
+	}
 	if pue == 0 {
 		pue = 1.0
 	}
 
 	// Total power (last hour avg)
 	var totalKW float64
-	_ = s.pool.QueryRow(c.Request.Context(), `
+	if err := s.pool.QueryRow(c.Request.Context(), `
 		SELECT COALESCE(avg(value), 0) FROM metrics
 		WHERE tenant_id = $1 AND name = 'power_kw'
 		  AND time > now() - interval '1 hour'
-	`, tenantID).Scan(&totalKW)
+	`, tenantID).Scan(&totalKW); err != nil {
+		zap.L().Error("energy: failed to query total power", zap.Error(err))
+	}
 
 	// Peak demand (max in last 30 days)
 	var peakKW float64
-	_ = s.pool.QueryRow(c.Request.Context(), `
+	if err := s.pool.QueryRow(c.Request.Context(), `
 		SELECT COALESCE(max(value), 0) FROM metrics
 		WHERE tenant_id = $1 AND name = 'power_kw'
 		  AND time > now() - interval '30 days'
-	`, tenantID).Scan(&peakKW)
+	`, tenantID).Scan(&peakKW); err != nil {
+		zap.L().Error("energy: failed to query peak demand", zap.Error(err))
+	}
 
 	// Carbon footprint estimate: kW * 24h * 30days * emission_factor (tCO2/kWh)
 	carbonMT := totalKW * 24 * 30 * s.cfg.CarbonEmissionFactor // monthly estimate in metric tonnes

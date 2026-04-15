@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	location_detect "github.com/cmdb-platform/cmdb-core/internal/domain/location_detect"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
@@ -49,14 +50,22 @@ func (s *APIServer) LocationDetectGetSummary(c *gin.Context) {
 
 	var totalAssets, consistentCount, relocatedCount, newDeviceCount int64
 
-	_ = s.pool.QueryRow(c.Request.Context(),
-		"SELECT count(*) FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL", tenantID).Scan(&totalAssets)
-	_ = s.pool.QueryRow(c.Request.Context(),
-		"SELECT count(*) FROM mac_address_cache WHERE tenant_id = $1 AND asset_id IS NOT NULL", tenantID).Scan(&consistentCount)
-	_ = s.pool.QueryRow(c.Request.Context(),
-		"SELECT count(*) FROM asset_location_history WHERE tenant_id = $1 AND detected_at > now() - interval '24 hours'", tenantID).Scan(&relocatedCount)
-	_ = s.pool.QueryRow(c.Request.Context(),
-		"SELECT count(*) FROM mac_address_cache WHERE tenant_id = $1 AND asset_id IS NULL", tenantID).Scan(&newDeviceCount)
+	if err := s.pool.QueryRow(c.Request.Context(),
+		"SELECT count(*) FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL", tenantID).Scan(&totalAssets); err != nil {
+		zap.L().Error("location detect: failed to count assets", zap.Error(err))
+	}
+	if err := s.pool.QueryRow(c.Request.Context(),
+		"SELECT count(*) FROM mac_address_cache WHERE tenant_id = $1 AND asset_id IS NOT NULL", tenantID).Scan(&consistentCount); err != nil {
+		zap.L().Error("location detect: failed to count tracked devices", zap.Error(err))
+	}
+	if err := s.pool.QueryRow(c.Request.Context(),
+		"SELECT count(*) FROM asset_location_history WHERE tenant_id = $1 AND detected_at > now() - interval '24 hours'", tenantID).Scan(&relocatedCount); err != nil {
+		zap.L().Error("location detect: failed to count relocations", zap.Error(err))
+	}
+	if err := s.pool.QueryRow(c.Request.Context(),
+		"SELECT count(*) FROM mac_address_cache WHERE tenant_id = $1 AND asset_id IS NULL", tenantID).Scan(&newDeviceCount); err != nil {
+		zap.L().Error("location detect: failed to count new devices", zap.Error(err))
+	}
 
 	missingCount := totalAssets - consistentCount
 	if missingCount < 0 {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
@@ -406,15 +407,21 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 
 	// Item 7: Composite load score — weighted combination of CPU, RAM, disk metrics
 	var cpuAvg, memAvg, diskAvg float64
-	s.pool.QueryRow(c.Request.Context(), //nolint:errcheck
+	if err := s.pool.QueryRow(c.Request.Context(),
 		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE asset_id = $1 AND name = 'cpu_usage' AND time > now() - interval '7 days'",
-		assetID).Scan(&cpuAvg)
-	s.pool.QueryRow(c.Request.Context(), //nolint:errcheck
+		assetID).Scan(&cpuAvg); err != nil {
+		zap.L().Error("prediction: failed to query cpu_usage", zap.Error(err))
+	}
+	if err := s.pool.QueryRow(c.Request.Context(),
 		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE asset_id = $1 AND name = 'memory_usage' AND time > now() - interval '7 days'",
-		assetID).Scan(&memAvg)
-	s.pool.QueryRow(c.Request.Context(), //nolint:errcheck
+		assetID).Scan(&memAvg); err != nil {
+		zap.L().Error("prediction: failed to query memory_usage", zap.Error(err))
+	}
+	if err := s.pool.QueryRow(c.Request.Context(),
 		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE asset_id = $1 AND name = 'disk_usage' AND time > now() - interval '7 days'",
-		assetID).Scan(&diskAvg)
+		assetID).Scan(&diskAvg); err != nil {
+		zap.L().Error("prediction: failed to query disk_usage", zap.Error(err))
+	}
 
 	loadScore := cpuAvg*0.4 + memAvg*0.35 + diskAvg*0.25
 	if loadScore > 75 && cpuAvg > 0 {
@@ -436,14 +443,16 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 		for i := range recommendations {
 			var peerAvg float64
 			var peerCount int
-			s.pool.QueryRow(c.Request.Context(), //nolint:errcheck
+			if err := s.pool.QueryRow(c.Request.Context(),
 				`SELECT COALESCE(avg(m.value), 0), COUNT(DISTINCT m.asset_id)
 				 FROM metrics m JOIN assets a ON m.asset_id = a.id
 				 WHERE a.tenant_id = $1 AND a.model = $2 AND a.id != $3
 				   AND m.name = $4 AND m.time > now() - interval '7 days'
 				   AND a.deleted_at IS NULL`,
 				tenantID, assetModel.String, assetID, recommendations[i].MetricName,
-			).Scan(&peerAvg, &peerCount)
+			).Scan(&peerAvg, &peerCount); err != nil {
+				zap.L().Error("prediction: failed to query peer metrics", zap.String("metric", recommendations[i].MetricName), zap.Error(err))
+			}
 
 			if peerCount >= 3 && peerAvg > 0 {
 				ratio := recommendations[i].AvgValue / peerAvg
@@ -707,6 +716,10 @@ func (s *APIServer) DeleteUpgradeRule(c *gin.Context) {
 		response.BadRequest(c, "invalid rule ID")
 		return
 	}
-	s.pool.Exec(c.Request.Context(), "DELETE FROM upgrade_rules WHERE id = $1", ruleID) //nolint:errcheck
+	if _, err := s.pool.Exec(c.Request.Context(), "DELETE FROM upgrade_rules WHERE id = $1", ruleID); err != nil {
+		zap.L().Error("failed to delete upgrade rule", zap.String("id", ruleID.String()), zap.Error(err))
+		response.InternalError(c, "failed to delete rule")
+		return
+	}
 	c.Status(204)
 }

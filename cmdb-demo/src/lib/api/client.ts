@@ -33,7 +33,15 @@ class ApiClient {
       headers,
     })
 
-    const json = await res.json()
+    let json: any
+    try {
+      json = await res.json()
+    } catch {
+      if (!res.ok) {
+        throw new ApiRequestError('UNKNOWN', res.statusText || 'Request failed', res.status)
+      }
+      return undefined as unknown as T
+    }
 
     if (!res.ok || json.error) {
       const error = json.error || { code: 'UNKNOWN', message: res.statusText }
