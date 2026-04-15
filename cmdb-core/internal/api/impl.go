@@ -331,7 +331,7 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 
 	tenantID := tenantIDFromContext(c)
 
-	var attrsJSON json.RawMessage
+	attrsJSON := json.RawMessage(`{}`)
 	if req.Attributes != nil {
 		attrsJSON, _ = json.Marshal(req.Attributes)
 	}
@@ -396,6 +396,7 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 			response.Err(c, 409, "DUPLICATE", "An asset with this asset tag already exists")
 			return
 		}
+		zap.L().Error("failed to create asset", zap.Error(err))
 		response.InternalError(c, "failed to create asset")
 		return
 	}
