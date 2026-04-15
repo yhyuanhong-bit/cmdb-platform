@@ -99,7 +99,8 @@ export function useUpdateLocation() {
 export function useDeleteLocation() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: topologyApi.deleteLocation,
+    mutationFn: ({ id, recursive }: { id: string; recursive?: boolean }) =>
+      topologyApi.deleteLocation(id, recursive),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
   })
 }

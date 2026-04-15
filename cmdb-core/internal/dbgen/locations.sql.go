@@ -81,6 +81,42 @@ func (q *Queries) CountAssetsByLocation(ctx context.Context, tenantID uuid.UUID)
 	return items, nil
 }
 
+const countAssetsByLocationDirect = `-- name: CountAssetsByLocationDirect :one
+SELECT count(*)::bigint FROM assets
+WHERE location_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) CountAssetsByLocationDirect(ctx context.Context, locationID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countAssetsByLocationDirect, locationID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countChildLocations = `-- name: CountChildLocations :one
+SELECT count(*)::bigint FROM locations
+WHERE parent_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) CountChildLocations(ctx context.Context, parentID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countChildLocations, parentID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countRacksByLocation = `-- name: CountRacksByLocation :one
+SELECT count(*)::bigint FROM racks
+WHERE location_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) CountRacksByLocation(ctx context.Context, locationID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countRacksByLocation, locationID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createLocation = `-- name: CreateLocation :one
 INSERT INTO locations (
     tenant_id, name, name_en, slug, level,
@@ -144,6 +180,22 @@ func (q *Queries) CreateLocation(ctx context.Context, arg CreateLocationParams) 
 		&i.Longitude,
 	)
 	return i, err
+}
+
+const deleteDescendantLocations = `-- name: DeleteDescendantLocations :exec
+DELETE FROM locations
+WHERE tenant_id = $1 AND path <@ $2::ltree AND id != $3
+`
+
+type DeleteDescendantLocationsParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Column2  string    `json:"column_2"`
+	ID       uuid.UUID `json:"id"`
+}
+
+func (q *Queries) DeleteDescendantLocations(ctx context.Context, arg DeleteDescendantLocationsParams) error {
+	_, err := q.db.Exec(ctx, deleteDescendantLocations, arg.TenantID, arg.Column2, arg.ID)
+	return err
 }
 
 const deleteLocation = `-- name: DeleteLocation :exec

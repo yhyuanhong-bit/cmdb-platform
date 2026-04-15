@@ -7,6 +7,13 @@ export type Rack = components['schemas']['Rack']
 export type Asset = components['schemas']['Asset']
 export type LocationStats = components['schemas']['LocationStats']
 
+export interface LocationDeleteInfo {
+  child_locations: number
+  racks: number
+  assets: number
+  safe_to_delete: boolean
+}
+
 export interface RackSlot {
   id: string
   rack_id: string
@@ -75,8 +82,10 @@ export const topologyApi = {
     apiClient.post<ApiResponse<Location>>('/locations', data),
   updateLocation: (id: string, data: Partial<Location>) =>
     apiClient.put<ApiResponse<Location>>(`/locations/${id}`, data),
-  deleteLocation: (id: string) =>
-    apiClient.del(`/locations/${id}`),
+  deleteLocation: (id: string, recursive?: boolean) =>
+    apiClient.del(`/locations/${id}${recursive ? '?recursive=true' : ''}`),
+  preflightDeleteLocation: (id: string) =>
+    apiClient.get<ApiResponse<LocationDeleteInfo>>(`/locations/${id}?preflight=true`),
   getLocationStats: (id: string) =>
     apiClient.get<ApiResponse<LocationStats>>(`/locations/${id}/stats`),
   listRacks: (locationID: string) =>

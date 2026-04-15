@@ -53,6 +53,22 @@ RETURNING *;
 -- name: DeleteLocation :exec
 DELETE FROM locations WHERE id = $1 AND tenant_id = $2;
 
+-- name: CountChildLocations :one
+SELECT count(*)::bigint FROM locations
+WHERE parent_id = $1 AND deleted_at IS NULL;
+
+-- name: CountRacksByLocation :one
+SELECT count(*)::bigint FROM racks
+WHERE location_id = $1 AND deleted_at IS NULL;
+
+-- name: CountAssetsByLocationDirect :one
+SELECT count(*)::bigint FROM assets
+WHERE location_id = $1 AND deleted_at IS NULL;
+
+-- name: DeleteDescendantLocations :exec
+DELETE FROM locations
+WHERE tenant_id = $1 AND path <@ $2::ltree AND id != $3;
+
 -- name: GetLocationBySlug :one
 SELECT * FROM locations
 WHERE tenant_id = $1 AND slug = $2 AND level = $3;

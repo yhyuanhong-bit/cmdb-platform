@@ -11,6 +11,13 @@ import (
 	"go.uber.org/zap"
 )
 
+func pgtextToStr(v pgtype.Text) string {
+	if v.Valid {
+		return v.String
+	}
+	return ""
+}
+
 // Service provides topology operations on locations and racks.
 type Service struct {
 	queries *dbgen.Queries
@@ -161,12 +168,63 @@ func (s *Service) UpdateLocation(ctx context.Context, params dbgen.UpdateLocatio
 	return &loc, nil
 }
 
+// LocationDeleteInfo contains dependency counts for a location before deletion.
+type LocationDeleteInfo struct {
+	ChildLocations int64
+	Racks          int64
+	Assets         int64
+}
+
+// PreflightDeleteLocation checks what would be affected by deleting a location.
+func (s *Service) PreflightDeleteLocation(ctx context.Context, tenantID, id uuid.UUID) (*LocationDeleteInfo, error) {
+	children, err := s.queries.CountChildLocations(ctx, pgtype.UUID{Bytes: id, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("count children: %w", err)
+	}
+	racks, err := s.queries.CountRacksByLocation(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("count racks: %w", err)
+	}
+	assets, err := s.queries.CountAssetsByLocationDirect(ctx, pgtype.UUID{Bytes: id, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("count assets: %w", err)
+	}
+	return &LocationDeleteInfo{ChildLocations: children, Racks: racks, Assets: assets}, nil
+}
+
 // DeleteLocation removes a location by ID, scoped to the given tenant.
-func (s *Service) DeleteLocation(ctx context.Context, tenantID, id uuid.UUID) error {
+// If recursive is true, deletes all descendant locations first.
+// Returns error if the location has children/racks/assets and recursive is false.
+func (s *Service) DeleteLocation(ctx context.Context, tenantID, id uuid.UUID, recursive bool) error {
+	loc, err := s.queries.GetLocation(ctx, dbgen.GetLocationParams{ID: id, TenantID: tenantID})
+	if err != nil {
+		return fmt.Errorf("location not found: %w", err)
+	}
+
+	info, err := s.PreflightDeleteLocation(ctx, tenantID, id)
+	if err != nil {
+		return err
+	}
+
+	if !recursive && (info.ChildLocations > 0 || info.Racks > 0 || info.Assets > 0) {
+		return fmt.Errorf("location has %d children, %d racks, %d assets — use recursive=true to force delete",
+			info.ChildLocations, info.Racks, info.Assets)
+	}
+
+	if recursive {
+		path := pgtextToStr(loc.Path)
+		if err := s.queries.DeleteDescendantLocations(ctx, dbgen.DeleteDescendantLocationsParams{
+			TenantID: tenantID,
+			Column2:  path,
+			ID:       id,
+		}); err != nil {
+			return fmt.Errorf("delete descendants: %w", err)
+		}
+	}
+
 	if err := s.queries.DeleteLocation(ctx, dbgen.DeleteLocationParams{ID: id, TenantID: tenantID}); err != nil {
 		return err
 	}
-	s.incrementSyncVersion(ctx, "locations", id)
 	return nil
 }
 

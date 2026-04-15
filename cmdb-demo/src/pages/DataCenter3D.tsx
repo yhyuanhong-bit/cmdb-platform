@@ -3,7 +3,9 @@ import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useRacks, useAllLocations } from "../hooks/useTopology";
+import { useRacks, useAllLocations, useDeleteLocation } from "../hooks/useTopology";
+import { topologyApi } from "../lib/api/topology";
+import type { LocationDeleteInfo } from "../lib/api/topology";
 import { useLocationContext } from "../contexts/LocationContext";
 import { useAlerts } from "../hooks/useMonitoring";
 import { apiClient } from "../lib/api/client";
@@ -70,20 +72,21 @@ function TreeItem({
   depth,
   expanded,
   onToggle,
+  onDelete,
 }: {
   node: TreeNode;
   depth: number;
   expanded: Record<string, boolean>;
   onToggle: (id: string) => void;
+  onDelete: (id: string, label: string) => void;
 }) {
   const { t } = useTranslation();
   const isExpanded = expanded[node.id] !== false;
   const hasChildren = node.children && node.children.length > 0;
 
   return (
-    <div>
-      <button
-        onClick={() => onToggle(node.id)}
+    <div className="group/tree">
+      <div
         className={`flex items-center gap-1.5 w-full text-left py-1.5 px-2 rounded-lg text-sm transition-colors ${
           node.active
             ? "bg-primary-container text-primary font-medium"
@@ -91,27 +94,36 @@ function TreeItem({
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
-        {hasChildren && (
-          <span
-            className="material-symbols-outlined text-base transition-transform"
-            style={{
-              transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
-            }}
-          >
-            chevron_right
+        <button onClick={() => onToggle(node.id)} className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
+          {hasChildren && (
+            <span
+              className="material-symbols-outlined text-base transition-transform"
+              style={{
+                transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+              }}
+            >
+              chevron_right
+            </span>
+          )}
+          {!hasChildren && <span className="w-4" />}
+          <span className="material-symbols-outlined text-base">
+            {hasChildren ? "folder" : node.active ? "check_circle" : "circle"}
           </span>
-        )}
-        {!hasChildren && <span className="w-4" />}
-        <span className="material-symbols-outlined text-base">
-          {hasChildren ? "folder" : node.active ? "check_circle" : "circle"}
-        </span>
-        <span className="truncate">{node.label}</span>
-        {node.active && (
-          <span className="ml-auto text-[10px] bg-on-primary-container/20 text-primary px-1.5 py-0.5 rounded">
-            {t('datacenter_3d.label_active')}
-          </span>
-        )}
-      </button>
+          <span className="truncate">{node.label}</span>
+          {node.active && (
+            <span className="ml-auto text-[10px] bg-on-primary-container/20 text-primary px-1.5 py-0.5 rounded">
+              {t('datacenter_3d.label_active')}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(node.id, node.label); }}
+          className="opacity-0 group-hover/tree:opacity-100 p-0.5 rounded hover:bg-error-container/40 text-on-surface-variant hover:text-error transition-all shrink-0"
+          title={t('common.delete', 'Delete')}
+        >
+          <span className="material-symbols-outlined text-[14px]">delete</span>
+        </button>
+      </div>
       {hasChildren && isExpanded && (
         <div>
           {node.children!.map((child) => (
@@ -121,6 +133,7 @@ function TreeItem({
               depth={depth + 1}
               expanded={expanded}
               onToggle={onToggle}
+              onDelete={onDelete}
             />
           ))}
         </div>
@@ -241,6 +254,35 @@ export default function DataCenter3D() {
   const selectedLocation = allLocations.find(l => l.id === selectedLocationId) || territories[0];
   const subtitle = selectedLocation ? (selectedLocation.name_en || selectedLocation.name) : 'Data Center';
 
+  // Delete location
+  const deleteLocation = useDeleteLocation();
+  const [deleteDialog, setDeleteDialog] = useState<{ id: string; label: string; info?: LocationDeleteInfo } | null>(null);
+
+  const handleDeleteRequest = async (id: string, label: string) => {
+    try {
+      const resp = await topologyApi.preflightDeleteLocation(id);
+      const info = resp?.data as LocationDeleteInfo | undefined;
+      setDeleteDialog({ id, label, info });
+    } catch {
+      setDeleteDialog({ id, label });
+    }
+  };
+
+  const handleDeleteConfirm = (recursive: boolean) => {
+    if (!deleteDialog) return;
+    deleteLocation.mutate(
+      { id: deleteDialog.id, recursive },
+      {
+        onSuccess: () => {
+          toast.success(t('datacenter_3d.location_deleted', { name: deleteDialog.label }));
+          setDeleteDialog(null);
+          if (selectedLocationId === deleteDialog.id) setSelectedLocationId('');
+        },
+        onError: () => toast.error(t('datacenter_3d.delete_failed', 'Failed to delete location')),
+      }
+    );
+  };
+
   const getRackColor = (status: RackCell["status"], isHovered: boolean) => {
     if (heatMode) {
       if (status === "critical") return "bg-error/80";
@@ -322,6 +364,7 @@ export default function DataCenter3D() {
                 depth={0}
                 expanded={treeExpanded}
                 onToggle={handleTreeNodeClick}
+                onDelete={handleDeleteRequest}
               />
             ))}
           </div>
@@ -569,6 +612,82 @@ export default function DataCenter3D() {
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      {deleteDialog && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setDeleteDialog(null)}>
+          <div className="bg-surface rounded-2xl p-6 w-[26rem] shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-error-container flex items-center justify-center">
+                <span className="material-symbols-outlined text-error">warning</span>
+              </div>
+              <div>
+                <h3 className="text-base font-headline font-bold text-on-surface">
+                  {t('datacenter_3d.delete_title', 'Delete Location')}
+                </h3>
+                <p className="text-sm text-on-surface-variant">{deleteDialog.label}</p>
+              </div>
+            </div>
+
+            {deleteDialog.info && (
+              <div className="bg-surface-container-low rounded-xl p-4 mb-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-on-surface-variant">{t('datacenter_3d.child_locations', 'Child locations')}</span>
+                  <span className={`font-medium ${deleteDialog.info.child_locations > 0 ? 'text-error' : 'text-on-surface'}`}>
+                    {deleteDialog.info.child_locations}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-on-surface-variant">{t('datacenter_3d.racks_count', 'Racks')}</span>
+                  <span className={`font-medium ${deleteDialog.info.racks > 0 ? 'text-error' : 'text-on-surface'}`}>
+                    {deleteDialog.info.racks}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-on-surface-variant">{t('datacenter_3d.assets_count', 'Assets')}</span>
+                  <span className={`font-medium ${deleteDialog.info.assets > 0 ? 'text-error' : 'text-on-surface'}`}>
+                    {deleteDialog.info.assets}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {deleteDialog.info && !deleteDialog.info.safe_to_delete && (
+              <p className="text-xs text-error mb-4">
+                {t('datacenter_3d.delete_warning', 'This location has dependencies. Recursive delete will remove all child locations.')}
+              </p>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeleteDialog(null)}
+                className="px-4 py-2 rounded-lg bg-surface-container-high text-on-surface-variant text-sm font-medium hover:bg-surface-container-highest transition-colors"
+              >
+                {t('common.cancel', 'Cancel')}
+              </button>
+              {deleteDialog.info?.safe_to_delete ? (
+                <button
+                  onClick={() => handleDeleteConfirm(false)}
+                  disabled={deleteLocation.isPending}
+                  className="px-4 py-2 rounded-lg bg-error text-on-error text-sm font-medium hover:bg-error/80 transition-colors disabled:opacity-50"
+                >
+                  {deleteLocation.isPending ? t('common.deleting', 'Deleting...') : t('common.delete', 'Delete')}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleDeleteConfirm(true)}
+                  disabled={deleteLocation.isPending}
+                  className="px-4 py-2 rounded-lg bg-error text-on-error text-sm font-medium hover:bg-error/80 transition-colors disabled:opacity-50"
+                >
+                  {deleteLocation.isPending
+                    ? t('common.deleting', 'Deleting...')
+                    : t('datacenter_3d.delete_recursive', 'Delete All')}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

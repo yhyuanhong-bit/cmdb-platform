@@ -908,16 +908,42 @@ func (s *APIServer) UpdateLocation(c *gin.Context, id IdPath) {
 }
 
 // DeleteLocation deletes a location.
+// Supports ?recursive=true to delete all descendants.
+// Returns 409 if location has dependencies and recursive is not set.
 // (DELETE /locations/{id})
 func (s *APIServer) DeleteLocation(c *gin.Context, id IdPath) {
-	err := s.topologySvc.DeleteLocation(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
-	if err != nil {
-		response.NotFound(c, "location not found")
+	tenantID := tenantIDFromContext(c)
+	locID := uuid.UUID(id)
+	recursive := c.Query("recursive") == "true"
+
+	// Preflight check: if ?preflight=true, return dependency info without deleting
+	if c.Query("preflight") == "true" {
+		info, err := s.topologySvc.PreflightDeleteLocation(c.Request.Context(), tenantID, locID)
+		if err != nil {
+			response.NotFound(c, "location not found")
+			return
+		}
+		response.OK(c, gin.H{
+			"child_locations": info.ChildLocations,
+			"racks":           info.Racks,
+			"assets":          info.Assets,
+			"safe_to_delete":  info.ChildLocations == 0 && info.Racks == 0 && info.Assets == 0,
+		})
 		return
 	}
-	s.recordAudit(c, "location.deleted", "topology", "location", uuid.UUID(id), nil)
-	s.publishEvent(c.Request.Context(), eventbus.SubjectLocationDeleted, tenantIDFromContext(c).String(), map[string]any{
-		"location_id": uuid.UUID(id).String(), "tenant_id": tenantIDFromContext(c).String(),
+
+	err := s.topologySvc.DeleteLocation(c.Request.Context(), tenantID, locID, recursive)
+	if err != nil {
+		if strings.Contains(err.Error(), "use recursive=true") {
+			c.JSON(409, gin.H{"error": gin.H{"code": "HAS_DEPENDENCIES", "message": err.Error()}})
+			return
+		}
+		response.NotFound(c, "location not found or delete failed")
+		return
+	}
+	s.recordAudit(c, "location.deleted", "topology", "location", locID, map[string]any{"recursive": recursive})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectLocationDeleted, tenantID.String(), map[string]any{
+		"location_id": locID.String(), "tenant_id": tenantID.String(), "recursive": recursive,
 	})
 	c.Status(204)
 }
