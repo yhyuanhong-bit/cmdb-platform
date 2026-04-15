@@ -48,8 +48,8 @@ function deriveLevel(path: LocationPath): LocationLevel {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-function isValidLocationNode(node: any): boolean {
-  return node && typeof node.id === 'string' && UUID_RE.test(node.id)
+function isValidLocationNode(node: unknown): boolean {
+  return node !== null && typeof node === 'object' && 'id' in node && typeof (node as { id: unknown }).id === 'string' && UUID_RE.test((node as { id: string }).id)
 }
 
 function loadPersistedPath(): LocationPath {

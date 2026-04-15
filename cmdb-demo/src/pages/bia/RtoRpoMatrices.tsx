@@ -3,6 +3,31 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useBIAAssessments, useBIAScoringRules } from '../../hooks/useBIA'
 
+/* ──────────────────────────────────────────────
+   Local types
+   ────────────────────────────────────────────── */
+
+interface BIAAssessment {
+  id: string
+  system_name: string
+  tier: string
+  rto_hours?: number | null
+  rpo_minutes?: number | null
+}
+
+interface BIARule {
+  id: string
+  tier_name: string
+  rto_threshold?: number | null
+  rpo_threshold?: number | null
+}
+
+interface ApiListResponse<T> {
+  data?: T[]
+}
+
+
+
 const TIER_BADGE: Record<string, string> = {
   critical:  'bg-[#7f1d1d] text-[#fca5a5]',
   important: 'bg-[#78350f] text-[#fde68a]',
@@ -27,8 +52,8 @@ function ComplianceMatrix({
 }: {
   titleKey: string
   subtitleKey: string
-  assessments: any[]
-  rules: any[]
+  assessments: BIAAssessment[]
+  rules: BIARule[]
   mode: 'rto' | 'rpo'
 }) {
   const { t } = useTranslation()
@@ -112,8 +137,8 @@ function RtoRpoMatrices() {
   const { data: assessResp, isLoading: assessLoading } = useBIAAssessments()
   const { data: rulesResp, isLoading: rulesLoading } = useBIAScoringRules()
 
-  const assessments = (assessResp as any)?.data || []
-  const rules = (rulesResp as any)?.data || []
+  const assessments: BIAAssessment[] = (assessResp as ApiListResponse<BIAAssessment>)?.data || []
+  const rules: BIARule[] = (rulesResp as ApiListResponse<BIARule>)?.data || []
   const isLoading = assessLoading || rulesLoading
 
   return (

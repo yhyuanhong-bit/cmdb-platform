@@ -8,6 +8,7 @@ import { useLocationContext } from "../contexts/LocationContext";
 import { useAlerts } from "../hooks/useMonitoring";
 import { apiClient } from "../lib/api/client";
 import type { Rack } from "../lib/api/topology";
+import type { AlertEvent } from "../lib/api/monitoring";
 
 interface TreeNode {
   id: string;
@@ -188,7 +189,7 @@ export default function DataCenter3D() {
 
   // Alerts from API (Task 8)
   const { data: alertsResp } = useAlerts({ status: 'firing' })
-  const alerts: Array<{ level: string; text: string; color: string }> = ((alertsResp as any)?.data ?? []).slice(0, 5).map((a: any) => ({
+  const alerts: Array<{ level: string; text: string; color: string }> = (alertsResp?.data ?? []).slice(0, 5).map((a: AlertEvent) => ({
     level: (a.severity ?? '').toUpperCase() === 'CRITICAL' ? 'CRITICAL' : 'WARNING',
     text: (a.message as string) || `Alert: ${String(a.id ?? '').slice(0, 8)}`,
     color: (a.severity ?? '') === 'critical' ? 'text-error' : 'text-tertiary',

@@ -6,6 +6,13 @@ import { useAuthStore } from '../stores/authStore'
 import { useUpdateUser, useUserSessions, useChangePassword } from '../hooks/useIdentity'
 import { useSystemHealth } from '../hooks/useSystemHealth'
 
+interface UserSession {
+  icon: string
+  device: string
+  time: string
+  current?: boolean
+}
+
 export default function UserProfile() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -17,7 +24,7 @@ export default function UserProfile() {
   const connectivity = dbLatency ? (dbLatency < 50 ? 'Good' : dbLatency < 200 ? 'Normal' : 'Degraded') : '—'
 
   const { data: sessionsData } = useUserSessions(user?.id || '')
-  const sessions = (sessionsData as any)?.sessions ?? []
+  const sessions: UserSession[] = (sessionsData as { sessions?: UserSession[] } | undefined)?.sessions ?? []
   const changePasswordMutation = useChangePassword()
 
   const [showPwModal, setShowPwModal] = useState(false)
@@ -167,7 +174,7 @@ export default function UserProfile() {
               {t('user_profile.section_active_sessions')}
             </h3>
             <div className="flex flex-col gap-2">
-              {sessions.map((s: any, i: number) => (
+              {sessions.map((s: UserSession, i: number) => (
                 <div key={i} className="flex items-center justify-between bg-surface-container rounded-lg px-3 py-2.5">
                   <div className="flex items-center gap-3">
                     <span className="material-symbols-outlined text-on-surface-variant text-[18px]">{s.icon}</span>

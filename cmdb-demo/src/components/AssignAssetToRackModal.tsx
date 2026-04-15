@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAssets } from '../hooks/useAssets'
+import type { Asset } from '../lib/api/assets'
 import { useCreateRackSlot } from '../hooks/useTopology'
 
 interface Props {
@@ -21,7 +22,7 @@ export default function AssignAssetToRackModal({ open, onClose, rackId, totalU }
   const { t } = useTranslation()
   const [formData, setFormData] = useState({ ...initial })
   const { data: assetsResp } = useAssets()
-  const assets: any[] = (assetsResp as any)?.data ?? assetsResp ?? []
+  const assets: Asset[] = (assetsResp as { data?: Asset[] } | undefined)?.data ?? []
   const createRackSlot = useCreateRackSlot()
 
   if (!open) return null
@@ -76,7 +77,7 @@ export default function AssignAssetToRackModal({ open, onClose, rackId, totalU }
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
           >
             <option value="">— {t('rack_detail.field_asset')} —</option>
-            {assets.map((a: any) => (
+            {assets.map((a: Asset) => (
               <option key={a.id} value={a.id}>
                 {a.name ?? a.asset_tag ?? a.id}
               </option>

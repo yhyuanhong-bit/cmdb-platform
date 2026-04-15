@@ -2,6 +2,27 @@ import { memo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInventoryTask, useInventoryItems, useScanItem, useItemScanHistory, useItemNotes, useCreateItemNote } from "../hooks/useInventory";
+interface ScanRecord {
+  scanned_serial?: string
+  scanned_asset_tag?: string
+  condition?: string
+  note?: string
+  scanned_at?: string
+  scanned_by?: string
+  result?: string
+  timestamp?: string
+  method?: string
+  operator?: string
+}
+
+interface ItemNote {
+  id?: string
+  content?: string
+  text?: string
+  severity?: string
+  timestamp?: string
+  author?: string
+}
 import { FALLBACK_ASSET } from '../data/fallbacks/inventory'
 
 
@@ -274,7 +295,7 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
           </div>
 
           <div className="flex flex-col">
-            {scanHistory.map((scan: any, i: number) => {
+            {scanHistory.map((scan: ScanRecord, i: number) => {
               const isLast = i === scanHistory.length - 1;
               let dotColor = "bg-[#69db7c]";
               let icon = "check_circle";
@@ -351,7 +372,7 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
           </div>
 
           <div className="flex flex-col gap-3">
-            {notes.map((note: any) => (
+            {notes.map((note: ItemNote) => (
               <div
                 key={note.id}
                 className="bg-surface-container-low rounded-xl p-4"

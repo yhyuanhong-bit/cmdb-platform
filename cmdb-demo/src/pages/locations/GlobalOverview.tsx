@@ -6,9 +6,13 @@ import L from 'leaflet';
 import { useRootLocations, useLocationAssetCounts } from '../../hooks/useTopology';
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { useAlerts } from '../../hooks/useMonitoring';
+import type { AlertEvent as BaseAlertEvent } from '../../lib/api/monitoring';
 import { useSyncState } from '../../hooks/useSync';
 import CreateLocationModal from '../../components/CreateLocationModal';
 import type { Location } from '../../lib/api/topology';
+
+// Extended to handle API variants that may include asset_id as an alias for ci_id
+type AlertEvent = BaseAlertEvent & { asset_id?: string }
 
 // ---------------------------------------------------------------------------
 // Fix Leaflet default icon (webpack/vite asset resolution issue)
@@ -121,7 +125,7 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function apiAlertToAlertData(a: any): AlertData {
+function apiAlertToAlertData(a: AlertEvent): AlertData {
   return {
     id: a.id,
     severity: (a.severity ?? '').toUpperCase() as 'CRITICAL' | 'WARNING',

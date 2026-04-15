@@ -6,7 +6,61 @@ import RackIllustration from '../components/RackIllustration'
 import { toSvgPath } from '../components/MetricsChart'
 import { useMetrics } from '../../../hooks/useMetrics'
 
-export default function OverviewTab({ asset, assetId, impactedSystems = [] }: { asset: any; assetId?: string; impactedSystems?: any[] }) {
+interface AssetView {
+  id: string;
+  status: string;
+  biaLevel: string;
+  warranty: { status: string; expiry: string };
+  uptime: { days: number; hours: number; minutes: number };
+  mtbf: string;
+  cpu: string;
+  memory: string;
+  formFactor: string;
+  storage: string;
+  network: string;
+  os: string;
+  facility: string;
+  room: string;
+  rackId: string;
+  uPosition: string;
+  inventoryNo: string;
+  poRef: string;
+  purchaseDate: string;
+  cost: string;
+  depreciation: string;
+  bookValue: string;
+  primaryIp: string;
+  mgmtIp: string;
+  domain: string;
+  vlan: string;
+  description: string;
+  tags: string[];
+  model: string;
+  serial: string;
+  property_number?: string;
+  control_number?: string;
+  bmc_ip?: string;
+  bmc_type?: string;
+  bmc_firmware?: string;
+  warranty_start?: string;
+  warranty_end?: string;
+  warranty_vendor?: string;
+  warranty_contract?: string;
+  eol_date?: string;
+  purchase_date?: string;
+  purchase_cost?: number | null;
+}
+
+interface BIAImpactItem {
+  id: string;
+  system_name: string;
+  system_code: string;
+  tier: string;
+  bia_score: number | string;
+}
+
+
+export default function OverviewTab({ asset, assetId, impactedSystems = [] }: { asset: AssetView; assetId?: string; impactedSystems?: BIAImpactItem[] }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const width = 480
@@ -15,8 +69,8 @@ export default function OverviewTab({ asset, assetId, impactedSystems = [] }: { 
   const cpuMetrics = useMetrics({ asset_id: assetId, metric_name: 'cpu_usage', time_range: '1h' })
   const memMetrics = useMetrics({ asset_id: assetId, metric_name: 'memory_usage', time_range: '1h' })
 
-  const cpuPoints = (cpuMetrics.data?.data ?? []).map((p: any, i: number) => ({ t: i, value: p.value }))
-  const memPoints = (memMetrics.data?.data ?? []).map((p: any, i: number) => ({ t: i, value: p.value }))
+  const cpuPoints = (cpuMetrics.data?.data ?? []).map((p, i: number) => ({ t: i, value: p.value }))
+  const memPoints = (memMetrics.data?.data ?? []).map((p, i: number) => ({ t: i, value: p.value }))
 
   const hasData = cpuPoints.length > 0 || memPoints.length > 0
   const cpuPath = cpuPoints.length > 0 ? toSvgPath(cpuPoints, width, height) : null
@@ -136,7 +190,7 @@ export default function OverviewTab({ asset, assetId, impactedSystems = [] }: { 
               </h3>
             </div>
             <div className="space-y-2">
-              {impactedSystems.map((sys: any) => (
+              {impactedSystems.map((sys: BIAImpactItem) => (
                 <div key={sys.id} className="flex items-center justify-between rounded-lg bg-surface-container-low p-3">
                   <div>
                     <p className="text-sm font-semibold text-on-surface">{sys.system_name}</p>

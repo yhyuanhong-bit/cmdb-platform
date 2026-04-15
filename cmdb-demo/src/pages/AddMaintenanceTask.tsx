@@ -3,14 +3,21 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useCreateWorkOrder } from '../hooks/useMaintenance'
 import { useUsers } from '../hooks/useIdentity'
+import type { User } from '../lib/api/identity'
+
+interface Assignee {
+  id: string
+  name: string
+  initials: string
+}
 
 export default function AddMaintenanceTask() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const createWorkOrder = useCreateWorkOrder()
   const { data: usersResp } = useUsers()
-  const apiUsers = (usersResp as any)?.data ?? []
-  const assignees = apiUsers.map((u: any) => ({
+  const apiUsers: User[] = (usersResp as { data: User[] } | undefined)?.data ?? []
+  const assignees = apiUsers.map((u: User) => ({
     id: u.id,
     name: u.display_name,
     initials: u.display_name?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() ?? '??',
@@ -152,7 +159,7 @@ export default function AddMaintenanceTask() {
               {t('add_maintenance_task.label_assigned_to_zh')} <span className="normal-case">({t('add_maintenance_task.label_assigned_to')})</span>
             </label>
             <div className="flex gap-3">
-              {assignees.map((a: any) => (
+              {assignees.map((a: Assignee) => (
                 <button
                   key={a.id}
                   onClick={() => toggleAssignee(a.id)}

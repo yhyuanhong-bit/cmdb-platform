@@ -7,11 +7,20 @@ import StatusBadge from '../../components/StatusBadge'
 import { useAsset, useUpdateAsset, useDeleteAsset } from '../../hooks/useAssets'
 import { useBIAImpact } from '../../hooks/useBIA'
 import { useRootLocations, useLocationDescendants } from '../../hooks/useTopology'
+import type { Location } from '../../lib/api/topology'
 import OverviewTab from './tabs/OverviewTab'
 import HealthTab from './tabs/HealthTab'
 import UsageTab from './tabs/UsageTab'
 import MaintenanceTab from './tabs/MaintenanceTab'
 
+
+interface BIAImpactItem {
+  id: string;
+  system_name: string;
+  system_code: string;
+  tier: string;
+  bia_score: number | string;
+}
 const assetDefaults = {
   description: '',
   tags: [] as string[],
@@ -62,7 +71,7 @@ export default function AssetDetailUnified() {
   const rootLocQ = useRootLocations()
   const firstTerritoryId = rootLocQ.data?.data?.[0]?.id ?? ''
   const descQ = useLocationDescendants(firstTerritoryId)
-  const allLocations = (descQ.data?.data ?? []).filter((l: any) =>
+  const allLocations = (descQ.data?.data ?? []).filter((l: Location) =>
     ['room', 'module', 'idc', 'campus'].includes(l.level)
   )
 
@@ -77,7 +86,7 @@ export default function AssetDetailUnified() {
   const apiAsset = assetQ.data?.data
 
   const { data: impactResp } = useBIAImpact(assetId || '')
-  const impactedSystems: any[] = (impactResp as any)?.data || []
+  const impactedSystems: BIAImpactItem[] = ((impactResp as { data?: BIAImpactItem[] } | undefined)?.data) || []
 
   const attr = (key: string): string | undefined => {
     const v = apiAsset?.attributes?.[key]
@@ -93,7 +102,7 @@ export default function AssetDetailUnified() {
   })()
 
   const primaryIpValue =
-    (apiAsset as any)?.ip_address as string | undefined ??
+    (apiAsset as Record<string, unknown>)?.ip_address as string | undefined ??
     attr('ip_address') ??
     attr('primary_ip') ??
     assetDefaults.primaryIp
@@ -195,11 +204,11 @@ export default function AssetDetailUnified() {
                 model: apiAsset?.model || '',
                 bia_level: apiAsset?.bia_level || '',
                 serial_number: apiAsset?.serial_number || '',
-                ip_address: (apiAsset as any)?.ip_address || '',
-                location_id: (apiAsset as any)?.location_id || '',
+                ip_address: (apiAsset as Record<string, unknown>)?.ip_address as string || '',
+                location_id: (apiAsset as Record<string, unknown>)?.location_id as string || '',
                 tags: (apiAsset?.tags || []).join(', '),
-                property_number: (apiAsset as any)?.property_number || '',
-                control_number: (apiAsset as any)?.control_number || '',
+                property_number: (apiAsset as Record<string, unknown>)?.property_number as string || '',
+                control_number: (apiAsset as Record<string, unknown>)?.control_number as string || '',
               })
             }} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-on-primary-container text-[#ffffff] text-[0.75rem] font-semibold uppercase tracking-wider hover:opacity-90 transition-opacity">
               <span className="material-symbols-outlined text-[18px]">edit</span>
@@ -311,7 +320,7 @@ export default function AssetDetailUnified() {
                   className="bg-[#0d1117] border border-gray-700 rounded px-2 py-1.5 text-white text-sm"
                 >
                   <option value="">{t('asset_detail.select_location')}</option>
-                  {allLocations.map((loc: any) => (
+                  {allLocations.map((loc: Location) => (
                     <option key={loc.id} value={loc.id}>{loc.name}</option>
                   ))}
                 </select>
@@ -332,16 +341,17 @@ export default function AssetDetailUnified() {
             </div>
             <div className="flex gap-2 mt-4">
               <button onClick={() => {
-                const payload: Record<string, any> = { ...editData }
+                const payload: Record<string, unknown> = { ...editData }
                 if (typeof payload.tags === 'string') {
                   payload.tags = payload.tags.split(',').map((s: string) => s.trim()).filter(Boolean)
                 }
                 Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
                 updateAsset.mutate({ id: assetId!, data: payload }, {
-                  onSuccess: (resp: any) => {
+                  onSuccess: (resp: unknown) => {
                     setEditing(false)
-                    if (resp?.meta?.change_order_id) {
-                      toast.success(`Critical asset change recorded. Audit order: ${resp.meta.change_order_id}`)
+                    const respData = resp as { meta?: { change_order_id?: string } } | undefined;
+                    if (respData?.meta?.change_order_id) {
+                      toast.success(`Critical asset change recorded. Audit order: ${respData?.meta?.change_order_id}`)
                     }
                   }
                 })

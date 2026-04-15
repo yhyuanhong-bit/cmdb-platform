@@ -80,6 +80,30 @@ interface AlertRule {
 }
 
 // Alert rules are loaded from the API via useAlertRules — no static fallback.
+interface ApiSensor {
+  id: string;
+  name: string;
+  type: string;
+  icon?: string;
+  location?: string;
+  enabled: boolean;
+  pollingInterval?: number;
+  lastSeen?: string;
+  status?: 'Online' | 'Offline' | 'Degraded';
+}
+
+interface SensorListResponse {
+  sensors?: ApiSensor[];
+}
+
+interface GroupedThresholdData {
+  enabled: boolean;
+  warning?: number;
+  warningId?: string;
+  critical?: number;
+  criticalId?: string;
+}
+
 
 const POLLING_OPTIONS = [5, 10, 15, 30, 60, 120, 300];
 
@@ -169,7 +193,7 @@ function SensorConfiguration() {
   const allAssets = assetsResp?.data ?? [];
 
   const { data: sensorData } = useSensors();
-  const apiSensors = (sensorData as any)?.sensors ?? [];
+  const apiSensors: ApiSensor[] = (sensorData as SensorListResponse | undefined)?.sensors ?? [];
   const updateSensor = useUpdateSensor();
 
   const { data: rulesResp, isLoading: rulesLoading } = useAlertRules();
@@ -186,7 +210,7 @@ function SensorConfiguration() {
 
   useEffect(() => {
     if (apiSensors.length > 0) {
-      setSensors(apiSensors.map((s: any) => ({
+      setSensors(apiSensors.map((s: ApiSensor) => ({
         id: s.id,
         name: s.name,
         type: s.type,
@@ -199,7 +223,7 @@ function SensorConfiguration() {
       })));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiSensors.length, apiSensors.map((s: any) => s.id).join()]);
+  }, [apiSensors.length, apiSensors.map((s: ApiSensor) => s.id).join()]);
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [thresholds, setThresholds] = useState<ThresholdConfig[]>(THRESHOLDS);
 
@@ -215,11 +239,11 @@ function SensorConfiguration() {
     };
 
     // Group by metric_name, merge warning + critical
-    const grouped: Record<string, any> = {};
+    const grouped: Record<string, GroupedThresholdData> = {};
     apiRules.forEach(rule => {
       const key = rule.metric_name;
       if (!grouped[key]) grouped[key] = { enabled: true };
-      const threshold = (rule.condition as any)?.threshold ?? 0;
+      const threshold = (rule.condition as Record<string, unknown>)?.threshold as number ?? 0;
       if (rule.severity === 'warning') {
         grouped[key].warning = threshold;
         grouped[key].warningId = rule.id;
@@ -247,7 +271,7 @@ function SensorConfiguration() {
     setRules(apiRules.map(r => ({
       id: r.id,
       name: r.name,
-      condition: `${r.metric_name} ${(r.condition as any)?.op || '>'} ${(r.condition as any)?.threshold || 0}`,
+      condition: `${r.metric_name} ${(r.condition as Record<string, unknown>)?.op as string || '>'} ${(r.condition as Record<string, unknown>)?.threshold as number || 0}`,
       action: r.severity === 'critical' ? 'Page on-call + Escalate' : 'Notify Team',
       enabled: r.enabled,
     })));
@@ -624,8 +648,8 @@ function SensorConfiguration() {
                   const input = document.createElement('input');
                   input.type = 'file';
                   input.accept = '.json';
-                  input.onchange = (e: any) => {
-                    const file = e.target.files?.[0];
+                  input.onchange = (e: Event) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
                     if (file) {
                       const reader = new FileReader();
                       reader.onload = (ev) => {

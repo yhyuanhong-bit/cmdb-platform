@@ -2,10 +2,23 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCreateCredential, useUpdateCredential } from '../hooks/useCredentials'
 
+interface CredentialRecord {
+  id: string
+  name: string
+  type: string
+  params?: {
+    community?: string
+    username?: string
+    auth_proto?: string
+    priv_proto?: string
+    [key: string]: string | undefined
+  }
+}
+
 interface Props {
   open: boolean
   onClose: () => void
-  editing?: any
+  editing?: CredentialRecord | null
 }
 
 const initial = {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCreateNetworkConnection } from '../hooks/useTopology'
 import { useAssets } from '../hooks/useAssets'
+import type { Asset } from '../lib/api/assets'
 
 interface Props {
   open: boolean
@@ -25,7 +26,7 @@ export default function AddNetworkConnectionModal({ open, onClose, rackId }: Pro
   const [formData, setFormData] = useState({ ...initial })
   const mutation = useCreateNetworkConnection()
   const { data: assetsData } = useAssets()
-  const assets = (assetsData as any)?.data ?? []
+  const assets: Asset[] = (assetsData as { data?: Asset[] } | undefined)?.data ?? []
 
   if (!open) return null
 
@@ -106,7 +107,7 @@ export default function AddNetworkConnectionModal({ open, onClose, rackId }: Pro
                 className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
               >
                 <option value="">— Select Asset —</option>
-                {assets.map((a: any) => (
+                {assets.map((a: Asset) => (
                   <option key={a.id} value={a.id}>{a.name ?? a.asset_tag}</option>
                 ))}
               </select>

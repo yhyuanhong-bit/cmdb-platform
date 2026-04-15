@@ -169,8 +169,9 @@ export default function CreateAssetModal({ open, onClose }: Props) {
           <button
             onClick={() => mutation.mutate(formData, {
               onSuccess: () => { onClose(); setFormData({ ...initial }) },
-              onError: (err: any) => {
-                if (err?.code === 'DUPLICATE') {
+              onError: (err: unknown) => {
+                const code = err !== null && typeof err === 'object' && 'code' in err ? (err as { code: unknown }).code : undefined
+                if (code === 'DUPLICATE') {
                   toast.error('An asset with this asset tag already exists')
                 } else {
                   toast.error('Failed to create asset')

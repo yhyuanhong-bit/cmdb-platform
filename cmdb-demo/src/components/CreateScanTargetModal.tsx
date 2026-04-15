@@ -3,6 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { useCreateScanTarget, useUpdateScanTarget } from '../hooks/useScanTargets'
 import { useCredentials } from '../hooks/useCredentials'
 
+interface Credential {
+  id: string
+  name: string
+  type: string
+  cred_type?: string
+}
+
 interface ScanTarget {
   id: string
   name: string
@@ -42,7 +49,7 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
   const updateMutation = useUpdateScanTarget()
   const { data: credsData } = useCredentials()
 
-  const credentials: any[] = (credsData as any)?.data ?? []
+  const credentials: Credential[] = (credsData as { data?: Credential[] } | undefined)?.data ?? []
 
   /* Populate form when editing */
   useEffect(() => {
@@ -62,7 +69,7 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
   if (!open) return null
 
   const compatibleTypes = CREDENTIAL_TYPE_MAP[formData.collector_type] ?? []
-  const filteredCreds = credentials.filter(c => compatibleTypes.includes(c.cred_type))
+  const filteredCreds = credentials.filter(c => c.cred_type !== undefined && compatibleTypes.includes(c.cred_type))
 
   const isEditing = Boolean(editing)
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -153,7 +160,7 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm"
           >
             <option value="">{t('scan_target_modal.option_select_credential')}</option>
-            {filteredCreds.map((c: any) => (
+            {filteredCreds.map((c: Credential) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({c.cred_type})
               </option>

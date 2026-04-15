@@ -9,6 +9,60 @@ import { useBIAScoringRules, useBIAAssessments, useBIAStats } from '../../hooks/
 import { SEED_RULES, SEED_ASSESSMENTS, SEED_STATS } from '../../data/fallbacks/bia'
 
 /* ──────────────────────────────────────────────
+   Local types
+   ────────────────────────────────────────────── */
+
+interface BIARule {
+  id: string
+  tier_name: string
+  tier_level: number
+  display_name: string
+  description: string
+  color: string
+  icon: string
+  min_score: number
+  max_score: number
+  rto_threshold: number | null
+  rpo_threshold: number | null
+}
+
+interface BIAAssessment {
+  id: string
+  system_name: string
+  system_code: string
+  owner: string | null
+  bia_score: number
+  tier: string
+  rto_hours: number
+  rpo_minutes: number | null
+  data_compliance: boolean
+  asset_compliance: boolean
+  audit_compliance: boolean
+  description: string
+}
+
+interface BIAStats {
+  total: number
+  by_tier: Record<string, number>
+  avg_compliance: number
+  data_compliant: number
+  asset_compliant: number
+  audit_compliant: number
+  total_dependencies?: number
+}
+
+interface ApiListResponse<T> {
+  data?: T[]
+  items?: T[]
+}
+
+interface ApiDataResponse<T> {
+  data?: T
+}
+
+
+
+/* ──────────────────────────────────────────────
    Constants
    ────────────────────────────────────────────── */
 
@@ -97,13 +151,13 @@ export default function BIAOverview() {
   const assessmentsQuery = useBIAAssessments()
   const statsQuery = useBIAStats()
 
-  const rules: any[] = (rulesQuery.data as any)?.data || SEED_RULES
-  const rawAssessments: any[] = (assessmentsQuery.data as any)?.data || (assessmentsQuery.data as any)?.items || SEED_ASSESSMENTS
-  const stats: any = (statsQuery.data as any)?.data || SEED_STATS
+  const rules: BIARule[] = (rulesQuery.data as ApiListResponse<BIARule>)?.data || SEED_RULES
+  const rawAssessments: BIAAssessment[] = (assessmentsQuery.data as ApiListResponse<BIAAssessment>)?.data || (assessmentsQuery.data as ApiListResponse<BIAAssessment>)?.items || SEED_ASSESSMENTS
+  const stats: BIAStats = (statsQuery.data as ApiDataResponse<BIAStats>)?.data ?? SEED_STATS
 
   const assessments = useMemo(() => {
     if (!tierFilter) return rawAssessments
-    return rawAssessments.filter((a: any) => a.tier === tierFilter)
+    return rawAssessments.filter((a) => a.tier === tierFilter)
   }, [rawAssessments, tierFilter])
 
   // Donut segments
@@ -207,7 +261,7 @@ export default function BIAOverview() {
                 </h3>
               </div>
               <div className="space-y-2">
-                {rules.map((rule: any) => {
+                {rules.map((rule) => {
                   const colors = TIER_COLORS[rule.tier_name] || TIER_COLORS.minor
                   return (
                     <div
@@ -369,7 +423,7 @@ export default function BIAOverview() {
                 </tr>
               </thead>
               <tbody>
-                {assessments.map((a: any) => {
+                {assessments.map((a) => {
                   const tierColor = TIER_COLORS[a.tier] || TIER_COLORS.minor
                   return (
                     <tr

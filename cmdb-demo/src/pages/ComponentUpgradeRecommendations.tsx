@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAssets, useUpgradeRecommendations, useAcceptUpgradeRecommendation, useCapacityPlanning } from '../hooks/useAssets'
 import { useUpgradeRules, useCreateUpgradeRule, useUpdateUpgradeRule, useDeleteUpgradeRule } from '../hooks/useUpgradeRules'
-import type { CapacityForecast } from '../lib/api/assets'
+import type { CapacityForecast, Asset } from '../lib/api/assets'
 import type { UpgradeRule } from '../lib/api/upgradeRules'
 
 /* ------------------------------------------------------------------ */
@@ -55,6 +55,25 @@ const emptyNewRule = {
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
+
+interface UpgradeRecommendationItem {
+  id: string;
+  category: string;
+  priority: string;
+  recommendation: string;
+  current_spec?: string;
+  metric_name: string;
+  avg_value: number;
+  threshold: number;
+  cost_estimate?: number | string;
+  alternatives?: string[];
+}
+
+interface UpgradeRecommendationResponse {
+  recommendations?: UpgradeRecommendationItem[];
+  warranty_warning?: string;
+}
+
 export default function ComponentUpgradeRecommendations() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -68,7 +87,7 @@ export default function ComponentUpgradeRecommendations() {
 
   // Upgrade rules management
   const rulesQ = useUpgradeRules()
-  const rules: UpgradeRule[] = (rulesQ.data as any)?.rules ?? []
+  const rules: UpgradeRule[] = rulesQ.data?.data?.rules ?? []
   const createRule = useCreateUpgradeRule()
   const updateRule = useUpdateUpgradeRule()
   const deleteRule = useDeleteUpgradeRule()
@@ -78,9 +97,9 @@ export default function ComponentUpgradeRecommendations() {
 
   // Fetch fleet context
   const { data: apiData } = useAssets()
-  const allAssets = (apiData as any)?.data || []
+  const allAssets: Asset[] = apiData?.data ?? []
   const assetCount = allAssets?.length || 0
-  const operationalPct = assetCount > 0 ? Math.round((allAssets.filter((a: any) => a.status === 'operational').length / assetCount) * 100) : 0
+  const operationalPct = assetCount > 0 ? Math.round((allAssets.filter((a: Asset) => a.status === 'operational').length / assetCount) * 100) : 0
   const impactMetricKeys = [
     { labelKey: 'component_upgrades.metric_fleet_health', value: `${operationalPct}%`, icon: 'health_and_safety' },
     { labelKey: 'component_upgrades.metric_power_efficiency', value: String(assetCount), icon: 'inventory_2' },
@@ -92,10 +111,10 @@ export default function ComponentUpgradeRecommendations() {
   // Fetch upgrade recommendations for selected asset
   const { data: recData } = useUpgradeRecommendations(selectedAssetId)
   const acceptMutation = useAcceptUpgradeRecommendation()
-  const warrantyWarning = (recData as any)?.warranty_warning as string | undefined
+  const warrantyWarning = (recData as UpgradeRecommendationResponse | undefined)?.warranty_warning
 
   // Map API data to card format
-  const apiCards: UpgradeCard[] = ((recData as any)?.recommendations ?? []).map((r: any) => ({
+  const apiCards: UpgradeCard[] = ((recData as UpgradeRecommendationResponse | undefined)?.recommendations ?? []).map((r: UpgradeRecommendationItem) => ({
     id: r.id,
     category: r.category.toUpperCase(),
     filterKey: r.category.toUpperCase() as FilterTab,
@@ -406,7 +425,7 @@ export default function ComponentUpgradeRecommendations() {
           className="bg-surface-container-high text-on-surface text-sm rounded-lg px-3 py-2 outline-none cursor-pointer"
         >
           <option value="">{t('component_upgrades.select_asset')}</option>
-          {((assetsData as any)?.data ?? []).map((a: any) => (
+          {(assetsData?.data ?? []).map((a: Asset) => (
             <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
           ))}
         </select>

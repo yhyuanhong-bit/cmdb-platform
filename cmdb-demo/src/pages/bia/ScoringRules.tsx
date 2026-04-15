@@ -3,6 +3,32 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useBIAScoringRules, useUpdateBIAScoringRule } from '../../hooks/useBIA'
 
+/* ──────────────────────────────────────────────
+   Local types
+   ────────────────────────────────────────────── */
+
+interface BIARule {
+  id: string
+  tier_name: string
+  tier_level: number
+  display_name: string
+  description: string
+  icon?: string
+  min_score: number
+  max_score: number
+  rto_threshold?: number
+  rpo_threshold?: number
+  enabled?: boolean
+  threshold?: number
+  action?: string
+}
+
+interface ApiListResponse<T> {
+  data?: T[]
+}
+
+
+
 const TIER_BADGE: Record<string, string> = {
   critical:  'bg-[#7f1d1d] text-[#fca5a5]',
   important: 'bg-[#78350f] text-[#fde68a]',
@@ -22,10 +48,10 @@ function ScoringRules() {
   const { t } = useTranslation()
   const { data: rulesResp, isLoading } = useBIAScoringRules()
   const updateRule = useUpdateBIAScoringRule()
-  const rules = (rulesResp as any)?.data || []
+  const rules: BIARule[] = (rulesResp as ApiListResponse<BIARule>)?.data || []
 
   const [selectedRuleId, setSelectedRuleId] = useState<string>('')
-  const [editData, setEditData] = useState<Record<string, any>>({})
+  const [editData, setEditData] = useState<Partial<BIARule>>({})
   const [dirty, setDirty] = useState(false)
 
   // Auto-select first rule
@@ -37,14 +63,14 @@ function ScoringRules() {
 
   // Sync edit data when selection changes
   useEffect(() => {
-    const rule = rules.find((r: any) => r.id === selectedRuleId)
+    const rule = rules.find((r) => r.id === selectedRuleId)
     if (rule) {
       setEditData({ ...rule })
       setDirty(false)
     }
   }, [selectedRuleId, rules])
 
-  const selectedRule = rules.find((r: any) => r.id === selectedRuleId)
+  const selectedRule = rules.find((r) => r.id === selectedRuleId)
 
   function handleFieldChange(field: string, value: string | number) {
     setEditData((prev) => ({ ...prev, [field]: value }))
@@ -88,7 +114,7 @@ function ScoringRules() {
               {t('bia_rules.panel_tier_rules')}
             </h3>
             <div className="space-y-1">
-              {rules.map((rule: any) => (
+              {rules.map((rule) => (
                 <button
                   key={rule.id}
                   type="button"

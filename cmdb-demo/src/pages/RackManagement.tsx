@@ -5,7 +5,37 @@ import { useTranslation } from "react-i18next";
 import { useRacks, useRootLocations, useLocationChildren, useUpdateRack, useDeleteRack, useRackSlots } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import { useActivityFeed } from "../hooks/useActivityFeed";
-import type { Rack } from "../lib/api/topology";
+import type { Rack, RackSlot } from "../lib/api/topology";
+
+interface RackSlotDisplay {
+  id: string;
+  rack_id: string;
+  asset_id: string;
+  start_u: number;
+  end_u?: number;
+  height_u: number;
+  side: string;
+  asset_name?: string;
+  asset_tag?: string;
+  asset_type?: string;
+}
+
+interface ActivityEvent {
+  timestamp: string;
+  event_type: string;
+  description?: string;
+  action?: string;
+  severity?: string;
+}
+
+interface RecentEvent {
+  id?: string;
+  time: string;
+  icon: string;
+  text: string;
+  severity: string;
+}
+
 
 function getStatusStyle(status: string) {
   switch (status) {
@@ -39,10 +69,11 @@ export default function RackManagement() {
 
   const locationId = contextLocationId || firstCampusId;
   const { data: feedData } = useActivityFeed('location', locationId || '');
-  const recentEvents = ((feedData as any)?.events ?? []).map((e: any) => ({
+  const activityFeedData = feedData as { events?: ActivityEvent[] } | undefined;
+  const recentEvents: RecentEvent[] = (activityFeedData?.events ?? []).map((e: ActivityEvent) => ({
     time: new Date(e.timestamp).toLocaleTimeString(),
     icon: e.event_type === 'alert' ? 'warning' : e.event_type === 'maintenance' ? 'build' : 'update',
-    text: e.description || e.action,
+    text: e.description ?? e.action ?? '',
     severity: e.severity || 'info',
   }));
   const { data: racksResponse, isLoading: racksLoading, error } = useRacks(locationId);
@@ -61,7 +92,7 @@ export default function RackManagement() {
   // Fix #15: load rack slots for the first rack to populate layout visualization
   const firstRackId = racks[0]?.id ?? "";
   const { data: slotsResp } = useRackSlots(firstRackId);
-  const firstRackSlots = (slotsResp as any)?.data ?? [];
+  const firstRackSlots: RackSlotDisplay[] = (slotsResp?.data ?? []) as RackSlotDisplay[];
 
   useEffect(() => {
     if (!menuRackId) return;
@@ -336,9 +367,9 @@ export default function RackManagement() {
               <div className="flex flex-col gap-px">
                 {(() => {
                   const totalU = racks[0]?.total_u ?? 42;
-                  const slotLayout = firstRackSlots.map((s: any) => ({
+                  const slotLayout = firstRackSlots.map((s: RackSlotDisplay) => ({
                     startU: s.start_u,
-                    endU: s.end_u,
+                    endU: s.end_u ?? s.start_u + s.height_u - 1,
                     label: s.asset_name || s.asset_tag || `U${s.start_u}`,
                     color: (s.asset_type || '').toLowerCase().includes('network') ? 'bg-tertiary-container/60'
                       : (s.asset_type || '').toLowerCase().includes('storage') ? 'bg-secondary-container/60'
@@ -347,7 +378,7 @@ export default function RackManagement() {
                   return Array.from({ length: totalU }, (_, i) => {
                     const u = totalU - i;
                     const equipment = slotLayout.find(
-                      (eq: any) => u >= eq.startU && u <= eq.endU
+                      (eq) => u >= eq.startU && u <= eq.endU
                     );
                     const isStart = equipment && u === equipment.endU;
                     const span = equipment
@@ -407,9 +438,9 @@ export default function RackManagement() {
               </h2>
             </div>
             <div className="flex flex-col gap-1">
-              {recentEvents.map((event: any, i: number) => (
+              {recentEvents.map((event: RecentEvent, i: number) => (
                 <div
-                  key={event.id ?? `${event.time}-${event.message}-${i}`}
+                  key={event.id ?? `${event.time}-${event.text}-${i}`}
                   className="bg-surface-container-low rounded p-3 flex items-start gap-3"
                 >
                   <span

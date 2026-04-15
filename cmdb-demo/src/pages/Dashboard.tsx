@@ -5,6 +5,7 @@ import { useLocationContext } from '../contexts/LocationContext';
 import LocationBreadcrumb from '../components/LocationBreadcrumb';
 import { useDashboardStats, useRackStats, useLifecycleStats } from '../hooks/useDashboard';
 import { useAlerts } from '../hooks/useMonitoring';
+import type { AlertEvent } from '../lib/api/monitoring';
 import { useBIAStats } from '../hooks/useBIA';
 
 /* ──────────────────────────────────────────────
@@ -555,7 +556,7 @@ function Dashboard() {
                 <div className="rounded-md bg-surface-container-low px-3 py-4 text-center text-xs text-on-surface-variant">
                   {t('dashboard.no_critical_events')}
                 </div>
-              ) : criticalAlerts.slice(0, 8).map((evt: any) => (
+              ) : criticalAlerts.slice(0, 8).map((evt: AlertEvent) => (
                 <div
                   key={evt.id}
                   onClick={() => navigate('/monitoring')}

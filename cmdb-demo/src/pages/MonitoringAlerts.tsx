@@ -74,7 +74,9 @@ function MonitoringAlerts() {
     queryKey: ['alertsTrend'],
     queryFn: () => apiClient.get('/monitoring/alerts/trend', { hours: '24' }),
   });
-  const trendBars = ((trendData as any)?.trend ?? []).map((b: any) => ({
+  interface AlertTrendItem { hour: string; critical: number; warning: number; info: number }
+  interface AlertTrendResponse { trend?: AlertTrendItem[] }
+  const trendBars = ((trendData as AlertTrendResponse | undefined)?.trend ?? []).map((b: AlertTrendItem) => ({
     hour: new Date(b.hour).toISOString().slice(11, 16),
     value: (b.critical ?? 0) + (b.warning ?? 0) + (b.info ?? 0),
   }));

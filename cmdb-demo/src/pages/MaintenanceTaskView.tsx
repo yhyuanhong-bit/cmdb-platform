@@ -5,6 +5,33 @@ import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
 import { useWorkOrder, useUpdateWorkOrder, useTransitionWorkOrder, useWorkOrderLogs, useWorkOrderComments, useCreateWorkOrderComment } from '../hooks/useMaintenance'
+import type { WorkOrderLog } from '../lib/api/maintenance'
+
+// Local comment type with fields used in this view
+interface WorkOrderComment {
+  id?: string
+  content?: string
+  text?: string
+  author_name?: string
+  created_at?: string
+}
+
+
+type TimelineEvent = {
+  id?: string
+  label?: string
+  timestamp?: string
+  color?: string
+  textColor?: string
+  action?: string
+  from_status?: string
+  to_status?: string
+  created_at?: string
+  comment?: string
+  performed_by?: string
+  performed_at?: string
+  note?: string
+}
 
 const taskSteps = [
   'Execute standard hot-swap procedure for battery modules UPS-BAT-01 and UPS-BAT-02',
@@ -264,11 +291,11 @@ export default function MaintenanceTaskView() {
             </div>
             {comments.length > 0 && (
               <div className="mt-4">
-                {comments.map((c: any) => (
+                {comments.map((c: WorkOrderComment) => (
                   <div key={c.id} className="border-t border-surface-container-high py-3">
                     <div className="flex justify-between text-xs text-on-surface-variant">
                       <span className="font-semibold">{c.author_name ?? 'System'}</span>
-                      <span>{new Date(c.created_at).toLocaleString()}</span>
+                      <span>{c.created_at ? new Date(c.created_at).toLocaleString() : ""}</span>
                     </div>
                     <p className="text-sm text-on-surface mt-1">{c.text}</p>
                   </div>
@@ -287,7 +314,7 @@ export default function MaintenanceTaskView() {
               {t('maintenance_task.progress_notes')}
             </h2>
             <div className="relative flex flex-col gap-0">
-              {(logsData?.data && logsData.data.length > 0 ? logsData.data : timeline).map((event: any, i: number, arr: any[]) => (
+              {(logsData?.data && logsData.data.length > 0 ? logsData.data : timeline).map((event: TimelineEvent, i: number, arr: TimelineEvent[]) => (
                 <div key={event.id ?? `${event.label}-${i}`} className="flex gap-3 pb-5 last:pb-0">
                   <div className="relative flex flex-col items-center">
                     <div className={`h-3 w-3 rounded-full ${event.color ?? 'bg-on-primary-container'} shrink-0 mt-0.5`} />
