@@ -39,19 +39,8 @@ interface USlot {
   warning?: boolean;
 }
 
-const uSlots: USlot[] = [
-  { startU: 39, endU: 42, label: "PDU-A-MANAGED", type: "pdu" },
-  { startU: 35, endU: 38, label: "COMPUTE-NODE-01", type: "compute" },
-  { startU: 31, endU: 34, label: "COMPUTE-NODE-02", type: "compute" },
-  { startU: 27, endU: 30, label: "NEXUS-C93180YC", type: "network" },
-  { startU: 25, endU: 26, label: "PATCH-PANEL-48P", type: "network" },
-  { startU: 22, endU: 24, label: "COMPUTE-NODE-03", type: "warning", warning: true },
-  { startU: 17, endU: 21, label: "VIRT-CLUSTER-01", type: "compute" },
-  { startU: 13, endU: 16, label: "ALL-FLASH-STORAGE-01", type: "storage" },
-  { startU: 9, endU: 12, label: "ALL-FLASH-STORAGE-02", type: "storage" },
-  { startU: 5, endU: 8, label: "BACKUP-APPLIANCE", type: "storage" },
-  { startU: 1, endU: 4, label: "UPS-BACKUP-SYSTEM", type: "ups" },
-];
+// Fix #17: removed hardcoded uSlots — console tab now uses API data exclusively via consoleSlots
+const uSlots: USlot[] = [];
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -444,13 +433,13 @@ function GaugeWidget({
   );
 }
 
-function ConsoleTab({ recentActivity, slots }: { recentActivity: any[]; slots: USlot[] }) {
+function ConsoleTab({ recentActivity, slots, rack }: { recentActivity: any[]; slots: USlot[]; rack?: any }) {
   const { t } = useTranslation();
   const [selectedSlot, setSelectedSlot] = useState<USlot | null>(
     slots.find((s) => s.label === "NEXUS-C93180YC") ?? slots[0] ?? null,
   );
 
-  const totalU = 42;
+  const totalU = rack?.total_u ?? 42;
   const uHeight = 22;
 
   const occupiedUs = new Set<number>();
@@ -459,6 +448,18 @@ function ConsoleTab({ recentActivity, slots }: { recentActivity: any[]; slots: U
   });
   const occupiedCount = occupiedUs.size;
   const vacantCount = totalU - occupiedCount;
+
+  // Fix #19: derive configuration from real rack data
+  const rackHeight = rack?.total_u ? `${rack.total_u}U` : "\u2014";
+  const maxPowerDraw = rack?.power_capacity_kw ? `${rack.power_capacity_kw}kW` : "\u2014";
+  // Weight capacity is not tracked in the schema — show dash
+  const weightCapacity = "\u2014";
+
+  // Fix #18: derive gauge values from actual rack data
+  const powerCurrentKw = rack?.power_current_kw ?? 0;
+  const powerCapacityKw = rack?.power_capacity_kw ?? 0;
+  const powerPct = powerCapacityKw > 0 ? Math.round((powerCurrentKw / powerCapacityKw) * 100) : 0;
+  const powerDisplay = powerCurrentKw > 0 ? String(powerCurrentKw) : "\u2014";
 
   return (
     <div>
@@ -471,9 +472,9 @@ function ConsoleTab({ recentActivity, slots }: { recentActivity: any[]; slots: U
           </h3>
           <div className="space-y-2 text-xs">
             {[
-              { label: t('rack_console.rack_height'), value: "42U" },
-              { label: t('rack_console.max_power_draw'), value: "15kW" },
-              { label: t('rack_console.weight_capacity'), value: "1200kg" },
+              { label: t('rack_console.rack_height'), value: rackHeight },
+              { label: t('rack_console.max_power_draw'), value: maxPowerDraw },
+              { label: t('rack_console.weight_capacity'), value: weightCapacity },
             ].map((item) => (
               <div key={item.label} className="flex justify-between bg-surface-container rounded-lg px-3 py-2">
                 <span className="text-on-surface-variant">{item.label}</span>
@@ -483,11 +484,11 @@ function ConsoleTab({ recentActivity, slots }: { recentActivity: any[]; slots: U
           </div>
         </div>
 
-        {/* Gauges */}
+        {/* Gauges — Fix #18: use actual rack data or dash */}
         <div className="col-span-4 flex items-center justify-center gap-4">
-          <GaugeWidget label={t('rack_detail.gauge_active_power')} value="11.2" unit="kW" percentage={75} />
-          <GaugeWidget label={t('rack_detail.gauge_intake_temp')} value="24.5" unit={"\u00b0C"} percentage={52} status="NOMINAL" />
-          <GaugeWidget label={t('rack_detail.gauge_humidity')} value="42" unit="%" percentage={42} />
+          <GaugeWidget label={t('rack_detail.gauge_active_power')} value={powerDisplay} unit="kW" percentage={powerPct} />
+          <GaugeWidget label={t('rack_detail.gauge_intake_temp')} value={"\u2014"} unit={"\u00b0C"} percentage={0} status="NOMINAL" />
+          <GaugeWidget label={t('rack_detail.gauge_humidity')} value={"\u2014"} unit="%" percentage={0} />
         </div>
 
         {/* Recent Activity */}
@@ -1173,7 +1174,7 @@ export default function RackDetailUnified() {
         {activeTab === "visualization" && (
           <VisualizationTab selectedAsset={selectedAsset} setSelectedAsset={setSelectedAsset} equipmentList={liveEquipment} rackSlots={rackSlots} totalU={rack?.total_u} liveAlerts={filteredAlerts} selectedAssetData={selectedAssetData} />
         )}
-        {activeTab === "console" && <ConsoleTab recentActivity={recentActivity} slots={consoleSlots.length > 0 ? consoleSlots : uSlots} />}
+        {activeTab === "console" && <ConsoleTab recentActivity={recentActivity} slots={consoleSlots.length > 0 ? consoleSlots : uSlots} rack={rack} />}
         {activeTab === "network" && <NetworkTab networkConnections={networkConnections} rackId={rackId ?? ''} onAddConnection={() => setShowAddConnModal(true)} />}
         {activeTab === "maintenance" && <MaintenanceTab maintenanceHistory={maintenanceHistory} environmentMetrics={environmentMetrics} />}
       </div>

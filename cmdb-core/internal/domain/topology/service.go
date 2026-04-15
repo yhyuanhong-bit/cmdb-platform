@@ -117,9 +117,12 @@ func (s *Service) GetBySlug(ctx context.Context, tenantID uuid.UUID, slug, level
 	return &loc, nil
 }
 
-// ListRacksByLocation returns all racks at a location.
-func (s *Service) ListRacksByLocation(ctx context.Context, locationID uuid.UUID) ([]dbgen.Rack, error) {
-	return s.queries.ListRacksByLocation(ctx, locationID)
+// ListRacksByLocation returns all racks at a location, scoped by tenant via ltree.
+func (s *Service) ListRacksByLocation(ctx context.Context, tenantID, locationID uuid.UUID) ([]dbgen.Rack, error) {
+	return s.queries.ListRacksByLocation(ctx, dbgen.ListRacksByLocationParams{
+		TenantID: tenantID,
+		ID:       locationID,
+	})
 }
 
 // GetRack returns a single rack by ID, scoped to the given tenant.
@@ -214,17 +217,61 @@ func (s *Service) CheckSlotConflict(ctx context.Context, rackID uuid.UUID, side 
 }
 
 // CreateRackSlot inserts a new rack slot assignment.
+// Also increments rack sync_version (#6) and sets assets.rack_id (#20).
 func (s *Service) CreateRackSlot(ctx context.Context, params dbgen.CreateRackSlotParams) (*dbgen.RackSlot, error) {
 	slot, err := s.queries.CreateRackSlot(ctx, params)
 	if err != nil {
 		return nil, err
 	}
+	// Fix #6: increment sync_version on the parent rack
+	s.incrementSyncVersion(ctx, "racks", params.RackID)
+	// Fix #20: synchronize assets.rack_id with rack_slots
+	if s.pool != nil {
+		_, _ = s.pool.Exec(ctx, "UPDATE assets SET rack_id = $1, updated_at = now() WHERE id = $2 AND (rack_id IS NULL OR rack_id != $1)", pgtype.UUID{Bytes: params.RackID, Valid: true}, params.AssetID)
+	}
 	return &slot, nil
 }
 
 // DeleteRackSlot removes a rack slot assignment by ID, scoped to the given tenant.
-func (s *Service) DeleteRackSlot(ctx context.Context, tenantID, id uuid.UUID) error {
-	return s.queries.DeleteRackSlot(ctx, dbgen.DeleteRackSlotParams{ID: id, TenantID: tenantID})
+// Also increments rack sync_version (#6) and clears assets.rack_id if no other slots link it (#20).
+func (s *Service) DeleteRackSlot(ctx context.Context, tenantID, slotID uuid.UUID) error {
+	// Capture slot info before deleting so we can update the asset's rack_id
+	var rackID, assetID uuid.UUID
+	if s.pool != nil {
+		_ = s.pool.QueryRow(ctx, "SELECT rack_id, asset_id FROM rack_slots WHERE id = $1", slotID).Scan(&rackID, &assetID)
+	}
+
+	if err := s.queries.DeleteRackSlot(ctx, dbgen.DeleteRackSlotParams{ID: slotID, TenantID: tenantID}); err != nil {
+		return err
+	}
+
+	// Fix #6: increment sync_version on the parent rack
+	if rackID != uuid.Nil {
+		s.incrementSyncVersion(ctx, "racks", rackID)
+	}
+
+	// Fix #20: clear assets.rack_id if no other rack_slots link this asset to this rack
+	if s.pool != nil && assetID != uuid.Nil && rackID != uuid.Nil {
+		var remaining int64
+		_ = s.pool.QueryRow(ctx, "SELECT count(*) FROM rack_slots WHERE rack_id = $1 AND asset_id = $2", rackID, assetID).Scan(&remaining)
+		if remaining == 0 {
+			_, _ = s.pool.Exec(ctx, "UPDATE assets SET rack_id = NULL, updated_at = now() WHERE id = $1 AND rack_id = $2", assetID, pgtype.UUID{Bytes: rackID, Valid: true})
+		}
+	}
+	return nil
+}
+
+// GetRackOccupancy returns the total_u and used_u for a single rack.
+func (s *Service) GetRackOccupancy(ctx context.Context, rackID uuid.UUID) (dbgen.GetRackOccupancyRow, error) {
+	return s.queries.GetRackOccupancy(ctx, rackID)
+}
+
+// GetRackOccupanciesByLocation returns used_u for all racks under a location (batch, avoids N+1).
+func (s *Service) GetRackOccupanciesByLocation(ctx context.Context, tenantID, locationID uuid.UUID) ([]dbgen.GetRackOccupanciesByLocationRow, error) {
+	return s.queries.GetRackOccupanciesByLocation(ctx, dbgen.GetRackOccupanciesByLocationParams{
+		TenantID: tenantID,
+		ID:       locationID,
+	})
 }
 
 func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uuid.UUID) {

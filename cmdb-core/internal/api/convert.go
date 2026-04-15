@@ -287,17 +287,22 @@ func toAPILocation(db dbgen.Location) Location {
 // ---------------------------------------------------------------------------
 
 func toAPIRack(db dbgen.Rack) Rack {
+	return toAPIRackWithOccupancy(db, 0)
+}
+
+// toAPIRackWithOccupancy converts a dbgen.Rack to API Rack with computed used_u.
+func toAPIRackWithOccupancy(db dbgen.Rack, usedU int) Rack {
 	return Rack{
 		Id:              db.ID,
 		LocationId:      db.LocationID,
 		Name:            db.Name,
 		RowLabel:        pgtextToStr(db.RowLabel),
 		TotalU:          int(db.TotalU),
+		UsedU:           usedU,
 		PowerCapacityKw: pgnumToFloat32(db.PowerCapacityKw),
 		Status:          db.Status,
 		Tags:            db.Tags,
 		CreatedAt:       db.CreatedAt,
-		// PowerCurrentKw and UsedU are computed fields, default to zero.
 	}
 }
 

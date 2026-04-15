@@ -2,20 +2,10 @@ import { toast } from 'sonner'
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useRacks, useRootLocations, useLocationChildren, useUpdateRack, useDeleteRack } from "../hooks/useTopology";
+import { useRacks, useRootLocations, useLocationChildren, useUpdateRack, useDeleteRack, useRackSlots } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import type { Rack } from "../lib/api/topology";
-
-
-// Rack layout preview: static fixture for display only.
-// Full slot data is available on the rack detail page via /racks/:id/slots API.
-const rackA01Layout: Array<{
-  startU: number;
-  endU: number;
-  label: string;
-  color: string;
-}> = [];
 
 function getStatusStyle(status: string) {
   switch (status) {
@@ -62,7 +52,16 @@ export default function RackManagement() {
   const updateRack = useUpdateRack();
   const deleteRack = useDeleteRack();
   const [editingRack, setEditingRack] = useState<Rack | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editTotalU, setEditTotalU] = useState(0);
+  const [editPower, setEditPower] = useState(0);
+  const [editStatus, setEditStatus] = useState("");
   const [menuRackId, setMenuRackId] = useState<string | null>(null);
+
+  // Fix #15: load rack slots for the first rack to populate layout visualization
+  const firstRackId = racks[0]?.id ?? "";
+  const { data: slotsResp } = useRackSlots(firstRackId);
+  const firstRackSlots = (slotsResp as any)?.data ?? [];
 
   useEffect(() => {
     if (!menuRackId) return;
@@ -70,6 +69,16 @@ export default function RackManagement() {
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
   }, [menuRackId]);
+
+  // Fix #14: sync edit form state when editingRack changes
+  useEffect(() => {
+    if (editingRack) {
+      setEditName(editingRack.name);
+      setEditTotalU(editingRack.total_u);
+      setEditPower(editingRack.power_capacity_kw);
+      setEditStatus(editingRack.status);
+    }
+  }, [editingRack]);
 
   if (isLoading) {
     return (
@@ -310,65 +319,82 @@ export default function RackManagement() {
 
         {/* Bottom: Layout Viz + Recent Events */}
         <div className="grid grid-cols-3 gap-6">
-          {/* Rack Layout Visualization */}
+          {/* Rack Layout Visualization — Fix #15: loads from API for first rack */}
           <div className="col-span-2 bg-surface-container rounded p-5">
             <div className="flex items-center gap-3 mb-4">
               <span className="material-symbols-outlined text-primary">grid_view</span>
               <h2 className="font-headline font-bold text-sm tracking-widest uppercase text-on-surface">
-                {t('racks.layout_visualization')}: RACK-A01
+                {t('racks.layout_visualization')}: {racks[0]?.name ?? '—'}
               </h2>
             </div>
             <div className="bg-surface-container-low rounded p-4">
+              {firstRackSlots.length === 0 ? (
+                <div className="text-center text-on-surface-variant text-sm py-8">
+                  {t('common.empty')} — {t('racks.no_slots_hint', 'No slot data. Assign assets to rack slots on the detail page.')}
+                </div>
+              ) : (
               <div className="flex flex-col gap-px">
-                {Array.from({ length: 42 }, (_, i) => {
-                  const u = 42 - i;
-                  const equipment = rackA01Layout.find(
-                    (eq) => u >= eq.startU && u <= eq.endU
-                  );
-                  const isStart = equipment && u === equipment.endU;
-                  const span = equipment
-                    ? equipment.endU - equipment.startU + 1
-                    : 0;
+                {(() => {
+                  const totalU = racks[0]?.total_u ?? 42;
+                  const slotLayout = firstRackSlots.map((s: any) => ({
+                    startU: s.start_u,
+                    endU: s.end_u,
+                    label: s.asset_name || s.asset_tag || `U${s.start_u}`,
+                    color: (s.asset_type || '').toLowerCase().includes('network') ? 'bg-tertiary-container/60'
+                      : (s.asset_type || '').toLowerCase().includes('storage') ? 'bg-secondary-container/60'
+                      : 'bg-on-primary-container/25',
+                  }));
+                  return Array.from({ length: totalU }, (_, i) => {
+                    const u = totalU - i;
+                    const equipment = slotLayout.find(
+                      (eq: any) => u >= eq.startU && u <= eq.endU
+                    );
+                    const isStart = equipment && u === equipment.endU;
+                    const span = equipment
+                      ? equipment.endU - equipment.startU + 1
+                      : 0;
 
-                  if (equipment && !isStart) {
-                    return null;
-                  }
+                    if (equipment && !isStart) {
+                      return null;
+                    }
 
-                  if (equipment && isStart) {
+                    if (equipment && isStart) {
+                      return (
+                        <div
+                          key={u}
+                          className={`flex items-center ${equipment.color} rounded`}
+                          style={{ height: `${span * 22}px` }}
+                        >
+                          <span className="text-[10px] text-on-surface-variant w-10 text-right pr-2 shrink-0">
+                            U{equipment.startU}-{equipment.endU}
+                          </span>
+                          <div className="flex-1 px-3">
+                            <span className="text-xs font-label font-medium text-on-surface">
+                              {equipment.label}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={u}
-                        className={`flex items-center ${equipment.color} rounded`}
-                        style={{ height: `${span * 22}px` }}
+                        className="flex items-center bg-surface-container-lowest rounded"
+                        style={{ height: "22px" }}
                       >
-                        <span className="text-[10px] text-on-surface-variant w-10 text-right pr-2 shrink-0">
-                          U{equipment.startU}-{equipment.endU}
+                        <span className="text-[10px] text-on-surface-variant/40 w-10 text-right pr-2 shrink-0">
+                          U{u}
                         </span>
                         <div className="flex-1 px-3">
-                          <span className="text-xs font-label font-medium text-on-surface">
-                            {equipment.label}
-                          </span>
+                          <span className="text-[10px] text-on-surface-variant/20">{t('common.empty')}</span>
                         </div>
                       </div>
                     );
-                  }
-
-                  return (
-                    <div
-                      key={u}
-                      className="flex items-center bg-surface-container-lowest rounded"
-                      style={{ height: "22px" }}
-                    >
-                      <span className="text-[10px] text-on-surface-variant/40 w-10 text-right pr-2 shrink-0">
-                        U{u}
-                      </span>
-                      <div className="flex-1 px-3">
-                        <span className="text-[10px] text-on-surface-variant/20">{t('common.empty')}</span>
-                      </div>
-                    </div>
-                  );
-                }).filter(Boolean)}
+                  }).filter(Boolean);
+                })()}
               </div>
+              )}
             </div>
           </div>
 
@@ -415,26 +441,26 @@ export default function RackManagement() {
 
             <div>
               <label className="block text-sm text-gray-400 mb-1">Name</label>
-              <input defaultValue={editingRack.name} id="edit-rack-name"
+              <input value={editName} onChange={e => setEditName(e.target.value)}
                 className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Total U</label>
-                <input type="number" defaultValue={editingRack.total_u} id="edit-rack-total-u"
+                <input type="number" value={editTotalU} onChange={e => setEditTotalU(parseInt(e.target.value) || 0)}
                   className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" />
               </div>
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Power Capacity (kW)</label>
-                <input type="number" step="0.1" defaultValue={editingRack.power_capacity_kw} id="edit-rack-power"
+                <input type="number" step="0.1" value={editPower} onChange={e => setEditPower(parseFloat(e.target.value) || 0)}
                   className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" />
               </div>
             </div>
 
             <div>
               <label className="block text-sm text-gray-400 mb-1">Status</label>
-              <select defaultValue={editingRack.status} id="edit-rack-status"
+              <select value={editStatus} onChange={e => setEditStatus(e.target.value)}
                 className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm">
                 <option value="ACTIVE">Active</option>
                 <option value="MAINTENANCE">Maintenance</option>
@@ -446,11 +472,7 @@ export default function RackManagement() {
               <button onClick={() => setEditingRack(null)} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">Cancel</button>
               <button
                 onClick={() => {
-                  const name = (document.getElementById('edit-rack-name') as HTMLInputElement).value;
-                  const total_u = parseInt((document.getElementById('edit-rack-total-u') as HTMLInputElement).value);
-                  const power_capacity_kw = parseFloat((document.getElementById('edit-rack-power') as HTMLInputElement).value);
-                  const status = (document.getElementById('edit-rack-status') as HTMLSelectElement).value;
-                  updateRack.mutate({ id: editingRack.id, data: { name, total_u, power_capacity_kw, status } }, {
+                  updateRack.mutate({ id: editingRack.id, data: { name: editName, total_u: editTotalU, power_capacity_kw: editPower, status: editStatus } }, {
                     onSuccess: () => { setEditingRack(null); toast.success('Rack updated'); }
                   });
                 }}

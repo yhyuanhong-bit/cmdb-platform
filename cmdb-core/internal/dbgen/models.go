@@ -399,6 +399,7 @@ type Rack struct {
 	CreatedAt       time.Time          `json:"created_at"`
 	SyncVersion     int64              `json:"sync_version"`
 	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 type RackNetworkConnection struct {

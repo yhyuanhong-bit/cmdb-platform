@@ -715,12 +715,25 @@ func (s *APIServer) ListLocationChildren(c *gin.Context, id IdPath) {
 // ListLocationRacks returns racks at a location.
 // (GET /locations/{id}/racks)
 func (s *APIServer) ListLocationRacks(c *gin.Context, id IdPath) {
-	racks, err := s.topologySvc.ListRacksByLocation(c.Request.Context(), uuid.UUID(id))
+	tenantID := tenantIDFromContext(c)
+	racks, err := s.topologySvc.ListRacksByLocation(c.Request.Context(), tenantID, uuid.UUID(id))
 	if err != nil {
 		response.InternalError(c, "failed to list racks")
 		return
 	}
-	response.OK(c, convertSlice(racks, toAPIRack))
+	// Fix #3: batch-fetch occupancy to avoid N+1
+	occupancyMap := map[uuid.UUID]int32{}
+	occupancies, err := s.topologySvc.GetRackOccupanciesByLocation(c.Request.Context(), tenantID, uuid.UUID(id))
+	if err == nil {
+		for _, o := range occupancies {
+			occupancyMap[o.RackID] = o.UsedU
+		}
+	}
+	apiRacks := make([]Rack, len(racks))
+	for i, r := range racks {
+		apiRacks[i] = toAPIRackWithOccupancy(r, int(occupancyMap[r.ID]))
+	}
+	response.OK(c, apiRacks)
 }
 
 // GetLocationStats returns aggregate statistics for a location.
@@ -934,6 +947,11 @@ func (s *APIServer) CreateRack(c *gin.Context) {
 	if req.TotalU != nil {
 		totalU = int32(*req.TotalU)
 	}
+	// Fix #7: validate total_u > 0
+	if totalU <= 0 {
+		response.BadRequest(c, "total_u must be greater than 0")
+		return
+	}
 
 	var powerKw pgtype.Numeric
 	if req.PowerCapacityKw != nil {
@@ -982,7 +1000,13 @@ func (s *APIServer) GetRack(c *gin.Context, id IdPath) {
 		response.NotFound(c, "rack not found")
 		return
 	}
-	response.OK(c, toAPIRack(rack))
+	// Fix #13: compute used_u from rack_slots
+	var usedU int
+	occ, err := s.topologySvc.GetRackOccupancy(c.Request.Context(), uuid.UUID(id))
+	if err == nil {
+		usedU = int(occ.UsedU)
+	}
+	response.OK(c, toAPIRackWithOccupancy(rack, usedU))
 }
 
 // ListRackAssets returns all assets in a rack.
@@ -999,14 +1023,19 @@ func (s *APIServer) ListRackAssets(c *gin.Context, id IdPath) {
 // UpdateRack updates an existing rack.
 // (PUT /racks/{id})
 func (s *APIServer) UpdateRack(c *gin.Context, id IdPath) {
-	var req UpdateRackJSONRequestBody
+	// Use a superset struct to handle location_id (#22) which isn't in the generated spec
+	var req struct {
+		UpdateRackJSONRequestBody
+		LocationId *string `json:"location_id,omitempty"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request body")
 		return
 	}
 
 	params := dbgen.UpdateRackParams{
-		ID: uuid.UUID(id),
+		ID:       uuid.UUID(id),
+		TenantID: tenantIDFromContext(c), // Fix #8: ensure tenant_id is set for security
 	}
 	if req.Name != nil {
 		params.Name = pgtype.Text{String: *req.Name, Valid: true}
@@ -1025,6 +1054,15 @@ func (s *APIServer) UpdateRack(c *gin.Context, id IdPath) {
 	}
 	if req.Tags != nil {
 		params.Tags = *req.Tags
+	}
+	// Fix #22: support moving rack to different location
+	if req.LocationId != nil {
+		locUUID, err := uuid.Parse(*req.LocationId)
+		if err != nil {
+			response.BadRequest(c, "invalid location_id")
+			return
+		}
+		params.LocationID = pgtype.UUID{Bytes: locUUID, Valid: true}
 	}
 
 	updated, err := s.topologySvc.UpdateRack(c.Request.Context(), params)
@@ -1094,6 +1132,21 @@ func (s *APIServer) CreateRackSlot(c *gin.Context, id IdPath) {
 		side = *req.Side
 	}
 
+	// Fix #9: validate U-position against rack's total_u
+	rack, err := s.topologySvc.GetRack(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
+	if err != nil {
+		response.NotFound(c, "rack not found")
+		return
+	}
+	if req.StartU < 1 || int32(req.EndU) > rack.TotalU {
+		response.BadRequest(c, fmt.Sprintf("U position out of range: rack has %dU, requested U%d-U%d", rack.TotalU, req.StartU, req.EndU))
+		return
+	}
+	if req.StartU > req.EndU {
+		response.BadRequest(c, "start_u must be <= end_u")
+		return
+	}
+
 	// Check for U-position conflict
 	conflictCount, err := s.topologySvc.CheckSlotConflict(c.Request.Context(), uuid.UUID(id), side, int32(req.StartU), int32(req.EndU))
 	if err != nil {
@@ -1124,6 +1177,10 @@ func (s *APIServer) CreateRackSlot(c *gin.Context, id IdPath) {
 		"end_u":    req.EndU,
 		"side":     side,
 	})
+	// Fix #12: publish rack.occupancy_changed event
+	s.publishEvent(c.Request.Context(), eventbus.SubjectRackOccupancyChanged, tenantIDFromContext(c).String(), map[string]any{
+		"rack_id": uuid.UUID(id).String(), "tenant_id": tenantIDFromContext(c).String(),
+	})
 
 	// Convert the created slot to API format
 	apiSlot := RackSlot{
@@ -1147,6 +1204,10 @@ func (s *APIServer) DeleteRackSlot(c *gin.Context, id IdPath, slotId openapi_typ
 	}
 	s.recordAudit(c, "rack_slot.deleted", "topology", "rack_slot", uuid.UUID(slotId), map[string]any{
 		"rack_id": uuid.UUID(id).String(),
+	})
+	// Fix #12: publish rack.occupancy_changed event
+	s.publishEvent(c.Request.Context(), eventbus.SubjectRackOccupancyChanged, tenantIDFromContext(c).String(), map[string]any{
+		"rack_id": uuid.UUID(id).String(), "tenant_id": tenantIDFromContext(c).String(),
 	})
 	c.Status(204)
 }

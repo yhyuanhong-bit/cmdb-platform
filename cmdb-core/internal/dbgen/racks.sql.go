@@ -17,6 +17,7 @@ SELECT count(*) FROM racks r
 JOIN locations l ON r.location_id = l.id
 WHERE r.tenant_id = $1
   AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
+  AND r.deleted_at IS NULL
 `
 
 type CountRacksUnderLocationParams struct {
@@ -39,7 +40,7 @@ INSERT INTO racks (
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7, $8
-) RETURNING id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at, sync_version, deleted_at
+) RETURNING id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at, sync_version, deleted_at, updated_at
 `
 
 type CreateRackParams struct {
@@ -78,12 +79,13 @@ func (q *Queries) CreateRack(ctx context.Context, arg CreateRackParams) (Rack, e
 		&i.CreatedAt,
 		&i.SyncVersion,
 		&i.DeletedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const deleteRack = `-- name: DeleteRack :exec
-DELETE FROM racks WHERE id = $1 AND tenant_id = $2
+UPDATE racks SET deleted_at = now() WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 `
 
 type DeleteRackParams struct {
@@ -97,7 +99,7 @@ func (q *Queries) DeleteRack(ctx context.Context, arg DeleteRackParams) error {
 }
 
 const getRack = `-- name: GetRack :one
-SELECT id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at, sync_version, deleted_at FROM racks WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at, sync_version, deleted_at, updated_at FROM racks WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 `
 
 type GetRackParams struct {
@@ -121,8 +123,50 @@ func (q *Queries) GetRack(ctx context.Context, arg GetRackParams) (Rack, error) 
 		&i.CreatedAt,
 		&i.SyncVersion,
 		&i.DeletedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getRackOccupanciesByLocation = `-- name: GetRackOccupanciesByLocation :many
+SELECT rs.rack_id, COALESCE(SUM(rs.end_u - rs.start_u + 1), 0)::int AS used_u
+FROM rack_slots rs
+JOIN racks r ON rs.rack_id = r.id
+JOIN locations l ON r.location_id = l.id
+WHERE l.tenant_id = $1
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
+  AND r.deleted_at IS NULL
+GROUP BY rs.rack_id
+`
+
+type GetRackOccupanciesByLocationParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	ID       uuid.UUID `json:"id"`
+}
+
+type GetRackOccupanciesByLocationRow struct {
+	RackID uuid.UUID `json:"rack_id"`
+	UsedU  int32     `json:"used_u"`
+}
+
+func (q *Queries) GetRackOccupanciesByLocation(ctx context.Context, arg GetRackOccupanciesByLocationParams) ([]GetRackOccupanciesByLocationRow, error) {
+	rows, err := q.db.Query(ctx, getRackOccupanciesByLocation, arg.TenantID, arg.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetRackOccupanciesByLocationRow{}
+	for rows.Next() {
+		var i GetRackOccupanciesByLocationRow
+		if err := rows.Scan(&i.RackID, &i.UsedU); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getRackOccupancy = `-- name: GetRackOccupancy :one
@@ -147,7 +191,7 @@ func (q *Queries) GetRackOccupancy(ctx context.Context, id uuid.UUID) (GetRackOc
 
 const listAssetsByRack = `-- name: ListAssetsByRack :many
 SELECT a.id, a.tenant_id, a.asset_tag, a.property_number, a.control_number, a.name, a.type, a.sub_type, a.status, a.bia_level, a.location_id, a.rack_id, a.vendor, a.model, a.serial_number, a.attributes, a.tags, a.created_at, a.updated_at, a.ip_address, a.deleted_at, a.sync_version, a.bmc_ip, a.bmc_type, a.bmc_firmware, a.purchase_date, a.purchase_cost, a.warranty_start, a.warranty_end, a.warranty_vendor, a.warranty_contract, a.expected_lifespan_months, a.eol_date FROM assets a
-WHERE a.rack_id = $1
+WHERE a.rack_id = $1 AND a.deleted_at IS NULL
 ORDER BY a.name
 `
 
@@ -206,15 +250,22 @@ func (q *Queries) ListAssetsByRack(ctx context.Context, rackID pgtype.UUID) ([]A
 }
 
 const listRacksByLocation = `-- name: ListRacksByLocation :many
-SELECT r.id, r.tenant_id, r.location_id, r.name, r.row_label, r.total_u, r.power_capacity_kw, r.status, r.tags, r.created_at, r.sync_version, r.deleted_at FROM racks r
+SELECT r.id, r.tenant_id, r.location_id, r.name, r.row_label, r.total_u, r.power_capacity_kw, r.status, r.tags, r.created_at, r.sync_version, r.deleted_at, r.updated_at FROM racks r
 JOIN locations l ON r.location_id = l.id
-WHERE l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $1)::ltree
-ORDER BY r.name
+WHERE l.tenant_id = $1
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
+  AND r.deleted_at IS NULL
+ORDER BY r.row_label, r.name
 `
 
+type ListRacksByLocationParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	ID       uuid.UUID `json:"id"`
+}
+
 // Returns racks at this location AND all descendant locations (via ltree)
-func (q *Queries) ListRacksByLocation(ctx context.Context, id uuid.UUID) ([]Rack, error) {
-	rows, err := q.db.Query(ctx, listRacksByLocation, id)
+func (q *Queries) ListRacksByLocation(ctx context.Context, arg ListRacksByLocationParams) ([]Rack, error) {
+	rows, err := q.db.Query(ctx, listRacksByLocation, arg.TenantID, arg.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -235,6 +286,7 @@ func (q *Queries) ListRacksByLocation(ctx context.Context, id uuid.UUID) ([]Rack
 			&i.CreatedAt,
 			&i.SyncVersion,
 			&i.DeletedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -253,9 +305,11 @@ UPDATE racks SET
     total_u           = COALESCE($3, total_u),
     power_capacity_kw = COALESCE($4, power_capacity_kw),
     status            = COALESCE($5, status),
-    tags              = COALESCE($6, tags)
-WHERE id = $7
-RETURNING id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at, sync_version, deleted_at
+    tags              = COALESCE($6, tags),
+    location_id       = COALESCE($7, location_id),
+    updated_at        = now()
+WHERE id = $8 AND tenant_id = $9 AND deleted_at IS NULL
+RETURNING id, tenant_id, location_id, name, row_label, total_u, power_capacity_kw, status, tags, created_at, sync_version, deleted_at, updated_at
 `
 
 type UpdateRackParams struct {
@@ -265,7 +319,9 @@ type UpdateRackParams struct {
 	PowerCapacityKw pgtype.Numeric `json:"power_capacity_kw"`
 	Status          pgtype.Text    `json:"status"`
 	Tags            []string       `json:"tags"`
+	LocationID      pgtype.UUID    `json:"location_id"`
 	ID              uuid.UUID      `json:"id"`
+	TenantID        uuid.UUID      `json:"tenant_id"`
 }
 
 func (q *Queries) UpdateRack(ctx context.Context, arg UpdateRackParams) (Rack, error) {
@@ -276,7 +332,9 @@ func (q *Queries) UpdateRack(ctx context.Context, arg UpdateRackParams) (Rack, e
 		arg.PowerCapacityKw,
 		arg.Status,
 		arg.Tags,
+		arg.LocationID,
 		arg.ID,
+		arg.TenantID,
 	)
 	var i Rack
 	err := row.Scan(
@@ -292,6 +350,7 @@ func (q *Queries) UpdateRack(ctx context.Context, arg UpdateRackParams) (Rack, e
 		&i.CreatedAt,
 		&i.SyncVersion,
 		&i.DeletedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

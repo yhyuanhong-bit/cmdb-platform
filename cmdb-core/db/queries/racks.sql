@@ -1,12 +1,14 @@
 -- name: GetRack :one
-SELECT * FROM racks WHERE id = $1 AND tenant_id = $2;
+SELECT * FROM racks WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
 
 -- name: ListRacksByLocation :many
 -- Returns racks at this location AND all descendant locations (via ltree)
 SELECT r.* FROM racks r
 JOIN locations l ON r.location_id = l.id
-WHERE l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $1)::ltree
-ORDER BY r.name;
+WHERE l.tenant_id = $1
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
+  AND r.deleted_at IS NULL
+ORDER BY r.row_label, r.name;
 
 -- name: CreateRack :one
 INSERT INTO racks (
@@ -24,16 +26,18 @@ UPDATE racks SET
     total_u           = COALESCE(sqlc.narg('total_u'), total_u),
     power_capacity_kw = COALESCE(sqlc.narg('power_capacity_kw'), power_capacity_kw),
     status            = COALESCE(sqlc.narg('status'), status),
-    tags              = COALESCE(sqlc.narg('tags'), tags)
-WHERE id = sqlc.arg('id')
+    tags              = COALESCE(sqlc.narg('tags'), tags),
+    location_id       = COALESCE(sqlc.narg('location_id'), location_id),
+    updated_at        = now()
+WHERE id = sqlc.arg('id') AND tenant_id = sqlc.arg('tenant_id') AND deleted_at IS NULL
 RETURNING *;
 
 -- name: DeleteRack :exec
-DELETE FROM racks WHERE id = $1 AND tenant_id = $2;
+UPDATE racks SET deleted_at = now() WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
 
 -- name: ListAssetsByRack :many
 SELECT a.* FROM assets a
-WHERE a.rack_id = $1
+WHERE a.rack_id = $1 AND a.deleted_at IS NULL
 ORDER BY a.name;
 
 -- name: GetRackOccupancy :one
@@ -43,9 +47,20 @@ LEFT JOIN rack_slots rs ON rs.rack_id = r.id
 WHERE r.id = $1
 GROUP BY r.id;
 
+-- name: GetRackOccupanciesByLocation :many
+SELECT rs.rack_id, COALESCE(SUM(rs.end_u - rs.start_u + 1), 0)::int AS used_u
+FROM rack_slots rs
+JOIN racks r ON rs.rack_id = r.id
+JOIN locations l ON r.location_id = l.id
+WHERE l.tenant_id = $1
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
+  AND r.deleted_at IS NULL
+GROUP BY rs.rack_id;
+
 -- name: CountRacksUnderLocation :one
 -- Count all racks under a location and all its descendants (using ltree)
 SELECT count(*) FROM racks r
 JOIN locations l ON r.location_id = l.id
 WHERE r.tenant_id = $1
-  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree;
+  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
+  AND r.deleted_at IS NULL;

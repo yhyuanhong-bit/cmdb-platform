@@ -18,7 +18,9 @@ func (s *APIServer) GetRackNetworkConnections(c *gin.Context) {
 		response.BadRequest(c, "missing rack id")
 		return
 	}
+	tenantID := tenantIDFromContext(c)
 
+	// Fix #11: verify tenant ownership via JOIN with racks table
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT
 			rnc.id,
@@ -31,10 +33,11 @@ func (s *APIServer) GetRackNetworkConnections(c *gin.Context) {
 			COALESCE(rnc.vlans, '{}')                  AS vlans,
 			COALESCE(rnc.connection_type, '')          AS connection_type
 		FROM rack_network_connections rnc
+		JOIN racks r ON rnc.rack_id = r.id AND r.tenant_id = $2 AND r.deleted_at IS NULL
 		LEFT JOIN assets a ON rnc.connected_asset_id = a.id
 		WHERE rnc.rack_id = $1
 		ORDER BY rnc.source_port
-	`, rackID)
+	`, rackID, tenantID)
 	if err != nil {
 		response.InternalError(c, "failed to query network connections")
 		return
@@ -133,15 +136,21 @@ func (s *APIServer) CreateRackNetworkConnection(c *gin.Context) {
 // DeleteRackNetworkConnection handles DELETE /racks/:id/network-connections/:connectionId
 // Removes a specific network connection by its ID.
 func (s *APIServer) DeleteRackNetworkConnection(c *gin.Context) {
+	rackID := c.Param("id")
 	connectionID := c.Param("connectionId")
 	if connectionID == "" {
 		response.BadRequest(c, "missing connection id")
 		return
 	}
+	tenantID := tenantIDFromContext(c)
 
+	// Fix #10: verify the connection belongs to the specified rack and tenant
 	tag, err := s.pool.Exec(c.Request.Context(), `
-		DELETE FROM rack_network_connections WHERE id = $1
-	`, connectionID)
+		DELETE FROM rack_network_connections
+		WHERE id = $1
+		  AND rack_id = $2
+		  AND rack_id IN (SELECT r.id FROM racks r WHERE r.tenant_id = $3 AND r.deleted_at IS NULL)
+	`, connectionID, rackID, tenantID)
 	if err != nil {
 		response.InternalError(c, "failed to delete network connection")
 		return
