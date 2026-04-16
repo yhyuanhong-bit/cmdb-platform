@@ -1,8 +1,8 @@
 import { toast } from 'sonner'
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useRacks, useRootLocations, useLocationChildren, useUpdateRack, useDeleteRack, useRackSlots } from "../hooks/useTopology";
+import { useRacks, useAllLocations, useUpdateRack, useDeleteRack, useRackSlots } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import type { Rack, RackSlot } from "../lib/api/topology";
@@ -55,19 +55,16 @@ export default function RackManagement() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const { path } = useLocationContext();
-  const contextLocationId = path.idc?.id ?? path.campus?.id ?? "";
+  const contextLocationId = path.idc?.id ?? path.campus?.id ?? path.city?.id ?? path.region?.id ?? path.territory?.id ?? "";
 
-  // If no location selected in context, find the first campus as default
-  const rootQ = useRootLocations();
-  const firstTerritoryId = rootQ.data?.data?.[0]?.id ?? "";
-  const territoryChildrenQ = useLocationChildren(contextLocationId ? "" : firstTerritoryId);
-  const firstRegionId = territoryChildrenQ.data?.data?.[0]?.id ?? "";
-  const regionChildrenQ = useLocationChildren(contextLocationId ? "" : firstRegionId);
-  const firstCityId = regionChildrenQ.data?.data?.[0]?.id ?? "";
-  const cityChildrenQ = useLocationChildren(contextLocationId ? "" : firstCityId);
-  const firstCampusId = cityChildrenQ.data?.data?.[0]?.id ?? "";
+  // If no location selected in context, use the first territory (shows ALL racks via ltree)
+  const { data: allLocResp } = useAllLocations();
+  const fallbackTerritoryId = useMemo(() => {
+    const locs = allLocResp?.data ?? [];
+    return locs.find(l => !l.parent_id)?.id ?? '';
+  }, [allLocResp]);
 
-  const locationId = contextLocationId || firstCampusId;
+  const locationId = contextLocationId || fallbackTerritoryId;
   const { data: feedData } = useActivityFeed('location', locationId || '');
   const activityFeedData = feedData as { events?: ActivityEvent[] } | undefined;
   const recentEvents: RecentEvent[] = (activityFeedData?.events ?? []).map((e: ActivityEvent) => ({
@@ -77,7 +74,7 @@ export default function RackManagement() {
     severity: e.severity || 'info',
   }));
   const { data: racksResponse, isLoading: racksLoading, error } = useRacks(locationId);
-  const isLoading = racksLoading || (!contextLocationId && (rootQ.isLoading || territoryChildrenQ.isLoading || regionChildrenQ.isLoading || cityChildrenQ.isLoading));
+  const isLoading = racksLoading;
   const racks: Rack[] = racksResponse?.data ?? [];
 
   const updateRack = useUpdateRack();
