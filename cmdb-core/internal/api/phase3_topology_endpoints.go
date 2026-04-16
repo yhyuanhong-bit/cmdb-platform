@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
@@ -160,7 +159,7 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context) {
 		return
 	}
 
-	// Step 1: fetch assets in the location (up to 50)
+	// Step 1: fetch assets in the location and its descendants (up to 200)
 	assetRows, err := s.pool.Query(c.Request.Context(), `
 		SELECT
 			a.id,
@@ -180,8 +179,13 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context) {
 		FROM assets a
 		LEFT JOIN racks r ON a.rack_id = r.id
 		WHERE a.tenant_id = $1
-		  AND a.location_id = $2
-		LIMIT 50
+		  AND a.deleted_at IS NULL
+		  AND a.location_id IN (
+			SELECT id FROM locations
+			WHERE tenant_id = $1 AND path <@ (SELECT path FROM locations WHERE id = $2)
+		  )
+		ORDER BY a.name
+		LIMIT 200
 	`, tenantID, locationID)
 	if err != nil {
 		response.InternalError(c, "failed to query assets")
@@ -214,8 +218,14 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context) {
 		}
 	}
 
-	// Step 2: fetch dependencies for those assets
+	// Step 2: fetch dependencies and include external nodes
 	edges := []gin.H{}
+	assetIDSet := map[string]bool{}
+	for _, id := range assetIDs {
+		assetIDSet[id] = true
+	}
+	externalIDs := []string{}
+
 	if len(assetIDs) > 0 {
 		depRows, err := s.pool.Query(c.Request.Context(), `
 			SELECT id, source_asset_id, target_asset_id, dependency_type
@@ -237,13 +247,87 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context) {
 					"dependency_type": depType,
 					"is_fault_path":   isFaultPath,
 				})
+				// Track external asset IDs (not in this location's asset set)
+				if !assetIDSet[src] {
+					externalIDs = append(externalIDs, src)
+				}
+				if !assetIDSet[tgt] {
+					externalIDs = append(externalIDs, tgt)
+				}
 			}
 		}
 	}
 
-	// Step 3: build nodes (metrics = null for now)
+	// Fetch external assets that participate in cross-location dependencies
+	if len(externalIDs) > 0 {
+		extRows, err := s.pool.Query(c.Request.Context(), `
+			SELECT a.id, a.name, a.type, COALESCE(a.sub_type,''), a.status,
+			       COALESCE(a.bia_level,''), COALESCE(a.ip_address,''),
+			       COALESCE(a.model,''), COALESCE(r.name,''), COALESCE(a.tags,'{}'),
+			       EXISTS(SELECT 1 FROM alert_events ae WHERE ae.asset_id=a.id AND ae.status='firing')
+			FROM assets a LEFT JOIN racks r ON a.rack_id=r.id
+			WHERE a.id = ANY($1) AND a.deleted_at IS NULL
+		`, externalIDs)
+		if err == nil {
+			defer extRows.Close()
+			for extRows.Next() {
+				var a topologyAsset
+				var tags []string
+				if err := extRows.Scan(&a.ID, &a.Name, &a.Type, &a.SubType, &a.Status,
+					&a.BIALevel, &a.IPAddress, &a.Model, &a.RackName, &tags, &a.HasActiveAlert); err != nil {
+					continue
+				}
+				if tags == nil {
+					tags = []string{}
+				}
+				a.Tags = tags
+				assets = append(assets, a)
+				assetIDs = append(assetIDs, a.ID)
+			}
+		}
+	}
+
+	// Step 3: batch-fetch latest metrics for all assets (cpu, memory, disk)
+	metricsMap := map[string]gin.H{} // asset_id → { cpu, memory, disk_io }
+	if len(assetIDs) > 0 {
+		metricRows, err := s.pool.Query(c.Request.Context(), `
+			SELECT asset_id::text, name, COALESCE(avg(value), 0) AS avg_val
+			FROM metrics
+			WHERE asset_id = ANY($1)
+			  AND name IN ('cpu_usage', 'memory_usage', 'disk_usage')
+			  AND time > now() - interval '1 hour'
+			GROUP BY asset_id, name
+		`, assetIDs)
+		if err == nil {
+			defer metricRows.Close()
+			for metricRows.Next() {
+				var aid, mname string
+				var avgVal float64
+				if err := metricRows.Scan(&aid, &mname, &avgVal); err != nil {
+					continue
+				}
+				if _, ok := metricsMap[aid]; !ok {
+					metricsMap[aid] = gin.H{"cpu": 0.0, "memory": 0.0, "disk_io": 0.0}
+				}
+				switch mname {
+				case "cpu_usage":
+					metricsMap[aid]["cpu"] = avgVal
+				case "memory_usage":
+					metricsMap[aid]["memory"] = avgVal
+				case "disk_usage":
+					metricsMap[aid]["disk_io"] = avgVal
+				}
+			}
+		}
+	}
+
+	// Build node list with metrics
 	nodes := []gin.H{}
 	for _, a := range assets {
+		m := metricsMap[a.ID]
+		if m == nil {
+			m = gin.H{"cpu": 0.0, "memory": 0.0, "disk_io": 0.0}
+		}
 		nodes = append(nodes, gin.H{
 			"id":               a.ID,
 			"name":             a.Name,
@@ -256,11 +340,9 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context) {
 			"rack_name":        a.RackName,
 			"tags":             a.Tags,
 			"has_active_alert": a.HasActiveAlert,
-			"metrics":          nil,
+			"metrics":          m,
 		})
 	}
-
-	_ = time.Now() // satisfy time import if needed elsewhere in package
 
 	response.OK(c, gin.H{
 		"nodes": nodes,

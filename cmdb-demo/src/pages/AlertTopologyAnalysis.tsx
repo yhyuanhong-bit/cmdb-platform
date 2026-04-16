@@ -19,7 +19,8 @@ import Icon from "../components/Icon";
 import StatusBadge from "../components/StatusBadge";
 import { useAlerts } from "../hooks/useMonitoring";
 import type { AlertEvent } from "../lib/api/monitoring";
-import { useTopologyGraph } from "../hooks/useTopology";
+import { useTopologyGraph, useAllLocations } from "../hooks/useTopology";
+import { useLocationContext } from "../contexts/LocationContext";
 import { FALLBACK_ALERTS } from "../data/fallbacks/alerts";
 
 /* ──────────────────────────────────────────────
@@ -235,8 +236,20 @@ function AlertTopologyAnalysis() {
   const [biaFilter, setBiaFilter] = useState<string>("all");
   const [domainFilter, setDomainFilter] = useState<string>("all");
 
-  // Use a default seed location
-  const locationId = "d0000000-0000-0000-0000-000000000004";
+  // Derive location from context — use deepest available level, fallback to first campus/idc
+  const { path } = useLocationContext();
+  const contextLocationId = path.idc?.id ?? path.campus?.id ?? path.city?.id ?? '';
+
+  const { data: allLocResp } = useAllLocations();
+  const fallbackLocationId = useMemo(() => {
+    const locs = allLocResp?.data ?? [];
+    return locs.find(l => l.level === 'idc')?.id
+      ?? locs.find(l => l.level === 'campus')?.id
+      ?? locs[0]?.id
+      ?? '';
+  }, [allLocResp]);
+
+  const locationId = contextLocationId || fallbackLocationId;
 
   const { data: graphData, isLoading: graphLoading } = useTopologyGraph(locationId);
   const apiNodes = (graphData as unknown as TopologyGraphResponse)?.nodes ?? [];
@@ -310,39 +323,32 @@ function AlertTopologyAnalysis() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const layoutDoneRef = useRef(false);
 
-  // ELK layout: compute positions based on dependency edges
+  // Cache: ELK layout positions computed once from ALL api nodes
+  const layoutCacheRef = useRef<Record<string, { x: number; y: number }>>({});
+
+  // Step 1: Run ELK layout ONCE when apiNodes/apiEdges change (not on filter change)
   useEffect(() => {
-    if (filteredApiNodes.length === 0) {
-      setNodes([]);
-      setEdges([]);
+    if (apiNodes.length === 0) {
+      layoutCacheRef.current = {};
       return;
     }
 
     const NODE_WIDTH = 190;
     const NODE_HEIGHT = 72;
 
-    // Build initial nodes with grid fallback positions
-    const initialNodes: Node[] = filteredApiNodes.map((n: ApiTopologyNode, i: number) => ({
-      id: n.id,
-      type: "asset",
-      position: { x: (i % 4) * 230 + 30, y: Math.floor(i / 4) * 110 + 30 },
-      data: buildNodeData(n) as unknown as Record<string, unknown>,
-    }));
-
-    // If no edges, just use grid layout
     if (apiEdges.length === 0) {
-      setNodes(initialNodes);
-      setEdges(flowEdges);
-      layoutDoneRef.current = true;
+      // Grid fallback for all nodes
+      const cache: Record<string, { x: number; y: number }> = {};
+      apiNodes.forEach((n: ApiTopologyNode, i: number) => {
+        cache[n.id] = { x: (i % 4) * 230 + 30, y: Math.floor(i / 4) * 110 + 30 };
+      });
+      layoutCacheRef.current = cache;
       return;
     }
 
-    // Use elkjs for auto-layout
     import("elkjs/lib/elk.bundled.js").then((ELK) => {
       const elk = new ELK.default();
-
       const graph = {
         id: "root",
         layoutOptions: {
@@ -352,10 +358,8 @@ function AlertTopologyAnalysis() {
           "elk.layered.spacing.nodeNodeBetweenLayers": "80",
           "elk.edgeRouting": "ORTHOGONAL",
         },
-        children: filteredApiNodes.map((n: ApiTopologyNode) => ({
-          id: n.id,
-          width: NODE_WIDTH,
-          height: NODE_HEIGHT,
+        children: apiNodes.map((n: ApiTopologyNode) => ({
+          id: n.id, width: NODE_WIDTH, height: NODE_HEIGHT,
         })),
         edges: apiEdges.map((e: ApiTopologyEdge) => ({
           id: `e-${e.source ?? e.from ?? ""}-${e.target ?? e.to ?? ""}`,
@@ -363,32 +367,51 @@ function AlertTopologyAnalysis() {
           targets: [e.target ?? e.to ?? ""],
         })),
       };
-
-      elk
-        .layout(graph)
-        .then((result: ElkNode) => {
-          const layoutedNodes: Node[] = (result.children || []).map((elkNode: ElkNode) => {
-            const apiNode = filteredApiNodes.find((n: ApiTopologyNode) => n.id === elkNode.id);
-            return {
-              id: elkNode.id,
-              type: "asset",
-              position: { x: elkNode.x ?? 0, y: elkNode.y ?? 0 },
-              data: apiNode ? buildNodeData(apiNode) as unknown as Record<string, unknown> : {},
-            };
-          });
-          setNodes(layoutedNodes);
-          setEdges(flowEdges);
-          layoutDoneRef.current = true;
-        })
-        .catch(() => {
-          // Fallback to grid
-          setNodes(initialNodes);
-          setEdges(flowEdges);
-          layoutDoneRef.current = true;
+      elk.layout(graph).then((result: ElkNode) => {
+        const cache: Record<string, { x: number; y: number }> = {};
+        (result.children || []).forEach((elkNode: ElkNode) => {
+          cache[elkNode.id] = { x: elkNode.x ?? 0, y: elkNode.y ?? 0 };
         });
+        layoutCacheRef.current = cache;
+        // Trigger re-render by applying filtered view
+        applyFilteredView();
+      }).catch(() => {
+        const cache: Record<string, { x: number; y: number }> = {};
+        apiNodes.forEach((n: ApiTopologyNode, i: number) => {
+          cache[n.id] = { x: (i % 4) * 230 + 30, y: Math.floor(i / 4) * 110 + 30 };
+        });
+        layoutCacheRef.current = cache;
+        applyFilteredView();
+      });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredApiNodes.length, apiEdges.length, biaFilter, domainFilter]);
+  }, [apiNodes.length, apiEdges.length]);
+
+  // Step 2: Apply filter — just pick nodes/edges from the cached layout
+  const applyFilteredView = useCallback(() => {
+    const cache = layoutCacheRef.current;
+    const filteredIds = new Set(filteredApiNodes.map(n => n.id));
+
+    const visibleNodes: Node[] = filteredApiNodes.map((n: ApiTopologyNode, i: number) => ({
+      id: n.id,
+      type: "asset",
+      position: cache[n.id] ?? { x: (i % 4) * 230 + 30, y: Math.floor(i / 4) * 110 + 30 },
+      data: buildNodeData(n) as unknown as Record<string, unknown>,
+    }));
+
+    // Only show edges where both endpoints are visible
+    const visibleEdges = flowEdges.filter(e => filteredIds.has(e.source) && filteredIds.has(e.target));
+
+    setNodes(visibleNodes);
+    setEdges(visibleEdges);
+  }, [filteredApiNodes, flowEdges, buildNodeData, setNodes, setEdges]);
+
+  // Re-apply when filters change (cheap — no ELK re-layout)
+  useEffect(() => {
+    if (Object.keys(layoutCacheRef.current).length > 0 || apiEdges.length === 0) {
+      applyFilteredView();
+    }
+  }, [applyFilteredView]);
 
   // Handle node click
   const onNodeClick = useCallback<NodeMouseHandler>((_event, node) => {
@@ -414,14 +437,19 @@ function AlertTopologyAnalysis() {
   const apiAlerts = alertsResponse?.data ?? [];
   const ALERTS: AlertItem[] =
     apiAlerts.length > 0
-      ? apiAlerts.map((a: AlertEvent) => ({
-          id: a.id,
-          severity: (a.severity ?? "").toUpperCase() as "CRITICAL" | "WARNING",
-          assetName: a.ci_id ?? "Unknown",
-          description: a.message ?? "",
-          timestamp: a.fired_at ? new Date(a.fired_at).toLocaleString() : "\u2014",
-          nodeId: "node-1",
-        }))
+      ? apiAlerts.map((a: AlertEvent) => {
+          // ci_id is the asset UUID — match it to topology node; also look up display name
+          const assetId = a.ci_id ?? "";
+          const matchedNode = apiNodes.find((n: ApiTopologyNode) => n.id === assetId);
+          return {
+            id: a.id,
+            severity: (a.severity ?? "").toUpperCase() as "CRITICAL" | "WARNING",
+            assetName: matchedNode?.name ?? assetId.slice(0, 12) ?? "Unknown",
+            description: a.message ?? "",
+            timestamp: a.fired_at ? new Date(a.fired_at).toLocaleString() : "\u2014",
+            nodeId: assetId,
+          };
+        })
       : FALLBACK_ALERTS;
 
   return (
