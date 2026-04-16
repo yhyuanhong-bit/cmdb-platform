@@ -1,12 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { sensorApi } from '../lib/api/sensors'
 
-const DEFAULT_TENANT = 'a0000000-0000-0000-0000-000000000001'
-
 export function useSensors() {
   return useQuery({
     queryKey: ['sensors'],
-    queryFn: () => sensorApi.list({ tenant_id: DEFAULT_TENANT }),
+    queryFn: () => sensorApi.list(),
   })
 }
 

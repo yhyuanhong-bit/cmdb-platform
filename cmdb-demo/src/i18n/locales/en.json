@@ -581,6 +581,11 @@
     "anomaly_correlation_detected": "Anomaly Correlation Detected",
     "predictive_failure_warning": "Predictive Failure Warning",
     "security_alert_analysis": "Security Alert Analysis",
+    "topology_analysis": "Topology Analysis",
+    "bia_analysis": "BIA Analysis",
+    "aiops_correlation_desc": "Temperature spike in Rack A02 correlates with increased CPU load on SRV-PROD-001 (r=0.94). Recommend activating supplemental cooling unit HVAC-AUX-03 and redistributing workload to standby nodes.",
+    "aiops_failure_desc": "Storage Cluster B Disk Array 4 shows SMART degradation pattern consistent with imminent multi-disk failure (confidence: 87%). Estimated time to failure: 6-18 hours. Initiate proactive data migration immediately.",
+    "aiops_security_desc": "Unusual login pattern on admin account matches known credential stuffing signature. Recommend immediate password rotation and MFA re-enrollment.",
     "alert_trend_24h": "Alert Trend (Last 24h)",
     "hour_utc8": "Hour (UTC+8)"
   },

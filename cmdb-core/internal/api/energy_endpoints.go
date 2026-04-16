@@ -2,6 +2,7 @@ package api
 
 import (
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -27,7 +28,7 @@ func (s *APIServer) GetEnergyBreakdown(c *gin.Context) {
 			END as category,
 			COALESCE(avg(m.value), 0) as avg_kw
 		FROM metrics m
-		JOIN assets a ON m.asset_id = a.id
+		JOIN assets a ON m.asset_id = a.id AND a.deleted_at IS NULL
 		WHERE m.tenant_id = $1
 		  AND m.name = 'power_kw'
 		  AND m.time > now() - interval '1 hour'
@@ -132,7 +133,12 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 // GET /energy/trend?hours=24&granularity=hourly
 func (s *APIServer) GetEnergyTrend(c *gin.Context) {
 	tenantID := c.GetString("tenant_id")
-	hours := c.DefaultQuery("hours", "24")
+	hoursStr := c.DefaultQuery("hours", "24")
+	hoursVal := 24
+	if h, err := strconv.Atoi(hoursStr); err == nil && h >= 1 && h <= 168 {
+		hoursVal = h
+	}
+	hours := strconv.Itoa(hoursVal)
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT date_trunc('hour', time) as hour,

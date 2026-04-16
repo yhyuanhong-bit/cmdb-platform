@@ -58,8 +58,8 @@ func (s *APIServer) ListSensors(c *gin.Context) {
 		SELECT s.id, s.asset_id, a.name AS asset_name, s.name, s.type, s.location,
 		       s.polling_interval, s.enabled, s.status, s.last_heartbeat
 		FROM sensors s
-		LEFT JOIN assets a ON s.asset_id = a.id
-		WHERE s.tenant_id = $1
+		LEFT JOIN assets a ON s.asset_id = a.id AND a.deleted_at IS NULL
+		WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
 		ORDER BY s.name
 	`, tenantID)
 	if err != nil {
@@ -87,8 +87,11 @@ func (s *APIServer) ListSensors(c *gin.Context) {
 			continue
 		}
 
-		// Capitalize status
-		displayStatus := strings.ToUpper(status[:1]) + status[1:]
+		// Capitalize status (guard empty string)
+		displayStatus := status
+		if len(status) > 0 {
+			displayStatus = strings.ToUpper(status[:1]) + status[1:]
+		}
 
 		var lastSeen *string
 		if lastHeartbeat != nil {

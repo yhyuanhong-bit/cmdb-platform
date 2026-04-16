@@ -581,6 +581,11 @@
     "anomaly_correlation_detected": "检测到异常关联",
     "predictive_failure_warning": "预测性故障预警",
     "security_alert_analysis": "安全告警分析",
+    "topology_analysis": "拓扑分析",
+    "bia_analysis": "BIA 分析",
+    "aiops_correlation_desc": "机柜 A02 温度飙升与 SRV-PROD-001 CPU 负载升高高度相关 (r=0.94)。建议启动辅助冷却装置 HVAC-AUX-03 并将工作负载分散至待命节点。",
+    "aiops_failure_desc": "存储集群 B 磁盘阵列 4 出现 SMART 退化模式，与即将发生多磁盘故障一致 (置信度: 87%)。预计故障时间: 6-18 小时，建议立即进行数据迁移。",
+    "aiops_security_desc": "管理员账号出现异常登录模式，符合已知凭证填充攻击特征。建议立即重置密码并重新启用多因素验证。",
     "alert_trend_24h": "最近24小时告警趋势",
     "hour_utc8": "小时 (UTC+8)"
   },

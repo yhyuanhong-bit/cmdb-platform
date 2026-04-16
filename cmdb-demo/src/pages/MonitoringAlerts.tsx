@@ -149,14 +149,11 @@ function MonitoringAlerts() {
         <input
           type="date"
           className="rounded-lg bg-surface-container px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40"
-          defaultValue="2023-10-25"
+          defaultValue={new Date().toISOString().slice(0, 10)}
         />
 
         <select className="rounded-lg bg-surface-container px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40">
           <option>{t('monitoring.all_locations')}</option>
-          <option>DC-1 Shanghai</option>
-          <option>DC-2 Beijing</option>
-          <option>DC-3 Shenzhen</option>
         </select>
 
         <div className="flex items-center gap-2 ml-auto">
@@ -166,7 +163,7 @@ function MonitoringAlerts() {
             className="flex items-center gap-2 rounded-lg bg-surface-container-high px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-highest"
           >
             <Icon name="account_tree" className="text-base" />
-            拓撲分析
+            {t('monitoring.topology_analysis', 'Topology Analysis')}
           </button>
           <button
             type="button"
@@ -174,7 +171,7 @@ function MonitoringAlerts() {
             className="flex items-center gap-1 rounded-lg bg-surface-container-high px-4 py-2.5 text-sm text-on-surface-variant hover:text-on-surface transition-colors"
           >
             <span className="material-symbols-outlined text-lg">assessment</span>
-            BIA Analysis
+            {t('monitoring.bia_analysis', 'BIA Analysis')}
           </button>
           <button
             type="button"
@@ -353,10 +350,7 @@ function MonitoringAlerts() {
                   {t('monitoring.anomaly_correlation_detected')}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-                  Temperature spike in Rack A02 correlates with increased CPU load
-                  on SRV-PROD-001 (r=0.94). Recommend activating supplemental
-                  cooling unit HVAC-AUX-03 and redistributing workload to standby
-                  nodes SRV-PROD-008/009.
+                  {t('monitoring.aiops_correlation_desc', 'Temperature spike in Rack A02 correlates with increased CPU load on SRV-PROD-001 (r=0.94). Recommend activating supplemental cooling unit HVAC-AUX-03 and redistributing workload to standby nodes.')}
                 </p>
               </div>
             </div>
@@ -367,10 +361,7 @@ function MonitoringAlerts() {
                   {t('monitoring.predictive_failure_warning')}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-                  Storage Cluster B Disk Array 4 shows SMART degradation pattern
-                  consistent with imminent multi-disk failure (confidence: 87%).
-                  Estimated time to failure: 6-18 hours. Initiate proactive data
-                  migration to Array 5 immediately.
+                  {t('monitoring.aiops_failure_desc', 'Storage Cluster B Disk Array 4 shows SMART degradation pattern consistent with imminent multi-disk failure (confidence: 87%). Estimated time to failure: 6-18 hours. Initiate proactive data migration immediately.')}
                 </p>
               </div>
             </div>
@@ -381,10 +372,7 @@ function MonitoringAlerts() {
                   {t('monitoring.security_alert_analysis')}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-                  Unusual login pattern on Global Admin account matches known
-                  credential stuffing signature. Source IP 203.0.113.42 flagged in
-                  3 threat intelligence feeds. Recommend immediate password rotation
-                  and MFA re-enrollment.
+                  {t('monitoring.aiops_security_desc', 'Unusual login pattern on admin account matches known credential stuffing signature. Recommend immediate password rotation and MFA re-enrollment.')}
                 </p>
               </div>
             </div>

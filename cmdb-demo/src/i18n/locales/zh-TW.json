@@ -581,6 +581,11 @@
     "anomaly_correlation_detected": "偵測到異常關聯",
     "predictive_failure_warning": "預測性故障警告",
     "security_alert_analysis": "安全告警分析",
+    "topology_analysis": "拓撲分析",
+    "bia_analysis": "BIA 分析",
+    "aiops_correlation_desc": "機櫃 A02 溫度飆升與 SRV-PROD-001 CPU 負載升高高度相關 (r=0.94)。建議啟動輔助冷卻裝置 HVAC-AUX-03 並將工作負載分散至待命節點。",
+    "aiops_failure_desc": "儲存叢集 B 磁碟陣列 4 出現 SMART 退化模式，與即將發生多磁碟故障一致 (信心度: 87%)。預計故障時間: 6-18 小時，建議立即進行資料遷移。",
+    "aiops_security_desc": "管理員帳號出現異常登入模式，符合已知憑證填充攻擊特徵。建議立即重設密碼並重新啟用多因素驗證。",
     "alert_trend_24h": "最近24小時告警趨勢",
     "hour_utc8": "時 (UTC+8)"
   },
