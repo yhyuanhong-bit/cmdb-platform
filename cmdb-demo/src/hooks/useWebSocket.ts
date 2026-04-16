@@ -3,15 +3,15 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '../stores/authStore'
 
 const WS_RECONNECT_DELAY = 3000
-const WS_MAX_RETRIES = 5
-const WS_SLOW_POLL_INTERVAL = 60_000
-const WS_GIVE_UP_AFTER = 10 // stop entirely after this many total attempts
+const WS_MAX_RETRIES = 3
 
 export function useWebSocket() {
   const token = useAuthStore((s) => s.accessToken)
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const queryClient = useQueryClient()
   const wsRef = useRef<WebSocket | null>(null)
+  const retriesRef = useRef(0)
+  const gaveUpRef = useRef(false)
 
   const invalidateByEvent = (type: string) => {
       switch (type) {
@@ -45,52 +45,44 @@ export function useWebSocket() {
 
   useEffect(() => {
     if (!token || !isAuthenticated) return
+    // If we already gave up in a previous mount cycle, don't retry
+    if (gaveUpRef.current) return
 
     // Derive WS URL
     const wsBase = import.meta.env.VITE_WS_URL
     const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
     let wsUrl: string
     if (wsBase) {
-      // Explicit WS URL (production)
       wsUrl = wsBase
     } else if (apiUrl.startsWith('http')) {
-      // Absolute API URL: replace protocol
       const wsProtocol = apiUrl.startsWith('https') ? 'wss' : 'ws'
       wsUrl = apiUrl.replace(/^https?/, wsProtocol) + '/ws'
     } else {
-      // Relative API URL: use same host:port (goes through Vite proxy in dev)
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
       wsUrl = `${proto}://${window.location.host}${apiUrl}/ws`
     }
 
-    let retries = 0
-    let totalAttempts = 0
     let timer: ReturnType<typeof setTimeout> | undefined
     let stopped = false
 
-    async function doConnect() {
-      if (stopped) return
-      totalAttempts++
+    function doConnect() {
+      if (stopped || gaveUpRef.current) return
 
-      // Give up entirely after too many attempts
-      if (totalAttempts > WS_GIVE_UP_AFTER) {
-        if (import.meta.env.DEV) {
-          console.warn('[WS] Gave up reconnecting after', totalAttempts - 1, 'attempts')
-        }
-        return
-      }
-
-      // Use the latest token (may have been refreshed)
       const currentToken = useAuthStore.getState().accessToken
       if (!currentToken) return
+
+      // Close existing connection if any (Strict Mode double-invoke protection)
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
 
       try {
         const ws = new WebSocket(wsUrl, [`access_token.${currentToken}`])
         wsRef.current = ws
 
         ws.onopen = () => {
-          retries = 0
-          totalAttempts = 0
+          retriesRef.current = 0
         }
 
         ws.onmessage = (event) => {
@@ -104,29 +96,26 @@ export function useWebSocket() {
           }
         }
 
-        ws.onclose = async () => {
+        ws.onclose = () => {
           wsRef.current = null
-          if (stopped || !useAuthStore.getState().isAuthenticated) return
+          if (stopped || gaveUpRef.current || !useAuthStore.getState().isAuthenticated) return
 
-          // Try refreshing the token once on first close
-          if (retries === 0) {
-            await useAuthStore.getState().refreshTokens()
+          retriesRef.current++
+          if (retriesRef.current > WS_MAX_RETRIES) {
+            gaveUpRef.current = true
+            return
           }
-
-          if (retries < WS_MAX_RETRIES) {
-            retries++
-            timer = setTimeout(doConnect, WS_RECONNECT_DELAY * retries)
-          } else {
-            // Slow poll — but respect give-up limit
-            timer = setTimeout(doConnect, WS_SLOW_POLL_INTERVAL)
-          }
+          timer = setTimeout(doConnect, WS_RECONNECT_DELAY * retriesRef.current)
         }
 
         ws.onerror = () => {
+          // Don't log — the browser already logs WebSocket errors.
+          // Just close to trigger onclose → retry logic.
           ws.close()
         }
       } catch {
-        // WebSocket constructor can throw in some environments
+        // WebSocket constructor can throw (e.g., invalid URL)
+        gaveUpRef.current = true
       }
     }
 
