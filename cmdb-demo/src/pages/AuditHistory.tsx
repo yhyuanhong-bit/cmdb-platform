@@ -351,8 +351,9 @@ function AuditHistory() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  entry.expandable &&
-                  setExpandedRow(expandedRow === entry.id ? null : entry.id)
+                  if (entry.expandable) {
+                    setExpandedRow(expandedRow === entry.id ? null : entry.id)
+                  }
                 }}
                 className="flex items-center justify-center"
               >
