@@ -366,7 +366,8 @@
     "toast_set_active": "Rack set to Active",
     "toast_set_maintenance": "Rack set to Maintenance",
     "toast_deleted": "Rack deleted",
-    "toast_updated": "Rack updated"
+    "toast_updated": "Rack updated",
+    "no_slots_hint": "No slot data. Assign assets to rack slots on the detail page."
   },
   "rack_visualization": {
     "title": "RACK VISUALIZATION",

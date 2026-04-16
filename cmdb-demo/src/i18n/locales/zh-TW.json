@@ -366,7 +366,8 @@
     "toast_set_active": "機櫃已設為運作中",
     "toast_set_maintenance": "機櫃已設為維護中",
     "toast_deleted": "機櫃已刪除",
-    "toast_updated": "機櫃已更新"
+    "toast_updated": "機櫃已更新",
+    "no_slots_hint": "尚無槽位資料。請至機櫃詳情頁面指派設備。"
   },
   "rack_visualization": {
     "title": "機櫃視覺化",

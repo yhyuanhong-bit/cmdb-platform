@@ -456,7 +456,7 @@ export default function RackManagement() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-on-surface leading-relaxed">{event.text}</p>
-                    <p className="text-[10px] text-on-surface-variant mt-1">Today {event.time}</p>
+                    <p className="text-[10px] text-on-surface-variant mt-1">{t('common.today')} {event.time}</p>
                   </div>
                 </div>
               ))}

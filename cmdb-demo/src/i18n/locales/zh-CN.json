@@ -366,7 +366,8 @@
     "toast_set_active": "机柜已设为运行中",
     "toast_set_maintenance": "机柜已设为维护中",
     "toast_deleted": "机柜已删除",
-    "toast_updated": "机柜已更新"
+    "toast_updated": "机柜已更新",
+    "no_slots_hint": "暂无槽位数据。请到机柜详情页面分配设备。"
   },
   "rack_visualization": {
     "title": "机柜可视化",
