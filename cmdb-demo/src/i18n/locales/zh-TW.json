@@ -89,6 +89,7 @@
     "minor": "次要",
     "coming_soon": "即將推出",
     "saving": "儲存中...",
+    "deleting": "刪除中...",
     "back_to_dashboard": "返回儀表板"
   },
   "nav": {
@@ -520,7 +521,18 @@
     "export_failed": "報告匯出失敗",
     "confirm_delete_task": "確定要刪除此任務嗎？",
     "delete_task_success": "任務刪除成功",
-    "btn_delete_task": "刪除任務"
+    "btn_delete_task": "刪除任務",
+    "auto_detection": "自動偵測",
+    "auto_detection_hint": "基於網路的設備位置追蹤",
+    "tracked": "網路追蹤",
+    "relocations_24h": "搬遷 (24h)",
+    "unregistered": "未註冊",
+    "coverage": "覆蓋率",
+    "no_racks_found": "此任務未找到機櫃。",
+    "select_task_racks": "請選擇任務以檢視機櫃。",
+    "no_discrepancies_found": "未發現差異。",
+    "select_task_discrepancies": "請選擇任務以檢視差異。",
+    "no_active_task_toast": "沒有進行中的任務"
   },
   "inventory_detail": {
     "back_to_inventory_task": "返回盤點任務",

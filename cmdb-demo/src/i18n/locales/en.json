@@ -89,6 +89,7 @@
     "minor": "Minor",
     "coming_soon": "Coming Soon",
     "saving": "Saving...",
+    "deleting": "Deleting...",
     "back_to_dashboard": "Back to Dashboard"
   },
   "nav": {
@@ -520,7 +521,18 @@
     "export_failed": "Failed to export report",
     "confirm_delete_task": "Are you sure you want to delete this task?",
     "delete_task_success": "Task deleted successfully",
-    "btn_delete_task": "Delete Task"
+    "btn_delete_task": "Delete Task",
+    "auto_detection": "Auto Detection",
+    "auto_detection_hint": "Network-based asset location tracking",
+    "tracked": "Network Tracked",
+    "relocations_24h": "Relocations (24h)",
+    "unregistered": "Unregistered",
+    "coverage": "Coverage",
+    "no_racks_found": "No racks found for this task.",
+    "select_task_racks": "Select a task to view racks.",
+    "no_discrepancies_found": "No discrepancies found.",
+    "select_task_discrepancies": "Select a task to view discrepancies.",
+    "no_active_task_toast": "No active task"
   },
   "inventory_detail": {
     "back_to_inventory_task": "Back to Inventory Task",

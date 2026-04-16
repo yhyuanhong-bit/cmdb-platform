@@ -62,11 +62,7 @@ interface InventoryExportItem {
 }
 
 
-const IMPORT_ERRORS = [
-  { row: 23, field: "Serial Number", error: "Duplicate entry" },
-  { row: 67, field: "Location", error: "Invalid rack reference" },
-  { row: 112, field: "Asset Tag", error: "Format mismatch" },
-];
+const IMPORT_ERRORS: { row: number; field: string; error: string }[] = [];
 
 /* ──────────────────────────────────────────────
    Small reusable pieces
@@ -165,7 +161,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
     if (data.t === 'rack') {
       toast.success(`Rack: ${data.name}`)
     } else if (data.t === 'asset') {
-      if (!currentTask) { toast.error('No active task'); return }
+      if (!currentTask) { toast.error(t('inventory.no_active_task_toast')); return }
       try {
         await apiClient.post(`/assets/${data.id}/confirm-location`, { rack_id: data.id })
         toast.success(`Location confirmed: ${data.tag || data.name}`)
@@ -509,7 +505,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
           <div className="grid grid-cols-5 gap-2 mb-4">
             {RACKS.length === 0 ? (
               <div className="col-span-5 text-center py-6 text-on-surface-variant text-xs font-label">
-                {currentTaskId ? "No racks found for this task." : "Select a task to view racks."}
+                {currentTaskId ? t('inventory.no_racks_found') : t('inventory.select_task_racks')}
               </div>
             ) : (
               RACKS.map((rack: RackTile) => {
@@ -606,7 +602,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
           <div className="flex flex-col gap-2 flex-1">
             {DISCREPANCIES.length === 0 && (
               <div className="text-center py-6 text-on-surface-variant text-xs font-label">
-                {currentTaskId ? "No discrepancies found." : "Select a task to view discrepancies."}
+                {currentTaskId ? t('inventory.no_discrepancies_found') : t('inventory.select_task_discrepancies')}
               </div>
             )}
             {DISCREPANCIES.map((d: DiscrepancyTile) => (

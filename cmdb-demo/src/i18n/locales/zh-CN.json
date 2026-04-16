@@ -89,6 +89,7 @@
     "minor": "次要",
     "coming_soon": "即将推出",
     "saving": "保存中...",
+    "deleting": "删除中...",
     "back_to_dashboard": "返回仪表板"
   },
   "nav": {
@@ -520,7 +521,18 @@
     "export_failed": "报告导出失败",
     "confirm_delete_task": "确定要删除此任务吗？",
     "delete_task_success": "任务删除成功",
-    "btn_delete_task": "删除任务"
+    "btn_delete_task": "删除任务",
+    "auto_detection": "自动检测",
+    "auto_detection_hint": "基于网络的设备位置追踪",
+    "tracked": "网络追踪",
+    "relocations_24h": "搬迁 (24h)",
+    "unregistered": "未注册",
+    "coverage": "覆盖率",
+    "no_racks_found": "此任务未找到机柜。",
+    "select_task_racks": "请选择任务以查看机柜。",
+    "no_discrepancies_found": "未发现差异。",
+    "select_task_discrepancies": "请选择任务以查看差异。",
+    "no_active_task_toast": "没有进行中的任务"
   },
   "inventory_detail": {
     "back_to_inventory_task": "返回盘点任务",
