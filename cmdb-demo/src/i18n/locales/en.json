@@ -952,6 +952,8 @@
     "btn_creating": "Creating...",
     "btn_cancel": "Cancel",
     "confirm_delete_role": "Delete this role?",
+    "permissions_saved": "Permissions saved",
+    "save_failed": "Failed to save permissions",
     "perm_read": "Read",
     "perm_write": "Write",
     "perm_view": "View",

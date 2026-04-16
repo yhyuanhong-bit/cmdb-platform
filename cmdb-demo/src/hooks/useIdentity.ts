@@ -51,7 +51,7 @@ export function useCreateRole() {
 export function useUpdateRole() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof identityApi.updateRole>[1] }) =>
       identityApi.updateRole(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['roles'] }),
   })

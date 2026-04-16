@@ -952,6 +952,8 @@
     "btn_creating": "创建中...",
     "btn_cancel": "取消",
     "confirm_delete_role": "确定删除此角色？",
+    "permissions_saved": "权限已保存",
+    "save_failed": "权限保存失败",
     "perm_read": "读取",
     "perm_write": "写入",
     "perm_view": "查看",

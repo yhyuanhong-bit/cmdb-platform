@@ -322,7 +322,11 @@ function RolesPermissions() {
             {canManageRoles && <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setPermOverrides({})}
+                onClick={() => setPermOverrides((prev) => {
+                  const next = { ...prev };
+                  delete next[effectiveSelectedRole];
+                  return next;
+                })}
                 className="rounded-md bg-surface-container-high px-4 py-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant transition-colors hover:text-on-surface"
               >
                 {t('common.cancel')}
@@ -341,7 +345,20 @@ function RolesPermissions() {
                       if (row.export) actions.push('export');
                       if (actions.length > 0) permissions[row.key] = actions;
                     });
-                    updateRole.mutate({ id: effectiveSelectedRole, data: { permissions } });
+                    updateRole.mutate(
+                      { id: effectiveSelectedRole, data: { permissions } },
+                      {
+                        onSuccess: () => {
+                          setPermOverrides((prev) => {
+                            const next = { ...prev };
+                            delete next[effectiveSelectedRole];
+                            return next;
+                          });
+                          toast.success(t('roles.permissions_saved', 'Permissions saved'));
+                        },
+                        onError: () => toast.error(t('roles.save_failed', 'Failed to save permissions')),
+                      }
+                    );
                   }
                 }}
                 disabled={updateRole.isPending}
