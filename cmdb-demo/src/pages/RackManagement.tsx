@@ -1,8 +1,8 @@
 import { toast } from 'sonner'
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useRacks, useAllLocations, useUpdateRack, useDeleteRack, useRackSlots } from "../hooks/useTopology";
+import { useRacks, useMainTerritoryId, useUpdateRack, useDeleteRack, useRackSlots } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import type { Rack, RackSlot } from "../lib/api/topology";
@@ -57,13 +57,8 @@ export default function RackManagement() {
   const { path } = useLocationContext();
   const contextLocationId = path.idc?.id ?? path.campus?.id ?? path.city?.id ?? path.region?.id ?? path.territory?.id ?? "";
 
-  // If no location selected in context, use the first territory (shows ALL racks via ltree)
-  const { data: allLocResp } = useAllLocations();
-  const fallbackTerritoryId = useMemo(() => {
-    const locs = allLocResp?.data ?? [];
-    return locs.find(l => !l.parent_id)?.id ?? '';
-  }, [allLocResp]);
-
+  // If no location selected in context, use the main territory (shows ALL racks via ltree)
+  const fallbackTerritoryId = useMainTerritoryId();
   const locationId = contextLocationId || fallbackTerritoryId;
   const { data: feedData } = useActivityFeed('location', locationId || '');
   const activityFeedData = feedData as { events?: ActivityEvent[] } | undefined;

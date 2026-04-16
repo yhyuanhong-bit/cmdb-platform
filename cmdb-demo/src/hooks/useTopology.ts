@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { topologyApi, type Location, type Rack } from '../lib/api/topology'
 
@@ -13,6 +14,20 @@ export function useAllLocations() {
     queryKey: ['locations', 'all'],
     queryFn: () => topologyApi.listAllLocations(),
   })
+}
+
+/**
+ * Returns the "main" territory ID — the root location with the highest sort_order.
+ * Skips test/empty territories that sort first.
+ */
+export function useMainTerritoryId(): string {
+  const { data } = useAllLocations()
+  return useMemo(() => {
+    const locs = data?.data ?? []
+    const roots = locs.filter(l => !l.parent_id)
+    roots.sort((a, b) => (b.sort_order ?? 0) - (a.sort_order ?? 0))
+    return roots[0]?.id ?? ''
+  }, [data])
 }
 
 export function useLocation(id: string) {
