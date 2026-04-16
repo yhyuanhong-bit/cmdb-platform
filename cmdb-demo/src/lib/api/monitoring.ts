@@ -12,6 +12,7 @@ export interface AlertRule {
   condition: Record<string, unknown>
   severity: string
   enabled: boolean
+  created_at?: string
 }
 
 export interface Incident {

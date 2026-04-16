@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"math"
 	"strconv"
 	"time"
@@ -11,13 +12,17 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
+const energyQueryTimeout = 10 * time.Second
+
 // GetEnergyBreakdown returns average power consumption grouped by asset type category
 // for the last hour.
 // GET /energy/breakdown
 func (s *APIServer) GetEnergyBreakdown(c *gin.Context) {
 	tenantID := c.GetString("tenant_id")
+	ctx, cancel := context.WithTimeout(c.Request.Context(), energyQueryTimeout)
+	defer cancel()
 
-	rows, err := s.pool.Query(c.Request.Context(), `
+	rows, err := s.pool.Query(ctx, `
 		SELECT
 			CASE a.type
 				WHEN 'server'  THEN 'IT Equipment'
@@ -84,10 +89,12 @@ func (s *APIServer) GetEnergyBreakdown(c *gin.Context) {
 // GET /energy/summary
 func (s *APIServer) GetEnergySummary(c *gin.Context) {
 	tenantID := c.GetString("tenant_id")
+	ctx, cancel := context.WithTimeout(c.Request.Context(), energyQueryTimeout)
+	defer cancel()
 
 	// Latest PUE
 	var pue float64
-	if err := s.pool.QueryRow(c.Request.Context(), `
+	if err := s.pool.QueryRow(ctx, `
 		SELECT COALESCE(value, 1.0) FROM metrics
 		WHERE tenant_id = $1 AND name = 'pue'
 		ORDER BY time DESC LIMIT 1
@@ -100,7 +107,7 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 
 	// Total power (last hour avg)
 	var totalKW float64
-	if err := s.pool.QueryRow(c.Request.Context(), `
+	if err := s.pool.QueryRow(ctx, `
 		SELECT COALESCE(avg(value), 0) FROM metrics
 		WHERE tenant_id = $1 AND name = 'power_kw'
 		  AND time > now() - interval '1 hour'
@@ -110,7 +117,7 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 
 	// Peak demand (max in last 30 days)
 	var peakKW float64
-	if err := s.pool.QueryRow(c.Request.Context(), `
+	if err := s.pool.QueryRow(ctx, `
 		SELECT COALESCE(max(value), 0) FROM metrics
 		WHERE tenant_id = $1 AND name = 'power_kw'
 		  AND time > now() - interval '30 days'
@@ -139,8 +146,10 @@ func (s *APIServer) GetEnergyTrend(c *gin.Context) {
 		hoursVal = h
 	}
 	hours := strconv.Itoa(hoursVal)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), energyQueryTimeout)
+	defer cancel()
 
-	rows, err := s.pool.Query(c.Request.Context(), `
+	rows, err := s.pool.Query(ctx, `
 		SELECT date_trunc('hour', time) as hour,
 		       COALESCE(sum(value), 0) as total_kw
 		FROM metrics

@@ -203,6 +203,7 @@ function SensorConfiguration() {
   const deleteAlertRule = useDeleteAlertRule();
 
   const [sensors, setSensors] = useState<Sensor[]>([]);
+  const [saving, setSaving] = useState(false);
   const [showAddRule, setShowAddRule] = useState(false);
   const [newRule, setNewRule] = useState({ name: '', metric_name: '', severity: 'warning', threshold: 80 });
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
@@ -238,16 +239,19 @@ function SensorConfiguration() {
       power_kw:     { icon: 'bolt', unit: 'kW', min: 0, max: 10, step: 0.5 },
     };
 
-    // Group by metric_name, merge warning + critical
+    // Group by metric_name, merge warning + critical (newest rule wins on duplicates)
     const grouped: Record<string, GroupedThresholdData> = {};
-    apiRules.forEach(rule => {
+    const sortedRules = [...apiRules].sort((a, b) =>
+      new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+    );
+    sortedRules.forEach(rule => {
       const key = rule.metric_name;
       if (!grouped[key]) grouped[key] = { enabled: true };
       const threshold = (rule.condition as Record<string, unknown>)?.threshold as number ?? 0;
-      if (rule.severity === 'warning') {
+      if (rule.severity === 'warning' && !grouped[key].warningId) {
         grouped[key].warning = threshold;
         grouped[key].warningId = rule.id;
-      } else if (rule.severity === 'critical') {
+      } else if (rule.severity === 'critical' && !grouped[key].criticalId) {
         grouped[key].critical = threshold;
         grouped[key].criticalId = rule.id;
       }
@@ -344,7 +348,9 @@ function SensorConfiguration() {
         <div className="flex items-center gap-3">
           <button
             type="button"
+            disabled={saving}
             onClick={async () => {
+              setSaving(true);
               try {
                 for (const th of thresholds) {
                   if (th.warningId) {
@@ -363,12 +369,14 @@ function SensorConfiguration() {
                 toast.success(t('sensors.configuration_saved'));
               } catch (e) {
                 toast.error(t('sensors.save_failed', { message: (e as Error).message }));
+              } finally {
+                setSaving(false);
               }
             }}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary-container transition-colors hover:brightness-110"
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary-container transition-colors hover:brightness-110 disabled:opacity-50"
           >
-            <Icon name="save" className="text-base" />
-            {t('common.save_configuration')}
+            <Icon name={saving ? "hourglass_top" : "save"} className="text-base" />
+            {saving ? t('common.saving', 'Saving...') : t('common.save_configuration')}
           </button>
           <button
             type="button"

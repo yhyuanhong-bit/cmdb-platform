@@ -26,13 +26,13 @@ export default function LocationDetection() {
   const handleScan = async () => {
     setScanning(true)
     try {
-      const result = await apiClient.post('/ingestion/mac-scan', {}) as any
+      const result = await apiClient.post('/ingestion/mac-scan', {}) as { scanned_ips?: number; entries_collected?: number }
       const ips = result?.scanned_ips ?? 0
       const entries = result?.entries_collected ?? 0
       if (ips === 0) {
         toast.info(t('location_detect.no_targets', 'No scan targets found. Add switch management IPs in Asset Management or configure scan targets.'))
       } else {
-        toast.success(`Scan complete: ${ips} switches scanned, ${entries} MAC entries collected`)
+        toast.success(t('location_detect.scan_complete', { ips, entries, defaultValue: `Scan complete: ${ips} switches scanned, ${entries} MAC entries collected` }))
       }
       setTimeout(() => { refetch(); refetchDiffs() }, 3000)
     } catch {

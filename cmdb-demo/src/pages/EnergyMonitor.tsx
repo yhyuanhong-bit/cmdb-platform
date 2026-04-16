@@ -678,6 +678,7 @@ function EnergyMonitor() {
   const td = trendRaw as Record<string, unknown> | undefined
   const trendPoints: TrendPoint[] = (td?.trend as TrendPoint[] | undefined) ?? []
   const hasError = trendError
+  const isUsingFallback = !breakdownData && !summaryData && trendPoints.length === 0
 
   // locationId used for future location-scoped queries
   void locationId
@@ -716,6 +717,9 @@ function EnergyMonitor() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="font-headline text-2xl font-bold text-on-surface">
           {t('facility_energy.title_zh')} / {t('facility_energy.title_en')}
+          {isUsingFallback && (
+            <span className="ml-3 text-xs bg-tertiary-container text-tertiary px-2 py-0.5 rounded font-bold tracking-wider align-middle">DEMO</span>
+          )}
         </h1>
         <div className="flex bg-surface-container-low rounded overflow-hidden">
           <button
