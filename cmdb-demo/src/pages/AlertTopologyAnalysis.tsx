@@ -326,6 +326,7 @@ function AlertTopologyAnalysis() {
 
   // Cache: ELK layout positions computed once from ALL api nodes
   const layoutCacheRef = useRef<Record<string, { x: number; y: number }>>({});
+  const [layoutVersion, setLayoutVersion] = useState(0);
 
   // Step 1: Run ELK layout ONCE when apiNodes/apiEdges change (not on filter change)
   useEffect(() => {
@@ -374,22 +375,30 @@ function AlertTopologyAnalysis() {
         });
         layoutCacheRef.current = cache;
         // Trigger re-render by applying filtered view
-        applyFilteredView();
+        setLayoutVersion(v => v + 1);
       }).catch(() => {
         const cache: Record<string, { x: number; y: number }> = {};
         apiNodes.forEach((n: ApiTopologyNode, i: number) => {
           cache[n.id] = { x: (i % 4) * 230 + 30, y: Math.floor(i / 4) * 110 + 30 };
         });
         layoutCacheRef.current = cache;
-        applyFilteredView();
+        setLayoutVersion(v => v + 1);
       });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiNodes.length, apiEdges.length]);
 
-  // Step 2: Apply filter — just pick nodes/edges from the cached layout
-  const applyFilteredView = useCallback(() => {
+  // Step 2: Apply filter when filters change — stable deps via filter values, not array refs
+  const filteredNodeIds = useMemo(() => filteredApiNodes.map(n => n.id).join(','), [filteredApiNodes]);
+  useEffect(() => {
+    if (filteredApiNodes.length === 0) {
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
     const cache = layoutCacheRef.current;
+    if (Object.keys(cache).length === 0 && apiEdges.length > 0) return; // layout not ready
+
     const filteredIds = new Set(filteredApiNodes.map(n => n.id));
 
     const visibleNodes: Node[] = filteredApiNodes.map((n: ApiTopologyNode, i: number) => ({
@@ -399,19 +408,12 @@ function AlertTopologyAnalysis() {
       data: buildNodeData(n) as unknown as Record<string, unknown>,
     }));
 
-    // Only show edges where both endpoints are visible
     const visibleEdges = flowEdges.filter(e => filteredIds.has(e.source) && filteredIds.has(e.target));
 
     setNodes(visibleNodes);
     setEdges(visibleEdges);
-  }, [filteredApiNodes, flowEdges, buildNodeData, setNodes, setEdges]);
-
-  // Re-apply when filters change (cheap — no ELK re-layout)
-  useEffect(() => {
-    if (Object.keys(layoutCacheRef.current).length > 0 || apiEdges.length === 0) {
-      applyFilteredView();
-    }
-  }, [applyFilteredView]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredNodeIds, biaFilter, domainFilter, firstCriticalId, layoutVersion]);
 
   // Handle node click
   const onNodeClick = useCallback<NodeMouseHandler>((_event, node) => {

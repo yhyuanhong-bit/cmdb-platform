@@ -4,6 +4,8 @@ import { useAuthStore } from '../stores/authStore'
 
 const WS_RECONNECT_DELAY = 3000
 const WS_MAX_RETRIES = 5
+const WS_SLOW_POLL_INTERVAL = 60_000
+const WS_GIVE_UP_AFTER = 10 // stop entirely after this many total attempts
 
 export function useWebSocket() {
   const token = useAuthStore((s) => s.accessToken)
@@ -62,9 +64,22 @@ export function useWebSocket() {
     }
 
     let retries = 0
+    let totalAttempts = 0
     let timer: ReturnType<typeof setTimeout> | undefined
+    let stopped = false
 
     async function doConnect() {
+      if (stopped) return
+      totalAttempts++
+
+      // Give up entirely after too many attempts
+      if (totalAttempts > WS_GIVE_UP_AFTER) {
+        if (import.meta.env.DEV) {
+          console.warn('[WS] Gave up reconnecting after', totalAttempts - 1, 'attempts')
+        }
+        return
+      }
+
       // Use the latest token (may have been refreshed)
       const currentToken = useAuthStore.getState().accessToken
       if (!currentToken) return
@@ -75,6 +90,7 @@ export function useWebSocket() {
 
         ws.onopen = () => {
           retries = 0
+          totalAttempts = 0
         }
 
         ws.onmessage = (event) => {
@@ -90,10 +106,10 @@ export function useWebSocket() {
 
         ws.onclose = async () => {
           wsRef.current = null
-          if (!useAuthStore.getState().isAuthenticated) return
+          if (stopped || !useAuthStore.getState().isAuthenticated) return
 
-          // Try refreshing the token before reconnecting
-          if (retries === 0 || retries === WS_MAX_RETRIES) {
+          // Try refreshing the token once on first close
+          if (retries === 0) {
             await useAuthStore.getState().refreshTokens()
           }
 
@@ -101,8 +117,8 @@ export function useWebSocket() {
             retries++
             timer = setTimeout(doConnect, WS_RECONNECT_DELAY * retries)
           } else {
-            // All fast retries exhausted — slow poll every 30s (single attempt each time)
-            timer = setTimeout(doConnect, 30_000)
+            // Slow poll — but respect give-up limit
+            timer = setTimeout(doConnect, WS_SLOW_POLL_INTERVAL)
           }
         }
 
@@ -117,6 +133,7 @@ export function useWebSocket() {
     doConnect()
 
     return () => {
+      stopped = true
       if (timer) clearTimeout(timer)
       if (wsRef.current) {
         wsRef.current.close()
