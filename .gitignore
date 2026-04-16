@@ -2,9 +2,14 @@
 # 项目专属规则
 # ========================
 cmdb-demo/dist/
+cmdb-demo/.vite/
+cmdb-demo/test-results/
+cmdb-demo/playwright-report/
 ingestion-engine/*.egg-info/
 cmdb-core/bin/
 cmdb-core/server
+cmdb-core/cmdb-core
+cmdb-core/cmdb-server
 
 # ========================
 # 环境变量文件（API密钥、数据库密码等）
