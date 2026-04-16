@@ -248,11 +248,13 @@ function RolesPermissions() {
 
           <div className="space-y-2">
             {ROLES.map((role) => (
-              <button
+              <div
                 key={role.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedRole(role.id)}
-                className={`flex w-full items-start gap-3 rounded-lg p-4 text-left transition-colors ${
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedRole(role.id) }}
+                className={`flex w-full items-start gap-3 rounded-lg p-4 text-left transition-colors cursor-pointer ${
                   effectiveSelectedRole === role.id
                     ? "bg-surface-container-highest"
                     : "bg-surface-container hover:bg-surface-container-high"
@@ -300,7 +302,7 @@ function RolesPermissions() {
                 {effectiveSelectedRole === role.id && (
                   <Icon name="chevron_right" className="mt-2 text-lg text-primary" />
                 )}
-              </button>
+              </div>
             ))}
           </div>
         </div>
