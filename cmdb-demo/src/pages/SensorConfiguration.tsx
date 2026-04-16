@@ -1,5 +1,5 @@
 import { toast } from 'sonner'
-import { memo, useState, useEffect } from "react";
+import { memo, useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Icon from "../components/Icon";
@@ -189,10 +189,10 @@ function SensorConfiguration() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const { data: assetsResp, isLoading } = useAssets();
+  const { data: assetsResp, isLoading, isError: assetsError } = useAssets();
   const allAssets = assetsResp?.data ?? [];
 
-  const { data: sensorData } = useSensors();
+  const { data: sensorData, isError: sensorsError } = useSensors();
   const apiSensors: ApiSensor[] = (sensorData as SensorListResponse | undefined)?.sensors ?? [];
   const updateSensor = useUpdateSensor();
 
@@ -208,6 +208,7 @@ function SensorConfiguration() {
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{ name: string; condition: string; action: string } | null>(null);
 
+  const sensorIdKey = useMemo(() => apiSensors.map((s: ApiSensor) => s.id).join(','), [apiSensors]);
   useEffect(() => {
     if (apiSensors.length > 0) {
       setSensors(apiSensors.map((s: ApiSensor) => ({
@@ -222,8 +223,7 @@ function SensorConfiguration() {
         status: s.status || 'Offline',
       })));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiSensors.length, apiSensors.map((s: ApiSensor) => s.id).join()]);
+  }, [sensorIdKey, apiSensors]);
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [thresholds, setThresholds] = useState<ThresholdConfig[]>(THRESHOLDS);
 
@@ -280,11 +280,17 @@ function SensorConfiguration() {
 
   const toggleSensor = (id: string) => {
     const sensor = sensors.find(s => s.id === id);
-    if (sensor) {
-      updateSensor.mutate({ id, data: { enabled: !sensor.enabled } });
-    }
-    setSensors((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s)),
+    if (!sensor) return;
+    const prev = sensor.enabled;
+    // Optimistic update
+    setSensors((ss) => ss.map((s) => (s.id === id ? { ...s, enabled: !prev } : s)));
+    updateSensor.mutate(
+      { id, data: { enabled: !prev } },
+      { onError: () => {
+        // Rollback on failure
+        setSensors((ss) => ss.map((s) => (s.id === id ? { ...s, enabled: prev } : s)));
+        toast.error(t('sensors.toggle_failed', 'Failed to toggle sensor'));
+      }},
     );
   };
 
@@ -374,6 +380,14 @@ function SensorConfiguration() {
           </button>
         </div>
       </div>
+
+      {/* ── Error Banner ── */}
+      {(assetsError || sensorsError) && (
+        <div className="flex items-center gap-3 rounded-lg bg-error-container/30 px-4 py-3 text-sm text-error">
+          <Icon name="error" className="text-lg" />
+          {t('sensors.load_error', 'Failed to load sensor data. Please check your connection and try again.')}
+        </div>
+      )}
 
       {/* ── Status Summary ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">

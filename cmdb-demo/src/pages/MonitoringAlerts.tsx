@@ -290,7 +290,12 @@ function MonitoringAlerts() {
       {/* ── Pagination ── */}
       {(() => {
         const totalPages = Math.max(1, Math.ceil(filtered.length / 10));
-        const pageNums = Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1);
+        // Sliding window: show up to 5 pages centered on current page
+        const windowSize = 5;
+        let start = Math.max(1, currentPage - Math.floor(windowSize / 2));
+        const end = Math.min(totalPages, start + windowSize - 1);
+        start = Math.max(1, end - windowSize + 1);
+        const pageNums = Array.from({ length: end - start + 1 }, (_, i) => start + i);
         return (
           <div className="flex items-center justify-between text-xs text-on-surface-variant">
             <p>

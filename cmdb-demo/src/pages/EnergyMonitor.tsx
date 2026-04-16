@@ -200,7 +200,9 @@ function FacilityView({
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     const byDay: Record<string, number[]> = {}
     for (const p of powerData) {
-      const d = days[new Date(p.time).getDay()]
+      const parsed = new Date(p.time)
+      if (isNaN(parsed.getTime())) continue
+      const d = days[parsed.getDay()]
       if (!byDay[d]) byDay[d] = []
       byDay[d].push(p.value)
     }
@@ -663,15 +665,19 @@ function EnergyMonitor() {
     queryKey: ['energySummary'],
     queryFn: () => apiClient.get<SummaryData>('/energy/summary'),
   })
-  const { data: trendRaw } = useQuery({
+  const { data: trendRaw, isError: trendError } = useQuery({
     queryKey: ['energyTrend'],
     queryFn: () => apiClient.get<{ trend: TrendPoint[] }>('/energy/trend', { hours: '24' }),
   })
 
   // Unwrap — energy endpoints return payload directly (no ApiResponse wrapper)
-  const breakdownData = (breakdownRaw as any)?.categories ? (breakdownRaw as BreakdownData) : undefined
-  const summaryData = (summaryRaw as any)?.pue != null ? (summaryRaw as SummaryData) : undefined
-  const trendPoints: TrendPoint[] = (trendRaw as any)?.trend ?? []
+  const bd = breakdownRaw as Record<string, unknown> | undefined
+  const breakdownData = bd?.categories ? (breakdownRaw as BreakdownData) : undefined
+  const sd = summaryRaw as Record<string, unknown> | undefined
+  const summaryData = sd?.pue != null ? (summaryRaw as SummaryData) : undefined
+  const td = trendRaw as Record<string, unknown> | undefined
+  const trendPoints: TrendPoint[] = (td?.trend as TrendPoint[] | undefined) ?? []
+  const hasError = trendError
 
   // locationId used for future location-scoped queries
   void locationId
@@ -697,6 +703,14 @@ function EnergyMonitor() {
           </span>
         ))}
       </nav>
+
+      {/* Error Banner */}
+      {hasError && (
+        <div className="flex items-center gap-3 rounded-lg bg-error-container/30 px-4 py-3 text-sm text-error">
+          <span className="material-symbols-outlined text-lg">error</span>
+          {t('facility_energy.load_error', 'Failed to load energy data. Some charts may show incomplete information.')}
+        </div>
+      )}
 
       {/* Title + View Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-4">

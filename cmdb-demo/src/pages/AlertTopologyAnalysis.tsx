@@ -435,10 +435,10 @@ function AlertTopologyAnalysis() {
   // Alerts
   const { data: alertsResponse } = useAlerts();
   const apiAlerts = alertsResponse?.data ?? [];
+  const isUsingFallbackAlerts = apiAlerts.length === 0;
   const ALERTS: AlertItem[] =
     apiAlerts.length > 0
       ? apiAlerts.map((a: AlertEvent) => {
-          // ci_id is the asset UUID — match it to topology node; also look up display name
           const assetId = a.ci_id ?? "";
           const matchedNode = apiNodes.find((n: ApiTopologyNode) => n.id === assetId);
           return {
@@ -517,6 +517,9 @@ function AlertTopologyAnalysis() {
               <Icon name="link" className="text-[18px] text-primary" />
               {t("alert_topology.alert_list_title")}
               <span className="text-on-surface-variant font-normal">({ALERTS.length})</span>
+              {isUsingFallbackAlerts && (
+                <span className="text-[0.6rem] bg-tertiary-container text-tertiary px-1.5 py-0.5 rounded font-bold tracking-wider">DEMO</span>
+              )}
             </h2>
             <span className="text-xs text-on-surface-variant">{t("alert_topology.correlated")}</span>
           </div>
