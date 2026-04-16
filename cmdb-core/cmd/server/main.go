@@ -173,7 +173,7 @@ func main() {
 					zap.L().Fatal("seed: failed to hash admin password", zap.Error(err))
 				}
 				pool.Exec(ctx, `INSERT INTO tenants (id, name, slug) VALUES ('a0000000-0000-0000-0000-000000000001', 'Default', 'default') ON CONFLICT DO NOTHING`)
-				pool.Exec(ctx, `INSERT INTO users (id, tenant_id, username, display_name, email, password_hash, status, source) VALUES ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'admin', 'System Admin', 'admin@cmdb.local', $1, 'active', 'local') ON CONFLICT DO NOTHING`, string(hash))
+				pool.Exec(ctx, `INSERT INTO users (id, tenant_id, username, display_name, email, password_hash, status, source) VALUES ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'admin', 'System Admin', 'admin@example.com', $1, 'active', 'local') ON CONFLICT DO NOTHING`, string(hash))
 				pool.Exec(ctx, `INSERT INTO roles (id, tenant_id, name, description, permissions, is_system) VALUES ('c0000000-0000-0000-0000-000000000001', NULL, 'super-admin', 'Full system access', '{"*": ["*"]}', true) ON CONFLICT DO NOTHING`)
 				pool.Exec(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001') ON CONFLICT DO NOTHING`)
 				zap.L().Warn("seed: minimal admin user created — change password immediately", zap.String("username", "admin"), zap.String("password", adminPassword))

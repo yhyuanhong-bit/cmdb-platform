@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
 
 INSERT INTO integration_adapters (tenant_id, name, type, direction, endpoint, enabled) VALUES
     ('a0000000-0000-0000-0000-000000000001', 'Prometheus Metrics', 'rest', 'inbound', 'http://prometheus:9090/api/v1', true),
-    ('a0000000-0000-0000-0000-000000000001', 'SNMP Poller', 'snmp', 'inbound', '10.134.143.0/24', false),
+    ('a0000000-0000-0000-0000-000000000001', 'SNMP Poller', 'snmp', 'inbound', '192.0.2.0/24', false),
     ('a0000000-0000-0000-0000-000000000001', 'ServiceNow ITSM', 'rest', 'bidirectional', 'https://instance.service-now.com/api', false)
 ON CONFLICT DO NOTHING;
 
