@@ -15,6 +15,7 @@ interface RoleDisplay {
   users?: number;
   warning?: boolean;
   icon: string;
+  is_system?: boolean;
 }
 
 const ROLE_ICONS: Record<string, string> = {
@@ -127,6 +128,7 @@ function RolesPermissions() {
       scope: r.description || 'CUSTOM SCOPE',
       icon: ROLE_ICONS[r.name?.toLowerCase()] ?? "shield_person",
       users: apiUsers.filter((u) => u.status === 'active').length, // approximate
+      is_system: r.is_system,
     }));
   }, [apiRoles, apiUsers]);
 
@@ -172,6 +174,7 @@ function RolesPermissions() {
   const [permOverrides, setPermOverrides] = useState<Record<string, PermissionRow[]>>({});
   const activePerms = permOverrides[effectiveSelectedRole] ?? buildPermsForRole(effectiveSelectedRole);
   const activeRole = ROLES.find((r) => r.id === effectiveSelectedRole) ?? ROLES[0];
+  const isSystemRole = activeRole?.is_system === true;
 
   function togglePerm(key: string, col: "read" | "write" | "delete" | "export") {
     const currentPerms = permOverrides[effectiveSelectedRole] ?? buildPermsForRole(effectiveSelectedRole);
@@ -277,7 +280,7 @@ function RolesPermissions() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-on-surface flex items-center">
                     {role.name}
-                    {canManageRoles && !((role as any).is_system || role.id === 'c0000000-0000-0000-0000-000000000001') && (
+                    {canManageRoles && !role.is_system && (
                       <button onClick={(e) => { e.stopPropagation(); if(confirm(t('roles.confirm_delete_role'))) deleteRole.mutate(role.id) }}
                         className="text-red-400 hover:text-red-300 text-xs ml-2">&#x2715;</button>
                     )}
@@ -317,9 +320,10 @@ function RolesPermissions() {
               </h2>
               <p className="mt-0.5 text-[11px] uppercase tracking-wider text-on-surface-variant">
                 {t('roles.configuring')}: <span className="font-bold text-primary">{activeRole.name}</span>
+                {isSystemRole && <span className="ml-2 text-[10px] bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded">{t('roles.system_role_readonly', 'System role — read only')}</span>}
               </p>
             </div>
-            {canManageRoles && <div className="flex items-center gap-2">
+            {canManageRoles && !isSystemRole && <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setPermOverrides((prev) => {
@@ -404,7 +408,7 @@ function RolesPermissions() {
                       checked={row[col]}
                       onChange={() => togglePerm(row.key, col)}
                       label={`${col} ${t(row.i18n)}`}
-                      disabled={!canManageRoles}
+                      disabled={!canManageRoles || isSystemRole}
                     />
                   </div>
                 ))}
