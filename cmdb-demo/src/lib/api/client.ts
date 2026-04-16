@@ -61,6 +61,13 @@ class ApiClient {
       throw new ApiRequestError(error.code, error.message, res.status)
     }
 
+    // Dev-only: warn if response lacks expected envelope shape
+    if (import.meta.env.DEV && json !== null && typeof json === 'object') {
+      if (!('data' in json) && !('error' in json) && !Array.isArray(json)) {
+        console.warn(`[API] Unexpected response shape for ${path}:`, Object.keys(json).slice(0, 5))
+      }
+    }
+
     return json
   }
 
