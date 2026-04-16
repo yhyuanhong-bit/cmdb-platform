@@ -507,7 +507,20 @@ function SensorConfiguration() {
                   <td className="px-4 py-3">
                     <select
                       value={sensor.pollingInterval}
-                      onChange={() => toast.info(t('common.coming_soon'))}
+                      onChange={(e) => {
+                        const interval = parseInt(e.target.value);
+                        setSensors(ss => ss.map(s => s.id === sensor.id ? { ...s, pollingInterval: interval } : s));
+                        updateSensor.mutate(
+                          { id: sensor.id, data: { polling_interval: interval } },
+                          {
+                            onSuccess: () => toast.success(t('sensors.polling_updated', 'Polling interval updated')),
+                            onError: () => {
+                              setSensors(ss => ss.map(s => s.id === sensor.id ? { ...s, pollingInterval: sensor.pollingInterval } : s));
+                              toast.error(t('sensors.polling_failed', 'Failed to update polling interval'));
+                            },
+                          }
+                        );
+                      }}
                       className="rounded bg-surface-container-low px-2 py-1 text-xs text-on-surface outline-none"
                     >
                       {POLLING_OPTIONS.map((opt) => (
@@ -617,7 +630,18 @@ function SensorConfiguration() {
                   <button
                     key={opt}
                     type="button"
-                    onClick={() => setGlobalPolling(opt)}
+                    onClick={() => {
+                      setGlobalPolling(opt);
+                      // Batch update all enabled sensors
+                      const enabled = sensors.filter(s => s.enabled);
+                      if (enabled.length === 0) return;
+                      Promise.all(
+                        enabled.map(s => updateSensor.mutateAsync({ id: s.id, data: { polling_interval: opt } }))
+                      ).then(() => {
+                        setSensors(ss => ss.map(s => s.enabled ? { ...s, pollingInterval: opt } : s));
+                        toast.success(t('sensors.global_polling_applied', { count: enabled.length, defaultValue: `Polling interval applied to ${enabled.length} sensors` }));
+                      }).catch(() => toast.error(t('sensors.polling_failed', 'Failed to update polling interval')));
+                    }}
                     className={`rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
                       globalPolling === opt
                         ? "bg-primary text-on-primary-container"
