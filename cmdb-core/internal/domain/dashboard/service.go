@@ -75,7 +75,7 @@ func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*Stats, err
 	}
 
 	var totalRacks int64
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM racks WHERE tenant_id = $1`, tenantID).Scan(&totalRacks); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM racks WHERE tenant_id = $1 AND deleted_at IS NULL`, tenantID).Scan(&totalRacks); err != nil {
 		return nil, fmt.Errorf("count racks: %w", err)
 	}
 
