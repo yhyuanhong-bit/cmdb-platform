@@ -114,9 +114,10 @@ func (s *APIServer) GetActivityFeed(c *gin.Context) {
 // GetAuditEventDetail handles GET /audit/events/:id
 // Returns full detail of a single audit event including operator info and diff.
 func (s *APIServer) GetAuditEventDetail(c *gin.Context) {
-	eventID := c.Param("id")
-	if eventID == "" {
-		response.BadRequest(c, "missing event id")
+	tenantID := tenantIDFromContext(c)
+	eventID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid event id")
 		return
 	}
 
@@ -135,8 +136,8 @@ func (s *APIServer) GetAuditEventDetail(c *gin.Context) {
 			COALESCE(u.email, '')        AS email
 		FROM audit_events ae
 		LEFT JOIN users u ON ae.operator_id = u.id
-		WHERE ae.id = $1
-	`, eventID)
+		WHERE ae.id = $1 AND ae.tenant_id = $2
+	`, eventID, tenantID)
 
 	var id, action, module, targetType, source, displayName, email string
 	var diff []byte

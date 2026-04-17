@@ -40,6 +40,7 @@ func (s *APIServer) ListNotifications(c *gin.Context) {
 			createdAt    interface{}
 		)
 		if err := rows.Scan(&id, &tenantID, &uid, &nType, &title, &body, &resourceType, &resourceID, &isRead, &createdAt); err != nil {
+			zap.L().Warn("notifications: dropped malformed row", zap.Error(err))
 			continue
 		}
 		item := gin.H{
@@ -69,6 +70,8 @@ func (s *APIServer) CountUnreadNotifications(c *gin.Context) {
 		"SELECT count(*) FROM notifications WHERE user_id = $1 AND tenant_id = $2 AND is_read = false",
 		userID, tenantID).Scan(&count); err != nil {
 		zap.L().Error("notifications: failed to count unread", zap.Error(err))
+		response.InternalError(c, "failed to count notifications")
+		return
 	}
 	response.OK(c, gin.H{"count": count})
 }

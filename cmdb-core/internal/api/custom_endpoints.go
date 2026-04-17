@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
@@ -76,24 +77,41 @@ func (s *APIServer) GetAssetLifecycleStats(c *gin.Context) {
 		byStatus[status] = cnt
 	}
 
-	// Aggregated financial & warranty fields
+	// Aggregated financial & warranty fields. Any DB error here means the
+	// totals would be fabricated zeros — abort rather than mislead the caller.
 	var totalCost float64
-	s.pool.QueryRow(ctx,
+	if err := s.pool.QueryRow(ctx,
 		"SELECT COALESCE(SUM(purchase_cost::numeric::float8), 0) FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL",
-		tenantID).Scan(&totalCost)
+		tenantID).Scan(&totalCost); err != nil {
+		zap.L().Error("lifecycle: failed to sum purchase_cost", zap.Error(err))
+		response.InternalError(c, "failed to query lifecycle stats")
+		return
+	}
 
 	var warrantyActiveCount, warrantyExpiredCount, approachingEOL int64
-	s.pool.QueryRow(ctx,
+	if err := s.pool.QueryRow(ctx,
 		"SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND warranty_end > now() AND deleted_at IS NULL",
-		tenantID).Scan(&warrantyActiveCount)
+		tenantID).Scan(&warrantyActiveCount); err != nil {
+		zap.L().Error("lifecycle: failed to count active warranty", zap.Error(err))
+		response.InternalError(c, "failed to query lifecycle stats")
+		return
+	}
 
-	s.pool.QueryRow(ctx,
+	if err := s.pool.QueryRow(ctx,
 		"SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND warranty_end IS NOT NULL AND warranty_end <= now() AND deleted_at IS NULL",
-		tenantID).Scan(&warrantyExpiredCount)
+		tenantID).Scan(&warrantyExpiredCount); err != nil {
+		zap.L().Error("lifecycle: failed to count expired warranty", zap.Error(err))
+		response.InternalError(c, "failed to query lifecycle stats")
+		return
+	}
 
-	s.pool.QueryRow(ctx,
+	if err := s.pool.QueryRow(ctx,
 		"SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND eol_date IS NOT NULL AND eol_date <= now() + interval '6 months' AND eol_date > now() AND deleted_at IS NULL",
-		tenantID).Scan(&approachingEOL)
+		tenantID).Scan(&approachingEOL); err != nil {
+		zap.L().Error("lifecycle: failed to count approaching EOL", zap.Error(err))
+		response.InternalError(c, "failed to query lifecycle stats")
+		return
+	}
 
 	response.OK(c, gin.H{
 		"by_status":              byStatus,
@@ -355,9 +373,10 @@ type rackMaintenanceRecord struct {
 // GetRackMaintenance handles GET /racks/:id/maintenance
 // Returns the last 20 work orders for assets installed in the given rack.
 func (s *APIServer) GetRackMaintenance(c *gin.Context) {
-	rackID := c.Param("id")
-	if rackID == "" {
-		response.BadRequest(c, "missing rack id")
+	tenantID := tenantIDFromContext(c)
+	rackID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid rack id")
 		return
 	}
 
@@ -367,10 +386,10 @@ func (s *APIServer) GetRackMaintenance(c *gin.Context) {
 			wo.scheduled_start, wo.actual_start, wo.actual_end, wo.created_at
 		FROM work_orders wo
 		JOIN assets a ON wo.asset_id = a.id
-		WHERE a.rack_id = $1
+		WHERE a.rack_id = $1 AND a.tenant_id = $2 AND wo.tenant_id = $2
 		ORDER BY wo.created_at DESC
 		LIMIT 20
-	`, rackID)
+	`, rackID, tenantID)
 	if err != nil {
 		response.InternalError(c, "failed to query rack maintenance")
 		return

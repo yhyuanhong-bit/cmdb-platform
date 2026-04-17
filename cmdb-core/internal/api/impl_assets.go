@@ -283,12 +283,17 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 		return
 	}
 
-	// Supplementary update for ip_address (not in sqlc-generated query)
+	// Supplementary update for ip_address (not in sqlc-generated query).
+	// Scoped to tenant to prevent cross-tenant writes.
 	if req.IpAddress != nil {
-		s.pool.Exec(c.Request.Context(),
-			"UPDATE assets SET ip_address = $1 WHERE id = $2",
-			*req.IpAddress, uuid.UUID(id),
-		)
+		if _, err := s.pool.Exec(c.Request.Context(),
+			"UPDATE assets SET ip_address = $1 WHERE id = $2 AND tenant_id = $3",
+			*req.IpAddress, uuid.UUID(id), tenantID,
+		); err != nil {
+			zap.L().Error("assets: failed to update ip_address", zap.Error(err), zap.String("asset_id", uuid.UUID(id).String()))
+			response.InternalError(c, "failed to update ip_address")
+			return
+		}
 	}
 
 	diff := map[string]any{}

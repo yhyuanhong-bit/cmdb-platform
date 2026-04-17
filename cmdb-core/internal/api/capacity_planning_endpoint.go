@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -97,35 +99,49 @@ func (s *APIServer) GetCapacityPlanning(c *gin.Context) {
 
 	// 1a. Rack U-slot capacity — derive used_u from rack_slots
 	var totalU float64
-	s.pool.QueryRow(ctx,
+	if err := s.pool.QueryRow(ctx,
 		"SELECT COALESCE(SUM(total_u), 0) FROM racks WHERE tenant_id = $1 AND deleted_at IS NULL",
-		tenantID).Scan(&totalU)
+		tenantID).Scan(&totalU); err != nil {
+		zap.L().Error("capacity: failed to sum rack total_u", zap.Error(err))
+		response.InternalError(c, "failed to query capacity planning")
+		return
+	}
 
 	var usedU float64
-	s.pool.QueryRow(ctx,
+	if err := s.pool.QueryRow(ctx,
 		`SELECT COALESCE(SUM(rs.end_u - rs.start_u + 1), 0)
 		 FROM rack_slots rs
 		 JOIN racks r ON r.id = rs.rack_id
 		 WHERE r.tenant_id = $1 AND r.deleted_at IS NULL`,
-		tenantID).Scan(&usedU)
+		tenantID).Scan(&usedU); err != nil {
+		zap.L().Error("capacity: failed to sum used_u", zap.Error(err))
+		response.InternalError(c, "failed to query capacity planning")
+		return
+	}
 
 	if totalU > 0 {
 		pct := usedU / totalU * 100
 		// Get monthly asset-creation rate (new assets per month over last 6 months)
 		var monthlyData []float64
-		rows, _ := s.pool.Query(ctx,
+		rows, err := s.pool.Query(ctx,
 			`SELECT date_trunc('month', created_at) AS m, COUNT(*)
 			 FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL AND created_at > now() - interval '6 months'
 			 GROUP BY m ORDER BY m`, tenantID)
-		if rows != nil {
-			for rows.Next() {
-				var t time.Time
-				var cnt float64
-				rows.Scan(&t, &cnt)
-				monthlyData = append(monthlyData, cnt)
-			}
-			rows.Close()
+		if err != nil {
+			zap.L().Error("capacity: failed to query asset monthly rate", zap.Error(err))
+			response.InternalError(c, "failed to query capacity planning")
+			return
 		}
+		for rows.Next() {
+			var t time.Time
+			var cnt float64
+			if err := rows.Scan(&t, &cnt); err != nil {
+				zap.L().Warn("capacity: dropped malformed asset monthly row", zap.Error(err))
+				continue
+			}
+			monthlyData = append(monthlyData, cnt)
+		}
+		rows.Close()
 		slope, _ := linearRegression(monthlyData)
 		// Estimate U growth: assume avg 2U per new asset
 		uGrowthPerMonth := slope * 2
@@ -154,9 +170,13 @@ func (s *APIServer) GetCapacityPlanning(c *gin.Context) {
 
 	// 1b. Power capacity — only total_capacity is available; skip current if no sensor data
 	var totalPower float64
-	s.pool.QueryRow(ctx,
+	if err := s.pool.QueryRow(ctx,
 		"SELECT COALESCE(SUM(power_capacity_kw), 0) FROM racks WHERE tenant_id = $1 AND deleted_at IS NULL",
-		tenantID).Scan(&totalPower)
+		tenantID).Scan(&totalPower); err != nil {
+		zap.L().Error("capacity: failed to sum power_capacity_kw", zap.Error(err))
+		response.InternalError(c, "failed to query capacity planning")
+		return
+	}
 
 	if totalPower > 0 {
 		// No power_current_kw column in racks; report capacity headroom only
@@ -175,24 +195,34 @@ func (s *APIServer) GetCapacityPlanning(c *gin.Context) {
 
 	// 1c. Asset growth trend
 	var totalAssets float64
-	s.pool.QueryRow(ctx,
+	if err := s.pool.QueryRow(ctx,
 		"SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL",
-		tenantID).Scan(&totalAssets)
+		tenantID).Scan(&totalAssets); err != nil {
+		zap.L().Error("capacity: failed to count assets", zap.Error(err))
+		response.InternalError(c, "failed to query capacity planning")
+		return
+	}
 
 	var assetMonthly []float64
-	rows2, _ := s.pool.Query(ctx,
+	rows2, err := s.pool.Query(ctx,
 		`SELECT date_trunc('month', created_at) AS m, COUNT(*)
 		 FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL AND created_at > now() - interval '6 months'
 		 GROUP BY m ORDER BY m`, tenantID)
-	if rows2 != nil {
-		for rows2.Next() {
-			var t time.Time
-			var cnt float64
-			rows2.Scan(&t, &cnt)
-			assetMonthly = append(assetMonthly, cnt)
-		}
-		rows2.Close()
+	if err != nil {
+		zap.L().Error("capacity: failed to query asset monthly growth", zap.Error(err))
+		response.InternalError(c, "failed to query capacity planning")
+		return
 	}
+	for rows2.Next() {
+		var t time.Time
+		var cnt float64
+		if err := rows2.Scan(&t, &cnt); err != nil {
+			zap.L().Warn("capacity: dropped malformed asset growth row", zap.Error(err))
+			continue
+		}
+		assetMonthly = append(assetMonthly, cnt)
+	}
+	rows2.Close()
 	assetSlope, _ := linearRegression(assetMonthly)
 	forecasts = append(forecasts, CapacityForecast{
 		ResourceType:     "infrastructure",
@@ -223,19 +253,25 @@ func (s *APIServer) GetCapacityPlanning(c *gin.Context) {
 
 	for _, mt := range metricTypes {
 		var monthly []float64
-		mrows, _ := s.pool.Query(ctx,
+		mrows, err := s.pool.Query(ctx,
 			`SELECT date_trunc('month', time) AS m, avg(value)
 			 FROM metrics WHERE tenant_id = $1 AND name = $2 AND time > now() - interval '6 months'
 			 GROUP BY m ORDER BY m`, tenantID, mt.name)
-		if mrows != nil {
-			for mrows.Next() {
-				var t time.Time
-				var avg float64
-				mrows.Scan(&t, &avg)
-				monthly = append(monthly, avg)
-			}
-			mrows.Close()
+		if err != nil {
+			zap.L().Error("capacity: failed to query device metric", zap.String("metric", mt.name), zap.Error(err))
+			response.InternalError(c, "failed to query capacity planning")
+			return
 		}
+		for mrows.Next() {
+			var t time.Time
+			var avg float64
+			if err := mrows.Scan(&t, &avg); err != nil {
+				zap.L().Warn("capacity: dropped malformed metric row", zap.String("metric", mt.name), zap.Error(err))
+				continue
+			}
+			monthly = append(monthly, avg)
+		}
+		mrows.Close()
 
 		if len(monthly) < 2 {
 			continue

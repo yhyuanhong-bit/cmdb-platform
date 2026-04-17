@@ -2,11 +2,13 @@ package api
 
 import (
 	"context"
+	"errors"
 	"math"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
@@ -92,20 +94,26 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), energyQueryTimeout)
 	defer cancel()
 
-	// Latest PUE
+	// Latest PUE. ErrNoRows is expected (no metric yet) — default to 1.0.
+	// Any other error is a DB failure: abort rather than return misleading zeros.
 	var pue float64
 	if err := s.pool.QueryRow(ctx, `
 		SELECT COALESCE(value, 1.0) FROM metrics
 		WHERE tenant_id = $1 AND name = 'pue'
 		ORDER BY time DESC LIMIT 1
 	`, tenantID).Scan(&pue); err != nil {
-		zap.L().Error("energy: failed to query PUE", zap.Error(err))
+		if !errors.Is(err, pgx.ErrNoRows) {
+			zap.L().Error("energy: failed to query PUE", zap.Error(err))
+			response.InternalError(c, "failed to query energy summary")
+			return
+		}
 	}
 	if pue == 0 {
 		pue = 1.0
 	}
 
-	// Total power (last hour avg)
+	// Total power (last hour avg). Aggregates always return one row, so any
+	// error here indicates a real DB failure.
 	var totalKW float64
 	if err := s.pool.QueryRow(ctx, `
 		SELECT COALESCE(avg(value), 0) FROM metrics
@@ -113,6 +121,8 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 		  AND time > now() - interval '1 hour'
 	`, tenantID).Scan(&totalKW); err != nil {
 		zap.L().Error("energy: failed to query total power", zap.Error(err))
+		response.InternalError(c, "failed to query energy summary")
+		return
 	}
 
 	// Peak demand (max in last 30 days)
@@ -123,6 +133,8 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 		  AND time > now() - interval '30 days'
 	`, tenantID).Scan(&peakKW); err != nil {
 		zap.L().Error("energy: failed to query peak demand", zap.Error(err))
+		response.InternalError(c, "failed to query energy summary")
+		return
 	}
 
 	// Carbon footprint estimate: kW * 24h * 30days * emission_factor (tCO2/kWh)
