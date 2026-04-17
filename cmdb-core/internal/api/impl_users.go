@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ---------------------------------------------------------------------------
@@ -224,24 +225,14 @@ func (s *APIServer) DeleteRole(c *gin.Context, id IdPath) {
 
 // AssignRoleToUser assigns a role to a user.
 // (POST /users/{id}/roles)
-func (s *APIServer) AssignRoleToUser(c *gin.Context) {
-	userID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid user ID")
-		return
-	}
-	var req struct {
-		RoleID string `json:"role_id" binding:"required"`
-	}
+func (s *APIServer) AssignRoleToUser(c *gin.Context, id IdPath) {
+	userID := uuid.UUID(id)
+	var req AssignRoleToUserJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "role_id is required")
 		return
 	}
-	roleID, err := uuid.Parse(req.RoleID)
-	if err != nil {
-		response.BadRequest(c, "invalid role_id")
-		return
-	}
+	roleID := uuid.UUID(req.RoleId)
 	if err := s.identitySvc.AssignRole(c.Request.Context(), userID, roleID); err != nil {
 		response.InternalError(c, "failed to assign role")
 		return
@@ -254,17 +245,9 @@ func (s *APIServer) AssignRoleToUser(c *gin.Context) {
 
 // RemoveRoleFromUser removes a role from a user.
 // (DELETE /users/{id}/roles/{roleId})
-func (s *APIServer) RemoveRoleFromUser(c *gin.Context) {
-	userID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid user ID")
-		return
-	}
-	roleID, err := uuid.Parse(c.Param("roleId"))
-	if err != nil {
-		response.BadRequest(c, "invalid role ID")
-		return
-	}
+func (s *APIServer) RemoveRoleFromUser(c *gin.Context, id IdPath, roleId openapi_types.UUID) {
+	userID := uuid.UUID(id)
+	roleID := uuid.UUID(roleId)
 	if err := s.identitySvc.RemoveRole(c.Request.Context(), userID, roleID); err != nil {
 		response.InternalError(c, "failed to remove role")
 		return
@@ -277,12 +260,8 @@ func (s *APIServer) RemoveRoleFromUser(c *gin.Context) {
 
 // ListUserRoles returns roles assigned to a user.
 // (GET /users/{id}/roles)
-func (s *APIServer) ListUserRoles(c *gin.Context) {
-	userID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid user ID")
-		return
-	}
+func (s *APIServer) ListUserRoles(c *gin.Context, id IdPath) {
+	userID := uuid.UUID(id)
 	roleIDs, err := s.identitySvc.ListUserRoleIDs(c.Request.Context(), userID)
 	if err != nil {
 		response.InternalError(c, "failed to list user roles")
@@ -293,13 +272,9 @@ func (s *APIServer) ListUserRoles(c *gin.Context) {
 
 // DeleteUser soft-deletes (deactivates) a user.
 // (DELETE /users/{id})
-func (s *APIServer) DeleteUser(c *gin.Context) {
+func (s *APIServer) DeleteUser(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
-	userID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid user ID")
-		return
-	}
+	userID := uuid.UUID(id)
 	if err := s.identitySvc.Deactivate(c.Request.Context(), tenantID, userID); err != nil {
 		response.InternalError(c, "failed to delete user")
 		return

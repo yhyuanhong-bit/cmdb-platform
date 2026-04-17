@@ -82,6 +82,11 @@ type Asset struct {
 	WarrantyVendor *string `json:"warranty_vendor,omitempty"`
 }
 
+// AssignRoleRequest defines model for AssignRoleRequest.
+type AssignRoleRequest struct {
+	RoleId openapi_types.UUID `json:"role_id"`
+}
+
 // AuditEvent defines model for AuditEvent.
 type AuditEvent struct {
 	Action     string                 `json:"action"`
@@ -1072,6 +1077,9 @@ type CreateUserJSONRequestBody CreateUserJSONBody
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody UpdateUserJSONBody
 
+// AssignRoleToUserJSONRequestBody defines body for AssignRoleToUser for application/json ContentType.
+type AssignRoleToUserJSONRequestBody = AssignRoleRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// List assets with pagination and filters
@@ -1392,12 +1400,24 @@ type ServerInterface interface {
 	// Create a user
 	// (POST /users)
 	CreateUser(c *gin.Context)
+	// Soft-delete (deactivate) a user
+	// (DELETE /users/{id})
+	DeleteUser(c *gin.Context, id IdPath)
 	// Get a user by ID
 	// (GET /users/{id})
 	GetUser(c *gin.Context, id IdPath)
 	// Update a user
 	// (PUT /users/{id})
 	UpdateUser(c *gin.Context, id IdPath)
+	// List roles assigned to a user
+	// (GET /users/{id}/roles)
+	ListUserRoles(c *gin.Context, id IdPath)
+	// Assign a role to a user
+	// (POST /users/{id}/roles)
+	AssignRoleToUser(c *gin.Context, id IdPath)
+	// Remove a role from a user
+	// (DELETE /users/{id}/roles/{roleId})
+	RemoveRoleFromUser(c *gin.Context, id IdPath, roleId openapi_types.UUID)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -4050,6 +4070,32 @@ func (siw *ServerInterfaceWrapper) CreateUser(c *gin.Context) {
 	siw.Handler.CreateUser(c)
 }
 
+// DeleteUser operation middleware
+func (siw *ServerInterfaceWrapper) DeleteUser(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteUser(c, id)
+}
+
 // GetUser operation middleware
 func (siw *ServerInterfaceWrapper) GetUser(c *gin.Context) {
 
@@ -4100,6 +4146,93 @@ func (siw *ServerInterfaceWrapper) UpdateUser(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateUser(c, id)
+}
+
+// ListUserRoles operation middleware
+func (siw *ServerInterfaceWrapper) ListUserRoles(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListUserRoles(c, id)
+}
+
+// AssignRoleToUser operation middleware
+func (siw *ServerInterfaceWrapper) AssignRoleToUser(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AssignRoleToUser(c, id)
+}
+
+// RemoveRoleFromUser operation middleware
+func (siw *ServerInterfaceWrapper) RemoveRoleFromUser(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "roleId" -------------
+	var roleId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "roleId", c.Param("roleId"), &roleId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter roleId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RemoveRoleFromUser(c, id, roleId)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -4235,6 +4368,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/topology/dependencies", wrapper.CreateAssetDependency)
 	router.GET(options.BaseURL+"/users", wrapper.ListUsers)
 	router.POST(options.BaseURL+"/users", wrapper.CreateUser)
+	router.DELETE(options.BaseURL+"/users/:id", wrapper.DeleteUser)
 	router.GET(options.BaseURL+"/users/:id", wrapper.GetUser)
 	router.PUT(options.BaseURL+"/users/:id", wrapper.UpdateUser)
+	router.GET(options.BaseURL+"/users/:id/roles", wrapper.ListUserRoles)
+	router.POST(options.BaseURL+"/users/:id/roles", wrapper.AssignRoleToUser)
+	router.DELETE(options.BaseURL+"/users/:id/roles/:roleId", wrapper.RemoveRoleFromUser)
 }

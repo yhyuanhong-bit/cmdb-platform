@@ -399,11 +399,7 @@ func main() {
 		c.JSON(200, gin.H{"migrated_to_submitted": res1.RowsAffected(), "migrated_to_verified": res2.RowsAffected()})
 	})
 
-	// Role assignment + user deletion routes
-	v1.GET("/users/:id/roles", apiServer.ListUserRoles)
-	v1.POST("/users/:id/roles", apiServer.AssignRoleToUser)
-	v1.DELETE("/users/:id/roles/:roleId", apiServer.RemoveRoleFromUser)
-	v1.DELETE("/users/:id", apiServer.DeleteUser)
+	// Role assignment + user deletion routes — auto-registered via api.RegisterHandlers (Track A)
 
 	// Notification routes — auto-registered via api.RegisterHandlers (Track A)
 

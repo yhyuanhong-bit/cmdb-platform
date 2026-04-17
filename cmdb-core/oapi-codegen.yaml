@@ -21,9 +21,6 @@ output-options:
     - deleteUpgradeRule
     - getItemScanHistory
     - createItemScanRecord
-    - listUserRoles
-    - assignRoleToUser
-    - removeRoleFromUser
     - getRackQRData
     - locationDetectGetDiffs
     - locationDetectGetSummary
@@ -65,4 +62,3 @@ output-options:
     - listRackNetworkConnections
     - listUserSessions
     - listWorkOrderComments
-    - deleteUser

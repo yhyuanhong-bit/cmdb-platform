@@ -12,6 +12,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // mockIdentityService implements identityService for handler tests.
@@ -74,7 +75,8 @@ func newUsersTestServer(svc *mockIdentityService) *APIServer {
 }
 
 // runHandler wires a gin.Context with a request + params and invokes the handler.
-// ctxParams contains gin URL parameter values (e.g., "id" → uuid).
+// Typed handlers (with IdPath/UUID params) must be wrapped in a closure that
+// forwards those values so the helper stays signature-agnostic.
 func runHandler(t *testing.T, handler gin.HandlerFunc, method, target string, body any, ctxParams gin.Params, ctxSet map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -118,7 +120,8 @@ func TestAssignRoleToUser_Success(t *testing.T) {
 		},
 	}
 	s := newUsersTestServer(svc)
-	rec := runHandler(t, s.AssignRoleToUser, http.MethodPost, "/users/"+userID.String()+"/roles",
+	handler := func(c *gin.Context) { s.AssignRoleToUser(c, IdPath(userID)) }
+	rec := runHandler(t, handler, http.MethodPost, "/users/"+userID.String()+"/roles",
 		map[string]string{"role_id": roleID.String()},
 		gin.Params{{Key: "id", Value: userID.String()}},
 		map[string]string{"user_id": uuid.New().String(), "tenant_id": uuid.New().String()})
@@ -134,34 +137,13 @@ func TestAssignRoleToUser_Success(t *testing.T) {
 	}
 }
 
-func TestAssignRoleToUser_InvalidUserID(t *testing.T) {
-	s := newUsersTestServer(&mockIdentityService{})
-	rec := runHandler(t, s.AssignRoleToUser, http.MethodPost, "/users/not-a-uuid/roles",
-		map[string]string{"role_id": uuid.New().String()},
-		gin.Params{{Key: "id", Value: "not-a-uuid"}}, nil)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400", rec.Code)
-	}
-}
-
-func TestAssignRoleToUser_InvalidRoleID(t *testing.T) {
+func TestAssignRoleToUser_InvalidBody(t *testing.T) {
 	userID := uuid.New()
 	s := newUsersTestServer(&mockIdentityService{})
-	rec := runHandler(t, s.AssignRoleToUser, http.MethodPost, "/users/"+userID.String()+"/roles",
+	handler := func(c *gin.Context) { s.AssignRoleToUser(c, IdPath(userID)) }
+	// role_id is not a valid UUID — openapi_types.UUID unmarshal fails → 400.
+	rec := runHandler(t, handler, http.MethodPost, "/users/"+userID.String()+"/roles",
 		map[string]string{"role_id": "not-a-uuid"},
-		gin.Params{{Key: "id", Value: userID.String()}}, nil)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400", rec.Code)
-	}
-}
-
-func TestAssignRoleToUser_MissingRoleID(t *testing.T) {
-	userID := uuid.New()
-	s := newUsersTestServer(&mockIdentityService{})
-	rec := runHandler(t, s.AssignRoleToUser, http.MethodPost, "/users/"+userID.String()+"/roles",
-		map[string]string{},
 		gin.Params{{Key: "id", Value: userID.String()}}, nil)
 
 	if rec.Code != http.StatusBadRequest {
@@ -178,7 +160,8 @@ func TestAssignRoleToUser_ServiceError(t *testing.T) {
 		},
 	}
 	s := newUsersTestServer(svc)
-	rec := runHandler(t, s.AssignRoleToUser, http.MethodPost, "/users/"+userID.String()+"/roles",
+	handler := func(c *gin.Context) { s.AssignRoleToUser(c, IdPath(userID)) }
+	rec := runHandler(t, handler, http.MethodPost, "/users/"+userID.String()+"/roles",
 		map[string]string{"role_id": roleID.String()},
 		gin.Params{{Key: "id", Value: userID.String()}},
 		map[string]string{"user_id": uuid.New().String()})
@@ -204,7 +187,10 @@ func TestRemoveRoleFromUser_Success(t *testing.T) {
 		},
 	}
 	s := newUsersTestServer(svc)
-	rec := runHandler(t, s.RemoveRoleFromUser, http.MethodDelete,
+	handler := func(c *gin.Context) {
+		s.RemoveRoleFromUser(c, IdPath(userID), openapi_types.UUID(roleID))
+	}
+	rec := runHandler(t, handler, http.MethodDelete,
 		"/users/"+userID.String()+"/roles/"+roleID.String(), nil,
 		gin.Params{{Key: "id", Value: userID.String()}, {Key: "roleId", Value: roleID.String()}},
 		map[string]string{"user_id": uuid.New().String()})
@@ -217,25 +203,6 @@ func TestRemoveRoleFromUser_Success(t *testing.T) {
 	}
 }
 
-func TestRemoveRoleFromUser_InvalidIDs(t *testing.T) {
-	s := newUsersTestServer(&mockIdentityService{})
-	tests := []struct {
-		name   string
-		params gin.Params
-	}{
-		{"bad user id", gin.Params{{Key: "id", Value: "bad"}, {Key: "roleId", Value: uuid.New().String()}}},
-		{"bad role id", gin.Params{{Key: "id", Value: uuid.New().String()}, {Key: "roleId", Value: "bad"}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rec := runHandler(t, s.RemoveRoleFromUser, http.MethodDelete, "/", nil, tt.params, nil)
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("status = %d, want 400", rec.Code)
-			}
-		})
-	}
-}
-
 func TestRemoveRoleFromUser_ServiceError(t *testing.T) {
 	userID := uuid.New()
 	roleID := uuid.New()
@@ -245,7 +212,10 @@ func TestRemoveRoleFromUser_ServiceError(t *testing.T) {
 		},
 	}
 	s := newUsersTestServer(svc)
-	rec := runHandler(t, s.RemoveRoleFromUser, http.MethodDelete, "/", nil,
+	handler := func(c *gin.Context) {
+		s.RemoveRoleFromUser(c, IdPath(userID), openapi_types.UUID(roleID))
+	}
+	rec := runHandler(t, handler, http.MethodDelete, "/", nil,
 		gin.Params{{Key: "id", Value: userID.String()}, {Key: "roleId", Value: roleID.String()}},
 		map[string]string{"user_id": uuid.New().String()})
 
@@ -270,7 +240,8 @@ func TestListUserRoles_Success(t *testing.T) {
 		},
 	}
 	s := newUsersTestServer(svc)
-	rec := runHandler(t, s.ListUserRoles, http.MethodGet, "/users/"+userID.String()+"/roles",
+	handler := func(c *gin.Context) { s.ListUserRoles(c, IdPath(userID)) }
+	rec := runHandler(t, handler, http.MethodGet, "/users/"+userID.String()+"/roles",
 		nil, gin.Params{{Key: "id", Value: userID.String()}}, nil)
 
 	if rec.Code != http.StatusOK {
@@ -287,25 +258,17 @@ func TestListUserRoles_Success(t *testing.T) {
 	}
 }
 
-func TestListUserRoles_InvalidID(t *testing.T) {
-	s := newUsersTestServer(&mockIdentityService{})
-	rec := runHandler(t, s.ListUserRoles, http.MethodGet, "/users/bad/roles",
-		nil, gin.Params{{Key: "id", Value: "bad"}}, nil)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400", rec.Code)
-	}
-}
-
 func TestListUserRoles_ServiceError(t *testing.T) {
+	userID := uuid.New()
 	svc := &mockIdentityService{
 		listUserRoleIDsFn: func(_ context.Context, _ uuid.UUID) ([]uuid.UUID, error) {
 			return nil, errors.New("db failure")
 		},
 	}
 	s := newUsersTestServer(svc)
-	rec := runHandler(t, s.ListUserRoles, http.MethodGet, "/",
-		nil, gin.Params{{Key: "id", Value: uuid.New().String()}}, nil)
+	handler := func(c *gin.Context) { s.ListUserRoles(c, IdPath(userID)) }
+	rec := runHandler(t, handler, http.MethodGet, "/",
+		nil, gin.Params{{Key: "id", Value: userID.String()}}, nil)
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500", rec.Code)
@@ -328,7 +291,8 @@ func TestDeleteUser_Success(t *testing.T) {
 		},
 	}
 	s := newUsersTestServer(svc)
-	rec := runHandler(t, s.DeleteUser, http.MethodDelete, "/users/"+userID.String(),
+	handler := func(c *gin.Context) { s.DeleteUser(c, IdPath(userID)) }
+	rec := runHandler(t, handler, http.MethodDelete, "/users/"+userID.String(),
 		nil, gin.Params{{Key: "id", Value: userID.String()}},
 		map[string]string{"user_id": uuid.New().String(), "tenant_id": tenantID.String()})
 
@@ -340,25 +304,17 @@ func TestDeleteUser_Success(t *testing.T) {
 	}
 }
 
-func TestDeleteUser_InvalidID(t *testing.T) {
-	s := newUsersTestServer(&mockIdentityService{})
-	rec := runHandler(t, s.DeleteUser, http.MethodDelete, "/users/bad",
-		nil, gin.Params{{Key: "id", Value: "bad"}}, nil)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400", rec.Code)
-	}
-}
-
 func TestDeleteUser_ServiceError(t *testing.T) {
+	userID := uuid.New()
 	svc := &mockIdentityService{
 		deactivateFn: func(_ context.Context, _, _ uuid.UUID) error {
 			return errors.New("db failure")
 		},
 	}
 	s := newUsersTestServer(svc)
-	rec := runHandler(t, s.DeleteUser, http.MethodDelete, "/",
-		nil, gin.Params{{Key: "id", Value: uuid.New().String()}},
+	handler := func(c *gin.Context) { s.DeleteUser(c, IdPath(userID)) }
+	rec := runHandler(t, handler, http.MethodDelete, "/",
+		nil, gin.Params{{Key: "id", Value: userID.String()}},
 		map[string]string{"user_id": uuid.New().String(), "tenant_id": uuid.New().String()})
 
 	if rec.Code != http.StatusInternalServerError {
