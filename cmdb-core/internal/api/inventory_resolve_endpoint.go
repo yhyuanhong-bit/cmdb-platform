@@ -3,15 +3,16 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
 // ResolveInventoryDiscrepancy handles POST /inventory/tasks/:id/items/:itemId/resolve
 // Resolves a discrepancy on an inventory item by applying the given action.
-func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context) {
-	taskIDStr := c.Param("id")
-	itemIDStr := c.Param("itemId")
+func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context, id IdPath, itemId openapi_types.UUID) {
+	taskID := uuid.UUID(id)
+	itemID := uuid.UUID(itemId)
 
 	var req struct {
 		Action string `json:"action" binding:"required"`
@@ -19,17 +20,6 @@ func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request body")
-		return
-	}
-
-	itemID, err := uuid.Parse(itemIDStr)
-	if err != nil {
-		response.BadRequest(c, "invalid item ID")
-		return
-	}
-	taskID, err := uuid.Parse(taskIDStr)
-	if err != nil {
-		response.BadRequest(c, "invalid task ID")
 		return
 	}
 

@@ -123,6 +123,30 @@ func (e UpgradeRulePriority) Valid() bool {
 	}
 }
 
+// Defines values for ResolveInventoryDiscrepancyJSONBodyAction.
+const (
+	AddFindings ResolveInventoryDiscrepancyJSONBodyAction = "add_findings"
+	Clear       ResolveInventoryDiscrepancyJSONBodyAction = "clear"
+	Register    ResolveInventoryDiscrepancyJSONBodyAction = "register"
+	Verify      ResolveInventoryDiscrepancyJSONBodyAction = "verify"
+)
+
+// Valid indicates whether the value is a known member of the ResolveInventoryDiscrepancyJSONBodyAction enum.
+func (e ResolveInventoryDiscrepancyJSONBodyAction) Valid() bool {
+	switch e {
+	case AddFindings:
+		return true
+	case Clear:
+		return true
+	case Register:
+		return true
+	case Verify:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SyncGetChangesParamsEntityType.
 const (
 	SyncGetChangesParamsEntityTypeAlertEvents    SyncGetChangesParamsEntityType = "alert_events"
@@ -1098,6 +1122,15 @@ type ListInventoryItemsParams struct {
 	PageSize *PageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
 }
 
+// ResolveInventoryDiscrepancyJSONBody defines parameters for ResolveInventoryDiscrepancy.
+type ResolveInventoryDiscrepancyJSONBody struct {
+	Action ResolveInventoryDiscrepancyJSONBodyAction `json:"action"`
+	Note   *string                                   `json:"note,omitempty"`
+}
+
+// ResolveInventoryDiscrepancyJSONBodyAction defines parameters for ResolveInventoryDiscrepancy.
+type ResolveInventoryDiscrepancyJSONBodyAction string
+
 // ScanInventoryItemJSONBody defines parameters for ScanInventoryItem.
 type ScanInventoryItemJSONBody struct {
 	Actual map[string]interface{} `json:"actual"`
@@ -1396,6 +1429,9 @@ type UpdateInventoryTaskJSONRequestBody UpdateInventoryTaskJSONBody
 
 // ImportInventoryItemsJSONRequestBody defines body for ImportInventoryItems for application/json ContentType.
 type ImportInventoryItemsJSONRequestBody ImportInventoryItemsJSONBody
+
+// ResolveInventoryDiscrepancyJSONRequestBody defines body for ResolveInventoryDiscrepancy for application/json ContentType.
+type ResolveInventoryDiscrepancyJSONRequestBody ResolveInventoryDiscrepancyJSONBody
 
 // ScanInventoryItemJSONRequestBody defines body for ScanInventoryItem for application/json ContentType.
 type ScanInventoryItemJSONRequestBody ScanInventoryItemJSONBody
@@ -1998,6 +2034,9 @@ type ServerInterface interface {
 	// Create a new asset
 	// (POST /assets)
 	CreateAsset(c *gin.Context)
+	// Download CSV import template for assets
+	// (GET /assets/import-template)
+	DownloadImportTemplate(c *gin.Context)
 	// Get asset counts by lifecycle status
 	// (GET /assets/lifecycle-stats)
 	GetAssetLifecycleStats(c *gin.Context)
@@ -2124,6 +2163,9 @@ type ServerInterface interface {
 	// Complete an inventory task
 	// (POST /inventory/tasks/{id}/complete)
 	CompleteInventoryTask(c *gin.Context, id IdPath)
+	// List discrepancies in an inventory task
+	// (GET /inventory/tasks/{id}/discrepancies)
+	GetInventoryDiscrepancies(c *gin.Context, id IdPath)
 	// Import inventory items from external source
 	// (POST /inventory/tasks/{id}/import)
 	ImportInventoryItems(c *gin.Context, id IdPath)
@@ -2136,9 +2178,21 @@ type ServerInterface interface {
 	// Add a note to an inventory item
 	// (POST /inventory/tasks/{id}/items/{itemId}/notes)
 	CreateItemNote(c *gin.Context, id IdPath, itemId openapi_types.UUID)
+	// Resolve a discrepancy on an inventory item
+	// (POST /inventory/tasks/{id}/items/{itemId}/resolve)
+	ResolveInventoryDiscrepancy(c *gin.Context, id IdPath, itemId openapi_types.UUID)
 	// Scan an inventory item
 	// (POST /inventory/tasks/{id}/items/{itemId}/scan)
 	ScanInventoryItem(c *gin.Context, id IdPath, itemId openapi_types.UUID)
+	// Get scan history for an inventory item
+	// (GET /inventory/tasks/{id}/items/{itemId}/scan-history)
+	GetItemScanHistory(c *gin.Context, id IdPath, itemId openapi_types.UUID)
+	// Create a scan record for an inventory item
+	// (POST /inventory/tasks/{id}/items/{itemId}/scan-history)
+	CreateItemScanRecord(c *gin.Context, id IdPath, itemId openapi_types.UUID)
+	// Get per-rack scan progress for an inventory task
+	// (GET /inventory/tasks/{id}/racks-summary)
+	GetInventoryRacksSummary(c *gin.Context, id IdPath)
 	// Get inventory task summary
 	// (GET /inventory/tasks/{id}/summary)
 	GetInventorySummary(c *gin.Context, id IdPath)
@@ -2523,6 +2577,21 @@ func (siw *ServerInterfaceWrapper) CreateAsset(c *gin.Context) {
 	}
 
 	siw.Handler.CreateAsset(c)
+}
+
+// DownloadImportTemplate operation middleware
+func (siw *ServerInterfaceWrapper) DownloadImportTemplate(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DownloadImportTemplate(c)
 }
 
 // GetAssetLifecycleStats operation middleware
@@ -3501,6 +3570,32 @@ func (siw *ServerInterfaceWrapper) CompleteInventoryTask(c *gin.Context) {
 	siw.Handler.CompleteInventoryTask(c, id)
 }
 
+// GetInventoryDiscrepancies operation middleware
+func (siw *ServerInterfaceWrapper) GetInventoryDiscrepancies(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetInventoryDiscrepancies(c, id)
+}
+
 // ImportInventoryItems operation middleware
 func (siw *ServerInterfaceWrapper) ImportInventoryItems(c *gin.Context) {
 
@@ -3642,6 +3737,41 @@ func (siw *ServerInterfaceWrapper) CreateItemNote(c *gin.Context) {
 	siw.Handler.CreateItemNote(c, id, itemId)
 }
 
+// ResolveInventoryDiscrepancy operation middleware
+func (siw *ServerInterfaceWrapper) ResolveInventoryDiscrepancy(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "itemId" -------------
+	var itemId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "itemId", c.Param("itemId"), &itemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter itemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResolveInventoryDiscrepancy(c, id, itemId)
+}
+
 // ScanInventoryItem operation middleware
 func (siw *ServerInterfaceWrapper) ScanInventoryItem(c *gin.Context) {
 
@@ -3675,6 +3805,102 @@ func (siw *ServerInterfaceWrapper) ScanInventoryItem(c *gin.Context) {
 	}
 
 	siw.Handler.ScanInventoryItem(c, id, itemId)
+}
+
+// GetItemScanHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetItemScanHistory(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "itemId" -------------
+	var itemId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "itemId", c.Param("itemId"), &itemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter itemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetItemScanHistory(c, id, itemId)
+}
+
+// CreateItemScanRecord operation middleware
+func (siw *ServerInterfaceWrapper) CreateItemScanRecord(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "itemId" -------------
+	var itemId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "itemId", c.Param("itemId"), &itemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter itemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateItemScanRecord(c, id, itemId)
+}
+
+// GetInventoryRacksSummary operation middleware
+func (siw *ServerInterfaceWrapper) GetInventoryRacksSummary(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetInventoryRacksSummary(c, id)
 }
 
 // GetInventorySummary operation middleware
@@ -5974,6 +6200,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/assets", wrapper.ListAssets)
 	router.POST(options.BaseURL+"/assets", wrapper.CreateAsset)
+	router.GET(options.BaseURL+"/assets/import-template", wrapper.DownloadImportTemplate)
 	router.GET(options.BaseURL+"/assets/lifecycle-stats", wrapper.GetAssetLifecycleStats)
 	router.DELETE(options.BaseURL+"/assets/:id", wrapper.DeleteAsset)
 	router.GET(options.BaseURL+"/assets/:id", wrapper.GetAsset)
@@ -6016,11 +6243,16 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/inventory/tasks/:id", wrapper.GetInventoryTask)
 	router.PUT(options.BaseURL+"/inventory/tasks/:id", wrapper.UpdateInventoryTask)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/complete", wrapper.CompleteInventoryTask)
+	router.GET(options.BaseURL+"/inventory/tasks/:id/discrepancies", wrapper.GetInventoryDiscrepancies)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/import", wrapper.ImportInventoryItems)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/items", wrapper.ListInventoryItems)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/items/:itemId/notes", wrapper.GetItemNotes)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/items/:itemId/notes", wrapper.CreateItemNote)
+	router.POST(options.BaseURL+"/inventory/tasks/:id/items/:itemId/resolve", wrapper.ResolveInventoryDiscrepancy)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/items/:itemId/scan", wrapper.ScanInventoryItem)
+	router.GET(options.BaseURL+"/inventory/tasks/:id/items/:itemId/scan-history", wrapper.GetItemScanHistory)
+	router.POST(options.BaseURL+"/inventory/tasks/:id/items/:itemId/scan-history", wrapper.CreateItemScanRecord)
+	router.GET(options.BaseURL+"/inventory/tasks/:id/racks-summary", wrapper.GetInventoryRacksSummary)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/summary", wrapper.GetInventorySummary)
 	router.GET(options.BaseURL+"/location-detect/anomalies", wrapper.LocationDetectGetAnomalies)
 	router.GET(options.BaseURL+"/location-detect/diffs", wrapper.LocationDetectGetDiffs)

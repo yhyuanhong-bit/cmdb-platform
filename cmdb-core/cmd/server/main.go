@@ -352,19 +352,10 @@ func main() {
 	// Custom endpoints (Phase 2)
 	v1.GET("/racks/stats", apiServer.GetRackStats)
 	v1.GET("/assets/lifecycle-stats", apiServer.GetAssetLifecycleStats)
-	// Import template — must be registered before /assets/:id to avoid route conflict
-	v1.GET("/assets/import-template", apiServer.DownloadImportTemplate)
 	v1.GET("/monitoring/alerts/trend", apiServer.GetAlertsTrend)
 	v1.GET("/racks/:id/maintenance", apiServer.GetRackMaintenance)
 
-	// Custom inventory endpoints (not in generated spec)
-	v1.GET("/inventory/tasks/:id/racks-summary", apiServer.GetInventoryRacksSummary)
-	v1.GET("/inventory/tasks/:id/discrepancies", apiServer.GetInventoryDiscrepancies)
-
 	// Phase 3 routes
-	v1.GET("/inventory/tasks/:id/items/:itemId/scan-history", apiServer.GetItemScanHistory)
-	v1.POST("/inventory/tasks/:id/items/:itemId/scan-history", apiServer.CreateItemScanRecord)
-	v1.POST("/inventory/tasks/:id/items/:itemId/resolve", apiServer.ResolveInventoryDiscrepancy)
 	v1.GET("/locations/asset-counts", apiServer.GetLocationAssetCounts)
 	v1.GET("/topology/dependencies", apiServer.GetAssetDependencies)
 	v1.POST("/topology/dependencies", apiServer.CreateAssetDependency)

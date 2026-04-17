@@ -37,8 +37,8 @@ type discrepancyRow struct {
 
 // GetInventoryRacksSummary returns per-rack progress totals for an inventory task.
 // GET /inventory/tasks/:id/racks-summary
-func (s *APIServer) GetInventoryRacksSummary(c *gin.Context) {
-	taskID := c.Param("id")
+func (s *APIServer) GetInventoryRacksSummary(c *gin.Context, id IdPath) {
+	taskID := uuid.UUID(id).String()
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT
@@ -106,8 +106,8 @@ func (s *APIServer) GetInventoryRacksSummary(c *gin.Context) {
 
 // GetInventoryDiscrepancies returns inventory items with status discrepancy or missing.
 // GET /inventory/tasks/:id/discrepancies
-func (s *APIServer) GetInventoryDiscrepancies(c *gin.Context) {
-	taskID := c.Param("id")
+func (s *APIServer) GetInventoryDiscrepancies(c *gin.Context, id IdPath) {
+	taskID := uuid.UUID(id).String()
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT ii.id, ii.status, ii.scanned_at,

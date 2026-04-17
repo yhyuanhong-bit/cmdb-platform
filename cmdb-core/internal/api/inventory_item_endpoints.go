@@ -10,14 +10,10 @@ import (
 )
 
 // GetItemScanHistory handles GET /inventory/tasks/:id/items/:itemId/scan-history
-// Returns the scan history for a specific inventory item.
-func (s *APIServer) GetItemScanHistory(c *gin.Context) {
-	itemIDStr := c.Param("itemId")
-	itemID, err := uuid.Parse(itemIDStr)
-	if err != nil {
-		response.BadRequest(c, "invalid itemId")
-		return
-	}
+// Returns the scan history for a specific inventory item. Task id is unused —
+// item_id alone uniquely identifies the scan history rows.
+func (s *APIServer) GetItemScanHistory(c *gin.Context, _ IdPath, itemId openapi_types.UUID) {
+	itemID := uuid.UUID(itemId)
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT ish.id, ish.scanned_at, u.display_name, ish.method, ish.result, ish.note
@@ -64,14 +60,10 @@ func (s *APIServer) GetItemScanHistory(c *gin.Context) {
 }
 
 // CreateItemScanRecord handles POST /inventory/tasks/:id/items/:itemId/scan-history
-// Creates a new scan record for a specific inventory item.
-func (s *APIServer) CreateItemScanRecord(c *gin.Context) {
-	itemIDStr := c.Param("itemId")
-	itemID, err := uuid.Parse(itemIDStr)
-	if err != nil {
-		response.BadRequest(c, "invalid itemId")
-		return
-	}
+// Creates a new scan record for a specific inventory item. Task id is unused —
+// item_id alone uniquely identifies the target.
+func (s *APIServer) CreateItemScanRecord(c *gin.Context, _ IdPath, itemId openapi_types.UUID) {
+	itemID := uuid.UUID(itemId)
 
 	userID := userIDFromContext(c)
 
@@ -86,7 +78,7 @@ func (s *APIServer) CreateItemScanRecord(c *gin.Context) {
 	}
 
 	newID := uuid.New()
-	_, err = s.pool.Exec(c.Request.Context(), `
+	_, err := s.pool.Exec(c.Request.Context(), `
 		INSERT INTO inventory_scan_history (id, item_id, scanned_by, method, result, note, scanned_at)
 		VALUES ($1, $2, $3, $4, $5, $6, now())
 	`, newID, itemID, userID, body.Method, body.Result, body.Note)

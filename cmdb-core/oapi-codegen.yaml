@@ -9,14 +9,11 @@ output-options:
   # in cmd/server/main.go (outside api.RegisterHandlers). They intentionally
   # do not implement the generated ServerInterface signature.
   exclude-operation-ids:
-    - downloadImportTemplate
     - getAssetLifecycle
     - getAssetLocationHistory
     - getAssetQRData
     - confirmAssetLocation
     - getLocationAssetCounts
-    - getItemScanHistory
-    - createItemScanRecord
     - getRackQRData
     - acceptUpgradeRecommendation
     - deleteAssetDependency
@@ -24,10 +21,7 @@ output-options:
     - getAssetRUL
     - getAssetUpgradeRecommendations
     - getAuditEventDetail
-    - getInventoryDiscrepancies
-    - getInventoryRacksSummary
     - getRackMaintenance
     - getTopologyGraph
-    - resolveInventoryDiscrepancy
     - listAssetDependencies
     - listUserSessions
