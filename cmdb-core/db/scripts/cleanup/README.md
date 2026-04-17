@@ -24,8 +24,10 @@ pre-flight block, but checking first avoids a noisy abort):
 **Behavior.** Runs as a single transaction. If *any* non-empty plaintext row
 lacks a ciphertext, the script `RAISE EXCEPTION` and rolls back untouched.
 Otherwise it resets adapter `config` to `'{}'::jsonb` and webhook `secret` to
-`NULL`, then writes one `integration_plaintext_cleared` audit event capturing
-the counts.
+`NULL`, then writes one `integration_plaintext_cleared` audit event **per
+affected tenant** (aggregated from the update `RETURNING` clauses).
+Per-tenant rather than a single cross-tenant row because
+`audit_events.tenant_id` is NOT NULL with an FK to `tenants(id)`.
 
 Idempotent: a second run on already-cleared data is a no-op.
 

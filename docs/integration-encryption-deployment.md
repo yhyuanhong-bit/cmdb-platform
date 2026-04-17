@@ -375,34 +375,35 @@ docker compose -f cmdb-core/deploy/docker-compose.yml start cmdb-core
 
 ### 7.1 回填加密列
 
-需要应用层回填——密钥只在应用进程里,数据库无法自己加密。推荐写一次性 admin 任务:
+需要应用层回填——密钥只在应用进程里,数据库无法自己加密。仓库自带 CLI
+`cmd/backfill-integration-secrets`,直接跑即可:
 
-```go
-// 伪代码:迭代 config 非空、config_encrypted 为空的行
-rows, _ := pool.Query(ctx, `
-    SELECT id, tenant_id, config
-    FROM integration_adapters
-    WHERE config IS NOT NULL
-      AND config::text <> '{}'
-      AND config_encrypted IS NULL
-`)
-for rows.Next() {
-    var id, tenantID uuid.UUID
-    var cfg []byte
-    _ = rows.Scan(&id, &tenantID, &cfg)
-    enc, err := cipher.Encrypt(cfg)
-    if err != nil { /* log + skip */ continue }
-    _, _ = pool.Exec(ctx, `
-        UPDATE integration_adapters
-        SET config_encrypted = $1
-        WHERE id = $2 AND tenant_id = $3
-    `, enc, id, tenantID)
-}
-// 对 webhook_subscriptions.secret / secret_encrypted 同样处理一次。
+```bash
+# 1) 预检,只数行不写库(默认就是 dry-run)
+DATABASE_URL="postgres://..." \
+CMDB_SECRET_KEY="$(your-secret-manager get CMDB_SECRET_KEY)" \
+  go run ./cmd/backfill-integration-secrets
+
+# 2) 确认候选数符合预期后,加 --apply 真正写入
+DATABASE_URL="postgres://..." \
+CMDB_SECRET_KEY="$(your-secret-manager get CMDB_SECRET_KEY)" \
+  go run ./cmd/backfill-integration-secrets --apply
 ```
 
-webhook 的 `secret` 是 TEXT(HMAC 共享密钥,原本就是 ASCII),回填时记得
-`[]byte(secret)` 再 `cipher.Encrypt`。
+行为要点:
+
+- **默认 dry-run**,必须显式传 `--apply` 才会写。
+- 可选 `--target adapters|webhooks|all`(默认 `all`),`--progress-every N`
+  控制进度日志频率。
+- **幂等**:SELECT 和 UPDATE 都带 `config_encrypted IS NULL`(webhook 同理
+  `secret_encrypted IS NULL`),第二次跑 `--apply` 会返回 0 候选。
+- **空配置会被跳过**:`config::text <> '{}'` 和 webhook 的 `secret <> ''`
+  保证没有秘密内容的行不会被写入密文列,dry-run 数字和 apply 数字一致。
+- **逐行独立写入**:单行 `cipher.Encrypt` 失败只记 error 计数,不中断整批。
+- **审计**:`--apply` 结束后,按租户聚合,往 `audit_events` 写一行
+  `integration_backfill_completed`(`module=integration`,`source=admin-cli`)。
+  之所以按租户拆分而不是一条跨租户汇总——`audit_events.tenant_id` NOT NULL
+  且有 FK 到 `tenants(id)`,没有跨租户的占位值。
 
 > **不推荐** 用 `pgcrypto` 在数据库里加密——那会把密钥带到数据库层,打破"密钥只
 > 存在应用侧"的前提,也让后续的 key rotation 变复杂。
