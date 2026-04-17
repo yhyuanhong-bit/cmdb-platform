@@ -1,4 +1,4 @@
-.PHONY: infra infra-down migrate migrate-down sqlc wire dev test test-integration build seed generate-api
+.PHONY: infra infra-down migrate migrate-down sqlc wire dev test test-integration build seed generate-api check-api-routes
 
 infra:
 	docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example up -d
@@ -60,4 +60,13 @@ jaeger:
 	@echo "Jaeger: http://localhost:16686"
 
 generate-api:
-	oapi-codegen --config oapi-codegen.yaml ../api/openapi.yaml
+	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
+		--config oapi-codegen.yaml ../api/openapi.yaml
+
+# Verify api/openapi.yaml and the routes registered in cmd/server/main.go
+# + internal/api/generated.go are in sync. Catches drift at PR time.
+check-api-routes:
+	OPENAPI_SPEC=../api/openapi.yaml \
+	SERVER_MAIN=./cmd/server/main.go \
+	GENERATED_GO=./internal/api/generated.go \
+	go run ./cmd/check-api-routes

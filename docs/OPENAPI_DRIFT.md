@@ -105,12 +105,27 @@ lat/long that were not in the spec. That drift has now been fixed by:
 After these changes, `make generate-api && go build ./...` succeeds
 without hand-editing `generated.go`.
 
+## CI guardrails
+
+Two automated checks run on PRs that touch the API surface
+(`.github/workflows/openapi-health.yml`):
+
+1. **Codegen drift:** the workflow runs `make generate-api` and fails if
+   `internal/api/generated.go` ends up different from the committed
+   version. This prevents hand-edits to the generated file and catches
+   spec changes that were committed without running codegen.
+2. **Route parity:** the `check-api-routes` tool (at
+   `cmdb-core/cmd/check-api-routes/`) compares operations declared in
+   `api/openapi.yaml` against routes registered in
+   `cmd/server/main.go` + `internal/api/generated.go`. It fails if any
+   route is in one but not the other. Infrastructure-only routes
+   (`GET /ws`, `POST /admin/migrate-statuses`) live in an explicit
+   allowlist inside the tool.
+
+Run locally with `make check-api-routes`.
+
 ## Remediation backlog
 
 1. Evaluate whether any Track-B operations warrant migration to Track A
    (typed signatures). High-value candidates: upgrade-rules CRUD,
    user-roles CRUD, notifications.
-2. Add a CI check that runs `make generate-api` and fails if
-   `generated.go` changes, catching future drift at PR time.
-3. Add a CI check that compares `main.go` route registrations against
-   spec paths.

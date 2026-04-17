@@ -2429,6 +2429,19 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '404':
           $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteUser
+      tags: [identity]
+      summary: Soft-delete (deactivate) a user
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: User deactivated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /roles:
     get:

@@ -69,3 +69,4 @@ output-options:
     - listRackNetworkConnections
     - listUserSessions
     - listWorkOrderComments
+    - deleteUser

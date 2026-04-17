@@ -1,0 +1,69 @@
+name: OpenAPI Health
+
+# Fail PRs that introduce drift between api/openapi.yaml and the Go
+# code that registers routes or implements the generated ServerInterface.
+#
+# Two checks:
+#   1. Codegen drift — re-run `make generate-api` and fail if the result
+#      differs from the committed generated.go. This catches hand-edits
+#      to the generated file that would be silently overwritten on the
+#      next legitimate regeneration.
+#   2. Route drift — the `check-api-routes` tool diffs spec operations
+#      against routes registered in cmd/server/main.go and
+#      internal/api/generated.go.
+
+on:
+  push:
+    branches: [main, master, feat/*]
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'api/openapi.yaml'
+      - 'cmdb-core/cmd/server/main.go'
+      - 'cmdb-core/internal/api/generated.go'
+      - 'cmdb-core/oapi-codegen.yaml'
+      - 'cmdb-core/cmd/check-api-routes/**'
+      - '.github/workflows/openapi-health.yml'
+
+jobs:
+  openapi-health:
+    name: OpenAPI / route parity
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cmdb-core
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: cmdb-core/go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      # --------------------------------------------------------------
+      # Check 1: make generate-api is a no-op on a clean checkout.
+      # --------------------------------------------------------------
+      - name: Regenerate OpenAPI code
+        run: make generate-api
+
+      - name: Fail if generated.go drifted
+        run: |
+          if ! git diff --exit-code internal/api/generated.go; then
+            echo ""
+            echo "::error::internal/api/generated.go differs from what 'make generate-api' produces."
+            echo "::error::This means generated.go has been hand-edited, or the spec was updated without regenerating."
+            echo "::error::Fix: run 'make generate-api' locally and commit the result; never edit generated.go by hand."
+            exit 1
+          fi
+          echo "generated.go is in sync with the spec."
+
+      # --------------------------------------------------------------
+      # Check 2: every spec operation has a handler, and every
+      # registered handler is documented (minus the allowlist).
+      # --------------------------------------------------------------
+      - name: Verify route / spec parity
+        run: make check-api-routes
