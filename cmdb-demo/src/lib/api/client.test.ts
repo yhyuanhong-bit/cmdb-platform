@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { ApiRequestError } from './client'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { ApiRequestError, apiClient } from './client'
 
 describe('ApiRequestError', () => {
   it('creates error with correct properties', () => {
@@ -26,5 +26,56 @@ describe('ApiRequestError', () => {
     expect(err.message).toBe('')
     expect(err.code).toBe('UNKNOWN')
     expect(err.status).toBe(0)
+  })
+})
+
+describe('apiClient 429 retry', () => {
+  const originalFetch = globalThis.fetch
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    globalThis.fetch = originalFetch
+  })
+
+  it('retries after 429 then succeeds', async () => {
+    const tooMany = new Response(JSON.stringify({ error: { code: 'RATE_LIMITED', message: 'slow down' } }), {
+      status: 429,
+      headers: { 'Retry-After': '0', 'Content-Type': 'application/json' },
+    })
+    const ok = new Response(JSON.stringify({ data: { hello: 'world' } }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const fetchMock = vi.fn().mockResolvedValueOnce(tooMany).mockResolvedValueOnce(ok)
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const promise = apiClient.get<{ data: { hello: string } }>('/retry-ok')
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.data.hello).toBe('world')
+  })
+
+  it('gives up and throws after exhausting retries', async () => {
+    const tooMany = () =>
+      new Response(JSON.stringify({ error: { code: 'RATE_LIMITED', message: 'slow down' } }), {
+        status: 429,
+        headers: { 'Retry-After': '0', 'Content-Type': 'application/json' },
+      })
+    const fetchMock = vi.fn(async () => tooMany())
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const promise = apiClient.get('/retry-exhaust').catch((e) => e)
+    await vi.runAllTimersAsync()
+    const err = await promise
+
+    expect(fetchMock).toHaveBeenCalledTimes(4) // initial + 3 retries
+    expect(err).toBeInstanceOf(ApiRequestError)
+    expect((err as ApiRequestError).status).toBe(429)
   })
 })

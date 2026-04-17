@@ -13,12 +13,28 @@ export class ApiRequestError extends Error {
   }
 }
 
+const RATE_LIMIT_MAX_RETRIES = 3
+const RATE_LIMIT_BASE_DELAY_MS = 250
+
+function parseRetryAfter(headerValue: string | null): number | null {
+  if (!headerValue) return null
+  const seconds = Number(headerValue)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
+  const date = Date.parse(headerValue)
+  if (!Number.isNaN(date)) return Math.max(0, date - Date.now())
+  return null
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 class ApiClient {
   private getToken(): string | null {
     return useAuthStore.getState().accessToken
   }
 
-  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(path: string, options: RequestInit = {}, attempt = 0): Promise<T> {
     const token = this.getToken()
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -32,6 +48,14 @@ class ApiClient {
       ...options,
       headers,
     })
+
+    if (res.status === 429 && attempt < RATE_LIMIT_MAX_RETRIES) {
+      const retryAfter = parseRetryAfter(res.headers.get('Retry-After'))
+      const backoff = RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, attempt)
+      const jitter = Math.random() * RATE_LIMIT_BASE_DELAY_MS
+      await sleep(retryAfter ?? backoff + jitter)
+      return this.request<T>(path, options, attempt + 1)
+    }
 
     let json: any
     try {
