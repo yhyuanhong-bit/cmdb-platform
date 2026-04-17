@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/config"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/bia"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/discovery"
@@ -41,7 +40,7 @@ type APIServer struct {
 	authSvc           authService
 	identitySvc       identityService
 	topologySvc       *topology.Service
-	assetSvc          *asset.Service
+	assetSvc          assetService
 	maintenanceSvc    *maintenance.Service
 	monitoringSvc     *monitoring.Service
 	inventorySvc      *inventory.Service
@@ -64,7 +63,7 @@ func NewAPIServer(
 	authSvc authService,
 	identitySvc identityService,
 	topologySvc *topology.Service,
-	assetSvc *asset.Service,
+	assetSvc assetService,
 	maintenanceSvc *maintenance.Service,
 	monitoringSvc *monitoring.Service,
 	inventorySvc *inventory.Service,

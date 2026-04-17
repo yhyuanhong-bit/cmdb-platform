@@ -241,35 +241,37 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 	var authorityWarnings []string
 
 	tenantID := tenantIDFromContext(c)
-	authRows, authErr := s.pool.Query(c.Request.Context(),
-		`SELECT field_name, MAX(priority) as max_priority
-		 FROM asset_field_authorities
-		 WHERE tenant_id = $1
-		 GROUP BY field_name
-		 HAVING MAX(priority) > $2`,
-		tenantID, apiSourcePriority)
-	if authErr == nil {
-		defer authRows.Close()
-		blockedFields := make(map[string]int)
-		for authRows.Next() {
-			var fieldName string
-			var maxPriority int
-			if authRows.Scan(&fieldName, &maxPriority) == nil {
-				blockedFields[fieldName] = maxPriority
+	if s.pool != nil {
+		authRows, authErr := s.pool.Query(c.Request.Context(),
+			`SELECT field_name, MAX(priority) as max_priority
+			 FROM asset_field_authorities
+			 WHERE tenant_id = $1
+			 GROUP BY field_name
+			 HAVING MAX(priority) > $2`,
+			tenantID, apiSourcePriority)
+		if authErr == nil {
+			defer authRows.Close()
+			blockedFields := make(map[string]int)
+			for authRows.Next() {
+				var fieldName string
+				var maxPriority int
+				if authRows.Scan(&fieldName, &maxPriority) == nil {
+					blockedFields[fieldName] = maxPriority
+				}
 			}
-		}
 
-		if params.SerialNumber.Valid && blockedFields["serial_number"] > 0 {
-			authorityWarnings = append(authorityWarnings, fmt.Sprintf("serial_number is managed by a higher-priority source (priority %d)", blockedFields["serial_number"]))
-			params.SerialNumber = pgtype.Text{}
-		}
-		if params.Vendor.Valid && blockedFields["vendor"] > 0 {
-			authorityWarnings = append(authorityWarnings, fmt.Sprintf("vendor is managed by a higher-priority source (priority %d)", blockedFields["vendor"]))
-			params.Vendor = pgtype.Text{}
-		}
-		if params.Model.Valid && blockedFields["model"] > 0 {
-			authorityWarnings = append(authorityWarnings, fmt.Sprintf("model is managed by a higher-priority source (priority %d)", blockedFields["model"]))
-			params.Model = pgtype.Text{}
+			if params.SerialNumber.Valid && blockedFields["serial_number"] > 0 {
+				authorityWarnings = append(authorityWarnings, fmt.Sprintf("serial_number is managed by a higher-priority source (priority %d)", blockedFields["serial_number"]))
+				params.SerialNumber = pgtype.Text{}
+			}
+			if params.Vendor.Valid && blockedFields["vendor"] > 0 {
+				authorityWarnings = append(authorityWarnings, fmt.Sprintf("vendor is managed by a higher-priority source (priority %d)", blockedFields["vendor"]))
+				params.Vendor = pgtype.Text{}
+			}
+			if params.Model.Valid && blockedFields["model"] > 0 {
+				authorityWarnings = append(authorityWarnings, fmt.Sprintf("model is managed by a higher-priority source (priority %d)", blockedFields["model"]))
+				params.Model = pgtype.Text{}
+			}
 		}
 	}
 
