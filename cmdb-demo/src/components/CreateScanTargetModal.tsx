@@ -95,7 +95,7 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
         }
       )
     } else {
-      createMutation.mutate(payload as any, {
+      createMutation.mutate(payload, {
         onSuccess: () => {
           onClose()
           setFormData({ ...initial })

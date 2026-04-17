@@ -73,9 +73,9 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
   const itemId = firstItem?.id ?? '';
 
   const { data: scanData } = useItemScanHistory(taskId, itemId)
-  const scanHistory = (scanData as any)?.scan_history ?? []
+  const scanHistory = scanData?.data?.scan_history ?? []
   const { data: notesData } = useItemNotes(taskId, itemId)
-  const notes = (notesData as any)?.notes ?? []
+  const notes = notesData?.data?.notes ?? []
   const createNote = useCreateItemNote()
   const [noteText, setNoteText] = useState('')
 

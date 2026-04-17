@@ -215,11 +215,17 @@ export default function DataCenter3D() {
   }))
 
   // Energy summary from API (Task 9)
+  interface EnergySummary {
+    pue?: number
+    total_kw?: number
+    peak_kw?: number
+    carbon_kg?: number
+  }
   const { data: energySummary } = useQuery({
     queryKey: ['energySummary3d'],
-    queryFn: () => apiClient.get('/energy/summary'),
+    queryFn: () => apiClient.get<{ data: EnergySummary }>('/energy/summary'),
   })
-  const eSummary = energySummary as any
+  const eSummary = energySummary?.data
 
   const [activeTab, setActiveTab] = useState("global");
   const [heatMode, setHeatMode] = useState(false);

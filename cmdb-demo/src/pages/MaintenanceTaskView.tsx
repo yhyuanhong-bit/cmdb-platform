@@ -94,7 +94,7 @@ export default function MaintenanceTaskView() {
   const transitionWO = useTransitionWorkOrder()
   const { data: logsData } = useWorkOrderLogs(taskId ?? '')
   const { data: commentsData } = useWorkOrderComments(orderId)
-  const comments = (commentsData as any)?.comments ?? []
+  const comments = commentsData?.data?.comments ?? []
   const createComment = useCreateWorkOrderComment()
   const [comment, setComment] = useState('')
   const updateWO = useUpdateWorkOrder()

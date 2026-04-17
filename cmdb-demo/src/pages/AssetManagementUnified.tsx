@@ -78,11 +78,11 @@ function AssetCard({ asset, onClick }: { asset: Asset; onClick: () => void }) {
       <div className="space-y-1 mb-3 text-xs text-on-surface-variant">
         <div>{asset.vendor} {asset.model}</div>
         <div className="font-mono">{asset.serial_number}</div>
-        {(asset as any).property_number && (
-          <div className="font-mono">P#: {(asset as any).property_number}</div>
+        {asset.property_number && (
+          <div className="font-mono">P#: {asset.property_number}</div>
         )}
-        {(asset as any).control_number && (
-          <div className="font-mono">CTRL#: {(asset as any).control_number}</div>
+        {asset.control_number && (
+          <div className="font-mono">CTRL#: {asset.control_number}</div>
         )}
       </div>
 
@@ -401,8 +401,8 @@ export default function AssetManagementUnified() {
               <span className="font-mono text-primary text-xs font-semibold">
                 {asset.asset_tag}
               </span>
-              <span className="text-on-surface-variant text-xs font-mono">{(asset as any).property_number || '-'}</span>
-              <span className="text-on-surface-variant text-xs font-mono">{(asset as any).control_number || '-'}</span>
+              <span className="text-on-surface-variant text-xs font-mono">{asset.property_number || '-'}</span>
+              <span className="text-on-surface-variant text-xs font-mono">{asset.control_number || '-'}</span>
               <span className="text-on-surface truncate">{asset.name}</span>
               <span className="flex items-center gap-1.5 text-on-surface-variant">
                 <Icon name={typeIcons[asset.type?.toLowerCase()] ?? 'dns'} className="text-[18px]" />

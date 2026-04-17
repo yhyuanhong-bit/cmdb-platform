@@ -23,10 +23,10 @@ function SystemGrading() {
   const { data: statsResp, isLoading: statsLoading } = useBIAStats()
   const { data: assessResp, isLoading: assessLoading } = useBIAAssessments()
 
-  const stats = (statsResp as any)?.data
+  const stats = statsResp?.data
   const assessments = useMemo(() => {
-    const list = (assessResp as any)?.data || []
-    return [...list].sort((a, b) => b.bia_score - a.bia_score)
+    const list = assessResp?.data ?? []
+    return [...list].sort((a, b) => (b.bia_score ?? 0) - (a.bia_score ?? 0))
   }, [assessResp])
 
   const total = stats?.total || 0
@@ -130,7 +130,7 @@ function SystemGrading() {
                 </tr>
               ) : (
                 assessments.map((a) => {
-                  const style = getTierStyle(a.tier)
+                  const style = getTierStyle(a.tier ?? 'low')
                   return (
                     <tr key={a.id} className="border-b border-outline-variant/30 hover:bg-surface-container-high/40 transition-colors">
                       <td className="py-3 px-3 text-on-surface font-medium">{a.system_name}</td>

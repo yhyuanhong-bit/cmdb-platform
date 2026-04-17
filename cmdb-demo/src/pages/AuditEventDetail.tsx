@@ -16,7 +16,7 @@ export default function AuditEventDetail() {
   const [diffMode, setDiffMode] = useState<'side-by-side' | 'inline'>('side-by-side')
 
   const { data: eventData, isLoading } = useAuditEventDetail(eventId)
-  const apiEvent = (eventData as any)?.event
+  const apiEvent = eventData?.event
 
   // Build display event from API data
   const displayEvent = apiEvent ? {
@@ -30,6 +30,8 @@ export default function AuditEventDetail() {
     sourceIp: '-',
     origin: apiEvent.source || 'web',
     target: { id: apiEvent.target_id, type: apiEvent.target_type },
+    systemComment: apiEvent.systemComment,
+    metadata: apiEvent.metadata,
   } : null
 
   // Build diff from API data
@@ -205,7 +207,7 @@ export default function AuditEventDetail() {
                   {t('audit_event_detail.label_hardware_model')}
                 </div>
                 <div className="mt-1 text-sm text-on-surface">
-                  {(event.target as any).type || '-'}
+                  {event.target.type || '-'}
                 </div>
               </div>
             </div>
@@ -217,7 +219,7 @@ export default function AuditEventDetail() {
               {t('audit_event_detail.section_system_comments')}
             </h2>
             <div className="rounded bg-surface-container-low p-4 text-sm leading-relaxed text-on-surface-variant italic border-l-2 border-primary/40">
-              &ldquo;{(event as any).systemComment || `${event.title} recorded at ${event.timestamp}.`}&rdquo;
+              &ldquo;{event.systemComment || `${event.title} recorded at ${event.timestamp}.`}&rdquo;
             </div>
           </div>
         </div>
@@ -301,22 +303,22 @@ export default function AuditEventDetail() {
                 {
                   icon: 'devices',
                   label: t('audit_event_detail.label_user_agent'),
-                  value: (event as any).metadata?.userAgent || '-',
+                  value: event.metadata?.userAgent || '-',
                 },
                 {
                   icon: 'fingerprint',
                   label: t('audit_event_detail.label_request_id'),
-                  value: (event as any).metadata?.requestId || event.id,
+                  value: event.metadata?.requestId || event.id,
                 },
                 {
                   icon: 'verified',
                   label: t('audit_event_detail.label_validation_hash'),
-                  value: (event as any).metadata?.validationHash || '-',
+                  value: event.metadata?.validationHash || '-',
                 },
                 {
                   icon: 'shield',
                   label: t('audit_event_detail.label_auth_provider'),
-                  value: (event as any).metadata?.authProvider || '-',
+                  value: event.metadata?.authProvider || '-',
                 },
               ].map((item) => (
                 <div key={item.label}>

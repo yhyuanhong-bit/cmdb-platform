@@ -72,9 +72,9 @@ export const inventoryApi = {
     apiClient.get<ApiResponse<InventorySummary>>(`/inventory/tasks/${taskID}/summary`),
   importItems: (taskId: string, items: Record<string, unknown>[]) =>
     apiClient.post<ApiResponse<{ imported: number }>>(`/inventory/tasks/${taskId}/import`, { items }),
-  listScanHistory: (taskId: string, itemId: string) => apiClient.get<ApiResponse<ScanRecord[]>>(`/inventory/tasks/${taskId}/items/${itemId}/scan-history`),
+  listScanHistory: (taskId: string, itemId: string) => apiClient.get<ApiResponse<{ scan_history: ScanRecord[] }>>(`/inventory/tasks/${taskId}/items/${itemId}/scan-history`),
   createScanRecord: (taskId: string, itemId: string, data: ScanRecord) => apiClient.post(`/inventory/tasks/${taskId}/items/${itemId}/scan-history`, data),
-  listItemNotes: (taskId: string, itemId: string) => apiClient.get<ApiResponse<ItemNote[]>>(`/inventory/tasks/${taskId}/items/${itemId}/notes`),
+  listItemNotes: (taskId: string, itemId: string) => apiClient.get<ApiResponse<{ notes: ItemNote[] }>>(`/inventory/tasks/${taskId}/items/${itemId}/notes`),
   createItemNote: (taskId: string, itemId: string, data: ItemNote) => apiClient.post(`/inventory/tasks/${taskId}/items/${itemId}/notes`, data),
   update: (id: string, data: Record<string, unknown>) =>
     apiClient.put<ApiResponse<InventoryTask>>(`/inventory/tasks/${id}`, data),

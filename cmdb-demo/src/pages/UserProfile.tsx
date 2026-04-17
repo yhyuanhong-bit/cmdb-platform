@@ -20,7 +20,7 @@ export default function UserProfile() {
   const updateUser = useUpdateUser()
 
   const { data: healthResp } = useSystemHealth()
-  const dbLatency = (healthResp as any)?.data?.database?.latency_ms
+  const dbLatency = healthResp?.data?.database?.latency_ms
   const connectivity = dbLatency ? (dbLatency < 50 ? 'Good' : dbLatency < 200 ? 'Normal' : 'Degraded') : '—'
 
   const { data: sessionsData } = useUserSessions(user?.id || '')

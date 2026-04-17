@@ -46,9 +46,15 @@ function mapStatus(s: string): DisplayStatus {
   return STATUS_MAP[s?.toLowerCase()] ?? 'SUBMITTED'
 }
 
-function toWorkOrderItem(wo: ApiWorkOrder): WorkOrderItem {
+// SLA fields are server-side extensions not yet in the generated OpenAPI schema.
+type ApiWorkOrderWithSLA = ApiWorkOrder & {
+  sla_deadline?: string
+  sla_breached?: boolean
+  sla_warning_sent?: boolean
+}
+
+function toWorkOrderItem(wo: ApiWorkOrderWithSLA): WorkOrderItem {
   const initials = wo.title.slice(0, 2).toUpperCase()
-  const raw = wo as any
   return {
     id: wo.code || wo.id,
     apiId: wo.id,
@@ -59,9 +65,9 @@ function toWorkOrderItem(wo: ApiWorkOrder): WorkOrderItem {
     reason: wo.description ?? '',
     createdAt: wo.scheduled_start?.slice(0, 16).replace('T', ' ') ?? '',
     priority: wo.priority ?? 'MEDIUM',
-    sla_deadline: raw.sla_deadline,
-    sla_breached: raw.sla_breached,
-    sla_warning_sent: raw.sla_warning_sent,
+    sla_deadline: wo.sla_deadline,
+    sla_breached: wo.sla_breached,
+    sla_warning_sent: wo.sla_warning_sent,
   }
 }
 
@@ -395,7 +401,7 @@ export default function WorkOrder() {
       submitted: all.filter(o => o.status === 'submitted').length,
       inProgress: all.filter(o => ['approved', 'in_progress'].includes(o.status)).length,
       completed: all.filter(o => o.status === 'completed').length,
-      overdue: all.filter(o => (o as any).sla_breached).length,
+      overdue: all.filter(o => (o as ApiWorkOrderWithSLA).sla_breached).length,
     }
   }, [apiOrders])
   const totalPages = woResponse?.pagination?.total_pages ?? 4

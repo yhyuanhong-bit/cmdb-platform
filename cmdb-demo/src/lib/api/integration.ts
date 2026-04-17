@@ -33,6 +33,7 @@ export interface CreateAdapterInput {
   direction: string
   endpoint: string
   enabled?: boolean
+  config?: Record<string, unknown>
 }
 
 export interface CreateWebhookInput {

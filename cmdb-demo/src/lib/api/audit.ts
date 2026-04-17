@@ -4,8 +4,23 @@ import type { components } from '../../generated/api-types'
 
 export type AuditEvent = components['schemas']['AuditEvent']
 
+export interface AuditEventDetailResponse {
+  event: AuditEvent & {
+    operator_name?: string
+    source?: string
+    metadata?: {
+      userAgent?: string
+      requestId?: string
+      validationHash?: string
+      authProvider?: string
+      [key: string]: unknown
+    }
+    systemComment?: string
+  }
+}
+
 export const auditApi = {
   query: (params?: Record<string, string>) =>
     apiClient.get<ApiListResponse<AuditEvent>>('/audit/events', params),
-  getEventById: (id: string) => apiClient.get(`/audit/events/${id}`),
+  getEventById: (id: string) => apiClient.get<AuditEventDetailResponse>(`/audit/events/${id}`),
 }

@@ -69,7 +69,7 @@ export function useCapacityPlanning() {
     queryKey: ['capacityPlanning'],
     queryFn: () => assetApi.getCapacityPlanning(),
     refetchInterval: 60000,
-    select: (res) => (res as any)?.data as CapacityForecast[] ?? [],
+    select: (res) => (Array.isArray(res?.data) ? res.data : []) as CapacityForecast[],
   })
 }
 

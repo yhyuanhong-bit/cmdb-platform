@@ -76,9 +76,9 @@ function DiffDetails({ diff }: { diff: Record<string, any> }) {
       {entries.map(([key, val]) => (
         <div key={key} className="flex items-center gap-2 text-xs">
           <span className="font-mono text-on-surface-variant">{key}:</span>
-          <span className="text-red-400 line-through">{String((val as any)?.old ?? '')}</span>
+          <span className="text-red-400 line-through">{String((val as { old?: unknown })?.old ?? '')}</span>
           <Icon name="arrow_forward" className="text-[12px] text-on-surface-variant" />
-          <span className="text-emerald-400">{String((val as any)?.new ?? '')}</span>
+          <span className="text-emerald-400">{String((val as { new?: unknown })?.new ?? '')}</span>
         </div>
       ))}
     </div>
@@ -105,8 +105,8 @@ export default function AutoDiscovery() {
   const approveMutation = useApproveAsset()
   const ignoreMutation = useIgnoreAsset()
 
-  const assets: DiscoveredAsset[] = (listData as any)?.data ?? []
-  const stats: DiscoveryStatsData = (statsData as any)?.data ?? { total: 0, pending: 0, conflict: 0, approved: 0, ignored: 0, matched: 0 }
+  const assets: DiscoveredAsset[] = listData?.data ?? []
+  const stats: DiscoveryStatsData = statsData?.data ?? { total: 0, pending: 0, conflict: 0, approved: 0, ignored: 0, matched: 0 }
 
   /* Source filter is client-side since API only supports status */
   const filtered = assets.filter(a => {

@@ -8,30 +8,14 @@ import {
   useDiscoveryTasks,
   useTestCollector,
 } from '../hooks/useScanTargets'
+import type { ScanTarget, DiscoveryTask } from '../lib/api/ingestion'
 import CreateScanTargetModal from './CreateScanTargetModal'
 
 /* ------------------------------------------------------------------ */
 /*  Type helpers                                                        */
 /* ------------------------------------------------------------------ */
 
-interface ScanTarget {
-  id: string
-  name: string
-  collector_type: string
-  cidrs: string[]
-  credential_id: string
-  mode: string
-  tenant_id?: string
-}
-
-interface DiscoveryTask {
-  id: string
-  task_type: string
-  status: string
-  started_at?: string
-  completed_at?: string
-  result?: Record<string, any>
-}
+// Types imported from ../lib/api/ingestion
 
 /* ------------------------------------------------------------------ */
 /*  Icon mapping                                                        */
@@ -113,8 +97,8 @@ export default function ScanManagementTab() {
   const triggerMutation = useTriggerScan()
   const testMutation    = useTestCollector()
 
-  const targets: ScanTarget[] = (targetsData as any)?.data ?? []
-  const tasks: DiscoveryTask[] = (tasksData as any)?.data ?? []
+  const targets: ScanTarget[] = targetsData?.data ?? []
+  const tasks: DiscoveryTask[] = tasksData?.data ?? []
 
   function handleEdit(target: ScanTarget) {
     setEditingTarget(target)

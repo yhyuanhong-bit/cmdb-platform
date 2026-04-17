@@ -180,7 +180,7 @@ function Dashboard() {
 
   // Fetch BIA stats for compliance card and distribution chart
   const { data: biaResp } = useBIAStats();
-  const biaStats = (biaResp as any)?.data;
+  const biaStats = biaResp?.data;
 
   // Derive BIA distribution from aggregated /bia/stats endpoint (by_tier counts)
   // instead of fetching all assets and counting client-side.
@@ -206,7 +206,7 @@ function Dashboard() {
 
   // Compute lifecycle financial breakdown from real API data
   const lifecycleBreakdown = useMemo(() => {
-    const byStatus = lifecycleData?.data?.by_status ?? (lifecycleData as any)?.by_status;
+    const byStatus = lifecycleData?.data?.by_status;
     if (!byStatus) return null;
     const operational = byStatus.operational ?? 0;
     const maintenance = byStatus.maintenance ?? 0;

@@ -57,7 +57,7 @@ export const maintenanceApi = {
     apiClient.post<ApiResponse<WorkOrder>>(`/maintenance/orders/${id}/transition`, data),
   listLogs: (id: string) =>
     apiClient.get<ApiResponse<WorkOrderLog[]>>(`/maintenance/orders/${id}/logs`),
-  listComments: (orderId: string) => apiClient.get(`/maintenance/orders/${orderId}/comments`),
-  createComment: (orderId: string, data: WorkOrderComment) => apiClient.post(`/maintenance/orders/${orderId}/comments`, data),
+  listComments: (orderId: string) => apiClient.get<ApiResponse<{ comments: WorkOrderComment[] }>>(`/maintenance/orders/${orderId}/comments`),
+  createComment: (orderId: string, data: WorkOrderComment) => apiClient.post<ApiResponse<WorkOrderComment>>(`/maintenance/orders/${orderId}/comments`, data),
   delete: (id: string) => apiClient.del(`/maintenance/orders/${id}`),
 }

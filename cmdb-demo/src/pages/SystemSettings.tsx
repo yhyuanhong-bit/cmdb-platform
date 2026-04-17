@@ -65,12 +65,12 @@ export default function SystemSettings() {
   const { data: credentialsResp } = useCredentials()
   const deleteCredential = useDeleteCredential()
 
-  const apiUsers = (usersResp as any)?.data ?? []
-  const apiRoles = (rolesResp as any)?.data ?? []
-  const health = (healthResp as any)?.data
-  const adapters = (adaptersResp as any)?.data ?? []
-  const webhooks = (webhooksResp as any)?.data ?? []
-  const credentials = (credentialsResp as any)?.data ?? []
+  const apiUsers = usersResp?.data ?? []
+  const apiRoles = rolesResp?.data ?? []
+  const health = healthResp?.data
+  const adapters = adaptersResp?.data ?? []
+  const webhooks = webhooksResp?.data ?? []
+  const credentials = credentialsResp?.data ?? []
 
   // Map API users to display format
   const users: MappedUser[] = (apiUsers as UserWithRoles[]).map((u) => ({

@@ -60,17 +60,23 @@ export default function EquipmentHealthOverview() {
 
   // Fetch server assets for health overview context
   const { data: apiData } = useAssets({ type: 'server' })
-  const allAssets = (apiData as any)?.data || []
+  const allAssets = apiData?.data ?? []
   const { data: alertsResp } = useAlerts({ severity: 'warning' })
-  const allAlerts = (alertsResp as any)?.data || []
+  const allAlerts = alertsResp?.data ?? []
 
   // Lifecycle stats for warranty-aware scoring
   const { data: lifecycleResp } = useLifecycleStats()
-  const lifecycleStats = (lifecycleResp as any)?.data ?? {}
+  const lifecycleStats = lifecycleResp?.data ?? {
+    by_status: {},
+    total_purchase_cost: 0,
+    warranty_active_count: 0,
+    warranty_expired_count: 0,
+    approaching_eol_count: 0,
+  }
 
-  // Capacity planning forecasts
+  // Capacity planning forecasts — useCapacityPlanning hook already unwraps via select()
   const { data: capacityData } = useCapacityPlanning()
-  const capacityForecasts = (capacityData as any) ?? []
+  const capacityForecasts = capacityData ?? []
 
   // Fleet metrics from monitoring system
   const { data: fleetMetricsResp } = useFleetMetrics()

@@ -63,8 +63,8 @@ export default function QualityDashboard() {
   const triggerScan = useTriggerQualityScan()
   const createRule = useCreateQualityRule()
 
-  const dashboard: DashboardData | null = (dashResp as any)?.data ?? null
-  const rules: QualityRule[] = (rulesResp as any)?.data ?? []
+  const dashboard: DashboardData | null = dashResp?.data ?? null
+  const rules: QualityRule[] = rulesResp?.data ?? []
 
   const [showAddRule, setShowAddRule] = useState(false)
   const [newRule, setNewRule] = useState({

@@ -202,7 +202,7 @@ function OverviewTab() {
   const models = modelsResponse?.data ?? []
   const predictions = predictionsResponse?.data ?? []
 
-  const rawDist: { category: string; count: number }[] = (failDistData as any)?.distribution ?? []
+  const rawDist = failDistData?.distribution ?? []
   const totalCount = rawDist.reduce((s, d) => s + d.count, 0)
   const failureDist = rawDist.map((d) => ({
     label: d.category,
@@ -536,7 +536,7 @@ function InsightsTab() {
   const { t } = useTranslation()
   const days = Array.from({ length: 7 }, (_, i) => `DAY ${String((i * 4) + 1).padStart(2, '0')}`)
   const { data: failDistData, isLoading: failDistLoading } = useFailureDistribution()
-  const failureDist: { category: string; count: number }[] = (failDistData as any)?.distribution ?? []
+  const failureDist = failDistData?.distribution ?? []
   const { data: alertsResponse } = useAlerts({ status: 'firing' })
   const alerts = alertsResponse?.data ?? []
 

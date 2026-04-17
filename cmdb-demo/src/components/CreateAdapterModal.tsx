@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCreateAdapter } from '../hooks/useIntegration'
+import type { CreateAdapterInput } from '../lib/api/integration'
 
 interface Props {
   open: boolean
@@ -93,7 +94,7 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
 
   const handleCreate = () => {
     const config = buildConfig()
-    const payload: Record<string, unknown> = {
+    const payload: CreateAdapterInput = {
       name: formData.name,
       type: formData.type,
       direction: formData.direction,
@@ -103,7 +104,7 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
     if (config !== undefined) {
       payload.config = config
     }
-    mutation.mutate(payload as any, {
+    mutation.mutate(payload, {
       onSuccess: () => { onClose(); setFormData({ ...initial }) },
     })
   }

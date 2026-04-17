@@ -15,6 +15,20 @@ export interface PredictionModel {
   enabled?: boolean
 }
 
+export interface FailureDistribution {
+  distribution: Array<{ category: string; count: number }>
+  total?: number
+  period?: { start: string; end: string }
+}
+
+export interface RUL {
+  asset_id: string
+  remaining_useful_life_days: number
+  confidence?: number
+  model?: string
+  computed_at?: string
+}
+
 export interface CreateRCAData {
   ci_id?: string
   incident_id?: string
@@ -45,7 +59,7 @@ export const predictionApi = {
   verifyRCA: (id: string, data: VerifyRCAData) =>
     apiClient.post<ApiResponse<RCAAnalysis>>(`/prediction/rca/${id}/verify`, data),
   getRUL: (assetId: string) =>
-    apiClient.get(`/prediction/rul/${assetId}`),
+    apiClient.get<ApiResponse<RUL>>(`/prediction/rul/${assetId}`),
   getFailureDistribution: () =>
-    apiClient.get('/prediction/failure-distribution'),
+    apiClient.get<FailureDistribution>('/prediction/failure-distribution'),
 }

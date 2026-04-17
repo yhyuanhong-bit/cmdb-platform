@@ -352,9 +352,9 @@ function VisualizationTab({
                     { label: t('rack_detail.label_vendor'), value: selectedAssetData?.vendor ?? '-' },
                     { label: t('rack_detail.label_model'), value: selectedAssetData?.model ?? '-' },
                     { label: t('rack_detail.label_serial'), value: selectedAssetData?.serial_number ?? '-' },
-                    { label: t('rack_detail.label_ip'), value: (selectedAssetData as any)?.ip_address ?? selectedAssetData?.attributes?.ip_address ?? '-' },
-                    { label: t('rack_detail.label_power'), value: selectedAssetData?.attributes?.power_draw ?? '-' },
-                    { label: t('rack_detail.label_network'), value: selectedAssetData?.attributes?.network_specs ?? '-' },
+                    { label: t('rack_detail.label_ip'), value: String(selectedAssetData?.attributes?.ip_address ?? '-') },
+                    { label: t('rack_detail.label_power'), value: String(selectedAssetData?.attributes?.power_draw ?? '-') },
+                    { label: t('rack_detail.label_network'), value: String(selectedAssetData?.attributes?.network_specs ?? '-') },
                   ].map((item) => (
                     <div key={item.label} className="bg-surface-container-low rounded p-3">
                       <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-0.5">{item.label}</p>
@@ -958,7 +958,7 @@ export default function RackDetailUnified() {
     if (!rackSlots || rackSlots.length === 0) return []
     return rackSlots.map((slot: RackSlotDetail) => {
       const assetType = (slot.asset_type || slot.type || '').toLowerCase()
-      let slotType: string = 'compute'
+      let slotType: SlotType = 'compute'
       if (assetType.includes('network') || assetType.includes('switch')) slotType = 'network'
       else if (assetType.includes('storage') || assetType.includes('nas') || assetType.includes('san')) slotType = 'storage'
       else if (assetType.includes('power') || assetType.includes('ups')) slotType = 'ups'
@@ -967,7 +967,7 @@ export default function RackDetailUnified() {
         startU: slot.start_u ?? 1,
         endU: slot.end_u ?? 1,
         label: slot.asset_name || slot.asset_tag || `U${slot.start_u}`,
-        type: slotType as any,
+        type: slotType,
       }
     })
   }, [rackSlots])
@@ -1038,7 +1038,7 @@ export default function RackDetailUnified() {
   // Environmental metrics: temperature from API, power from rack data, humidity/airflow placeholder (Phase 4 Group 2)
   const firstAssetId = rackAssets?.[0]?.id || ''
   const { data: tempMetrics } = useMetrics({ asset_id: firstAssetId, metric_name: 'temperature', time_range: '1h' })
-  const latestTemp = (tempMetrics as any)?.data?.[0]?.value ?? 23.0
+  const latestTemp = tempMetrics?.data?.[0]?.value ?? 23.0
   const environmentMetrics = {
     temperature: { current: Number(latestTemp.toFixed(1)), min: Number((latestTemp - 3).toFixed(1)), max: Number((latestTemp + 3).toFixed(1)), threshold: 30, unit: '°C' },
     humidity: { current: 45, min: 38, max: 52, threshold: 60, unit: '%' },
