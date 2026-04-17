@@ -345,10 +345,9 @@ func main() {
 	// Register all API routes via generated handler
 	api.RegisterHandlers(v1, apiServer)
 
-	// Energy monitoring endpoints
-	v1.GET("/energy/breakdown", apiServer.GetEnergyBreakdown)
+	// Energy monitoring endpoints (breakdown and trend are auto-registered
+	// via RegisterHandlers; only /energy/summary remains custom)
 	v1.GET("/energy/summary", apiServer.GetEnergySummary)
-	v1.GET("/energy/trend", apiServer.GetEnergyTrend)
 
 	// Custom endpoints (Phase 2)
 	v1.GET("/racks/stats", apiServer.GetRackStats)
@@ -405,12 +404,6 @@ func main() {
 
 	// Location detection endpoints
 	v1.GET("/assets/:id/location-history", apiServer.LocationDetectGetHistory)
-
-	// Capacity planning
-	v1.GET("/capacity-planning", apiServer.GetCapacityPlanning)
-
-	// Fleet metrics summary
-	v1.GET("/fleet-metrics", apiServer.GetFleetMetricsSummary)
 
 	// Sync endpoints
 	v1.GET("/sync/changes", apiServer.SyncGetChanges)

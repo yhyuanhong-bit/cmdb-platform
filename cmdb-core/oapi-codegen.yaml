@@ -18,8 +18,6 @@ output-options:
     - getItemScanHistory
     - createItemScanRecord
     - getRackQRData
-    - getCapacityPlanning
-    - getFleetMetricsSummary
     - syncGetChanges
     - syncGetState
     - syncGetConflicts
@@ -32,8 +30,6 @@ output-options:
     - getAssetRUL
     - getAssetUpgradeRecommendations
     - getAuditEventDetail
-    - getEnergyBreakdown
-    - getEnergyTrend
     - getInventoryDiscrepancies
     - getInventoryRacksSummary
     - getRackMaintenance

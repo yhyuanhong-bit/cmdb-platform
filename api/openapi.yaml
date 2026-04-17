@@ -1705,12 +1705,16 @@ paths:
     get:
       operationId: getEnergyTrend
       tags: [monitoring]
-      summary: Get energy consumption trend
+      summary: Get hourly power consumption trend for the tenant
       parameters:
-        - name: range
+        - name: hours
           in: query
+          description: Window in hours (1-168, default 24)
           schema:
-            type: string
+            type: integer
+            minimum: 1
+            maximum: 168
+            default: 24
       responses:
         '200':
           description: Energy trend data

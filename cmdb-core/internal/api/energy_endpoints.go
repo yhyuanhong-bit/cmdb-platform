@@ -17,9 +17,10 @@ import (
 const energyQueryTimeout = 10 * time.Second
 
 // GetEnergyBreakdown returns average power consumption grouped by asset type category
-// for the last hour.
+// for the last hour. The spec's optional location_id query is currently ignored;
+// the aggregation is always tenant-wide.
 // GET /energy/breakdown
-func (s *APIServer) GetEnergyBreakdown(c *gin.Context) {
+func (s *APIServer) GetEnergyBreakdown(c *gin.Context, _ GetEnergyBreakdownParams) {
 	tenantID := c.GetString("tenant_id")
 	ctx, cancel := context.WithTimeout(c.Request.Context(), energyQueryTimeout)
 	defer cancel()
@@ -149,13 +150,12 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 }
 
 // GetEnergyTrend returns hourly aggregated power consumption over the requested window.
-// GET /energy/trend?hours=24&granularity=hourly
-func (s *APIServer) GetEnergyTrend(c *gin.Context) {
+// GET /energy/trend?hours=24
+func (s *APIServer) GetEnergyTrend(c *gin.Context, params GetEnergyTrendParams) {
 	tenantID := c.GetString("tenant_id")
-	hoursStr := c.DefaultQuery("hours", "24")
 	hoursVal := 24
-	if h, err := strconv.Atoi(hoursStr); err == nil && h >= 1 && h <= 168 {
-		hoursVal = h
+	if params.Hours != nil && *params.Hours >= 1 && *params.Hours <= 168 {
+		hoursVal = *params.Hours
 	}
 	hours := strconv.Itoa(hoursVal)
 	ctx, cancel := context.WithTimeout(c.Request.Context(), energyQueryTimeout)

@@ -241,6 +241,19 @@ type BIAStats struct {
 	Total          *int            `json:"total,omitempty"`
 }
 
+// CapacityPlanning defines model for CapacityPlanning.
+type CapacityPlanning struct {
+	PowerCapacityKw      *float32               `json:"power_capacity_kw,omitempty"`
+	PowerConsumptionKw   *float32               `json:"power_consumption_kw,omitempty"`
+	PowerUtilizationPct  *float32               `json:"power_utilization_pct,omitempty"`
+	ProjectedFullMonths  *int                   `json:"projected_full_months,omitempty"`
+	RackUtilizationPct   *float32               `json:"rack_utilization_pct,omitempty"`
+	TotalRackUnits       *int                   `json:"total_rack_units,omitempty"`
+	TotalRacks           *int                   `json:"total_racks,omitempty"`
+	UsedRackUnits        *int                   `json:"used_rack_units,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
 // CreateQualityRuleRequest defines model for CreateQualityRuleRequest.
 type CreateQualityRuleRequest struct {
 	CiType     *string                 `json:"ci_type,omitempty"`
@@ -320,6 +333,15 @@ type ErrorBody struct {
 type ErrorResponse struct {
 	Error ErrorBody `json:"error"`
 	Meta  Meta      `json:"meta"`
+}
+
+// FleetMetrics defines model for FleetMetrics.
+type FleetMetrics struct {
+	AvgCpuPct            *float32               `json:"avg_cpu_pct,omitempty"`
+	AvgMemoryPct         *float32               `json:"avg_memory_pct,omitempty"`
+	HealthDistribution   *map[string]int        `json:"health_distribution,omitempty"`
+	TotalAssets          *int                   `json:"total_assets,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
 // Incident defines model for Incident.
@@ -862,6 +884,17 @@ type ListDiscoveredAssetsParams struct {
 	Status   *string   `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// GetEnergyBreakdownParams defines parameters for GetEnergyBreakdown.
+type GetEnergyBreakdownParams struct {
+	LocationId *openapi_types.UUID `form:"location_id,omitempty" json:"location_id,omitempty"`
+}
+
+// GetEnergyTrendParams defines parameters for GetEnergyTrend.
+type GetEnergyTrendParams struct {
+	// Hours Window in hours (1-168, default 24)
+	Hours *int `form:"hours,omitempty" json:"hours,omitempty"`
+}
+
 // CreateAdapterJSONBody defines parameters for CreateAdapter.
 type CreateAdapterJSONBody struct {
 	Config    *map[string]interface{} `json:"config,omitempty"`
@@ -1280,6 +1313,292 @@ type UpdateUserJSONRequestBody UpdateUserJSONBody
 // AssignRoleToUserJSONRequestBody defines body for AssignRoleToUser for application/json ContentType.
 type AssignRoleToUserJSONRequestBody = AssignRoleRequest
 
+// Getter for additional properties for CapacityPlanning. Returns the specified
+// element and whether it was found
+func (a CapacityPlanning) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for CapacityPlanning
+func (a *CapacityPlanning) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for CapacityPlanning to handle AdditionalProperties
+func (a *CapacityPlanning) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["power_capacity_kw"]; found {
+		err = json.Unmarshal(raw, &a.PowerCapacityKw)
+		if err != nil {
+			return fmt.Errorf("error reading 'power_capacity_kw': %w", err)
+		}
+		delete(object, "power_capacity_kw")
+	}
+
+	if raw, found := object["power_consumption_kw"]; found {
+		err = json.Unmarshal(raw, &a.PowerConsumptionKw)
+		if err != nil {
+			return fmt.Errorf("error reading 'power_consumption_kw': %w", err)
+		}
+		delete(object, "power_consumption_kw")
+	}
+
+	if raw, found := object["power_utilization_pct"]; found {
+		err = json.Unmarshal(raw, &a.PowerUtilizationPct)
+		if err != nil {
+			return fmt.Errorf("error reading 'power_utilization_pct': %w", err)
+		}
+		delete(object, "power_utilization_pct")
+	}
+
+	if raw, found := object["projected_full_months"]; found {
+		err = json.Unmarshal(raw, &a.ProjectedFullMonths)
+		if err != nil {
+			return fmt.Errorf("error reading 'projected_full_months': %w", err)
+		}
+		delete(object, "projected_full_months")
+	}
+
+	if raw, found := object["rack_utilization_pct"]; found {
+		err = json.Unmarshal(raw, &a.RackUtilizationPct)
+		if err != nil {
+			return fmt.Errorf("error reading 'rack_utilization_pct': %w", err)
+		}
+		delete(object, "rack_utilization_pct")
+	}
+
+	if raw, found := object["total_rack_units"]; found {
+		err = json.Unmarshal(raw, &a.TotalRackUnits)
+		if err != nil {
+			return fmt.Errorf("error reading 'total_rack_units': %w", err)
+		}
+		delete(object, "total_rack_units")
+	}
+
+	if raw, found := object["total_racks"]; found {
+		err = json.Unmarshal(raw, &a.TotalRacks)
+		if err != nil {
+			return fmt.Errorf("error reading 'total_racks': %w", err)
+		}
+		delete(object, "total_racks")
+	}
+
+	if raw, found := object["used_rack_units"]; found {
+		err = json.Unmarshal(raw, &a.UsedRackUnits)
+		if err != nil {
+			return fmt.Errorf("error reading 'used_rack_units': %w", err)
+		}
+		delete(object, "used_rack_units")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for CapacityPlanning to handle AdditionalProperties
+func (a CapacityPlanning) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.PowerCapacityKw != nil {
+		object["power_capacity_kw"], err = json.Marshal(a.PowerCapacityKw)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'power_capacity_kw': %w", err)
+		}
+	}
+
+	if a.PowerConsumptionKw != nil {
+		object["power_consumption_kw"], err = json.Marshal(a.PowerConsumptionKw)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'power_consumption_kw': %w", err)
+		}
+	}
+
+	if a.PowerUtilizationPct != nil {
+		object["power_utilization_pct"], err = json.Marshal(a.PowerUtilizationPct)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'power_utilization_pct': %w", err)
+		}
+	}
+
+	if a.ProjectedFullMonths != nil {
+		object["projected_full_months"], err = json.Marshal(a.ProjectedFullMonths)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'projected_full_months': %w", err)
+		}
+	}
+
+	if a.RackUtilizationPct != nil {
+		object["rack_utilization_pct"], err = json.Marshal(a.RackUtilizationPct)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'rack_utilization_pct': %w", err)
+		}
+	}
+
+	if a.TotalRackUnits != nil {
+		object["total_rack_units"], err = json.Marshal(a.TotalRackUnits)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'total_rack_units': %w", err)
+		}
+	}
+
+	if a.TotalRacks != nil {
+		object["total_racks"], err = json.Marshal(a.TotalRacks)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'total_racks': %w", err)
+		}
+	}
+
+	if a.UsedRackUnits != nil {
+		object["used_rack_units"], err = json.Marshal(a.UsedRackUnits)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'used_rack_units': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for FleetMetrics. Returns the specified
+// element and whether it was found
+func (a FleetMetrics) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for FleetMetrics
+func (a *FleetMetrics) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for FleetMetrics to handle AdditionalProperties
+func (a *FleetMetrics) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["avg_cpu_pct"]; found {
+		err = json.Unmarshal(raw, &a.AvgCpuPct)
+		if err != nil {
+			return fmt.Errorf("error reading 'avg_cpu_pct': %w", err)
+		}
+		delete(object, "avg_cpu_pct")
+	}
+
+	if raw, found := object["avg_memory_pct"]; found {
+		err = json.Unmarshal(raw, &a.AvgMemoryPct)
+		if err != nil {
+			return fmt.Errorf("error reading 'avg_memory_pct': %w", err)
+		}
+		delete(object, "avg_memory_pct")
+	}
+
+	if raw, found := object["health_distribution"]; found {
+		err = json.Unmarshal(raw, &a.HealthDistribution)
+		if err != nil {
+			return fmt.Errorf("error reading 'health_distribution': %w", err)
+		}
+		delete(object, "health_distribution")
+	}
+
+	if raw, found := object["total_assets"]; found {
+		err = json.Unmarshal(raw, &a.TotalAssets)
+		if err != nil {
+			return fmt.Errorf("error reading 'total_assets': %w", err)
+		}
+		delete(object, "total_assets")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for FleetMetrics to handle AdditionalProperties
+func (a FleetMetrics) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.AvgCpuPct != nil {
+		object["avg_cpu_pct"], err = json.Marshal(a.AvgCpuPct)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'avg_cpu_pct': %w", err)
+		}
+	}
+
+	if a.AvgMemoryPct != nil {
+		object["avg_memory_pct"], err = json.Marshal(a.AvgMemoryPct)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'avg_memory_pct': %w", err)
+		}
+	}
+
+	if a.HealthDistribution != nil {
+		object["health_distribution"], err = json.Marshal(a.HealthDistribution)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'health_distribution': %w", err)
+		}
+	}
+
+	if a.TotalAssets != nil {
+		object["total_assets"], err = json.Marshal(a.TotalAssets)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'total_assets': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
 // Getter for additional properties for LocationAnomaly. Returns the specified
 // element and whether it was found
 func (a LocationAnomaly) Get(fieldName string) (value interface{}, found bool) {
@@ -1574,6 +1893,9 @@ type ServerInterface interface {
 	// Get BIA statistics
 	// (GET /bia/stats)
 	GetBIAStats(c *gin.Context)
+	// Tenant-wide capacity planning snapshot (power/cooling/rack U utilization)
+	// (GET /capacity-planning)
+	GetCapacityPlanning(c *gin.Context)
 	// Get dashboard statistics
 	// (GET /dashboard/stats)
 	GetDashboardStats(c *gin.Context, params GetDashboardStatsParams)
@@ -1592,9 +1914,18 @@ type ServerInterface interface {
 
 	// (POST /discovery/{id}/ignore)
 	IgnoreDiscoveredAsset(c *gin.Context, id IdPath)
+	// Get energy breakdown by category
+	// (GET /energy/breakdown)
+	GetEnergyBreakdown(c *gin.Context, params GetEnergyBreakdownParams)
 	// Get energy summary metrics
 	// (GET /energy/summary)
 	GetEnergySummary(c *gin.Context)
+	// Get hourly power consumption trend for the tenant
+	// (GET /energy/trend)
+	GetEnergyTrend(c *gin.Context, params GetEnergyTrendParams)
+	// Fleet-wide aggregate metrics (CPU, memory, health distribution)
+	// (GET /fleet-metrics)
+	GetFleetMetricsSummary(c *gin.Context)
 	// List integration adapters
 	// (GET /integration/adapters)
 	ListAdapters(c *gin.Context)
@@ -2483,6 +2814,21 @@ func (siw *ServerInterfaceWrapper) GetBIAStats(c *gin.Context) {
 	siw.Handler.GetBIAStats(c)
 }
 
+// GetCapacityPlanning operation middleware
+func (siw *ServerInterfaceWrapper) GetCapacityPlanning(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetCapacityPlanning(c)
+}
+
 // GetDashboardStats operation middleware
 func (siw *ServerInterfaceWrapper) GetDashboardStats(c *gin.Context) {
 
@@ -2637,6 +2983,34 @@ func (siw *ServerInterfaceWrapper) IgnoreDiscoveredAsset(c *gin.Context) {
 	siw.Handler.IgnoreDiscoveredAsset(c, id)
 }
 
+// GetEnergyBreakdown operation middleware
+func (siw *ServerInterfaceWrapper) GetEnergyBreakdown(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetEnergyBreakdownParams
+
+	// ------------- Optional query parameter "location_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location_id", c.Request.URL.Query(), &params.LocationId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter location_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetEnergyBreakdown(c, params)
+}
+
 // GetEnergySummary operation middleware
 func (siw *ServerInterfaceWrapper) GetEnergySummary(c *gin.Context) {
 
@@ -2650,6 +3024,49 @@ func (siw *ServerInterfaceWrapper) GetEnergySummary(c *gin.Context) {
 	}
 
 	siw.Handler.GetEnergySummary(c)
+}
+
+// GetEnergyTrend operation middleware
+func (siw *ServerInterfaceWrapper) GetEnergyTrend(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetEnergyTrendParams
+
+	// ------------- Optional query parameter "hours" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "hours", c.Request.URL.Query(), &params.Hours, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter hours: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetEnergyTrend(c, params)
+}
+
+// GetFleetMetricsSummary operation middleware
+func (siw *ServerInterfaceWrapper) GetFleetMetricsSummary(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFleetMetricsSummary(c)
 }
 
 // ListAdapters operation middleware
@@ -5237,13 +5654,17 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/bia/rules", wrapper.ListBIAScoringRules)
 	router.PUT(options.BaseURL+"/bia/rules/:id", wrapper.UpdateBIAScoringRule)
 	router.GET(options.BaseURL+"/bia/stats", wrapper.GetBIAStats)
+	router.GET(options.BaseURL+"/capacity-planning", wrapper.GetCapacityPlanning)
 	router.GET(options.BaseURL+"/dashboard/stats", wrapper.GetDashboardStats)
 	router.POST(options.BaseURL+"/discovery/ingest", wrapper.IngestDiscoveredAsset)
 	router.GET(options.BaseURL+"/discovery/pending", wrapper.ListDiscoveredAssets)
 	router.GET(options.BaseURL+"/discovery/stats", wrapper.GetDiscoveryStats)
 	router.POST(options.BaseURL+"/discovery/:id/approve", wrapper.ApproveDiscoveredAsset)
 	router.POST(options.BaseURL+"/discovery/:id/ignore", wrapper.IgnoreDiscoveredAsset)
+	router.GET(options.BaseURL+"/energy/breakdown", wrapper.GetEnergyBreakdown)
 	router.GET(options.BaseURL+"/energy/summary", wrapper.GetEnergySummary)
+	router.GET(options.BaseURL+"/energy/trend", wrapper.GetEnergyTrend)
+	router.GET(options.BaseURL+"/fleet-metrics", wrapper.GetFleetMetricsSummary)
 	router.GET(options.BaseURL+"/integration/adapters", wrapper.ListAdapters)
 	router.POST(options.BaseURL+"/integration/adapters", wrapper.CreateAdapter)
 	router.GET(options.BaseURL+"/integration/webhooks", wrapper.ListWebhooks)
