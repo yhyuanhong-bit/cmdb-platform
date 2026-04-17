@@ -203,15 +203,19 @@ type Incident struct {
 }
 
 type IntegrationAdapter struct {
-	ID        uuid.UUID          `json:"id"`
-	TenantID  uuid.UUID          `json:"tenant_id"`
-	Name      string             `json:"name"`
-	Type      string             `json:"type"`
-	Direction string             `json:"direction"`
-	Endpoint  pgtype.Text        `json:"endpoint"`
-	Config    []byte             `json:"config"`
-	Enabled   pgtype.Bool        `json:"enabled"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID                  uuid.UUID          `json:"id"`
+	TenantID            uuid.UUID          `json:"tenant_id"`
+	Name                string             `json:"name"`
+	Type                string             `json:"type"`
+	Direction           string             `json:"direction"`
+	Endpoint            pgtype.Text        `json:"endpoint"`
+	Config              []byte             `json:"config"`
+	Enabled             pgtype.Bool        `json:"enabled"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	ConsecutiveFailures int32              `json:"consecutive_failures"`
+	LastFailureAt       pgtype.Timestamptz `json:"last_failure_at"`
+	LastFailureReason   pgtype.Text        `json:"last_failure_reason"`
+	NextAttemptAt       pgtype.Timestamptz `json:"next_attempt_at"`
 }
 
 type InventoryItem struct {
