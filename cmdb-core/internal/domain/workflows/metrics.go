@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -30,7 +31,7 @@ func (w *WorkflowSubscriber) StartMetricsPuller(ctx context.Context) {
 
 func (w *WorkflowSubscriber) pullMetricsFromAdapters(ctx context.Context) {
 	rows, err := w.pool.Query(ctx,
-		`SELECT id, tenant_id, name, type, endpoint, config FROM integration_adapters
+		`SELECT id, tenant_id, name, type, endpoint, config, config_encrypted FROM integration_adapters
 		 WHERE direction = 'inbound' AND enabled = true`)
 	if err != nil {
 		zap.L().Warn("metrics puller: failed to query adapters", zap.Error(err))
@@ -42,15 +43,22 @@ func (w *WorkflowSubscriber) pullMetricsFromAdapters(ctx context.Context) {
 		var id, tenantID uuid.UUID
 		var name, adapterType string
 		var endpoint *string
-		var configRaw []byte
-		if rows.Scan(&id, &tenantID, &name, &adapterType, &endpoint, &configRaw) != nil {
+		var configRaw, configEncrypted []byte
+		if rows.Scan(&id, &tenantID, &name, &adapterType, &endpoint, &configRaw, &configEncrypted) != nil {
 			continue
 		}
 		if endpoint == nil || *endpoint == "" {
 			continue
 		}
 
-		pullErr := w.pullFromAdapter(ctx, id, tenantID, name, adapterType, *endpoint, configRaw)
+		plainConfig, err := integration.DecryptConfigWithFallback(w.cipher, configEncrypted, configRaw)
+		if err != nil {
+			zap.L().Warn("metrics puller: decrypt config failed",
+				zap.String("adapter", name), zap.Error(err))
+			continue
+		}
+
+		pullErr := w.pullFromAdapter(ctx, id, tenantID, name, adapterType, *endpoint, plainConfig)
 		if pullErr != nil {
 			w.adapterFailures[id]++
 			zap.L().Warn("metrics puller: pull failed",

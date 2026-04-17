@@ -46,12 +46,21 @@ func (s *APIServer) CreateAdapter(c *gin.Context) {
 		configBytes = []byte(`{}`)
 	}
 
+	// Dual-write: keep plaintext for one release while readers migrate; the
+	// authoritative column is config_encrypted.
+	encrypted, err := s.cipher.Encrypt(configBytes)
+	if err != nil {
+		response.InternalError(c, "failed to encrypt adapter config")
+		return
+	}
+
 	params := dbgen.CreateAdapterParams{
-		TenantID:  tenantID,
-		Name:      req.Name,
-		Type:      req.Type,
-		Direction: req.Direction,
-		Config:    configBytes,
+		TenantID:        tenantID,
+		Name:            req.Name,
+		Type:            req.Type,
+		Direction:       req.Direction,
+		Config:          configBytes,
+		ConfigEncrypted: encrypted,
 	}
 	if req.Endpoint != nil {
 		params.Endpoint = pgtype.Text{String: *req.Endpoint, Valid: true}
@@ -67,6 +76,11 @@ func (s *APIServer) CreateAdapter(c *gin.Context) {
 		response.InternalError(c, "failed to create adapter")
 		return
 	}
+	s.recordAudit(c, "adapter.created", "integration", "integration_adapter", adapter.ID, map[string]any{
+		"name":      req.Name,
+		"type":      req.Type,
+		"direction": req.Direction,
+	})
 	response.Created(c, toAPIAdapter(adapter))
 }
 
@@ -108,6 +122,12 @@ func (s *APIServer) CreateWebhook(c *gin.Context) {
 	}
 	if req.Secret != nil {
 		params.Secret = pgtype.Text{String: *req.Secret, Valid: true}
+		enc, err := s.cipher.Encrypt([]byte(*req.Secret))
+		if err != nil {
+			response.InternalError(c, "failed to encrypt webhook secret")
+			return
+		}
+		params.SecretEncrypted = enc
 	}
 	if req.Enabled != nil {
 		params.Enabled = pgtype.Bool{Bool: *req.Enabled, Valid: true}
