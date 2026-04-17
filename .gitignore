@@ -114,3 +114,4 @@ desktop.ini
 cmdb-core/cmdb-core
 cmdb-core/cmdb-server
 chaos-test-results.log
+.claude/worktrees/

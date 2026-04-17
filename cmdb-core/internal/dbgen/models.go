@@ -203,16 +203,20 @@ type Incident struct {
 }
 
 type IntegrationAdapter struct {
-	ID              uuid.UUID          `json:"id"`
-	TenantID        uuid.UUID          `json:"tenant_id"`
-	Name            string             `json:"name"`
-	Type            string             `json:"type"`
-	Direction       string             `json:"direction"`
-	Endpoint        pgtype.Text        `json:"endpoint"`
-	Config          []byte             `json:"config"`
-	ConfigEncrypted []byte             `json:"config_encrypted"`
-	Enabled         pgtype.Bool        `json:"enabled"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ID                  uuid.UUID          `json:"id"`
+	TenantID            uuid.UUID          `json:"tenant_id"`
+	Name                string             `json:"name"`
+	Type                string             `json:"type"`
+	Direction           string             `json:"direction"`
+	Endpoint            pgtype.Text        `json:"endpoint"`
+	Config              []byte             `json:"config"`
+	Enabled             pgtype.Bool        `json:"enabled"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	ConfigEncrypted     []byte             `json:"config_encrypted"`
+	ConsecutiveFailures int32              `json:"consecutive_failures"`
+	LastFailureAt       pgtype.Timestamptz `json:"last_failure_at"`
+	LastFailureReason   pgtype.Text        `json:"last_failure_reason"`
+	NextAttemptAt       pgtype.Timestamptz `json:"next_attempt_at"`
 }
 
 type InventoryItem struct {
@@ -594,11 +598,11 @@ type WebhookSubscription struct {
 	Name            string             `json:"name"`
 	Url             string             `json:"url"`
 	Secret          pgtype.Text        `json:"secret"`
-	SecretEncrypted []byte             `json:"secret_encrypted"`
 	Events          []string           `json:"events"`
 	Enabled         pgtype.Bool        `json:"enabled"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	FilterBia       []string           `json:"filter_bia"`
+	SecretEncrypted []byte             `json:"secret_encrypted"`
 }
 
 type WorkOrder struct {

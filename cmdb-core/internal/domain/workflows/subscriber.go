@@ -5,30 +5,27 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
 
 // WorkflowSubscriber handles cross-module reactions to domain events.
 type WorkflowSubscriber struct {
-	pool            *pgxpool.Pool
-	queries         *dbgen.Queries
-	bus             eventbus.Bus
-	maintenanceSvc  *maintenance.Service
-	cipher          crypto.Cipher
-	adapterFailures map[uuid.UUID]int
+	pool           *pgxpool.Pool
+	queries        *dbgen.Queries
+	bus            eventbus.Bus
+	maintenanceSvc *maintenance.Service
+	cipher         crypto.Cipher
 }
 
 // New creates a WorkflowSubscriber.
 func New(pool *pgxpool.Pool, queries *dbgen.Queries, bus eventbus.Bus, maintenanceSvc *maintenance.Service, cipher crypto.Cipher) *WorkflowSubscriber {
 	return &WorkflowSubscriber{
-		pool:            pool,
-		queries:         queries,
+		pool:           pool,
+		queries:        queries,
 		bus:             bus,
-		maintenanceSvc:  maintenanceSvc,
-		cipher:          cipher,
-		adapterFailures: make(map[uuid.UUID]int),
+		maintenanceSvc: maintenanceSvc,
+		cipher:         cipher,
 	}
 }
 

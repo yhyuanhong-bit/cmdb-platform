@@ -13,6 +13,49 @@ import (
 	"go.uber.org/zap"
 )
 
+// Adapter failure policy. Centralized so callers and tests share the same
+// numbers and we do not accidentally drift them across files.
+const (
+	// adapterDisableThreshold is the number of consecutive failures that
+	// triggers auto-disable. Matches the prior in-memory behavior but is
+	// now evaluated against the persisted counter, so service restarts
+	// cannot silently reset progress toward disable.
+	adapterDisableThreshold = 3
+
+	// adapterFailureReasonMaxLen caps how much of an error message we
+	// persist in last_failure_reason. Adapter errors often include full
+	// HTTP bodies; truncating protects the column and audit log size.
+	adapterFailureReasonMaxLen = 500
+)
+
+// computeAdapterBackoff returns the delay to wait before the next pull
+// attempt after n consecutive failures. Schedule: 30s, 2m, 10m, 30m cap.
+//
+// Exposed (lower-cased, package-private but called from tests in the same
+// package) so the escalation schedule can be asserted without exercising
+// the full DB + workflow stack.
+func computeAdapterBackoff(n int32) time.Duration {
+	switch {
+	case n <= 1:
+		return 30 * time.Second
+	case n == 2:
+		return 2 * time.Minute
+	case n == 3:
+		return 10 * time.Minute
+	default:
+		return 30 * time.Minute
+	}
+}
+
+// truncateReason shortens err text to adapterFailureReasonMaxLen bytes.
+// Kept as a pure function so tests can verify the boundary behavior.
+func truncateReason(s string) string {
+	if len(s) <= adapterFailureReasonMaxLen {
+		return s
+	}
+	return s[:adapterFailureReasonMaxLen]
+}
+
 func (w *WorkflowSubscriber) StartMetricsPuller(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Minute)
 	go func() {
@@ -29,53 +72,79 @@ func (w *WorkflowSubscriber) StartMetricsPuller(ctx context.Context) {
 	zap.L().Info("Metrics puller started (5m interval)")
 }
 
+// pullMetricsFromAdapters iterates due-to-pull adapters. Backoff gating
+// happens in SQL (see ListDuePullAdapters) so adapters in a cool-down
+// window are not even returned here.
 func (w *WorkflowSubscriber) pullMetricsFromAdapters(ctx context.Context) {
-	rows, err := w.pool.Query(ctx,
-		`SELECT id, tenant_id, name, type, endpoint, config, config_encrypted FROM integration_adapters
-		 WHERE direction = 'inbound' AND enabled = true`)
+	adapters, err := w.queries.ListDuePullAdapters(ctx)
 	if err != nil {
 		zap.L().Warn("metrics puller: failed to query adapters", zap.Error(err))
 		return
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var id, tenantID uuid.UUID
-		var name, adapterType string
-		var endpoint *string
-		var configRaw, configEncrypted []byte
-		if rows.Scan(&id, &tenantID, &name, &adapterType, &endpoint, &configRaw, &configEncrypted) != nil {
-			continue
-		}
-		if endpoint == nil || *endpoint == "" {
+	for _, a := range adapters {
+		if !a.Endpoint.Valid || a.Endpoint.String == "" {
 			continue
 		}
 
-		plainConfig, err := integration.DecryptConfigWithFallback(w.cipher, configEncrypted, configRaw)
+		plainConfig, err := integration.DecryptConfigWithFallback(w.cipher, a.ConfigEncrypted, a.Config)
 		if err != nil {
 			zap.L().Warn("metrics puller: decrypt config failed",
-				zap.String("adapter", name), zap.Error(err))
+				zap.String("adapter", a.Name), zap.Error(err))
 			continue
 		}
 
-		pullErr := w.pullFromAdapter(ctx, id, tenantID, name, adapterType, *endpoint, plainConfig)
+		pullErr := w.pullFromAdapter(ctx, a.TenantID, a.Name, a.Type, a.Endpoint.String, plainConfig)
 		if pullErr != nil {
-			w.adapterFailures[id]++
-			zap.L().Warn("metrics puller: pull failed",
-				zap.String("adapter", name),
-				zap.String("type", adapterType),
-				zap.Int("consecutive_failures", w.adapterFailures[id]),
-				zap.Error(pullErr))
-			if w.adapterFailures[id] >= 3 {
-				w.disableAdapter(ctx, id, tenantID, name)
-			}
-		} else {
-			w.adapterFailures[id] = 0
+			w.handleAdapterFailure(ctx, a.ID, a.TenantID, a.Name, a.Type, pullErr)
+			continue
+		}
+
+		if err := w.queries.RecordAdapterSuccess(ctx, dbgen.RecordAdapterSuccessParams{
+			ID:       a.ID,
+			TenantID: a.TenantID,
+		}); err != nil {
+			zap.L().Warn("metrics puller: failed to record success",
+				zap.String("adapter", a.Name), zap.Error(err))
 		}
 	}
 }
 
-func (w *WorkflowSubscriber) pullFromAdapter(ctx context.Context, adapterID, tenantID uuid.UUID, name, adapterType, endpoint string, configRaw []byte) error {
+// handleAdapterFailure persists the failure, triggers auto-disable when
+// the threshold is reached, and always emits an audit event so operators
+// can reconstruct the escalation. Errors from the persistence path are
+// logged but never propagate — a DB hiccup should not crash the puller.
+func (w *WorkflowSubscriber) handleAdapterFailure(
+	ctx context.Context,
+	adapterID, tenantID uuid.UUID,
+	name, adapterType string,
+	pullErr error,
+) {
+	reason := truncateReason(pullErr.Error())
+
+	row, err := w.queries.RecordAdapterFailure(ctx, dbgen.RecordAdapterFailureParams{
+		ID:                adapterID,
+		TenantID:          tenantID,
+		LastFailureReason: pgtype.Text{String: reason, Valid: true},
+	})
+	if err != nil {
+		zap.L().Error("metrics puller: failed to record failure",
+			zap.String("adapter", name), zap.Error(err))
+		return
+	}
+
+	zap.L().Warn("metrics puller: pull failed",
+		zap.String("adapter", name),
+		zap.String("type", adapterType),
+		zap.Int32("consecutive_failures", row.ConsecutiveFailures),
+		zap.Error(pullErr))
+
+	if row.ConsecutiveFailures >= adapterDisableThreshold {
+		w.disableAdapter(ctx, adapterID, tenantID, name, row.ConsecutiveFailures, reason)
+	}
+}
+
+func (w *WorkflowSubscriber) pullFromAdapter(ctx context.Context, tenantID uuid.UUID, name, adapterType, endpoint string, configRaw []byte) error {
 	adapter := GetAdapter(adapterType)
 	if adapter == nil {
 		// Fallback: try as prometheus for backward compat with type="rest"
@@ -115,22 +184,71 @@ func (w *WorkflowSubscriber) pullFromAdapter(ctx context.Context, adapterID, ten
 	return nil
 }
 
-func (w *WorkflowSubscriber) disableAdapter(ctx context.Context, adapterID, tenantID uuid.UUID, name string) {
-	_, err := w.pool.Exec(ctx,
-		"UPDATE integration_adapters SET enabled = false WHERE id = $1", adapterID)
-	if err != nil {
-		zap.L().Error("metrics puller: failed to disable adapter", zap.String("adapter", name), zap.Error(err))
+// disableAdapter flips enabled=false, emits an audit event, and notifies
+// the tenant's ops-admin users. Each step fails-soft so a single error
+// does not skip the subsequent operator-visible signal.
+func (w *WorkflowSubscriber) disableAdapter(
+	ctx context.Context,
+	adapterID, tenantID uuid.UUID,
+	name string,
+	failureCount int32,
+	reason string,
+) {
+	if err := w.queries.DisableAdapter(ctx, dbgen.DisableAdapterParams{
+		ID:       adapterID,
+		TenantID: tenantID,
+	}); err != nil {
+		zap.L().Error("metrics puller: failed to disable adapter",
+			zap.String("adapter", name), zap.Error(err))
 		return
 	}
-	zap.L().Warn("metrics puller: adapter disabled after 3 consecutive failures", zap.String("adapter", name))
+	zap.L().Warn("metrics puller: adapter auto-disabled",
+		zap.String("adapter", name),
+		zap.Int32("consecutive_failures", failureCount))
+
+	w.emitAdapterDisabledAudit(ctx, tenantID, adapterID, name, failureCount, reason)
 
 	admins := w.opsAdminUserIDs(ctx, tenantID)
 	for _, adminID := range admins {
 		w.createNotification(ctx, tenantID, adminID,
 			"adapter_error",
 			fmt.Sprintf("Adapter '%s' disabled", name),
-			fmt.Sprintf("The inbound adapter '%s' has been automatically disabled after 3 consecutive pull failures.", name),
+			fmt.Sprintf("The inbound adapter '%s' has been automatically disabled after %d consecutive pull failures. Last error: %s", name, failureCount, reason),
 			"integration_adapter", adapterID)
 	}
-	delete(w.adapterFailures, adapterID)
+}
+
+// emitAdapterDisabledAudit records an audit_events row so the escalation
+// is visible in the audit UI. Uses the workflow pseudo-operator (zero
+// UUID) since no human triggered the disable.
+func (w *WorkflowSubscriber) emitAdapterDisabledAudit(
+	ctx context.Context,
+	tenantID, adapterID uuid.UUID,
+	name string,
+	failureCount int32,
+	reason string,
+) {
+	diff := map[string]any{
+		"adapter_name":         name,
+		"consecutive_failures": failureCount,
+		"last_failure_reason":  reason,
+		"auto_disabled":        true,
+	}
+	diffJSON, _ := json.Marshal(diff)
+
+	_, err := w.queries.CreateAuditEvent(ctx, dbgen.CreateAuditEventParams{
+		TenantID:   tenantID,
+		Action:     "adapter_auto_disabled",
+		Module:     pgtype.Text{String: "integration", Valid: true},
+		TargetType: pgtype.Text{String: "integration_adapter", Valid: true},
+		TargetID:   pgtype.UUID{Bytes: adapterID, Valid: true},
+		// operator_id left invalid: system action, not a user.
+		OperatorID: pgtype.UUID{Valid: false},
+		Diff:       diffJSON,
+		Source:     "workflow",
+	})
+	if err != nil {
+		zap.L().Warn("metrics puller: failed to emit audit event",
+			zap.String("adapter", name), zap.Error(err))
+	}
 }
