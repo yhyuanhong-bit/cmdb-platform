@@ -36,6 +36,33 @@ func (s *Service) CreateAdapter(ctx context.Context, params dbgen.CreateAdapterP
 	return adapter, nil
 }
 
+// GetAdapterByID returns an adapter scoped to the given tenant.
+func (s *Service) GetAdapterByID(ctx context.Context, id, tenantID uuid.UUID) (dbgen.IntegrationAdapter, error) {
+	adapter, err := s.queries.GetAdapterByID(ctx, dbgen.GetAdapterByIDParams{ID: id, TenantID: tenantID})
+	if err != nil {
+		return dbgen.IntegrationAdapter{}, fmt.Errorf("get adapter: %w", err)
+	}
+	return adapter, nil
+}
+
+// UpdateAdapter applies a partial update to an integration adapter.
+// Tenant scoping is enforced inside the SQL query via the TenantID param.
+func (s *Service) UpdateAdapter(ctx context.Context, params dbgen.UpdateAdapterParams) (dbgen.IntegrationAdapter, error) {
+	adapter, err := s.queries.UpdateAdapter(ctx, params)
+	if err != nil {
+		return dbgen.IntegrationAdapter{}, fmt.Errorf("update adapter: %w", err)
+	}
+	return adapter, nil
+}
+
+// DeleteAdapter removes an adapter scoped to the given tenant.
+func (s *Service) DeleteAdapter(ctx context.Context, id, tenantID uuid.UUID) error {
+	if err := s.queries.DeleteAdapter(ctx, dbgen.DeleteAdapterParams{ID: id, TenantID: tenantID}); err != nil {
+		return fmt.Errorf("delete adapter: %w", err)
+	}
+	return nil
+}
+
 // ListWebhooks returns all webhook subscriptions for a tenant.
 func (s *Service) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]dbgen.WebhookSubscription, error) {
 	webhooks, err := s.queries.ListWebhooks(ctx, tenantID)
@@ -52,6 +79,24 @@ func (s *Service) CreateWebhook(ctx context.Context, params dbgen.CreateWebhookP
 		return dbgen.WebhookSubscription{}, fmt.Errorf("create webhook: %w", err)
 	}
 	return webhook, nil
+}
+
+// UpdateWebhook applies a partial update to a webhook subscription.
+// Tenant scoping is enforced inside the SQL query via the TenantID param.
+func (s *Service) UpdateWebhook(ctx context.Context, params dbgen.UpdateWebhookParams) (dbgen.WebhookSubscription, error) {
+	webhook, err := s.queries.UpdateWebhook(ctx, params)
+	if err != nil {
+		return dbgen.WebhookSubscription{}, fmt.Errorf("update webhook: %w", err)
+	}
+	return webhook, nil
+}
+
+// DeleteWebhook removes a webhook subscription scoped to the given tenant.
+func (s *Service) DeleteWebhook(ctx context.Context, id, tenantID uuid.UUID) error {
+	if err := s.queries.DeleteWebhook(ctx, dbgen.DeleteWebhookParams{ID: id, TenantID: tenantID}); err != nil {
+		return fmt.Errorf("delete webhook: %w", err)
+	}
+	return nil
 }
 
 // GetWebhookByID returns a webhook scoped to the given tenant.

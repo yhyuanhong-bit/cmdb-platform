@@ -10,7 +10,6 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/bia"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/discovery"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
 	location_detect "github.com/cmdb-platform/cmdb-core/internal/domain/location_detect"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
@@ -48,7 +47,7 @@ type APIServer struct {
 	auditSvc          auditService
 	dashboardSvc      *dashboard.Service
 	predictionSvc     *prediction.Service
-	integrationSvc    *integration.Service
+	integrationSvc    integrationService
 	biaSvc            *bia.Service
 	qualitySvc        *quality.Service
 	discoverySvc      *discovery.Service
@@ -72,7 +71,7 @@ func NewAPIServer(
 	auditSvc auditService,
 	dashboardSvc *dashboard.Service,
 	predictionSvc *prediction.Service,
-	integrationSvc *integration.Service,
+	integrationSvc integrationService,
 	biaSvc *bia.Service,
 	qualitySvc *quality.Service,
 	discoverySvc *discovery.Service,
