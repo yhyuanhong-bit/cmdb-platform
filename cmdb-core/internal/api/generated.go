@@ -4,6 +4,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -38,6 +39,30 @@ func (e CreateUpgradeRuleRequestPriority) Valid() bool {
 	}
 }
 
+// Defines values for LocationAnomalySeverity.
+const (
+	LocationAnomalySeverityCritical LocationAnomalySeverity = "critical"
+	LocationAnomalySeverityHigh     LocationAnomalySeverity = "high"
+	LocationAnomalySeverityLow      LocationAnomalySeverity = "low"
+	LocationAnomalySeverityMedium   LocationAnomalySeverity = "medium"
+)
+
+// Valid indicates whether the value is a known member of the LocationAnomalySeverity enum.
+func (e LocationAnomalySeverity) Valid() bool {
+	switch e {
+	case LocationAnomalySeverityCritical:
+		return true
+	case LocationAnomalySeverityHigh:
+		return true
+	case LocationAnomalySeverityLow:
+		return true
+	case LocationAnomalySeverityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateUpgradeRuleRequestPriority.
 const (
 	UpdateUpgradeRuleRequestPriorityHigh   UpdateUpgradeRuleRequestPriority = "high"
@@ -61,19 +86,19 @@ func (e UpdateUpgradeRuleRequestPriority) Valid() bool {
 
 // Defines values for UpgradeRulePriority.
 const (
-	High   UpgradeRulePriority = "high"
-	Low    UpgradeRulePriority = "low"
-	Medium UpgradeRulePriority = "medium"
+	UpgradeRulePriorityHigh   UpgradeRulePriority = "high"
+	UpgradeRulePriorityLow    UpgradeRulePriority = "low"
+	UpgradeRulePriorityMedium UpgradeRulePriority = "medium"
 )
 
 // Valid indicates whether the value is a known member of the UpgradeRulePriority enum.
 func (e UpgradeRulePriority) Valid() bool {
 	switch e {
-	case High:
+	case UpgradeRulePriorityHigh:
 		return true
-	case Low:
+	case UpgradeRulePriorityLow:
 		return true
-	case Medium:
+	case UpgradeRulePriorityMedium:
 		return true
 	default:
 		return false
@@ -360,6 +385,51 @@ type Location struct {
 	SortOrder int                    `json:"sort_order"`
 	Status    string                 `json:"status"`
 	UpdatedAt time.Time              `json:"updated_at"`
+}
+
+// LocationAnomaly defines model for LocationAnomaly.
+type LocationAnomaly struct {
+	AssetId              *openapi_types.UUID      `json:"asset_id,omitempty"`
+	Description          *string                  `json:"description,omitempty"`
+	Severity             *LocationAnomalySeverity `json:"severity,omitempty"`
+	Type                 *string                  `json:"type,omitempty"`
+	AdditionalProperties map[string]interface{}   `json:"-"`
+}
+
+// LocationAnomalySeverity defines model for LocationAnomaly.Severity.
+type LocationAnomalySeverity string
+
+// LocationDetectReport defines model for LocationDetectReport.
+type LocationDetectReport struct {
+	AuthorizedRelocations   *int64  `json:"authorized_relocations,omitempty"`
+	AutoCorrections         *int64  `json:"auto_corrections,omitempty"`
+	CoveragePct             *string `json:"coverage_pct,omitempty"`
+	LocationAlerts          *int64  `json:"location_alerts,omitempty"`
+	PeriodDays              *int    `json:"period_days,omitempty"`
+	TotalAssets             *int64  `json:"total_assets,omitempty"`
+	TotalRelocations        *int64  `json:"total_relocations,omitempty"`
+	TrackedByNetwork        *int64  `json:"tracked_by_network,omitempty"`
+	UnauthorizedRelocations *int64  `json:"unauthorized_relocations,omitempty"`
+	UnregisteredDevices     *int64  `json:"unregistered_devices,omitempty"`
+}
+
+// LocationDetectSummary defines model for LocationDetectSummary.
+type LocationDetectSummary struct {
+	CoveragePct      *float32 `json:"coverage_pct,omitempty"`
+	Missing          *int64   `json:"missing,omitempty"`
+	Relocations24h   *int64   `json:"relocations_24h,omitempty"`
+	TotalAssets      *int64   `json:"total_assets,omitempty"`
+	TrackedByNetwork *int64   `json:"tracked_by_network,omitempty"`
+	Unregistered     *int64   `json:"unregistered,omitempty"`
+}
+
+// LocationDiff defines model for LocationDiff.
+type LocationDiff struct {
+	AssetId              *openapi_types.UUID    `json:"asset_id,omitempty"`
+	DetectedRackId       *openapi_types.UUID    `json:"detected_rack_id,omitempty"`
+	Reason               *string                `json:"reason,omitempty"`
+	RecordedRackId       *openapi_types.UUID    `json:"recorded_rack_id,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
 // LocationStats defines model for LocationStats.
@@ -857,6 +927,11 @@ type ScanInventoryItemJSONBody struct {
 	Status string                 `json:"status"`
 }
 
+// LocationDetectGetReportParams defines parameters for LocationDetectGetReport.
+type LocationDetectGetReportParams struct {
+	Days *int `form:"days,omitempty" json:"days,omitempty"`
+}
+
 // ListLocationsParams defines parameters for ListLocations.
 type ListLocationsParams struct {
 	Slug  *string `form:"slug,omitempty" json:"slug,omitempty"`
@@ -1192,6 +1267,232 @@ type UpdateUserJSONRequestBody UpdateUserJSONBody
 // AssignRoleToUserJSONRequestBody defines body for AssignRoleToUser for application/json ContentType.
 type AssignRoleToUserJSONRequestBody = AssignRoleRequest
 
+// Getter for additional properties for LocationAnomaly. Returns the specified
+// element and whether it was found
+func (a LocationAnomaly) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for LocationAnomaly
+func (a *LocationAnomaly) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for LocationAnomaly to handle AdditionalProperties
+func (a *LocationAnomaly) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["asset_id"]; found {
+		err = json.Unmarshal(raw, &a.AssetId)
+		if err != nil {
+			return fmt.Errorf("error reading 'asset_id': %w", err)
+		}
+		delete(object, "asset_id")
+	}
+
+	if raw, found := object["description"]; found {
+		err = json.Unmarshal(raw, &a.Description)
+		if err != nil {
+			return fmt.Errorf("error reading 'description': %w", err)
+		}
+		delete(object, "description")
+	}
+
+	if raw, found := object["severity"]; found {
+		err = json.Unmarshal(raw, &a.Severity)
+		if err != nil {
+			return fmt.Errorf("error reading 'severity': %w", err)
+		}
+		delete(object, "severity")
+	}
+
+	if raw, found := object["type"]; found {
+		err = json.Unmarshal(raw, &a.Type)
+		if err != nil {
+			return fmt.Errorf("error reading 'type': %w", err)
+		}
+		delete(object, "type")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for LocationAnomaly to handle AdditionalProperties
+func (a LocationAnomaly) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.AssetId != nil {
+		object["asset_id"], err = json.Marshal(a.AssetId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'asset_id': %w", err)
+		}
+	}
+
+	if a.Description != nil {
+		object["description"], err = json.Marshal(a.Description)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'description': %w", err)
+		}
+	}
+
+	if a.Severity != nil {
+		object["severity"], err = json.Marshal(a.Severity)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'severity': %w", err)
+		}
+	}
+
+	if a.Type != nil {
+		object["type"], err = json.Marshal(a.Type)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'type': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for LocationDiff. Returns the specified
+// element and whether it was found
+func (a LocationDiff) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for LocationDiff
+func (a *LocationDiff) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for LocationDiff to handle AdditionalProperties
+func (a *LocationDiff) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["asset_id"]; found {
+		err = json.Unmarshal(raw, &a.AssetId)
+		if err != nil {
+			return fmt.Errorf("error reading 'asset_id': %w", err)
+		}
+		delete(object, "asset_id")
+	}
+
+	if raw, found := object["detected_rack_id"]; found {
+		err = json.Unmarshal(raw, &a.DetectedRackId)
+		if err != nil {
+			return fmt.Errorf("error reading 'detected_rack_id': %w", err)
+		}
+		delete(object, "detected_rack_id")
+	}
+
+	if raw, found := object["reason"]; found {
+		err = json.Unmarshal(raw, &a.Reason)
+		if err != nil {
+			return fmt.Errorf("error reading 'reason': %w", err)
+		}
+		delete(object, "reason")
+	}
+
+	if raw, found := object["recorded_rack_id"]; found {
+		err = json.Unmarshal(raw, &a.RecordedRackId)
+		if err != nil {
+			return fmt.Errorf("error reading 'recorded_rack_id': %w", err)
+		}
+		delete(object, "recorded_rack_id")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for LocationDiff to handle AdditionalProperties
+func (a LocationDiff) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.AssetId != nil {
+		object["asset_id"], err = json.Marshal(a.AssetId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'asset_id': %w", err)
+		}
+	}
+
+	if a.DetectedRackId != nil {
+		object["detected_rack_id"], err = json.Marshal(a.DetectedRackId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'detected_rack_id': %w", err)
+		}
+	}
+
+	if a.Reason != nil {
+		object["reason"], err = json.Marshal(a.Reason)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'reason': %w", err)
+		}
+	}
+
+	if a.RecordedRackId != nil {
+		object["recorded_rack_id"], err = json.Marshal(a.RecordedRackId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'recorded_rack_id': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// List assets with pagination and filters
@@ -1326,6 +1627,18 @@ type ServerInterface interface {
 	// Get inventory task summary
 	// (GET /inventory/tasks/{id}/summary)
 	GetInventorySummary(c *gin.Context, id IdPath)
+	// Detected location anomalies
+	// (GET /location-detect/anomalies)
+	LocationDetectGetAnomalies(c *gin.Context)
+	// List location discrepancies between CMDB records and detected state
+	// (GET /location-detect/diffs)
+	LocationDetectGetDiffs(c *gin.Context)
+	// Location governance report over a time window
+	// (GET /location-detect/report)
+	LocationDetectGetReport(c *gin.Context, params LocationDetectGetReportParams)
+	// Summary stats of the location detection system
+	// (GET /location-detect/summary)
+	LocationDetectGetSummary(c *gin.Context)
 	// List locations
 	// (GET /locations)
 	ListLocations(c *gin.Context, params ListLocationsParams)
@@ -2672,6 +2985,79 @@ func (siw *ServerInterfaceWrapper) GetInventorySummary(c *gin.Context) {
 	}
 
 	siw.Handler.GetInventorySummary(c, id)
+}
+
+// LocationDetectGetAnomalies operation middleware
+func (siw *ServerInterfaceWrapper) LocationDetectGetAnomalies(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LocationDetectGetAnomalies(c)
+}
+
+// LocationDetectGetDiffs operation middleware
+func (siw *ServerInterfaceWrapper) LocationDetectGetDiffs(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LocationDetectGetDiffs(c)
+}
+
+// LocationDetectGetReport operation middleware
+func (siw *ServerInterfaceWrapper) LocationDetectGetReport(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LocationDetectGetReportParams
+
+	// ------------- Optional query parameter "days" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "days", c.Request.URL.Query(), &params.Days, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter days: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LocationDetectGetReport(c, params)
+}
+
+// LocationDetectGetSummary operation middleware
+func (siw *ServerInterfaceWrapper) LocationDetectGetSummary(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LocationDetectGetSummary(c)
 }
 
 // ListLocations operation middleware
@@ -4512,6 +4898,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/inventory/tasks/:id/items", wrapper.ListInventoryItems)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/items/:itemId/scan", wrapper.ScanInventoryItem)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/summary", wrapper.GetInventorySummary)
+	router.GET(options.BaseURL+"/location-detect/anomalies", wrapper.LocationDetectGetAnomalies)
+	router.GET(options.BaseURL+"/location-detect/diffs", wrapper.LocationDetectGetDiffs)
+	router.GET(options.BaseURL+"/location-detect/report", wrapper.LocationDetectGetReport)
+	router.GET(options.BaseURL+"/location-detect/summary", wrapper.LocationDetectGetSummary)
 	router.GET(options.BaseURL+"/locations", wrapper.ListLocations)
 	router.POST(options.BaseURL+"/locations", wrapper.CreateLocation)
 	router.DELETE(options.BaseURL+"/locations/:id", wrapper.DeleteLocation)

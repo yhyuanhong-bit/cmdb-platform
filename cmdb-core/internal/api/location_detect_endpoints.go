@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -95,16 +94,13 @@ func (s *APIServer) LocationDetectGetAnomalies(c *gin.Context) {
 
 // LocationDetectGetReport returns a monthly location governance report.
 // GET /api/v1/location-detect/report?days=30
-func (s *APIServer) LocationDetectGetReport(c *gin.Context) {
+func (s *APIServer) LocationDetectGetReport(c *gin.Context, params LocationDetectGetReportParams) {
 	tenantID := tenantIDFromContext(c)
 	ctx := c.Request.Context()
 
-	// Parse period (default 30 days)
 	days := 30
-	if p := c.Query("days"); p != "" {
-		if d, err := strconv.Atoi(p); err == nil && d > 0 && d <= 365 {
-			days = d
-		}
+	if params.Days != nil && *params.Days > 0 && *params.Days <= 365 {
+		days = *params.Days
 	}
 	interval := fmt.Sprintf("%d days", days)
 
