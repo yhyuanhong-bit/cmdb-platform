@@ -672,26 +672,21 @@ func (s *APIServer) CreateUpgradeRule(c *gin.Context) {
 	response.Created(c, gin.H{"id": newID.String()})
 }
 
-// UpdateUpgradeRule handles PUT /upgrade-rules/:id
+// UpdateUpgradeRule handles PUT /upgrade-rules/{id}
 // Updates an existing upgrade rule (threshold, duration, priority, recommendation, enabled).
-func (s *APIServer) UpdateUpgradeRule(c *gin.Context) {
-	ruleID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid rule ID")
-		return
-	}
-	var body struct {
-		Threshold      *float64 `json:"threshold"`
-		DurationDays   *int     `json:"duration_days"`
-		Priority       *string  `json:"priority"`
-		Recommendation *string  `json:"recommendation"`
-		Enabled        *bool    `json:"enabled"`
-	}
+func (s *APIServer) UpdateUpgradeRule(c *gin.Context, id IdPath) {
+	ruleID := uuid.UUID(id)
+	var body UpdateUpgradeRuleJSONRequestBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, "invalid request body")
 		return
 	}
-	_, err = s.pool.Exec(c.Request.Context(), `
+	var priority *string
+	if body.Priority != nil {
+		p := string(*body.Priority)
+		priority = &p
+	}
+	_, err := s.pool.Exec(c.Request.Context(), `
 		UPDATE upgrade_rules SET
 		  threshold      = COALESCE($2, threshold),
 		  duration_days  = COALESCE($3, duration_days),
@@ -700,7 +695,7 @@ func (s *APIServer) UpdateUpgradeRule(c *gin.Context) {
 		  enabled        = COALESCE($6, enabled),
 		  updated_at     = now()
 		WHERE id = $1
-	`, ruleID, body.Threshold, body.DurationDays, body.Priority, body.Recommendation, body.Enabled)
+	`, ruleID, body.Threshold, body.DurationDays, priority, body.Recommendation, body.Enabled)
 	if err != nil {
 		response.InternalError(c, "failed to update upgrade rule")
 		return
@@ -708,14 +703,10 @@ func (s *APIServer) UpdateUpgradeRule(c *gin.Context) {
 	response.OK(c, gin.H{"updated": true})
 }
 
-// DeleteUpgradeRule handles DELETE /upgrade-rules/:id
+// DeleteUpgradeRule handles DELETE /upgrade-rules/{id}
 // Deletes an upgrade rule.
-func (s *APIServer) DeleteUpgradeRule(c *gin.Context) {
-	ruleID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid rule ID")
-		return
-	}
+func (s *APIServer) DeleteUpgradeRule(c *gin.Context, id IdPath) {
+	ruleID := uuid.UUID(id)
 	if _, err := s.pool.Exec(c.Request.Context(), "DELETE FROM upgrade_rules WHERE id = $1", ruleID); err != nil {
 		zap.L().Error("failed to delete upgrade rule", zap.String("id", ruleID.String()), zap.Error(err))
 		response.InternalError(c, "failed to delete rule")

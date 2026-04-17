@@ -17,6 +17,69 @@ const (
 	BearerAuthScopes = "BearerAuth.Scopes"
 )
 
+// Defines values for CreateUpgradeRuleRequestPriority.
+const (
+	CreateUpgradeRuleRequestPriorityHigh   CreateUpgradeRuleRequestPriority = "high"
+	CreateUpgradeRuleRequestPriorityLow    CreateUpgradeRuleRequestPriority = "low"
+	CreateUpgradeRuleRequestPriorityMedium CreateUpgradeRuleRequestPriority = "medium"
+)
+
+// Valid indicates whether the value is a known member of the CreateUpgradeRuleRequestPriority enum.
+func (e CreateUpgradeRuleRequestPriority) Valid() bool {
+	switch e {
+	case CreateUpgradeRuleRequestPriorityHigh:
+		return true
+	case CreateUpgradeRuleRequestPriorityLow:
+		return true
+	case CreateUpgradeRuleRequestPriorityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateUpgradeRuleRequestPriority.
+const (
+	UpdateUpgradeRuleRequestPriorityHigh   UpdateUpgradeRuleRequestPriority = "high"
+	UpdateUpgradeRuleRequestPriorityLow    UpdateUpgradeRuleRequestPriority = "low"
+	UpdateUpgradeRuleRequestPriorityMedium UpdateUpgradeRuleRequestPriority = "medium"
+)
+
+// Valid indicates whether the value is a known member of the UpdateUpgradeRuleRequestPriority enum.
+func (e UpdateUpgradeRuleRequestPriority) Valid() bool {
+	switch e {
+	case UpdateUpgradeRuleRequestPriorityHigh:
+		return true
+	case UpdateUpgradeRuleRequestPriorityLow:
+		return true
+	case UpdateUpgradeRuleRequestPriorityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpgradeRulePriority.
+const (
+	High   UpgradeRulePriority = "high"
+	Low    UpgradeRulePriority = "low"
+	Medium UpgradeRulePriority = "medium"
+)
+
+// Valid indicates whether the value is a known member of the UpgradeRulePriority enum.
+func (e UpgradeRulePriority) Valid() bool {
+	switch e {
+	case High:
+		return true
+	case Low:
+		return true
+	case Medium:
+		return true
+	default:
+		return false
+	}
+}
+
 // AlertEvent defines model for AlertEvent.
 type AlertEvent struct {
 	CiId         openapi_types.UUID `json:"ci_id"`
@@ -163,6 +226,21 @@ type CreateQualityRuleRequest struct {
 	RuleType   string                  `json:"rule_type"`
 	Weight     *int                    `json:"weight,omitempty"`
 }
+
+// CreateUpgradeRuleRequest defines model for CreateUpgradeRuleRequest.
+type CreateUpgradeRuleRequest struct {
+	AssetType      string                            `json:"asset_type"`
+	Category       string                            `json:"category"`
+	DurationDays   *int                              `json:"duration_days,omitempty"`
+	Enabled        *bool                             `json:"enabled,omitempty"`
+	MetricName     *string                           `json:"metric_name,omitempty"`
+	Priority       *CreateUpgradeRuleRequestPriority `json:"priority,omitempty"`
+	Recommendation *string                           `json:"recommendation,omitempty"`
+	Threshold      *float64                          `json:"threshold,omitempty"`
+}
+
+// CreateUpgradeRuleRequestPriority defines model for CreateUpgradeRuleRequest.Priority.
+type CreateUpgradeRuleRequestPriority string
 
 // CurrentUser defines model for CurrentUser.
 type CurrentUser struct {
@@ -466,6 +544,34 @@ type TokenPair struct {
 	ExpiresIn    int    `json:"expires_in"`
 	RefreshToken string `json:"refresh_token"`
 }
+
+// UpdateUpgradeRuleRequest defines model for UpdateUpgradeRuleRequest.
+type UpdateUpgradeRuleRequest struct {
+	DurationDays   *int                              `json:"duration_days,omitempty"`
+	Enabled        *bool                             `json:"enabled,omitempty"`
+	Priority       *UpdateUpgradeRuleRequestPriority `json:"priority,omitempty"`
+	Recommendation *string                           `json:"recommendation,omitempty"`
+	Threshold      *float64                          `json:"threshold,omitempty"`
+}
+
+// UpdateUpgradeRuleRequestPriority defines model for UpdateUpgradeRuleRequest.Priority.
+type UpdateUpgradeRuleRequestPriority string
+
+// UpgradeRule defines model for UpgradeRule.
+type UpgradeRule struct {
+	AssetType      string              `json:"asset_type"`
+	Category       string              `json:"category"`
+	DurationDays   *int                `json:"duration_days,omitempty"`
+	Enabled        bool                `json:"enabled"`
+	Id             openapi_types.UUID  `json:"id"`
+	MetricName     *string             `json:"metric_name,omitempty"`
+	Priority       UpgradeRulePriority `json:"priority"`
+	Recommendation *string             `json:"recommendation,omitempty"`
+	Threshold      *float64            `json:"threshold,omitempty"`
+}
+
+// UpgradeRulePriority defines model for UpgradeRule.Priority.
+type UpgradeRulePriority string
 
 // User defines model for User.
 type User struct {
@@ -1071,6 +1177,12 @@ type CreateSensorJSONRequestBody = CreateSensorJSONBody
 // CreateAssetDependencyJSONRequestBody defines body for CreateAssetDependency for application/json ContentType.
 type CreateAssetDependencyJSONRequestBody = CreateAssetDependencyJSONBody
 
+// CreateUpgradeRuleJSONRequestBody defines body for CreateUpgradeRule for application/json ContentType.
+type CreateUpgradeRuleJSONRequestBody = CreateUpgradeRuleRequest
+
+// UpdateUpgradeRuleJSONRequestBody defines body for UpdateUpgradeRule for application/json ContentType.
+type UpdateUpgradeRuleJSONRequestBody = UpdateUpgradeRuleRequest
+
 // CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
 type CreateUserJSONRequestBody CreateUserJSONBody
 
@@ -1394,6 +1506,18 @@ type ServerInterface interface {
 	// Create asset dependency
 	// (POST /topology/dependencies)
 	CreateAssetDependency(c *gin.Context)
+	// List upgrade rules for the current tenant
+	// (GET /upgrade-rules)
+	GetUpgradeRules(c *gin.Context)
+	// Create a new upgrade rule
+	// (POST /upgrade-rules)
+	CreateUpgradeRule(c *gin.Context)
+	// Delete an upgrade rule
+	// (DELETE /upgrade-rules/{id})
+	DeleteUpgradeRule(c *gin.Context, id IdPath)
+	// Update an existing upgrade rule
+	// (PUT /upgrade-rules/{id})
+	UpdateUpgradeRule(c *gin.Context, id IdPath)
 	// List users
 	// (GET /users)
 	ListUsers(c *gin.Context, params ListUsersParams)
@@ -4019,6 +4143,88 @@ func (siw *ServerInterfaceWrapper) CreateAssetDependency(c *gin.Context) {
 	siw.Handler.CreateAssetDependency(c)
 }
 
+// GetUpgradeRules operation middleware
+func (siw *ServerInterfaceWrapper) GetUpgradeRules(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUpgradeRules(c)
+}
+
+// CreateUpgradeRule operation middleware
+func (siw *ServerInterfaceWrapper) CreateUpgradeRule(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateUpgradeRule(c)
+}
+
+// DeleteUpgradeRule operation middleware
+func (siw *ServerInterfaceWrapper) DeleteUpgradeRule(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteUpgradeRule(c, id)
+}
+
+// UpdateUpgradeRule operation middleware
+func (siw *ServerInterfaceWrapper) UpdateUpgradeRule(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateUpgradeRule(c, id)
+}
+
 // ListUsers operation middleware
 func (siw *ServerInterfaceWrapper) ListUsers(c *gin.Context) {
 
@@ -4366,6 +4572,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/sensors", wrapper.CreateSensor)
 	router.GET(options.BaseURL+"/system/health", wrapper.GetSystemHealth)
 	router.POST(options.BaseURL+"/topology/dependencies", wrapper.CreateAssetDependency)
+	router.GET(options.BaseURL+"/upgrade-rules", wrapper.GetUpgradeRules)
+	router.POST(options.BaseURL+"/upgrade-rules", wrapper.CreateUpgradeRule)
+	router.DELETE(options.BaseURL+"/upgrade-rules/:id", wrapper.DeleteUpgradeRule)
+	router.PUT(options.BaseURL+"/upgrade-rules/:id", wrapper.UpdateUpgradeRule)
 	router.GET(options.BaseURL+"/users", wrapper.ListUsers)
 	router.POST(options.BaseURL+"/users", wrapper.CreateUser)
 	router.DELETE(options.BaseURL+"/users/:id", wrapper.DeleteUser)
