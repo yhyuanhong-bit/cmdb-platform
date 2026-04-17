@@ -1,4 +1,4 @@
-.PHONY: infra infra-down migrate migrate-down sqlc wire dev test build seed generate-api
+.PHONY: infra infra-down migrate migrate-down sqlc wire dev test test-integration build seed generate-api
 
 infra:
 	docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example up -d
@@ -25,6 +25,12 @@ dev:
 
 test:
 	go test ./... -race -count=1
+
+# Integration tests require a running Postgres (TEST_DATABASE_URL or the
+# default docker-compose DB). Tests skip automatically if the DB is
+# unreachable, so this target is safe to run locally without setup.
+test-integration:
+	go test -tags integration -race -count=1 ./...
 
 build:
 	CGO_ENABLED=0 go build -o bin/cmdb-core ./cmd/server
