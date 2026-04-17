@@ -2498,6 +2498,7 @@
     "name_placeholder": "Webhook name",
     "url_label": "URL",
     "url_placeholder": "https://example.com/webhook",
+    "url_invalid": "Enter a valid http(s) URL",
     "events_label": "Events (comma separated)",
     "events_placeholder": "asset.created,alert.fired",
     "secret_label": "Secret (optional)",

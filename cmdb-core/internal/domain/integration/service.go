@@ -54,6 +54,15 @@ func (s *Service) CreateWebhook(ctx context.Context, params dbgen.CreateWebhookP
 	return webhook, nil
 }
 
+// GetWebhookByID returns a webhook scoped to the given tenant.
+func (s *Service) GetWebhookByID(ctx context.Context, id, tenantID uuid.UUID) (dbgen.WebhookSubscription, error) {
+	webhook, err := s.queries.GetWebhookByID(ctx, dbgen.GetWebhookByIDParams{ID: id, TenantID: tenantID})
+	if err != nil {
+		return dbgen.WebhookSubscription{}, fmt.Errorf("get webhook: %w", err)
+	}
+	return webhook, nil
+}
+
 // ListDeliveries returns recent webhook deliveries for a subscription.
 func (s *Service) ListDeliveries(ctx context.Context, webhookID uuid.UUID, limit int) ([]dbgen.WebhookDelivery, error) {
 	deliveries, err := s.queries.ListDeliveries(ctx, dbgen.ListDeliveriesParams{

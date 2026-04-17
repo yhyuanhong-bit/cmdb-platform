@@ -115,6 +115,32 @@ func (q *Queries) CreateWebhook(ctx context.Context, arg CreateWebhookParams) (W
 	return i, err
 }
 
+const getWebhookByID = `-- name: GetWebhookByID :one
+SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia FROM webhook_subscriptions WHERE id = $1 AND tenant_id = $2
+`
+
+type GetWebhookByIDParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetWebhookByID(ctx context.Context, arg GetWebhookByIDParams) (WebhookSubscription, error) {
+	row := q.db.QueryRow(ctx, getWebhookByID, arg.ID, arg.TenantID)
+	var i WebhookSubscription
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Url,
+		&i.Secret,
+		&i.Events,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.FilterBia,
+	)
+	return i, err
+}
+
 const listAdapters = `-- name: ListAdapters :many
 SELECT id, tenant_id, name, type, direction, endpoint, config, enabled, created_at FROM integration_adapters WHERE tenant_id = $1 ORDER BY name
 `

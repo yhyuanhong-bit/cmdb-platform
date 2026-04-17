@@ -8,6 +8,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 -- name: ListWebhooks :many
 SELECT * FROM webhook_subscriptions WHERE tenant_id = $1 ORDER BY name;
 
+-- name: GetWebhookByID :one
+SELECT * FROM webhook_subscriptions WHERE id = $1 AND tenant_id = $2;
+
 -- name: CreateWebhook :one
 INSERT INTO webhook_subscriptions (tenant_id, name, url, secret, events, enabled)
 VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
