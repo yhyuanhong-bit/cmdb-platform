@@ -77,15 +77,11 @@ func (s *APIServer) CountUnreadNotifications(c *gin.Context) {
 }
 
 // MarkNotificationRead marks a single notification as read.
-func (s *APIServer) MarkNotificationRead(c *gin.Context) {
+func (s *APIServer) MarkNotificationRead(c *gin.Context, id IdPath) {
 	userID := userIDFromContext(c)
 	tenantID := tenantIDFromContext(c)
-	notifID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid notification ID")
-		return
-	}
-	if _, err = s.pool.Exec(c.Request.Context(),
+	notifID := uuid.UUID(id)
+	if _, err := s.pool.Exec(c.Request.Context(),
 		"UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2 AND tenant_id = $3",
 		notifID, userID, tenantID); err != nil {
 		zap.L().Error("notifications: failed to mark read", zap.Error(err))

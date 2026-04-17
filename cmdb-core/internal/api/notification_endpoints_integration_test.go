@@ -248,8 +248,7 @@ func TestIntegration_MarkNotificationRead_UpdatesRow(t *testing.T) {
 	target := fix.notifIDs[0]
 	s := &APIServer{pool: pool}
 	c, rec := newHandlerCtx(t, http.MethodPost, "/notifications/"+target.String()+"/read", fix)
-	c.Params = gin.Params{{Key: "id", Value: target.String()}}
-	s.MarkNotificationRead(c)
+	s.MarkNotificationRead(c, IdPath(target))
 	c.Writer.WriteHeaderNow()
 
 	if rec.Code != http.StatusNoContent {
@@ -265,20 +264,11 @@ func TestIntegration_MarkNotificationRead_UpdatesRow(t *testing.T) {
 	}
 }
 
-func TestIntegration_MarkNotificationRead_InvalidID(t *testing.T) {
-	pool := newTestPool(t)
-	defer pool.Close()
-	fix := setupNotifFixture(t, pool)
-
-	s := &APIServer{pool: pool}
-	c, rec := newHandlerCtx(t, http.MethodPost, "/notifications/not-a-uuid/read", fix)
-	c.Params = gin.Params{{Key: "id", Value: "not-a-uuid"}}
-	s.MarkNotificationRead(c)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400", rec.Code)
-	}
-}
+// Note: invalid-ID rejection is now handled by the oapi-codegen wrapper
+// layer (UUID parsing on the :id param before calling MarkNotificationRead),
+// not by the handler itself — so a unit-level "invalid ID" test no longer
+// exercises anything useful at this seam. The validation is guaranteed by
+// the generated ServerInterface signature.
 
 func TestIntegration_MarkNotificationRead_OtherUsersNotificationIsNoop(t *testing.T) {
 	pool := newTestPool(t)
@@ -294,8 +284,7 @@ func TestIntegration_MarkNotificationRead_OtherUsersNotificationIsNoop(t *testin
 
 	s := &APIServer{pool: pool}
 	c, rec := newHandlerCtx(t, http.MethodPost, "/notifications/"+otherID.String()+"/read", fix)
-	c.Params = gin.Params{{Key: "id", Value: otherID.String()}}
-	s.MarkNotificationRead(c)
+	s.MarkNotificationRead(c, IdPath(otherID))
 	c.Writer.WriteHeaderNow()
 
 	// Handler returns 204 either way (UPDATE … WHERE matches 0 rows).

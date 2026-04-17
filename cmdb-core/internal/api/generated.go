@@ -305,6 +305,18 @@ type MetricPoint struct {
 	Value float64   `json:"value"`
 }
 
+// Notification defines model for Notification.
+type Notification struct {
+	Body         *string             `json:"body,omitempty"`
+	CreatedAt    time.Time           `json:"created_at"`
+	Id           openapi_types.UUID  `json:"id"`
+	IsRead       bool                `json:"is_read"`
+	ResourceId   *openapi_types.UUID `json:"resource_id,omitempty"`
+	ResourceType *string             `json:"resource_type,omitempty"`
+	Title        string              `json:"title"`
+	Type         string              `json:"type"`
+}
+
 // Pagination defines model for Pagination.
 type Pagination struct {
 	Page       int `json:"page"`
@@ -1281,6 +1293,18 @@ type ServerInterface interface {
 	// Update an alert rule
 	// (PUT /monitoring/rules/{id})
 	UpdateAlertRule(c *gin.Context, id IdPath)
+	// List unread notifications for the current user
+	// (GET /notifications)
+	ListNotifications(c *gin.Context)
+	// Count unread notifications for the current user
+	// (GET /notifications/count)
+	CountUnreadNotifications(c *gin.Context)
+	// Mark all notifications as read for the current user
+	// (POST /notifications/read-all)
+	MarkAllNotificationsRead(c *gin.Context)
+	// Mark a single notification as read
+	// (POST /notifications/{id}/read)
+	MarkNotificationRead(c *gin.Context, id IdPath)
 	// Get failure distribution forecast
 	// (GET /prediction/failure-distribution)
 	GetFailureDistribution(c *gin.Context)
@@ -3358,6 +3382,77 @@ func (siw *ServerInterfaceWrapper) UpdateAlertRule(c *gin.Context) {
 	siw.Handler.UpdateAlertRule(c, id)
 }
 
+// ListNotifications operation middleware
+func (siw *ServerInterfaceWrapper) ListNotifications(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListNotifications(c)
+}
+
+// CountUnreadNotifications operation middleware
+func (siw *ServerInterfaceWrapper) CountUnreadNotifications(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CountUnreadNotifications(c)
+}
+
+// MarkAllNotificationsRead operation middleware
+func (siw *ServerInterfaceWrapper) MarkAllNotificationsRead(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkAllNotificationsRead(c)
+}
+
+// MarkNotificationRead operation middleware
+func (siw *ServerInterfaceWrapper) MarkNotificationRead(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkNotificationRead(c, id)
+}
+
 // GetFailureDistribution operation middleware
 func (siw *ServerInterfaceWrapper) GetFailureDistribution(c *gin.Context) {
 
@@ -4107,6 +4202,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/monitoring/rules", wrapper.ListAlertRules)
 	router.POST(options.BaseURL+"/monitoring/rules", wrapper.CreateAlertRule)
 	router.PUT(options.BaseURL+"/monitoring/rules/:id", wrapper.UpdateAlertRule)
+	router.GET(options.BaseURL+"/notifications", wrapper.ListNotifications)
+	router.GET(options.BaseURL+"/notifications/count", wrapper.CountUnreadNotifications)
+	router.POST(options.BaseURL+"/notifications/read-all", wrapper.MarkAllNotificationsRead)
+	router.POST(options.BaseURL+"/notifications/:id/read", wrapper.MarkNotificationRead)
 	router.GET(options.BaseURL+"/prediction/failure-distribution", wrapper.GetFailureDistribution)
 	router.GET(options.BaseURL+"/prediction/models", wrapper.ListPredictionModels)
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)

@@ -405,11 +405,7 @@ func main() {
 	v1.DELETE("/users/:id/roles/:roleId", apiServer.RemoveRoleFromUser)
 	v1.DELETE("/users/:id", apiServer.DeleteUser)
 
-	// Notification routes
-	v1.GET("/notifications", apiServer.ListNotifications)
-	v1.GET("/notifications/count", apiServer.CountUnreadNotifications)
-	v1.POST("/notifications/:id/read", apiServer.MarkNotificationRead)
-	v1.POST("/notifications/read-all", apiServer.MarkAllNotificationsRead)
+	// Notification routes — auto-registered via api.RegisterHandlers (Track A)
 
 	// Phase 4 Group 2 routes
 	v1.GET("/users/:id/sessions", apiServer.GetUserSessions)
