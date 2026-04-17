@@ -35,8 +35,6 @@ const initial = {
   custom_ip_field: '',
 }
 
-const COMING_SOON_TYPES = ['snmp', 'datadog', 'nagios']
-
 export default function CreateAdapterModal({ open, onClose }: Props) {
   const { t } = useTranslation()
   const [formData, setFormData] = useState({ ...initial })
@@ -47,7 +45,6 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
   const isPrometheus = formData.type === 'prometheus'
   const isZabbix = formData.type === 'zabbix'
   const isCustomREST = formData.type === 'custom_rest'
-  const isComingSoon = COMING_SOON_TYPES.includes(formData.type)
 
   const buildConfig = (): Record<string, unknown> | undefined => {
     if (isPrometheus && formData.queries.trim()) {
@@ -130,9 +127,6 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
             <option value="prometheus">{t('adapter_types.prometheus')}</option>
             <option value="zabbix">{t('adapter_types.zabbix')}</option>
             <option value="custom_rest">{t('adapter_types.custom_rest')}</option>
-            <option value="snmp">{t('adapter_types.snmp')}</option>
-            <option value="datadog">{t('adapter_types.datadog')}</option>
-            <option value="nagios">{t('adapter_types.nagios')}</option>
             <option value="dify">{t('adapter_types.dify')}</option>
           </select>
         </div>
@@ -152,12 +146,6 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
           <input value={formData.endpoint} onChange={e => setFormData(p => ({ ...p, endpoint: e.target.value }))}
             className={inputCls} placeholder="https://..." />
         </div>
-
-        {isComingSoon && (
-          <div className="p-3 rounded bg-yellow-900/30 border border-yellow-700 text-yellow-300 text-sm">
-            {t('adapter_config.coming_soon')}
-          </div>
-        )}
 
         {isPrometheus && (
           <>
@@ -307,7 +295,7 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
 
         <div className="flex gap-2 justify-end pt-2">
           <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('adapter_modal.btn_cancel')}</button>
-          <button onClick={handleCreate} disabled={mutation.isPending || !formData.name || isComingSoon}
+          <button onClick={handleCreate} disabled={mutation.isPending || !formData.name}
             className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
             {mutation.isPending ? t('adapter_modal.btn_creating') : t('adapter_modal.btn_create')}
           </button>
