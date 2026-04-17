@@ -73,14 +73,22 @@ func main() {
 	}
 	defer shutdownTracer(ctx)
 
-	// 3a. Load at-rest encryption cipher. Missing key is a hard failure —
+	// 3a. Load at-rest encryption key ring. Missing key is a hard failure —
 	// we never want to silently run without encrypting adapter configs or
-	// webhook secrets. Operators must set CMDB_SECRET_KEY (64-char hex,
-	// 32-byte AES-256 key; generate with crypto.GenerateKeyHex).
-	cipher, err := crypto.CipherFromEnv("CMDB_SECRET_KEY")
+	// webhook secrets. Operators set CMDB_SECRET_KEY_V1..V{N} (64-char hex
+	// each, 32-byte AES-256 keys; generate with crypto.GenerateKeyHex). The
+	// legacy single CMDB_SECRET_KEY env var is still honoured as v1 when no
+	// versioned vars are set, so existing deployments upgrade unchanged.
+	keyring, err := crypto.KeyRingFromEnv()
 	if err != nil {
-		zap.L().Fatal("failed to load at-rest encryption key (set CMDB_SECRET_KEY)", zap.Error(err))
+		zap.L().Fatal("failed to load at-rest encryption key ring (set CMDB_SECRET_KEY or CMDB_SECRET_KEY_V{N})", zap.Error(err))
 	}
+	// Downstream call sites continue to take crypto.Cipher — the KeyRing
+	// satisfies that interface, so they don't need to know about rotation.
+	var cipher crypto.Cipher = keyring
+	zap.L().Info("at-rest encryption configured",
+		zap.Int("active_version", keyring.ActiveVersion()),
+		zap.Ints("available_versions", keyring.Versions()))
 
 	// 4. Create PG pool
 	pool, err := database.NewPool(ctx, cfg.DatabaseURL)

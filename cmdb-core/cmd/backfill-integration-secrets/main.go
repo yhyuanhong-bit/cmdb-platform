@@ -62,11 +62,16 @@ func main() {
 		os.Exit(2)
 	}
 
-	cipher, err := crypto.CipherFromEnv("CMDB_SECRET_KEY")
+	// Load the same KeyRing the server uses. Backfill writes new
+	// ciphertext, so it must use the active version's key — exactly what
+	// KeyRing.Encrypt does. Legacy deployments with only CMDB_SECRET_KEY
+	// set get a v1-only ring, which matches pre-rotation behaviour.
+	keyring, err := crypto.KeyRingFromEnv()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load CMDB_SECRET_KEY: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed to load at-rest encryption key ring: %v\n", err)
 		os.Exit(2)
 	}
+	var cipher crypto.Cipher = keyring
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
