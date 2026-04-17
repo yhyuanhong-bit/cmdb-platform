@@ -125,6 +125,34 @@ func (q *Queries) CreateWebhook(ctx context.Context, arg CreateWebhookParams) (W
 	return i, err
 }
 
+const deleteAdapter = `-- name: DeleteAdapter :exec
+DELETE FROM integration_adapters WHERE id = $1 AND tenant_id = $2
+`
+
+type DeleteAdapterParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeleteAdapter(ctx context.Context, arg DeleteAdapterParams) error {
+	_, err := q.db.Exec(ctx, deleteAdapter, arg.ID, arg.TenantID)
+	return err
+}
+
+const deleteWebhook = `-- name: DeleteWebhook :exec
+DELETE FROM webhook_subscriptions WHERE id = $1 AND tenant_id = $2
+`
+
+type DeleteWebhookParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) DeleteWebhook(ctx context.Context, arg DeleteWebhookParams) error {
+	_, err := q.db.Exec(ctx, deleteWebhook, arg.ID, arg.TenantID)
+	return err
+}
+
 const disableAdapter = `-- name: DisableAdapter :exec
 UPDATE integration_adapters
 SET enabled = false
@@ -141,6 +169,37 @@ type DisableAdapterParams struct {
 func (q *Queries) DisableAdapter(ctx context.Context, arg DisableAdapterParams) error {
 	_, err := q.db.Exec(ctx, disableAdapter, arg.ID, arg.TenantID)
 	return err
+}
+
+const getAdapterByID = `-- name: GetAdapterByID :one
+SELECT id, tenant_id, name, type, direction, endpoint, config, enabled, created_at, config_encrypted, consecutive_failures, last_failure_at, last_failure_reason, next_attempt_at FROM integration_adapters WHERE id = $1 AND tenant_id = $2
+`
+
+type GetAdapterByIDParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetAdapterByID(ctx context.Context, arg GetAdapterByIDParams) (IntegrationAdapter, error) {
+	row := q.db.QueryRow(ctx, getAdapterByID, arg.ID, arg.TenantID)
+	var i IntegrationAdapter
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Type,
+		&i.Direction,
+		&i.Endpoint,
+		&i.Config,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.ConfigEncrypted,
+		&i.ConsecutiveFailures,
+		&i.LastFailureAt,
+		&i.LastFailureReason,
+		&i.NextAttemptAt,
+	)
+	return i, err
 }
 
 const getWebhookByID = `-- name: GetWebhookByID :one
@@ -441,4 +500,117 @@ type RecordAdapterSuccessParams struct {
 func (q *Queries) RecordAdapterSuccess(ctx context.Context, arg RecordAdapterSuccessParams) error {
 	_, err := q.db.Exec(ctx, recordAdapterSuccess, arg.ID, arg.TenantID)
 	return err
+}
+
+const updateAdapter = `-- name: UpdateAdapter :one
+UPDATE integration_adapters SET
+    name             = COALESCE($1, name),
+    type             = COALESCE($2, type),
+    direction        = COALESCE($3, direction),
+    endpoint         = COALESCE($4, endpoint),
+    config           = COALESCE($5, config),
+    config_encrypted = COALESCE($6, config_encrypted),
+    enabled          = COALESCE($7, enabled)
+WHERE id = $8 AND tenant_id = $9
+RETURNING id, tenant_id, name, type, direction, endpoint, config, enabled, created_at, config_encrypted, consecutive_failures, last_failure_at, last_failure_reason, next_attempt_at
+`
+
+type UpdateAdapterParams struct {
+	Name            pgtype.Text `json:"name"`
+	Type            pgtype.Text `json:"type"`
+	Direction       pgtype.Text `json:"direction"`
+	Endpoint        pgtype.Text `json:"endpoint"`
+	Config          []byte      `json:"config"`
+	ConfigEncrypted []byte      `json:"config_encrypted"`
+	Enabled         pgtype.Bool `json:"enabled"`
+	ID              uuid.UUID   `json:"id"`
+	TenantID        uuid.UUID   `json:"tenant_id"`
+}
+
+// Partial update: NULL-valued params preserve the existing column value via
+// COALESCE. Callers must supply both `config` and `config_encrypted` together
+// (or neither) to keep the dual-write columns consistent.
+func (q *Queries) UpdateAdapter(ctx context.Context, arg UpdateAdapterParams) (IntegrationAdapter, error) {
+	row := q.db.QueryRow(ctx, updateAdapter,
+		arg.Name,
+		arg.Type,
+		arg.Direction,
+		arg.Endpoint,
+		arg.Config,
+		arg.ConfigEncrypted,
+		arg.Enabled,
+		arg.ID,
+		arg.TenantID,
+	)
+	var i IntegrationAdapter
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Type,
+		&i.Direction,
+		&i.Endpoint,
+		&i.Config,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.ConfigEncrypted,
+		&i.ConsecutiveFailures,
+		&i.LastFailureAt,
+		&i.LastFailureReason,
+		&i.NextAttemptAt,
+	)
+	return i, err
+}
+
+const updateWebhook = `-- name: UpdateWebhook :one
+UPDATE webhook_subscriptions SET
+    name             = COALESCE($1, name),
+    url              = COALESCE($2, url),
+    secret           = COALESCE($3, secret),
+    secret_encrypted = COALESCE($4, secret_encrypted),
+    events           = COALESCE($5, events),
+    enabled          = COALESCE($6, enabled)
+WHERE id = $7 AND tenant_id = $8
+RETURNING id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted
+`
+
+type UpdateWebhookParams struct {
+	Name            pgtype.Text `json:"name"`
+	Url             pgtype.Text `json:"url"`
+	Secret          pgtype.Text `json:"secret"`
+	SecretEncrypted []byte      `json:"secret_encrypted"`
+	Events          []string    `json:"events"`
+	Enabled         pgtype.Bool `json:"enabled"`
+	ID              uuid.UUID   `json:"id"`
+	TenantID        uuid.UUID   `json:"tenant_id"`
+}
+
+// Partial update: NULL-valued params preserve the existing column value via
+// COALESCE. Callers must supply both `secret` and `secret_encrypted` together
+// (or neither) to keep the dual-write columns consistent.
+func (q *Queries) UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (WebhookSubscription, error) {
+	row := q.db.QueryRow(ctx, updateWebhook,
+		arg.Name,
+		arg.Url,
+		arg.Secret,
+		arg.SecretEncrypted,
+		arg.Events,
+		arg.Enabled,
+		arg.ID,
+		arg.TenantID,
+	)
+	var i WebhookSubscription
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Url,
+		&i.Secret,
+		&i.Events,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.FilterBia,
+		&i.SecretEncrypted,
+	)
+	return i, err
 }
