@@ -369,20 +369,61 @@ docker compose -f cmdb-core/deploy/docker-compose.yml start cmdb-core
 
 ## 7. 老数据回填加密(可选,第二阶段)
 
-升级后新数据会 dual-write,但老数据的加密列是 NULL。如果想让老数据也加密:
+升级后新数据会 dual-write,但老数据(升级前已存在的行)的加密列是 NULL。
+只要应用层读路径仍然兜底到明文(`DecryptConfigWithFallback` /
+`DecryptSecretWithFallback`),这些老行照常工作。如果想让它们也加密并最终把明文列清空,走下面两步:
 
-```bash
-# 以下脚本是示意,需要在一个小窗口里运行或用一个一次性 Job
-# 伪代码,实际实现需要调用 cipher.Encrypt
+### 7.1 回填加密列
 
-# Option A: 应用层回填(推荐)
-# 写一个一次性任务,迭代所有 config IS NOT NULL AND config_encrypted IS NULL 的行,
-# 调用 s.cipher.Encrypt(config),UPDATE config_encrypted。
+需要应用层回填——密钥只在应用进程里,数据库无法自己加密。推荐写一次性 admin 任务:
 
-# Option B: 用 Postgres pgcrypto 扩展直接加密(不推荐,破坏 app 单一数据源)
+```go
+// 伪代码:迭代 config 非空、config_encrypted 为空的行
+rows, _ := pool.Query(ctx, `
+    SELECT id, tenant_id, config
+    FROM integration_adapters
+    WHERE config IS NOT NULL
+      AND config::text <> '{}'
+      AND config_encrypted IS NULL
+`)
+for rows.Next() {
+    var id, tenantID uuid.UUID
+    var cfg []byte
+    _ = rows.Scan(&id, &tenantID, &cfg)
+    enc, err := cipher.Encrypt(cfg)
+    if err != nil { /* log + skip */ continue }
+    _, _ = pool.Exec(ctx, `
+        UPDATE integration_adapters
+        SET config_encrypted = $1
+        WHERE id = $2 AND tenant_id = $3
+    `, enc, id, tenantID)
+}
+// 对 webhook_subscriptions.secret / secret_encrypted 同样处理一次。
 ```
 
-建议把回填任务做成一次性 admin endpoint 或 CLI 命令,跑完一次后再触发"清除明文列"的迁移(编号 000040,后续开发)。
+webhook 的 `secret` 是 TEXT(HMAC 共享密钥,原本就是 ASCII),回填时记得
+`[]byte(secret)` 再 `cipher.Encrypt`。
+
+> **不推荐** 用 `pgcrypto` 在数据库里加密——那会把密钥带到数据库层,打破"密钥只
+> 存在应用侧"的前提,也让后续的 key rotation 变复杂。
+
+### 7.2 清空明文列
+
+回填完且观察期(建议 ≥ 1 个完整发布周期)无人报错后,运行仓库自带脚本把明文列清空。
+脚本带事务 + pre-flight 守卫,只要任何非空明文行缺少对应密文就会 RAISE EXCEPTION 回滚。
+
+```bash
+# 强制要求:提前做一次 pg_dump 备份(§3 同款命令)
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f cmdb-core/db/scripts/cleanup/clear_integration_plaintext.sql
+```
+
+脚本最后会 `\echo` 清理的行数,并往 `audit_events` 写一条
+`integration_plaintext_cleared` 记录。具体说明见
+[`cmdb-core/db/scripts/cleanup/README.md`](../cmdb-core/db/scripts/cleanup/README.md)。
+
+> 脚本**刻意**放在 `db/scripts/cleanup/` 而不是 `db/migrations/`,
+> 因此 `main.go` 启动时的迁移扫描不会自动跑它。它需要人工触发。
 
 ---
 
