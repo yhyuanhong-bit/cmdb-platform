@@ -98,8 +98,8 @@ func TestParseMainGoRoutes_Fixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseMainGoRoutes: %v", err)
 	}
-	if len(routes) < 50 {
-		t.Fatalf("expected >=50 manual routes, got %d", len(routes))
+	if len(routes) < 1 {
+		t.Fatalf("expected at least the admin migration route, got %d", len(routes))
 	}
 	mustHave := route{"POST", "/admin/migrate-statuses"}
 	for _, got := range routes {

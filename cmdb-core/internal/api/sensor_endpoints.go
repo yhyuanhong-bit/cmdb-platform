@@ -51,7 +51,9 @@ func sensorIcon(sensorType string) string {
 
 // ListSensors handles GET /sensors
 // Returns all sensors for the current tenant with asset name and derived icon.
-func (s *APIServer) ListSensors(c *gin.Context) {
+// The spec's optional tenant_id query param is ignored; the handler always
+// scopes to the authenticated tenant to preserve isolation.
+func (s *APIServer) ListSensors(c *gin.Context, _ ListSensorsParams) {
 	tenantID := tenantIDFromContext(c)
 
 	rows, err := s.pool.Query(c.Request.Context(), `
@@ -165,15 +167,11 @@ func (s *APIServer) CreateSensor(c *gin.Context) {
 	response.Created(c, gin.H{"id": newID.String()})
 }
 
-// UpdateSensor handles PUT /sensors/:id
+// UpdateSensor handles PUT /sensors/{id}
 // Updates sensor fields using a dynamic SET clause.
-func (s *APIServer) UpdateSensor(c *gin.Context) {
+func (s *APIServer) UpdateSensor(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
-	sensorID := c.Param("id")
-	if _, err := uuid.Parse(sensorID); err != nil {
-		response.BadRequest(c, "invalid sensor ID")
-		return
-	}
+	sensorID := uuid.UUID(id)
 
 	var body map[string]interface{}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -227,20 +225,15 @@ func (s *APIServer) UpdateSensor(c *gin.Context) {
 		return
 	}
 
-	parsedSensorID, _ := uuid.Parse(sensorID)
-	s.recordAudit(c, "sensor.updated", "monitoring", "sensor", parsedSensorID, body)
+	s.recordAudit(c, "sensor.updated", "monitoring", "sensor", sensorID, body)
 	response.OK(c, gin.H{"message": "sensor updated"})
 }
 
-// DeleteSensor handles DELETE /sensors/:id
+// DeleteSensor handles DELETE /sensors/{id}
 // Removes a sensor by ID, scoped to the current tenant.
-func (s *APIServer) DeleteSensor(c *gin.Context) {
+func (s *APIServer) DeleteSensor(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
-	sensorID := c.Param("id")
-	if _, err := uuid.Parse(sensorID); err != nil {
-		response.BadRequest(c, "invalid sensor ID")
-		return
-	}
+	sensorID := uuid.UUID(id)
 
 	result, err := s.pool.Exec(c.Request.Context(), `
 		DELETE FROM sensors WHERE id = $1 AND tenant_id = $2
@@ -254,20 +247,15 @@ func (s *APIServer) DeleteSensor(c *gin.Context) {
 		return
 	}
 
-	parsedSensorID, _ := uuid.Parse(sensorID)
-	s.recordAudit(c, "sensor.deleted", "monitoring", "sensor", parsedSensorID, nil)
+	s.recordAudit(c, "sensor.deleted", "monitoring", "sensor", sensorID, nil)
 	c.Status(http.StatusNoContent)
 }
 
-// SensorHeartbeat handles POST /sensors/:id/heartbeat
+// SensorHeartbeat handles POST /sensors/{id}/heartbeat
 // Updates a sensor's last_heartbeat timestamp and optional status, scoped to the current tenant.
-func (s *APIServer) SensorHeartbeat(c *gin.Context) {
+func (s *APIServer) SensorHeartbeat(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
-	sensorID := c.Param("id")
-	if _, err := uuid.Parse(sensorID); err != nil {
-		response.BadRequest(c, "invalid sensor ID")
-		return
-	}
+	sensorID := uuid.UUID(id)
 
 	var body struct {
 		Status string `json:"status"`

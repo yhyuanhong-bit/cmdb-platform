@@ -32,7 +32,6 @@ output-options:
     - createItemNote
     - createWorkOrderComment
     - deleteAssetDependency
-    - deleteSensor
     - getActivityFeed
     - getAssetRUL
     - getAssetUpgradeRecommendations
@@ -44,10 +43,7 @@ output-options:
     - getItemNotes
     - getRackMaintenance
     - getTopologyGraph
-    - listSensors
     - resolveInventoryDiscrepancy
-    - sensorHeartbeat
-    - updateSensor
     - listAssetDependencies
     - listUserSessions
     - listWorkOrderComments

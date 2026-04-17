@@ -1116,6 +1116,11 @@ type UpdateRoleJSONBody struct {
 	Permissions *map[string][]string `json:"permissions,omitempty"`
 }
 
+// ListSensorsParams defines parameters for ListSensors.
+type ListSensorsParams struct {
+	TenantId *openapi_types.UUID `form:"tenant_id,omitempty" json:"tenant_id,omitempty"`
+}
+
 // CreateSensorJSONBody defines parameters for CreateSensor.
 type CreateSensorJSONBody = map[string]interface{}
 
@@ -1819,9 +1824,21 @@ type ServerInterface interface {
 	// Update a role
 	// (PUT /roles/{id})
 	UpdateRole(c *gin.Context, id IdPath)
+	// List all sensors
+	// (GET /sensors)
+	ListSensors(c *gin.Context, params ListSensorsParams)
 	// Create a sensor
 	// (POST /sensors)
 	CreateSensor(c *gin.Context)
+	// Delete a sensor
+	// (DELETE /sensors/{id})
+	DeleteSensor(c *gin.Context, id IdPath)
+	// Update a sensor
+	// (PUT /sensors/{id})
+	UpdateSensor(c *gin.Context, id IdPath)
+	// Send sensor heartbeat
+	// (POST /sensors/{id}/heartbeat)
+	SensorHeartbeat(c *gin.Context, id IdPath)
 	// Get system health status
 	// (GET /system/health)
 	GetSystemHealth(c *gin.Context)
@@ -4580,6 +4597,34 @@ func (siw *ServerInterfaceWrapper) UpdateRole(c *gin.Context) {
 	siw.Handler.UpdateRole(c, id)
 }
 
+// ListSensors operation middleware
+func (siw *ServerInterfaceWrapper) ListSensors(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSensorsParams
+
+	// ------------- Optional query parameter "tenant_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "tenant_id", c.Request.URL.Query(), &params.TenantId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter tenant_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListSensors(c, params)
+}
+
 // CreateSensor operation middleware
 func (siw *ServerInterfaceWrapper) CreateSensor(c *gin.Context) {
 
@@ -4593,6 +4638,84 @@ func (siw *ServerInterfaceWrapper) CreateSensor(c *gin.Context) {
 	}
 
 	siw.Handler.CreateSensor(c)
+}
+
+// DeleteSensor operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSensor(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteSensor(c, id)
+}
+
+// UpdateSensor operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSensor(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateSensor(c, id)
+}
+
+// SensorHeartbeat operation middleware
+func (siw *ServerInterfaceWrapper) SensorHeartbeat(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SensorHeartbeat(c, id)
 }
 
 // GetSystemHealth operation middleware
@@ -5058,7 +5181,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/roles", wrapper.CreateRole)
 	router.DELETE(options.BaseURL+"/roles/:id", wrapper.DeleteRole)
 	router.PUT(options.BaseURL+"/roles/:id", wrapper.UpdateRole)
+	router.GET(options.BaseURL+"/sensors", wrapper.ListSensors)
 	router.POST(options.BaseURL+"/sensors", wrapper.CreateSensor)
+	router.DELETE(options.BaseURL+"/sensors/:id", wrapper.DeleteSensor)
+	router.PUT(options.BaseURL+"/sensors/:id", wrapper.UpdateSensor)
+	router.POST(options.BaseURL+"/sensors/:id/heartbeat", wrapper.SensorHeartbeat)
 	router.GET(options.BaseURL+"/system/health", wrapper.GetSystemHealth)
 	router.POST(options.BaseURL+"/topology/dependencies", wrapper.CreateAssetDependency)
 	router.GET(options.BaseURL+"/upgrade-rules", wrapper.GetUpgradeRules)

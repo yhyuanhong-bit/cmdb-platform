@@ -399,11 +399,6 @@ func main() {
 	// Phase 4 Group 2 routes
 	v1.GET("/users/:id/sessions", apiServer.GetUserSessions)
 	v1.POST("/auth/change-password", apiServer.ChangePassword)
-	v1.GET("/sensors", apiServer.ListSensors)
-	v1.POST("/sensors", apiServer.CreateSensor)
-	v1.PUT("/sensors/:id", apiServer.UpdateSensor)
-	v1.DELETE("/sensors/:id", apiServer.DeleteSensor)
-	v1.POST("/sensors/:id/heartbeat", apiServer.SensorHeartbeat)
 
 	// Discovery + credentials routes are registered via api.RegisterHandlers (line 207)
 
