@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"net/url"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
@@ -91,6 +92,12 @@ func (s *APIServer) CreateWebhook(c *gin.Context) {
 		return
 	}
 
+	parsed, err := url.Parse(req.Url)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		response.BadRequest(c, "invalid webhook url: must be http(s) URL with host")
+		return
+	}
+
 	tenantID := tenantIDFromContext(c)
 
 	params := dbgen.CreateWebhookParams{
@@ -124,7 +131,16 @@ func (s *APIServer) CreateWebhook(c *gin.Context) {
 // ListWebhookDeliveries returns delivery history for a webhook.
 // (GET /integration/webhooks/{id}/deliveries)
 func (s *APIServer) ListWebhookDeliveries(c *gin.Context, id IdPath) {
-	deliveries, err := s.integrationSvc.ListDeliveries(c.Request.Context(), uuid.UUID(id), 100)
+	ctx := c.Request.Context()
+	webhookID := uuid.UUID(id)
+	tenantID := tenantIDFromContext(c)
+
+	if _, err := s.integrationSvc.GetWebhookByID(ctx, webhookID, tenantID); err != nil {
+		response.NotFound(c, "webhook not found")
+		return
+	}
+
+	deliveries, err := s.integrationSvc.ListDeliveries(ctx, webhookID, 100)
 	if err != nil {
 		response.InternalError(c, "failed to list deliveries")
 		return
