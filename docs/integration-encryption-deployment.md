@@ -287,7 +287,7 @@ migration: applied  file=000039_adapter_failure_state.up.sql version=39
 Metrics puller started (5m interval)
 ```
 
-**如果看到下列任一,立即停止并查第 8 节:**
+**如果看到下列任一,立即停止并查第 9 节(故障排查):**
 - `failed to load at-rest encryption key (set CMDB_SECRET_KEY)`
 - `database schema is behind code`
 - `panic: invalid hex key length`
@@ -428,9 +428,153 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
 
 ---
 
-## 8. 故障排查
+## 8. 密钥轮换(Key Rotation)
 
-### 8.1 启动报 `failed to load at-rest encryption key`
+本节对应代码改动:`crypto.KeyRing` 引入了版本化密钥 + 带前缀的密文格式
+(`v{N}:<raw aes-gcm>`),并新增了 CLI `cmd/rotate-integration-secrets`。
+
+建议轮换节奏:**每 12 个月一次**,或安全事件触发(密钥疑似泄漏)即可。
+
+### 8.1 环境变量模型
+
+| 变量 | 说明 |
+|------|------|
+| `CMDB_SECRET_KEY_V1`, `..._V2`, ... | 每个版本一条,64 位 hex 密钥 |
+| `CMDB_SECRET_KEY_ACTIVE` | 可选整数。指明加密使用哪个版本。不设就取"当前已配置的最高版本" |
+| `CMDB_SECRET_KEY`(老) | 向后兼容别名。**仅当**没有任何 `CMDB_SECRET_KEY_V{N}` 时,它会被视作 V1 |
+
+**重要:不配任何版本化变量、只留 `CMDB_SECRET_KEY`,服务仍可以正常启动(和本次升级前行为一致)。**
+
+轮换前后密文前缀:
+
+- 轮换前历史写入(v1 前):原始 AES-GCM 字节,无前缀 → 解密时被路由到 v1
+- v1 环下写入:前缀 `v1:`
+- v2 激活后写入:前缀 `v2:`
+- 解密路径始终按密文前缀选择对应版本,前缀未知则 **fail loud**
+
+### 8.2 步骤 A:加入新密钥 v{N+1}(不改变 active)
+
+```bash
+# 生成新密钥
+NEW_KEY=$(openssl rand -hex 32)
+
+# 假设当前只有 CMDB_SECRET_KEY(= v1 别名),加入 V2:
+# 1) Secrets Manager / K8s Secret / .env 里,**保留** CMDB_SECRET_KEY,
+#    **新增** CMDB_SECRET_KEY_V1 = 同值(把别名固化为显式 V1)
+# 2) 同时新增 CMDB_SECRET_KEY_V2 = ${NEW_KEY}
+# 3) 暂时 **不设** CMDB_SECRET_KEY_ACTIVE(或设成 1),让 Encrypt 继续用 V1
+
+# 重启服务;日志应该打出:
+#   "at-rest encryption configured"  active_version=1  available_versions=[1,2]
+```
+
+这一步完成后,服务读路径已经能解密 v1 和 v2 密文,但写路径仍然用 v1。
+
+> 为什么要先把 `CMDB_SECRET_KEY` 固化成 `CMDB_SECRET_KEY_V1`?因为一旦任
+> 何 `CMDB_SECRET_KEY_V{N}` 被设置,KeyRing 就不再读 `CMDB_SECRET_KEY`
+> 别名。先把别名显式化可以避免"旧行用的钥匙被意外抛弃"。
+
+### 8.3 步骤 B:切换激活版本到 v{N+1}
+
+```bash
+# Secrets Manager 里把 CMDB_SECRET_KEY_ACTIVE 设为 2(或者直接删掉这个变量,
+# KeyRing 默认取最高版本,效果一样)
+# 重启服务;日志应该打出:
+#   "at-rest encryption configured"  active_version=2  available_versions=[1,2]
+```
+
+从此刻起,**新** adapter / webhook 的 Encrypt 走 v2。老的 v1 密文继续可读。
+
+### 8.4 步骤 C:重新加密老数据(CLI)
+
+```bash
+# 1) 预检:默认 dry-run,不写库
+DATABASE_URL="postgres://..." \
+CMDB_SECRET_KEY_V1="<v1 hex>" \
+CMDB_SECRET_KEY_V2="<v2 hex>" \
+CMDB_SECRET_KEY_ACTIVE=2 \
+  go run ./cmd/rotate-integration-secrets
+
+# 输出形如:
+#   === rotate-integration-secrets (DRY-RUN, active=v2, available=[1 2]) ===
+#     integration_adapters: 42 candidate, 0 rotated, 0 errors
+#     webhook_subscriptions: 7 candidate, 0 rotated, 0 errors
+
+# 2) 真正跑
+DATABASE_URL="postgres://..." \
+CMDB_SECRET_KEY_V1="..." CMDB_SECRET_KEY_V2="..." \
+CMDB_SECRET_KEY_ACTIVE=2 \
+  go run ./cmd/rotate-integration-secrets --apply
+```
+
+行为要点(和 `backfill-integration-secrets` 对齐):
+
+- **默认 dry-run**,必须显式 `--apply`。
+- `--target adapters|webhooks|all`,`--progress-every N` 同 backfill。
+- **幂等**:SELECT 和 UPDATE 都带 `NOT starts_with(..., 'v{active}:')`,第二次 `--apply` 返回 0 候选。
+- **逐行独立**:单行解密 / 加密失败只记 error 计数,不中断整批。
+- **审计**:按租户聚合,往 `audit_events` 写一行 `integration_key_rotated`
+  (`module=integration`,`source=admin-cli`),`diff` 里带 `active_version`。
+
+### 8.5 步骤 D:校验一致性
+
+```sql
+-- 所有 adapter 密文都应该是 'v2:' 开头
+SELECT
+  sum(CASE WHEN starts_with(config_encrypted, 'v2:') THEN 1 ELSE 0 END) AS at_active,
+  sum(CASE WHEN config_encrypted IS NOT NULL
+           AND NOT starts_with(config_encrypted, 'v2:') THEN 1 ELSE 0 END) AS pre_active
+FROM integration_adapters;
+-- 期望: pre_active = 0
+
+SELECT
+  sum(CASE WHEN starts_with(secret_encrypted, 'v2:') THEN 1 ELSE 0 END) AS at_active,
+  sum(CASE WHEN secret_encrypted IS NOT NULL
+           AND NOT starts_with(secret_encrypted, 'v2:') THEN 1 ELSE 0 END) AS pre_active
+FROM webhook_subscriptions;
+```
+
+### 8.6 步骤 E:退役 v1
+
+观察期建议 ≥ 1 个完整发布周期。确认 `pre_active = 0` 持续稳定后:
+
+```bash
+# 1) 从 Secrets Manager 删除 CMDB_SECRET_KEY_V1 和老的 CMDB_SECRET_KEY 别名
+# 2) 如果之前设过 CMDB_SECRET_KEY_ACTIVE=2,可以保留也可以删
+#    (没有 V1 以后,KeyRing 只剩 V2,默认就会用 V2)
+# 3) 重启服务,日志应该是:
+#      "at-rest encryption configured"  active_version=2  available_versions=[2]
+```
+
+此后若出现任何 "no key configured for ciphertext version v1" 错误,说明还有漏
+网的 v1 密文 —— 不要直接删 v1,回到步骤 D 复查后再补跑一次步骤 C。
+
+### 8.7 常见问题
+
+**Q: 步骤 C 跑到一半失败了能重跑吗?**
+A: 能。CLI 幂等,已经转到 v{active} 的行会被 `NOT starts_with(..., 'v{active}:')`
+过滤掉,不会被重复加解密。
+
+**Q: 可以同时存在 v1 / v2 / v3 吗?**
+A: 可以。KeyRing 支持任意多版本,`available_versions=[1 2 3]` 会全部按前缀
+分发。但运维上建议保持 "当前激活 + 最多一个历史版本",多了就跑一轮轮换把
+更老的退役掉,减少密钥管理面。
+
+**Q: 老的未加前缀密文(v1 引入 KeyRing 之前)怎么办?**
+A: `KeyRing.Decrypt` 自动把未识别前缀的字节当作 v1 处理。只要 v1 密钥还在
+ring 里,它就能解密 —— 因此升级到 KeyRing **不需要**先跑一次无操作的轮换。
+把这些历史行也加上 `v1:` 前缀的副作用,会在步骤 C 跑轮换时顺带发生。
+
+**Q: 如果某行密文解密失败(密钥丢了 / 被篡改)怎么办?**
+A: 该行会计入 errors 计数并打到 stderr,CLI 继续处理其它行。exit code 非零
+以便 CI / 运维脚本察觉。具体行人工介入:重新配置该 adapter / webhook,或从
+备份恢复。
+
+---
+
+## 9. 故障排查
+
+### 9.1 启动报 `failed to load at-rest encryption key`
 
 **原因**:`CMDB_SECRET_KEY` 没设,或者值不是 64 位 hex。
 
@@ -442,7 +586,7 @@ docker compose exec cmdb-core sh -c 'echo ${#CMDB_SECRET_KEY}'
 
 **修复**:按第 1 节重新生成并按第 2 节注入,然后重启服务。
 
-### 8.2 启动报 `database schema is behind code, migrations_behind=2`
+### 9.2 启动报 `database schema is behind code, migrations_behind=2`
 
 **原因**:代码期望 `expectedMigration=39`,但 DB 还在 37。
 
@@ -450,7 +594,7 @@ docker compose exec cmdb-core sh -c 'echo ${#CMDB_SECRET_KEY}'
 - 如果是 docker-compose 部署 → 查 migration 自动执行日志,通常是目录挂载错了,`MIGRATIONS_DIR` 找不到文件
 - 如果是独立 DB → 按第 4.2 节手动执行
 
-### 8.3 启动报 `database schema is ahead of code`(Warn,不致命)
+### 9.3 启动报 `database schema is ahead of code`(Warn,不致命)
 
 **原因**:DB 已经跑到 39,但你起的是旧二进制(version=37)。
 
@@ -458,7 +602,7 @@ docker compose exec cmdb-core sh -c 'echo ${#CMDB_SECRET_KEY}'
 - 如果你在故意回滚旧版本,且旧版本能容忍多出的列(一般能,因为老代码不读新列)→ 忽略
 - 如果是部署了错误的镜像 → 部署正确版本
 
-### 8.4 创建 webhook 成功但投递失败,日志显示 `decrypt secret failed`
+### 9.4 创建 webhook 成功但投递失败,日志显示 `decrypt secret failed`
 
 **原因**:`CMDB_SECRET_KEY` 在升级过程中被替换过。
 
@@ -471,7 +615,7 @@ FROM webhook_subscriptions;
 - 如果 `has_plain=true`:代码会自动回落到明文,投递应当仍然成功。如果仍失败,看具体错误栈。
 - 如果 `has_plain=false` 且 `has_enc=true`:只能重新录入该 webhook,或者从备份恢复 DB 再用老密钥。
 
-### 8.5 Adapter 反复进 backoff 窗口,似乎不同步
+### 9.5 Adapter 反复进 backoff 窗口,似乎不同步
 
 **原因**:新逻辑按 `next_attempt_at` 过滤;adapter 需要过了 backoff 窗口才会被再次拉取。
 
@@ -492,17 +636,17 @@ WHERE id = '<adapter id>';
 
 ---
 
-## 9. 完成后动作(Post-Deploy)
+## 10. 完成后动作(Post-Deploy)
 
 - [ ] 在密钥管理系统里给 `CMDB_SECRET_KEY` 打标签(owner、创建时间、应用范围)
 - [ ] 加监控告警:`CMDB_SECRET_KEY` 被访问时触发(审计日志)
 - [ ] 更新运维 runbook,加上本文档链接
 - [ ] 在内部 wiki 登记本次升级的日期、版本号、执行人
-- [ ] 预定密钥轮换时间表(建议 12 个月,轮换方案参见未来的 `docs/key-rotation-runbook.md`)
+- [ ] 预定密钥轮换时间表(建议 12 个月,方案见本文档 §8)
 
 ---
 
-## 10. 快速 Checklist(一页纸)
+## 11. 快速 Checklist(一页纸)
 
 升级执行人从上到下逐项打勾:
 
