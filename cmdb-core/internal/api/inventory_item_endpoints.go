@@ -6,6 +6,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // GetItemScanHistory handles GET /inventory/tasks/:id/items/:itemId/scan-history
@@ -102,15 +103,11 @@ func (s *APIServer) CreateItemScanRecord(c *gin.Context) {
 	response.Created(c, gin.H{"id": newID.String()})
 }
 
-// GetItemNotes handles GET /inventory/tasks/:id/items/:itemId/notes
-// Returns notes for a specific inventory item.
-func (s *APIServer) GetItemNotes(c *gin.Context) {
-	itemIDStr := c.Param("itemId")
-	itemID, err := uuid.Parse(itemIDStr)
-	if err != nil {
-		response.BadRequest(c, "invalid itemId")
-		return
-	}
+// GetItemNotes handles GET /inventory/tasks/{id}/items/{itemId}/notes
+// Returns notes for a specific inventory item. The {id} (task id) is unused
+// in the query because item_id alone is unique.
+func (s *APIServer) GetItemNotes(c *gin.Context, _ IdPath, itemId openapi_types.UUID) {
+	itemID := uuid.UUID(itemId)
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT n.id, n.created_at, u.display_name, n.severity, n.text
@@ -154,16 +151,10 @@ func (s *APIServer) GetItemNotes(c *gin.Context) {
 	response.OK(c, gin.H{"notes": notes})
 }
 
-// CreateItemNote handles POST /inventory/tasks/:id/items/:itemId/notes
+// CreateItemNote handles POST /inventory/tasks/{id}/items/{itemId}/notes
 // Creates a new note for a specific inventory item.
-func (s *APIServer) CreateItemNote(c *gin.Context) {
-	itemIDStr := c.Param("itemId")
-	itemID, err := uuid.Parse(itemIDStr)
-	if err != nil {
-		response.BadRequest(c, "invalid itemId")
-		return
-	}
-
+func (s *APIServer) CreateItemNote(c *gin.Context, _ IdPath, itemId openapi_types.UUID) {
+	itemID := uuid.UUID(itemId)
 	userID := userIDFromContext(c)
 
 	var body struct {
@@ -179,7 +170,7 @@ func (s *APIServer) CreateItemNote(c *gin.Context) {
 	}
 
 	newID := uuid.New()
-	_, err = s.pool.Exec(c.Request.Context(), `
+	_, err := s.pool.Exec(c.Request.Context(), `
 		INSERT INTO inventory_notes (id, item_id, author_id, severity, text, created_at)
 		VALUES ($1, $2, $3, $4, $5, now())
 	`, newID, itemID, userID, body.Severity, body.Text)

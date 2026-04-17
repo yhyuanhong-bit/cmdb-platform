@@ -8,15 +8,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetWorkOrderComments handles GET /maintenance/orders/:id/comments
+// ListWorkOrderComments handles GET /maintenance/orders/{id}/comments
 // Returns all comments for a specific work order, ordered oldest-first.
-func (s *APIServer) GetWorkOrderComments(c *gin.Context) {
-	orderIDStr := c.Param("id")
-	orderID, err := uuid.Parse(orderIDStr)
-	if err != nil {
-		response.BadRequest(c, "invalid order id")
-		return
-	}
+func (s *APIServer) ListWorkOrderComments(c *gin.Context, id IdPath) {
+	orderID := uuid.UUID(id)
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT wc.id, u.display_name, wc.text, wc.created_at
@@ -58,16 +53,10 @@ func (s *APIServer) GetWorkOrderComments(c *gin.Context) {
 	response.OK(c, gin.H{"comments": comments})
 }
 
-// CreateWorkOrderComment handles POST /maintenance/orders/:id/comments
+// CreateWorkOrderComment handles POST /maintenance/orders/{id}/comments
 // Creates a new comment on a work order.
-func (s *APIServer) CreateWorkOrderComment(c *gin.Context) {
-	orderIDStr := c.Param("id")
-	orderID, err := uuid.Parse(orderIDStr)
-	if err != nil {
-		response.BadRequest(c, "invalid order id")
-		return
-	}
-
+func (s *APIServer) CreateWorkOrderComment(c *gin.Context, id IdPath) {
+	orderID := uuid.UUID(id)
 	userID := userIDFromContext(c)
 
 	var body struct {
@@ -83,7 +72,7 @@ func (s *APIServer) CreateWorkOrderComment(c *gin.Context) {
 	}
 
 	newID := uuid.New()
-	_, err = s.pool.Exec(c.Request.Context(), `
+	_, err := s.pool.Exec(c.Request.Context(), `
 		INSERT INTO work_order_comments (id, order_id, author_id, text, created_at)
 		VALUES ($1, $2, $3, $4, now())
 	`, newID, orderID, userID, body.Text)

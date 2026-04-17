@@ -992,6 +992,11 @@ type UpdateWorkOrderJSONBody struct {
 	Title          *string             `json:"title,omitempty"`
 }
 
+// CreateWorkOrderCommentJSONBody defines parameters for CreateWorkOrderComment.
+type CreateWorkOrderCommentJSONBody struct {
+	Text *string `json:"text,omitempty"`
+}
+
 // TransitionWorkOrderJSONBody defines parameters for TransitionWorkOrder.
 type TransitionWorkOrderJSONBody struct {
 	Comment *string `json:"comment,omitempty"`
@@ -1211,6 +1216,9 @@ type CreateWorkOrderJSONRequestBody CreateWorkOrderJSONBody
 
 // UpdateWorkOrderJSONRequestBody defines body for UpdateWorkOrder for application/json ContentType.
 type UpdateWorkOrderJSONRequestBody UpdateWorkOrderJSONBody
+
+// CreateWorkOrderCommentJSONRequestBody defines body for CreateWorkOrderComment for application/json ContentType.
+type CreateWorkOrderCommentJSONRequestBody CreateWorkOrderCommentJSONBody
 
 // TransitionWorkOrderJSONRequestBody defines body for TransitionWorkOrder for application/json ContentType.
 type TransitionWorkOrderJSONRequestBody TransitionWorkOrderJSONBody
@@ -1626,6 +1634,12 @@ type ServerInterface interface {
 	// List items in an inventory task
 	// (GET /inventory/tasks/{id}/items)
 	ListInventoryItems(c *gin.Context, id IdPath, params ListInventoryItemsParams)
+	// Get notes for an inventory item
+	// (GET /inventory/tasks/{id}/items/{itemId}/notes)
+	GetItemNotes(c *gin.Context, id IdPath, itemId openapi_types.UUID)
+	// Add a note to an inventory item
+	// (POST /inventory/tasks/{id}/items/{itemId}/notes)
+	CreateItemNote(c *gin.Context, id IdPath, itemId openapi_types.UUID)
 	// Scan an inventory item
 	// (POST /inventory/tasks/{id}/items/{itemId}/scan)
 	ScanInventoryItem(c *gin.Context, id IdPath, itemId openapi_types.UUID)
@@ -1689,6 +1703,12 @@ type ServerInterface interface {
 	// Update a work order
 	// (PUT /maintenance/orders/{id})
 	UpdateWorkOrder(c *gin.Context, id IdPath)
+	// List comments on a work order
+	// (GET /maintenance/orders/{id}/comments)
+	ListWorkOrderComments(c *gin.Context, id IdPath)
+	// Add a comment to a work order
+	// (POST /maintenance/orders/{id}/comments)
+	CreateWorkOrderComment(c *gin.Context, id IdPath)
 	// List work order logs
 	// (GET /maintenance/orders/{id}/logs)
 	ListWorkOrderLogs(c *gin.Context, id IdPath)
@@ -2952,6 +2972,76 @@ func (siw *ServerInterfaceWrapper) ListInventoryItems(c *gin.Context) {
 	siw.Handler.ListInventoryItems(c, id, params)
 }
 
+// GetItemNotes operation middleware
+func (siw *ServerInterfaceWrapper) GetItemNotes(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "itemId" -------------
+	var itemId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "itemId", c.Param("itemId"), &itemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter itemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetItemNotes(c, id, itemId)
+}
+
+// CreateItemNote operation middleware
+func (siw *ServerInterfaceWrapper) CreateItemNote(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "itemId" -------------
+	var itemId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "itemId", c.Param("itemId"), &itemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter itemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateItemNote(c, id, itemId)
+}
+
 // ScanInventoryItem operation middleware
 func (siw *ServerInterfaceWrapper) ScanInventoryItem(c *gin.Context) {
 
@@ -3496,6 +3586,58 @@ func (siw *ServerInterfaceWrapper) UpdateWorkOrder(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateWorkOrder(c, id)
+}
+
+// ListWorkOrderComments operation middleware
+func (siw *ServerInterfaceWrapper) ListWorkOrderComments(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListWorkOrderComments(c, id)
+}
+
+// CreateWorkOrderComment operation middleware
+func (siw *ServerInterfaceWrapper) CreateWorkOrderComment(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateWorkOrderComment(c, id)
 }
 
 // ListWorkOrderLogs operation middleware
@@ -5115,6 +5257,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/inventory/tasks/:id/complete", wrapper.CompleteInventoryTask)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/import", wrapper.ImportInventoryItems)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/items", wrapper.ListInventoryItems)
+	router.GET(options.BaseURL+"/inventory/tasks/:id/items/:itemId/notes", wrapper.GetItemNotes)
+	router.POST(options.BaseURL+"/inventory/tasks/:id/items/:itemId/notes", wrapper.CreateItemNote)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/items/:itemId/scan", wrapper.ScanInventoryItem)
 	router.GET(options.BaseURL+"/inventory/tasks/:id/summary", wrapper.GetInventorySummary)
 	router.GET(options.BaseURL+"/location-detect/anomalies", wrapper.LocationDetectGetAnomalies)
@@ -5136,6 +5280,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/maintenance/orders/:id", wrapper.DeleteWorkOrder)
 	router.GET(options.BaseURL+"/maintenance/orders/:id", wrapper.GetWorkOrder)
 	router.PUT(options.BaseURL+"/maintenance/orders/:id", wrapper.UpdateWorkOrder)
+	router.GET(options.BaseURL+"/maintenance/orders/:id/comments", wrapper.ListWorkOrderComments)
+	router.POST(options.BaseURL+"/maintenance/orders/:id/comments", wrapper.CreateWorkOrderComment)
 	router.GET(options.BaseURL+"/maintenance/orders/:id/logs", wrapper.ListWorkOrderLogs)
 	router.POST(options.BaseURL+"/maintenance/orders/:id/transition", wrapper.TransitionWorkOrder)
 	router.GET(options.BaseURL+"/monitoring/alerts", wrapper.ListAlerts)

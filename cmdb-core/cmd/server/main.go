@@ -365,11 +365,7 @@ func main() {
 	// Phase 3 routes
 	v1.GET("/inventory/tasks/:id/items/:itemId/scan-history", apiServer.GetItemScanHistory)
 	v1.POST("/inventory/tasks/:id/items/:itemId/scan-history", apiServer.CreateItemScanRecord)
-	v1.GET("/inventory/tasks/:id/items/:itemId/notes", apiServer.GetItemNotes)
-	v1.POST("/inventory/tasks/:id/items/:itemId/notes", apiServer.CreateItemNote)
 	v1.POST("/inventory/tasks/:id/items/:itemId/resolve", apiServer.ResolveInventoryDiscrepancy)
-	v1.GET("/maintenance/orders/:id/comments", apiServer.GetWorkOrderComments)
-	v1.POST("/maintenance/orders/:id/comments", apiServer.CreateWorkOrderComment)
 	v1.GET("/locations/asset-counts", apiServer.GetLocationAssetCounts)
 	v1.GET("/topology/dependencies", apiServer.GetAssetDependencies)
 	v1.POST("/topology/dependencies", apiServer.CreateAssetDependency)
