@@ -60,6 +60,38 @@ var (
 		Name: "cmdb_sync_reconciliation_runs_total",
 		Help: "Total reconciliation job executions.",
 	})
+
+	// IntegrationDecryptFallbackTotal counts times the dual-read path for
+	// integration secrets fell back from ciphertext to plaintext (or failed
+	// to decrypt). Observational only — does not change read semantics.
+	//
+	// table:  integration_adapters | webhook_subscriptions
+	// reason: ciphertext_null | decrypt_failed
+	IntegrationDecryptFallbackTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "integration_decrypt_fallback_total",
+		Help: "Times the integration-secrets read path fell back to the plaintext column or hit a decrypt failure.",
+	}, []string{"table", "reason"})
+
+	// IntegrationDualWriteDivergenceTotal counts rows where the plaintext
+	// column and decrypted ciphertext column disagree. Populated by the
+	// periodic divergence sampling job; any non-zero value is an operator
+	// alert signal.
+	//
+	// table: integration_adapters | webhook_subscriptions
+	IntegrationDualWriteDivergenceTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "integration_dual_write_divergence_total",
+		Help: "Rows detected where the encrypted and plaintext integration-secret columns disagree.",
+	}, []string{"table"})
+)
+
+// Label values for the integration_* metrics. Exported so callers don't
+// drift on the spelling.
+const (
+	IntegrationTableAdapters = "integration_adapters"
+	IntegrationTableWebhooks = "webhook_subscriptions"
+
+	IntegrationFallbackReasonCiphertextNull = "ciphertext_null"
+	IntegrationFallbackReasonDecryptFailed  = "decrypt_failed"
 )
 
 // PrometheusMiddleware returns a Gin middleware that records HTTP request

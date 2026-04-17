@@ -430,6 +430,8 @@ func main() {
 		wfSub.StartMetricsPuller(ctx)
 		wfSub.StartWarrantyChecker(ctx)
 		wfSub.StartAssetVerificationChecker(ctx)
+		// Gated behind CMDB_INTEGRATION_DIVERGENCE_CHECK=1; default off.
+		wfSub.StartDivergenceChecker(ctx)
 	}
 
 	// Webhook dispatcher
