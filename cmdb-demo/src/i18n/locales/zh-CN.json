@@ -2498,6 +2498,7 @@
     "name_placeholder": "Webhook 名称",
     "url_label": "URL",
     "url_placeholder": "https://example.com/webhook",
+    "url_invalid": "请输入有效的 http(s) URL",
     "events_label": "事件（逗号分隔）",
     "events_placeholder": "asset.created,alert.fired",
     "secret_label": "密钥（可选）",
