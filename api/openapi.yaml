@@ -2800,6 +2800,65 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /integration/adapters/{id}:
+    patch:
+      operationId: updateAdapter
+      tags: [integration]
+      summary: Update an integration adapter
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                direction:
+                  type: string
+                endpoint:
+                  type: string
+                config:
+                  type: object
+                  additionalProperties: true
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Adapter updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/IntegrationAdapter'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteAdapter
+      tags: [integration]
+      summary: Delete an integration adapter
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Adapter deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /integration/webhooks:
     get:
       operationId: listWebhooks
@@ -2860,6 +2919,64 @@ paths:
                     $ref: '#/components/schemas/Meta'
         '400':
           $ref: '#/components/responses/BadRequest'
+
+  /integration/webhooks/{id}:
+    patch:
+      operationId: updateWebhook
+      tags: [integration]
+      summary: Update a webhook subscription
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                url:
+                  type: string
+                secret:
+                  type: string
+                events:
+                  type: array
+                  items:
+                    type: string
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Webhook updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WebhookSubscription'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteWebhook
+      tags: [integration]
+      summary: Delete a webhook subscription
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Webhook deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /integration/webhooks/{id}/deliveries:
     get:

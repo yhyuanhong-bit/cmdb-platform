@@ -1247,6 +1247,16 @@ type CreateAdapterJSONBody struct {
 	Type      string                  `json:"type"`
 }
 
+// UpdateAdapterJSONBody defines parameters for UpdateAdapter.
+type UpdateAdapterJSONBody struct {
+	Config    *map[string]interface{} `json:"config,omitempty"`
+	Direction *string                 `json:"direction,omitempty"`
+	Enabled   *bool                   `json:"enabled,omitempty"`
+	Endpoint  *string                 `json:"endpoint,omitempty"`
+	Name      *string                 `json:"name,omitempty"`
+	Type      *string                 `json:"type,omitempty"`
+}
+
 // CreateWebhookJSONBody defines parameters for CreateWebhook.
 type CreateWebhookJSONBody struct {
 	Enabled *bool    `json:"enabled,omitempty"`
@@ -1254,6 +1264,15 @@ type CreateWebhookJSONBody struct {
 	Name    string   `json:"name"`
 	Secret  *string  `json:"secret,omitempty"`
 	Url     string   `json:"url"`
+}
+
+// UpdateWebhookJSONBody defines parameters for UpdateWebhook.
+type UpdateWebhookJSONBody struct {
+	Enabled *bool     `json:"enabled,omitempty"`
+	Events  *[]string `json:"events,omitempty"`
+	Name    *string   `json:"name,omitempty"`
+	Secret  *string   `json:"secret,omitempty"`
+	Url     *string   `json:"url,omitempty"`
 }
 
 // ListInventoryTasksParams defines parameters for ListInventoryTasks.
@@ -1605,8 +1624,14 @@ type IngestDiscoveredAssetJSONRequestBody IngestDiscoveredAssetJSONBody
 // CreateAdapterJSONRequestBody defines body for CreateAdapter for application/json ContentType.
 type CreateAdapterJSONRequestBody CreateAdapterJSONBody
 
+// UpdateAdapterJSONRequestBody defines body for UpdateAdapter for application/json ContentType.
+type UpdateAdapterJSONRequestBody UpdateAdapterJSONBody
+
 // CreateWebhookJSONRequestBody defines body for CreateWebhook for application/json ContentType.
 type CreateWebhookJSONRequestBody CreateWebhookJSONBody
+
+// UpdateWebhookJSONRequestBody defines body for UpdateWebhook for application/json ContentType.
+type UpdateWebhookJSONRequestBody UpdateWebhookJSONBody
 
 // CreateInventoryTaskJSONRequestBody defines body for CreateInventoryTask for application/json ContentType.
 type CreateInventoryTaskJSONRequestBody CreateInventoryTaskJSONBody
@@ -2678,12 +2703,24 @@ type ServerInterface interface {
 	// Create an integration adapter
 	// (POST /integration/adapters)
 	CreateAdapter(c *gin.Context)
+	// Delete an integration adapter
+	// (DELETE /integration/adapters/{id})
+	DeleteAdapter(c *gin.Context, id IdPath)
+	// Update an integration adapter
+	// (PATCH /integration/adapters/{id})
+	UpdateAdapter(c *gin.Context, id IdPath)
 	// List webhook subscriptions
 	// (GET /integration/webhooks)
 	ListWebhooks(c *gin.Context)
 	// Create a webhook subscription
 	// (POST /integration/webhooks)
 	CreateWebhook(c *gin.Context)
+	// Delete a webhook subscription
+	// (DELETE /integration/webhooks/{id})
+	DeleteWebhook(c *gin.Context, id IdPath)
+	// Update a webhook subscription
+	// (PATCH /integration/webhooks/{id})
+	UpdateWebhook(c *gin.Context, id IdPath)
 	// List webhook delivery history
 	// (GET /integration/webhooks/{id}/deliveries)
 	ListWebhookDeliveries(c *gin.Context, id IdPath)
@@ -4158,6 +4195,58 @@ func (siw *ServerInterfaceWrapper) CreateAdapter(c *gin.Context) {
 	siw.Handler.CreateAdapter(c)
 }
 
+// DeleteAdapter operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdapter(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAdapter(c, id)
+}
+
+// UpdateAdapter operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdapter(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAdapter(c, id)
+}
+
 // ListWebhooks operation middleware
 func (siw *ServerInterfaceWrapper) ListWebhooks(c *gin.Context) {
 
@@ -4186,6 +4275,58 @@ func (siw *ServerInterfaceWrapper) CreateWebhook(c *gin.Context) {
 	}
 
 	siw.Handler.CreateWebhook(c)
+}
+
+// DeleteWebhook operation middleware
+func (siw *ServerInterfaceWrapper) DeleteWebhook(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteWebhook(c, id)
+}
+
+// UpdateWebhook operation middleware
+func (siw *ServerInterfaceWrapper) UpdateWebhook(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateWebhook(c, id)
 }
 
 // ListWebhookDeliveries operation middleware
@@ -7250,8 +7391,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/fleet-metrics", wrapper.GetFleetMetricsSummary)
 	router.GET(options.BaseURL+"/integration/adapters", wrapper.ListAdapters)
 	router.POST(options.BaseURL+"/integration/adapters", wrapper.CreateAdapter)
+	router.DELETE(options.BaseURL+"/integration/adapters/:id", wrapper.DeleteAdapter)
+	router.PATCH(options.BaseURL+"/integration/adapters/:id", wrapper.UpdateAdapter)
 	router.GET(options.BaseURL+"/integration/webhooks", wrapper.ListWebhooks)
 	router.POST(options.BaseURL+"/integration/webhooks", wrapper.CreateWebhook)
+	router.DELETE(options.BaseURL+"/integration/webhooks/:id", wrapper.DeleteWebhook)
+	router.PATCH(options.BaseURL+"/integration/webhooks/:id", wrapper.UpdateWebhook)
 	router.GET(options.BaseURL+"/integration/webhooks/:id/deliveries", wrapper.ListWebhookDeliveries)
 	router.GET(options.BaseURL+"/inventory/tasks", wrapper.ListInventoryTasks)
 	router.POST(options.BaseURL+"/inventory/tasks", wrapper.CreateInventoryTask)
