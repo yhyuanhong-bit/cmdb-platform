@@ -5,10 +5,12 @@ import { useNavigate } from 'react-router-dom'
 import { useUsers, useRoles, useCreateUser, useUpdateUser, useDeleteUser, useAssignRole } from '../hooks/useIdentity'
 import { usePermission } from '../hooks/usePermission'
 import { useSystemHealth } from '../hooks/useSystemHealth'
-import { useAdapters, useWebhooks } from '../hooks/useIntegration'
+import { useAdapters, useWebhooks, useDeleteAdapter, useDeleteWebhook } from '../hooks/useIntegration'
 import { useCredentials, useDeleteCredential } from '../hooks/useCredentials'
 import CreateAdapterModal from '../components/CreateAdapterModal'
 import CreateWebhookModal from '../components/CreateWebhookModal'
+import EditAdapterModal from '../components/EditAdapterModal'
+import EditWebhookModal from '../components/EditWebhookModal'
 import CreateCredentialModal from '../components/CreateCredentialModal'
 import type { User, Role } from '../lib/api/identity'
 import type { AdapterConfig, WebhookSubscription } from '../lib/api/integration'
@@ -54,6 +56,10 @@ export default function SystemSettings() {
   const assignRole = useAssignRole()
   const [showCreateAdapter, setShowCreateAdapter] = useState(false)
   const [showCreateWebhook, setShowCreateWebhook] = useState(false)
+  const [editingAdapter, setEditingAdapter] = useState<AdapterConfig | null>(null)
+  const [editingWebhook, setEditingWebhook] = useState<WebhookSubscription | null>(null)
+  const deleteAdapter = useDeleteAdapter()
+  const deleteWebhook = useDeleteWebhook()
   const [showCreateCredential, setShowCreateCredential] = useState(false)
   const [editingCredential, setEditingCredential] = useState<Credential | null>(null)
 
@@ -226,12 +232,34 @@ export default function SystemSettings() {
             <div className="flex flex-col gap-2">
               {adapters.length === 0 && <p className="text-sm text-on-surface-variant">{t('system_settings.no_adapters')}</p>}
               {(adapters as AdapterConfig[]).map((a) => (
-                <div key={a.id} className="flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3">
-                  <span className="text-sm text-on-surface font-semibold">{a.name}</span>
-                  <span className="text-xs text-on-surface-variant">{a.type} / {a.direction}</span>
+                <div key={a.id} className="flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3 gap-3">
+                  <span className="text-sm text-on-surface font-semibold flex-1 min-w-0 truncate">{a.name}</span>
+                  <span className="text-xs text-on-surface-variant whitespace-nowrap">{a.type} / {a.direction}</span>
                   <span className={`px-2.5 py-1 rounded text-[0.6875rem] font-semibold tracking-wider ${a.enabled ? 'bg-[#064e3b] text-[#34d399]' : 'bg-surface-container-highest text-on-surface-variant'}`}>
                     {a.enabled ? t('system_settings.status_enabled') : t('system_settings.status_disabled')}
                   </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditingAdapter(a)}
+                      aria-label={t('system_settings.btn_edit')}
+                      title={t('system_settings.btn_edit')}
+                      className="p-1.5 rounded hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">edit</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!window.confirm(t('system_settings.confirm_delete_adapter', { name: a.name }))) return
+                        deleteAdapter.mutate(a.id, {
+                          onSuccess: () => toast.success(t('system_settings.adapter_deleted')),
+                          onError: () => toast.error(t('system_settings.delete_failed')),
+                        })
+                      }}
+                      aria-label={t('system_settings.btn_delete')}
+                      title={t('system_settings.btn_delete')}
+                      className="p-1.5 rounded hover:bg-red-500/20 text-on-surface-variant hover:text-red-400 transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -252,10 +280,35 @@ export default function SystemSettings() {
             <div className="flex flex-col gap-2">
               {webhooks.length === 0 && <p className="text-sm text-on-surface-variant">{t('system_settings.no_webhooks')}</p>}
               {(webhooks as WebhookSubscription[]).map((w) => (
-                <div key={w.id} className="flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3">
-                  <span className="text-sm text-on-surface font-semibold">{w.name}</span>
-                  <span className="text-xs text-on-surface-variant truncate max-w-[200px]">{w.url}</span>
-                  <span className="text-xs text-on-surface-variant">{w.events?.join(', ')}</span>
+                <div key={w.id} className="flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-3 gap-3">
+                  <span className="text-sm text-on-surface font-semibold flex-shrink-0">{w.name}</span>
+                  <span className="text-xs text-on-surface-variant truncate flex-1 min-w-0">{w.url}</span>
+                  <span className="text-xs text-on-surface-variant whitespace-nowrap max-w-[180px] truncate">{w.events?.join(', ')}</span>
+                  <span className={`px-2.5 py-1 rounded text-[0.6875rem] font-semibold tracking-wider ${w.enabled ? 'bg-[#064e3b] text-[#34d399]' : 'bg-surface-container-highest text-on-surface-variant'}`}>
+                    {w.enabled ? t('system_settings.status_enabled') : t('system_settings.status_disabled')}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditingWebhook(w)}
+                      aria-label={t('system_settings.btn_edit')}
+                      title={t('system_settings.btn_edit')}
+                      className="p-1.5 rounded hover:bg-surface-container-highest text-on-surface-variant hover:text-on-surface transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">edit</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!window.confirm(t('system_settings.confirm_delete_webhook', { name: w.name }))) return
+                        deleteWebhook.mutate(w.id, {
+                          onSuccess: () => toast.success(t('system_settings.webhook_deleted')),
+                          onError: () => toast.error(t('system_settings.delete_failed')),
+                        })
+                      }}
+                      aria-label={t('system_settings.btn_delete')}
+                      title={t('system_settings.btn_delete')}
+                      className="p-1.5 rounded hover:bg-red-500/20 text-on-surface-variant hover:text-red-400 transition-colors">
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -451,6 +504,8 @@ export default function SystemSettings() {
 
       <CreateAdapterModal open={showCreateAdapter} onClose={() => setShowCreateAdapter(false)} />
       <CreateWebhookModal open={showCreateWebhook} onClose={() => setShowCreateWebhook(false)} />
+      <EditAdapterModal adapter={editingAdapter} onClose={() => setEditingAdapter(null)} />
+      <EditWebhookModal webhook={editingWebhook} onClose={() => setEditingWebhook(null)} />
       <CreateCredentialModal
         open={showCreateCredential}
         onClose={() => { setShowCreateCredential(false); setEditingCredential(null) }}

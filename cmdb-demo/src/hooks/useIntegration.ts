@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { integrationApi } from '../lib/api/integration'
+import { integrationApi, type UpdateAdapterInput, type UpdateWebhookInput } from '../lib/api/integration'
 
 export function useAdapters() {
   return useQuery({
@@ -27,6 +27,40 @@ export function useCreateWebhook() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: integrationApi.createWebhook,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['webhooks'] }),
+  })
+}
+
+export function useUpdateAdapter() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { id: string; data: UpdateAdapterInput }) =>
+      integrationApi.updateAdapter(vars.id, vars.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['adapters'] }),
+  })
+}
+
+export function useDeleteAdapter() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => integrationApi.deleteAdapter(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['adapters'] }),
+  })
+}
+
+export function useUpdateWebhook() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (vars: { id: string; data: UpdateWebhookInput }) =>
+      integrationApi.updateWebhook(vars.id, vars.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['webhooks'] }),
+  })
+}
+
+export function useDeleteWebhook() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => integrationApi.deleteWebhook(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['webhooks'] }),
   })
 }

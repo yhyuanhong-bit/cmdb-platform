@@ -2130,6 +2130,13 @@
     "section_webhooks": "Webhooks",
     "btn_add_webhook": "Add Webhook",
     "no_webhooks": "No webhooks configured.",
+    "btn_edit": "Edit",
+    "btn_delete": "Delete",
+    "confirm_delete_adapter": "Delete adapter \"{{name}}\"? This cannot be undone.",
+    "confirm_delete_webhook": "Delete webhook \"{{name}}\"? This cannot be undone.",
+    "adapter_deleted": "Adapter deleted",
+    "webhook_deleted": "Webhook deleted",
+    "delete_failed": "Delete failed",
     "footer_last_sync": "Last Sync: {{time}} | IRONGRID V5 21.6",
     "create_user_title": "Create User",
     "placeholder_username": "Username",
@@ -2378,6 +2385,13 @@
     "btn_create": "Create",
     "btn_creating": "Creating..."
   },
+  "edit_adapter_modal": {
+    "title": "Edit Adapter",
+    "type_locked_hint": "Type cannot be changed. Delete and recreate to switch adapter types.",
+    "config_hint": "Config (queries, credentials, etc.) is preserved. To change it, delete and recreate the adapter.",
+    "btn_save": "Save",
+    "btn_saving": "Saving..."
+  },
   "assessment_modal": {
     "title": "Run New BIA Assessment",
     "system_name_label": "System Name",
@@ -2507,6 +2521,15 @@
     "btn_cancel": "Cancel",
     "btn_create": "Create",
     "btn_creating": "Creating..."
+  },
+  "edit_webhook_modal": {
+    "title": "Edit Webhook",
+    "rotate_secret_label": "Rotate signing secret",
+    "new_secret_label": "New secret",
+    "new_secret_placeholder": "Enter new signing secret",
+    "rotate_secret_warning": "Receivers using the old secret will fail signature verification until updated.",
+    "btn_save": "Save",
+    "btn_saving": "Saving..."
   },
   "bia_overview": {
     "page_title": "BIA Modeler",

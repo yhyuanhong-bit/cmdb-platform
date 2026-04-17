@@ -2130,6 +2130,13 @@
     "section_webhooks": "Webhooks",
     "btn_add_webhook": "添加 Webhook",
     "no_webhooks": "未配置 Webhooks。",
+    "btn_edit": "编辑",
+    "btn_delete": "删除",
+    "confirm_delete_adapter": "删除适配器「{{name}}」？此操作不可撤销。",
+    "confirm_delete_webhook": "删除 Webhook「{{name}}」？此操作不可撤销。",
+    "adapter_deleted": "适配器已删除",
+    "webhook_deleted": "Webhook 已删除",
+    "delete_failed": "删除失败",
     "footer_last_sync": "上次同步: {{time}} | IRONGRID V5 21.6",
     "create_user_title": "创建用户",
     "placeholder_username": "用户名",
@@ -2378,6 +2385,13 @@
     "btn_create": "创建",
     "btn_creating": "创建中..."
   },
+  "edit_adapter_modal": {
+    "title": "编辑适配器",
+    "type_locked_hint": "类型不可更改。如需切换类型请删除后重建。",
+    "config_hint": "配置（查询、凭证等）将保持不变。如需修改配置请删除后重建。",
+    "btn_save": "保存",
+    "btn_saving": "保存中..."
+  },
   "assessment_modal": {
     "title": "新建 BIA 评估",
     "system_name_label": "系统名称",
@@ -2507,6 +2521,15 @@
     "btn_cancel": "取消",
     "btn_create": "创建",
     "btn_creating": "创建中..."
+  },
+  "edit_webhook_modal": {
+    "title": "编辑 Webhook",
+    "rotate_secret_label": "轮换签名密钥",
+    "new_secret_label": "新密钥",
+    "new_secret_placeholder": "输入新的签名密钥",
+    "rotate_secret_warning": "接收方在更新密钥前将无法通过签名校验。",
+    "btn_save": "保存",
+    "btn_saving": "保存中..."
   },
   "bia_overview": {
     "page_title": "BIA 建模器",
