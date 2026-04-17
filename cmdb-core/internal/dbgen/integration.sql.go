@@ -14,18 +14,19 @@ import (
 )
 
 const createAdapter = `-- name: CreateAdapter :one
-INSERT INTO integration_adapters (tenant_id, name, type, direction, endpoint, config, enabled)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, tenant_id, name, type, direction, endpoint, config, enabled, created_at
+INSERT INTO integration_adapters (tenant_id, name, type, direction, endpoint, config, config_encrypted, enabled)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, tenant_id, name, type, direction, endpoint, config, config_encrypted, enabled, created_at
 `
 
 type CreateAdapterParams struct {
-	TenantID  uuid.UUID   `json:"tenant_id"`
-	Name      string      `json:"name"`
-	Type      string      `json:"type"`
-	Direction string      `json:"direction"`
-	Endpoint  pgtype.Text `json:"endpoint"`
-	Config    []byte      `json:"config"`
-	Enabled   pgtype.Bool `json:"enabled"`
+	TenantID        uuid.UUID   `json:"tenant_id"`
+	Name            string      `json:"name"`
+	Type            string      `json:"type"`
+	Direction       string      `json:"direction"`
+	Endpoint        pgtype.Text `json:"endpoint"`
+	Config          []byte      `json:"config"`
+	ConfigEncrypted []byte      `json:"config_encrypted"`
+	Enabled         pgtype.Bool `json:"enabled"`
 }
 
 func (q *Queries) CreateAdapter(ctx context.Context, arg CreateAdapterParams) (IntegrationAdapter, error) {
@@ -36,6 +37,7 @@ func (q *Queries) CreateAdapter(ctx context.Context, arg CreateAdapterParams) (I
 		arg.Direction,
 		arg.Endpoint,
 		arg.Config,
+		arg.ConfigEncrypted,
 		arg.Enabled,
 	)
 	var i IntegrationAdapter
@@ -47,6 +49,7 @@ func (q *Queries) CreateAdapter(ctx context.Context, arg CreateAdapterParams) (I
 		&i.Direction,
 		&i.Endpoint,
 		&i.Config,
+		&i.ConfigEncrypted,
 		&i.Enabled,
 		&i.CreatedAt,
 	)
@@ -78,17 +81,18 @@ func (q *Queries) CreateDelivery(ctx context.Context, arg CreateDeliveryParams) 
 }
 
 const createWebhook = `-- name: CreateWebhook :one
-INSERT INTO webhook_subscriptions (tenant_id, name, url, secret, events, enabled)
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia
+INSERT INTO webhook_subscriptions (tenant_id, name, url, secret, secret_encrypted, events, enabled)
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, tenant_id, name, url, secret, secret_encrypted, events, enabled, created_at, filter_bia
 `
 
 type CreateWebhookParams struct {
-	TenantID uuid.UUID   `json:"tenant_id"`
-	Name     string      `json:"name"`
-	Url      string      `json:"url"`
-	Secret   pgtype.Text `json:"secret"`
-	Events   []string    `json:"events"`
-	Enabled  pgtype.Bool `json:"enabled"`
+	TenantID        uuid.UUID   `json:"tenant_id"`
+	Name            string      `json:"name"`
+	Url             string      `json:"url"`
+	Secret          pgtype.Text `json:"secret"`
+	SecretEncrypted []byte      `json:"secret_encrypted"`
+	Events          []string    `json:"events"`
+	Enabled         pgtype.Bool `json:"enabled"`
 }
 
 func (q *Queries) CreateWebhook(ctx context.Context, arg CreateWebhookParams) (WebhookSubscription, error) {
@@ -97,6 +101,7 @@ func (q *Queries) CreateWebhook(ctx context.Context, arg CreateWebhookParams) (W
 		arg.Name,
 		arg.Url,
 		arg.Secret,
+		arg.SecretEncrypted,
 		arg.Events,
 		arg.Enabled,
 	)
@@ -107,6 +112,7 @@ func (q *Queries) CreateWebhook(ctx context.Context, arg CreateWebhookParams) (W
 		&i.Name,
 		&i.Url,
 		&i.Secret,
+		&i.SecretEncrypted,
 		&i.Events,
 		&i.Enabled,
 		&i.CreatedAt,
@@ -116,7 +122,7 @@ func (q *Queries) CreateWebhook(ctx context.Context, arg CreateWebhookParams) (W
 }
 
 const getWebhookByID = `-- name: GetWebhookByID :one
-SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia FROM webhook_subscriptions WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, name, url, secret, secret_encrypted, events, enabled, created_at, filter_bia FROM webhook_subscriptions WHERE id = $1 AND tenant_id = $2
 `
 
 type GetWebhookByIDParams struct {
@@ -133,6 +139,7 @@ func (q *Queries) GetWebhookByID(ctx context.Context, arg GetWebhookByIDParams) 
 		&i.Name,
 		&i.Url,
 		&i.Secret,
+		&i.SecretEncrypted,
 		&i.Events,
 		&i.Enabled,
 		&i.CreatedAt,
@@ -142,7 +149,7 @@ func (q *Queries) GetWebhookByID(ctx context.Context, arg GetWebhookByIDParams) 
 }
 
 const listAdapters = `-- name: ListAdapters :many
-SELECT id, tenant_id, name, type, direction, endpoint, config, enabled, created_at FROM integration_adapters WHERE tenant_id = $1 ORDER BY name
+SELECT id, tenant_id, name, type, direction, endpoint, config, config_encrypted, enabled, created_at FROM integration_adapters WHERE tenant_id = $1 ORDER BY name
 `
 
 func (q *Queries) ListAdapters(ctx context.Context, tenantID uuid.UUID) ([]IntegrationAdapter, error) {
@@ -162,6 +169,7 @@ func (q *Queries) ListAdapters(ctx context.Context, tenantID uuid.UUID) ([]Integ
 			&i.Direction,
 			&i.Endpoint,
 			&i.Config,
+			&i.ConfigEncrypted,
 			&i.Enabled,
 			&i.CreatedAt,
 		); err != nil {
@@ -213,7 +221,7 @@ func (q *Queries) ListDeliveries(ctx context.Context, arg ListDeliveriesParams) 
 }
 
 const listWebhooks = `-- name: ListWebhooks :many
-SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia FROM webhook_subscriptions WHERE tenant_id = $1 ORDER BY name
+SELECT id, tenant_id, name, url, secret, secret_encrypted, events, enabled, created_at, filter_bia FROM webhook_subscriptions WHERE tenant_id = $1 ORDER BY name
 `
 
 func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]WebhookSubscription, error) {
@@ -231,6 +239,7 @@ func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]Webho
 			&i.Name,
 			&i.Url,
 			&i.Secret,
+			&i.SecretEncrypted,
 			&i.Events,
 			&i.Enabled,
 			&i.CreatedAt,
@@ -247,7 +256,7 @@ func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]Webho
 }
 
 const listWebhooksByEvent = `-- name: ListWebhooksByEvent :many
-SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia FROM webhook_subscriptions
+SELECT id, tenant_id, name, url, secret, secret_encrypted, events, enabled, created_at, filter_bia FROM webhook_subscriptions
 WHERE tenant_id = $1
   AND enabled = true
   AND $2::text = ANY(events)
@@ -273,6 +282,7 @@ func (q *Queries) ListWebhooksByEvent(ctx context.Context, arg ListWebhooksByEve
 			&i.Name,
 			&i.Url,
 			&i.Secret,
+			&i.SecretEncrypted,
 			&i.Events,
 			&i.Enabled,
 			&i.CreatedAt,

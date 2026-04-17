@@ -39,6 +39,7 @@ import (
 	cmdbmcp "github.com/cmdb-platform/cmdb-core/internal/mcp"
 	"github.com/cmdb-platform/cmdb-core/internal/middleware"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/cache"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	cmdbws "github.com/cmdb-platform/cmdb-core/internal/websocket"
@@ -71,6 +72,15 @@ func main() {
 		zap.L().Fatal("failed to init tracer", zap.Error(err))
 	}
 	defer shutdownTracer(ctx)
+
+	// 3a. Load at-rest encryption cipher. Missing key is a hard failure —
+	// we never want to silently run without encrypting adapter configs or
+	// webhook secrets. Operators must set CMDB_SECRET_KEY (64-char hex,
+	// 32-byte AES-256 key; generate with crypto.GenerateKeyHex).
+	cipher, err := crypto.CipherFromEnv("CMDB_SECRET_KEY")
+	if err != nil {
+		zap.L().Fatal("failed to load at-rest encryption key (set CMDB_SECRET_KEY)", zap.Error(err))
+	}
 
 	// 4. Create PG pool
 	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
@@ -121,7 +131,7 @@ func main() {
 
 	// 4b. Verify database migration version matches code expectations
 	{
-		const expectedMigration = 37 // bump this when adding new migrations
+		const expectedMigration = 38 // bump this when adding new migrations
 		var dbVersion int
 		err := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&dbVersion)
 		if err != nil {
@@ -294,6 +304,7 @@ func main() {
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
+		cipher,
 	)
 
 	// 10. Set up Gin router
@@ -411,7 +422,7 @@ func main() {
 
 	// Workflow subscribers (cross-module reactions)
 	if bus != nil {
-		wfSub := workflows.New(pool, queries, bus, maintenanceSvc)
+		wfSub := workflows.New(pool, queries, bus, maintenanceSvc, cipher)
 		wfSub.Register()
 		wfSub.StartSLAChecker(ctx)
 		wfSub.StartSessionCleanup(ctx)
@@ -423,7 +434,7 @@ func main() {
 
 	// Webhook dispatcher
 	if bus != nil {
-		dispatcher := integration.NewWebhookDispatcher(queries)
+		dispatcher := integration.NewWebhookDispatcher(queries, cipher)
 		webhookSubjects := []string{"asset.>", "maintenance.>", "alert.>", "prediction.>"}
 		for _, subj := range webhookSubjects {
 			subj := subj

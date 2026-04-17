@@ -13,6 +13,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -21,13 +22,15 @@ import (
 // WebhookDispatcher delivers events to registered webhook subscriptions.
 type WebhookDispatcher struct {
 	queries *dbgen.Queries
+	cipher  crypto.Cipher
 	client  *http.Client
 }
 
 // NewWebhookDispatcher creates a new dispatcher.
-func NewWebhookDispatcher(queries *dbgen.Queries) *WebhookDispatcher {
+func NewWebhookDispatcher(queries *dbgen.Queries, cipher crypto.Cipher) *WebhookDispatcher {
 	return &WebhookDispatcher{
 		queries: queries,
+		cipher:  cipher,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -117,9 +120,15 @@ func (d *WebhookDispatcher) deliver(sub dbgen.WebhookSubscription, event eventbu
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Webhook-Event", event.Subject)
 
-		// HMAC signature if secret is set
-		if sub.Secret.Valid && sub.Secret.String != "" {
-			mac := hmac.New(sha256.New, []byte(sub.Secret.String))
+		// HMAC signature: prefer encrypted secret, fall back to plaintext.
+		secret, err := DecryptSecretWithFallback(d.cipher, sub.SecretEncrypted, sub.Secret.String)
+		if err != nil {
+			zap.L().Error("webhook secret decrypt failed — skipping signature",
+				zap.String("webhook_id", sub.ID.String()), zap.Error(err))
+			secret = ""
+		}
+		if secret != "" {
+			mac := hmac.New(sha256.New, []byte(secret))
 			mac.Write(body)
 			sig := hex.EncodeToString(mac.Sum(nil))
 			req.Header.Set("X-Webhook-Signature", "sha256="+sig)
