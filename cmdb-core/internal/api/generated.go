@@ -43,35 +43,43 @@ type AlertRule struct {
 
 // Asset defines model for Asset.
 type Asset struct {
-	AssetTag               string                 `json:"asset_tag"`
-	Attributes             map[string]interface{} `json:"attributes"`
-	BiaLevel               string                 `json:"bia_level"`
-	BmcFirmware            *string                `json:"bmc_firmware,omitempty"`
-	BmcIp                  *string                `json:"bmc_ip,omitempty"`
-	BmcType                *string                `json:"bmc_type,omitempty"`
-	ControlNumber          *string                `json:"control_number,omitempty"`
-	CreatedAt              time.Time              `json:"created_at"`
-	EolDate                *string                `json:"eol_date,omitempty"`
-	ExpectedLifespanMonths *int                   `json:"expected_lifespan_months,omitempty"`
-	Id                     openapi_types.UUID     `json:"id"`
-	LocationId             *openapi_types.UUID    `json:"location_id,omitempty"`
-	Model                  string                 `json:"model"`
-	Name                   string                 `json:"name"`
-	PropertyNumber         *string                `json:"property_number,omitempty"`
-	PurchaseCost           *float64               `json:"purchase_cost,omitempty"`
-	PurchaseDate           *string                `json:"purchase_date,omitempty"`
-	RackId                 *openapi_types.UUID    `json:"rack_id,omitempty"`
-	SerialNumber           string                 `json:"serial_number"`
-	Status                 string                 `json:"status"`
-	SubType                string                 `json:"sub_type"`
-	Tags                   []string               `json:"tags"`
-	Type                   string                 `json:"type"`
-	UpdatedAt              time.Time              `json:"updated_at"`
-	Vendor                 string                 `json:"vendor"`
-	WarrantyContract       *string                `json:"warranty_contract,omitempty"`
-	WarrantyEnd            *string                `json:"warranty_end,omitempty"`
-	WarrantyStart          *string                `json:"warranty_start,omitempty"`
-	WarrantyVendor         *string                `json:"warranty_vendor,omitempty"`
+	AssetTag      string                 `json:"asset_tag"`
+	Attributes    map[string]interface{} `json:"attributes"`
+	BiaLevel      string                 `json:"bia_level"`
+	BmcFirmware   *string                `json:"bmc_firmware,omitempty"`
+	BmcIp         *string                `json:"bmc_ip,omitempty"`
+	BmcType       *string                `json:"bmc_type,omitempty"`
+	ControlNumber *string                `json:"control_number,omitempty"`
+	CreatedAt     time.Time              `json:"created_at"`
+
+	// EolDate ISO-8601 date (YYYY-MM-DD)
+	EolDate                *string             `json:"eol_date,omitempty"`
+	ExpectedLifespanMonths *int                `json:"expected_lifespan_months,omitempty"`
+	Id                     openapi_types.UUID  `json:"id"`
+	LocationId             *openapi_types.UUID `json:"location_id,omitempty"`
+	Model                  string              `json:"model"`
+	Name                   string              `json:"name"`
+	PropertyNumber         *string             `json:"property_number,omitempty"`
+	PurchaseCost           *float64            `json:"purchase_cost,omitempty"`
+
+	// PurchaseDate ISO-8601 date (YYYY-MM-DD)
+	PurchaseDate     *string             `json:"purchase_date,omitempty"`
+	RackId           *openapi_types.UUID `json:"rack_id,omitempty"`
+	SerialNumber     string              `json:"serial_number"`
+	Status           string              `json:"status"`
+	SubType          string              `json:"sub_type"`
+	Tags             []string            `json:"tags"`
+	Type             string              `json:"type"`
+	UpdatedAt        time.Time           `json:"updated_at"`
+	Vendor           string              `json:"vendor"`
+	WarrantyContract *string             `json:"warranty_contract,omitempty"`
+
+	// WarrantyEnd ISO-8601 date (YYYY-MM-DD)
+	WarrantyEnd *string `json:"warranty_end,omitempty"`
+
+	// WarrantyStart ISO-8601 date (YYYY-MM-DD)
+	WarrantyStart  *string `json:"warranty_start,omitempty"`
+	WarrantyVendor *string `json:"warranty_vendor,omitempty"`
 }
 
 // AuditEvent defines model for AuditEvent.
@@ -537,28 +545,36 @@ type ListAssetsParams struct {
 
 // UpdateAssetJSONBody defines parameters for UpdateAsset.
 type UpdateAssetJSONBody struct {
-	Attributes             *map[string]interface{} `json:"attributes,omitempty"`
-	BiaLevel               *string                 `json:"bia_level,omitempty"`
-	BmcFirmware            *string                 `json:"bmc_firmware,omitempty"`
-	BmcIp                  *string                 `json:"bmc_ip,omitempty"`
-	BmcType                *string                 `json:"bmc_type,omitempty"`
-	EolDate                *string                 `json:"eol_date,omitempty"`
-	ExpectedLifespanMonths *int                    `json:"expected_lifespan_months,omitempty"`
-	IpAddress              *string                 `json:"ip_address,omitempty"`
-	LocationId             *openapi_types.UUID     `json:"location_id,omitempty"`
-	Model                  *string                 `json:"model,omitempty"`
-	Name                   *string                 `json:"name,omitempty"`
-	PurchaseCost           *float64                `json:"purchase_cost,omitempty"`
-	PurchaseDate           *string                 `json:"purchase_date,omitempty"`
-	RackId                 *openapi_types.UUID     `json:"rack_id,omitempty"`
-	SerialNumber           *string                 `json:"serial_number,omitempty"`
-	Status                 *string                 `json:"status,omitempty"`
-	Tags                   *[]string               `json:"tags,omitempty"`
-	Vendor                 *string                 `json:"vendor,omitempty"`
-	WarrantyContract       *string                 `json:"warranty_contract,omitempty"`
-	WarrantyEnd            *string                 `json:"warranty_end,omitempty"`
-	WarrantyStart          *string                 `json:"warranty_start,omitempty"`
-	WarrantyVendor         *string                 `json:"warranty_vendor,omitempty"`
+	Attributes  *map[string]interface{} `json:"attributes,omitempty"`
+	BiaLevel    *string                 `json:"bia_level,omitempty"`
+	BmcFirmware *string                 `json:"bmc_firmware,omitempty"`
+	BmcIp       *string                 `json:"bmc_ip,omitempty"`
+	BmcType     *string                 `json:"bmc_type,omitempty"`
+
+	// EolDate ISO-8601 date (YYYY-MM-DD)
+	EolDate                *string             `json:"eol_date,omitempty"`
+	ExpectedLifespanMonths *int                `json:"expected_lifespan_months,omitempty"`
+	IpAddress              *string             `json:"ip_address,omitempty"`
+	LocationId             *openapi_types.UUID `json:"location_id,omitempty"`
+	Model                  *string             `json:"model,omitempty"`
+	Name                   *string             `json:"name,omitempty"`
+	PurchaseCost           *float64            `json:"purchase_cost,omitempty"`
+
+	// PurchaseDate ISO-8601 date (YYYY-MM-DD)
+	PurchaseDate     *string             `json:"purchase_date,omitempty"`
+	RackId           *openapi_types.UUID `json:"rack_id,omitempty"`
+	SerialNumber     *string             `json:"serial_number,omitempty"`
+	Status           *string             `json:"status,omitempty"`
+	Tags             *[]string           `json:"tags,omitempty"`
+	Vendor           *string             `json:"vendor,omitempty"`
+	WarrantyContract *string             `json:"warranty_contract,omitempty"`
+
+	// WarrantyEnd ISO-8601 date (YYYY-MM-DD)
+	WarrantyEnd *string `json:"warranty_end,omitempty"`
+
+	// WarrantyStart ISO-8601 date (YYYY-MM-DD)
+	WarrantyStart  *string `json:"warranty_start,omitempty"`
+	WarrantyVendor *string `json:"warranty_vendor,omitempty"`
 }
 
 // QueryAuditEventsParams defines parameters for QueryAuditEvents.
@@ -568,6 +584,12 @@ type QueryAuditEventsParams struct {
 	Module     *string             `form:"module,omitempty" json:"module,omitempty"`
 	TargetType *string             `form:"target_type,omitempty" json:"target_type,omitempty"`
 	TargetId   *openapi_types.UUID `form:"target_id,omitempty" json:"target_id,omitempty"`
+}
+
+// ChangePasswordJSONBody defines parameters for ChangePassword.
+type ChangePasswordJSONBody struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 // ListBIAAssessmentsParams defines parameters for ListBIAAssessments.
@@ -682,15 +704,28 @@ type CreateInventoryTaskJSONBody struct {
 	ScopeLocationId *openapi_types.UUID `json:"scope_location_id,omitempty"`
 }
 
+// UpdateInventoryTaskJSONBody defines parameters for UpdateInventoryTask.
+type UpdateInventoryTaskJSONBody struct {
+	AssignedTo  *openapi_types.UUID `json:"assigned_to,omitempty"`
+	Name        *string             `json:"name,omitempty"`
+	PlannedDate *string             `json:"planned_date,omitempty"`
+}
+
 // ImportInventoryItemsJSONBody defines parameters for ImportInventoryItems.
 type ImportInventoryItemsJSONBody struct {
 	Items []struct {
 		AssetTag         *string `json:"asset_tag,omitempty"`
-		ExpectedLocation *string `json:"expected_location,omitempty"`
-		SerialNumber     *string `json:"serial_number,omitempty"`
-		PropertyNumber   *string `json:"property_number,omitempty"`
 		ControlNumber    *string `json:"control_number,omitempty"`
+		ExpectedLocation *string `json:"expected_location,omitempty"`
+		PropertyNumber   *string `json:"property_number,omitempty"`
+		SerialNumber     *string `json:"serial_number,omitempty"`
 	} `json:"items"`
+}
+
+// ListInventoryItemsParams defines parameters for ListInventoryItems.
+type ListInventoryItemsParams struct {
+	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *PageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
 }
 
 // ScanInventoryItemJSONBody defines parameters for ScanInventoryItem.
@@ -883,6 +918,12 @@ type UpdateRoleJSONBody struct {
 	Permissions *map[string][]string `json:"permissions,omitempty"`
 }
 
+// CreateSensorJSONBody defines parameters for CreateSensor.
+type CreateSensorJSONBody = map[string]interface{}
+
+// CreateAssetDependencyJSONBody defines parameters for CreateAssetDependency.
+type CreateAssetDependencyJSONBody = map[string]interface{}
+
 // ListUsersParams defines parameters for ListUsers.
 type ListUsersParams struct {
 	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
@@ -914,6 +955,9 @@ type CreateAssetJSONRequestBody = Asset
 // UpdateAssetJSONRequestBody defines body for UpdateAsset for application/json ContentType.
 type UpdateAssetJSONRequestBody UpdateAssetJSONBody
 
+// ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
+type ChangePasswordJSONRequestBody ChangePasswordJSONBody
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -944,21 +988,14 @@ type CreateWebhookJSONRequestBody CreateWebhookJSONBody
 // CreateInventoryTaskJSONRequestBody defines body for CreateInventoryTask for application/json ContentType.
 type CreateInventoryTaskJSONRequestBody CreateInventoryTaskJSONBody
 
+// UpdateInventoryTaskJSONRequestBody defines body for UpdateInventoryTask for application/json ContentType.
+type UpdateInventoryTaskJSONRequestBody UpdateInventoryTaskJSONBody
+
 // ImportInventoryItemsJSONRequestBody defines body for ImportInventoryItems for application/json ContentType.
 type ImportInventoryItemsJSONRequestBody ImportInventoryItemsJSONBody
 
 // ScanInventoryItemJSONRequestBody defines body for ScanInventoryItem for application/json ContentType.
 type ScanInventoryItemJSONRequestBody ScanInventoryItemJSONBody
-
-// UpdateInventoryTaskJSONBody defines parameters for UpdateInventoryTask.
-type UpdateInventoryTaskJSONBody struct {
-	Name        *string             `json:"name,omitempty"`
-	PlannedDate *string             `json:"planned_date,omitempty"`
-	AssignedTo  *openapi_types.UUID `json:"assigned_to,omitempty"`
-}
-
-// UpdateInventoryTaskJSONRequestBody defines body for UpdateInventoryTask for application/json ContentType.
-type UpdateInventoryTaskJSONRequestBody UpdateInventoryTaskJSONBody
 
 // CreateLocationJSONRequestBody defines body for CreateLocation for application/json ContentType.
 type CreateLocationJSONRequestBody CreateLocationJSONBody
@@ -1011,6 +1048,12 @@ type CreateRoleJSONRequestBody CreateRoleJSONBody
 // UpdateRoleJSONRequestBody defines body for UpdateRole for application/json ContentType.
 type UpdateRoleJSONRequestBody UpdateRoleJSONBody
 
+// CreateSensorJSONRequestBody defines body for CreateSensor for application/json ContentType.
+type CreateSensorJSONRequestBody = CreateSensorJSONBody
+
+// CreateAssetDependencyJSONRequestBody defines body for CreateAssetDependency for application/json ContentType.
+type CreateAssetDependencyJSONRequestBody = CreateAssetDependencyJSONBody
+
 // CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
 type CreateUserJSONRequestBody CreateUserJSONBody
 
@@ -1025,6 +1068,9 @@ type ServerInterface interface {
 	// Create a new asset
 	// (POST /assets)
 	CreateAsset(c *gin.Context)
+	// Get asset counts by lifecycle status
+	// (GET /assets/lifecycle-stats)
+	GetAssetLifecycleStats(c *gin.Context)
 	// Delete an asset
 	// (DELETE /assets/{id})
 	DeleteAsset(c *gin.Context, id IdPath)
@@ -1037,6 +1083,9 @@ type ServerInterface interface {
 	// Query audit events
 	// (GET /audit/events)
 	QueryAuditEvents(c *gin.Context, params QueryAuditEventsParams)
+	// Change the authenticated user's password
+	// (POST /auth/change-password)
+	ChangePassword(c *gin.Context)
 	// Authenticate and obtain tokens
 	// (POST /auth/login)
 	Login(c *gin.Context)
@@ -1097,6 +1146,9 @@ type ServerInterface interface {
 
 	// (POST /discovery/{id}/ignore)
 	IgnoreDiscoveredAsset(c *gin.Context, id IdPath)
+	// Get energy summary metrics
+	// (GET /energy/summary)
+	GetEnergySummary(c *gin.Context)
 	// List integration adapters
 	// (GET /integration/adapters)
 	ListAdapters(c *gin.Context)
@@ -1118,12 +1170,12 @@ type ServerInterface interface {
 	// Create an inventory task
 	// (POST /inventory/tasks)
 	CreateInventoryTask(c *gin.Context)
+	// Soft-delete an inventory task
+	// (DELETE /inventory/tasks/{id})
+	DeleteInventoryTask(c *gin.Context, id IdPath)
 	// Get an inventory task by ID
 	// (GET /inventory/tasks/{id})
 	GetInventoryTask(c *gin.Context, id IdPath)
-	// Delete an inventory task
-	// (DELETE /inventory/tasks/{id})
-	DeleteInventoryTask(c *gin.Context, id IdPath)
 	// Update an inventory task
 	// (PUT /inventory/tasks/{id})
 	UpdateInventoryTask(c *gin.Context, id IdPath)
@@ -1135,7 +1187,7 @@ type ServerInterface interface {
 	ImportInventoryItems(c *gin.Context, id IdPath)
 	// List items in an inventory task
 	// (GET /inventory/tasks/{id}/items)
-	ListInventoryItems(c *gin.Context, id IdPath)
+	ListInventoryItems(c *gin.Context, id IdPath, params ListInventoryItemsParams)
 	// Scan an inventory item
 	// (POST /inventory/tasks/{id}/items/{itemId}/scan)
 	ScanInventoryItem(c *gin.Context, id IdPath, itemId openapi_types.UUID)
@@ -1178,15 +1230,15 @@ type ServerInterface interface {
 	// Create a new work order
 	// (POST /maintenance/orders)
 	CreateWorkOrder(c *gin.Context)
+	// Soft-delete a work order
+	// (DELETE /maintenance/orders/{id})
+	DeleteWorkOrder(c *gin.Context, id IdPath)
 	// Get a work order by ID
 	// (GET /maintenance/orders/{id})
 	GetWorkOrder(c *gin.Context, id IdPath)
 	// Update a work order
 	// (PUT /maintenance/orders/{id})
 	UpdateWorkOrder(c *gin.Context, id IdPath)
-	// Delete a work order
-	// (DELETE /maintenance/orders/{id})
-	DeleteWorkOrder(c *gin.Context, id IdPath)
 	// List work order logs
 	// (GET /maintenance/orders/{id}/logs)
 	ListWorkOrderLogs(c *gin.Context, id IdPath)
@@ -1196,6 +1248,9 @@ type ServerInterface interface {
 	// List alert events
 	// (GET /monitoring/alerts)
 	ListAlerts(c *gin.Context, params ListAlertsParams)
+	// Get 24-hour alert trend data
+	// (GET /monitoring/alerts/trend)
+	GetAlertsTrend(c *gin.Context)
 	// Acknowledge an alert
 	// (POST /monitoring/alerts/{id}/ack)
 	AcknowledgeAlert(c *gin.Context, id IdPath)
@@ -1226,6 +1281,9 @@ type ServerInterface interface {
 	// Update an alert rule
 	// (PUT /monitoring/rules/{id})
 	UpdateAlertRule(c *gin.Context, id IdPath)
+	// Get failure distribution forecast
+	// (GET /prediction/failure-distribution)
+	GetFailureDistribution(c *gin.Context)
 	// List prediction models
 	// (GET /prediction/models)
 	ListPredictionModels(c *gin.Context)
@@ -1259,6 +1317,9 @@ type ServerInterface interface {
 	// Create a new rack
 	// (POST /racks)
 	CreateRack(c *gin.Context)
+	// Get rack occupancy statistics
+	// (GET /racks/stats)
+	GetRackStats(c *gin.Context)
 	// Delete a rack
 	// (DELETE /racks/{id})
 	DeleteRack(c *gin.Context, id IdPath)
@@ -1292,9 +1353,15 @@ type ServerInterface interface {
 	// Update a role
 	// (PUT /roles/{id})
 	UpdateRole(c *gin.Context, id IdPath)
+	// Create a sensor
+	// (POST /sensors)
+	CreateSensor(c *gin.Context)
 	// Get system health status
 	// (GET /system/health)
 	GetSystemHealth(c *gin.Context)
+	// Create asset dependency
+	// (POST /topology/dependencies)
+	CreateAssetDependency(c *gin.Context)
 	// List users
 	// (GET /users)
 	ListUsers(c *gin.Context, params ListUsersParams)
@@ -1415,6 +1482,21 @@ func (siw *ServerInterfaceWrapper) CreateAsset(c *gin.Context) {
 	}
 
 	siw.Handler.CreateAsset(c)
+}
+
+// GetAssetLifecycleStats operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetLifecycleStats(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAssetLifecycleStats(c)
 }
 
 // DeleteAsset operation middleware
@@ -1553,6 +1635,21 @@ func (siw *ServerInterfaceWrapper) QueryAuditEvents(c *gin.Context) {
 	}
 
 	siw.Handler.QueryAuditEvents(c, params)
+}
+
+// ChangePassword operation middleware
+func (siw *ServerInterfaceWrapper) ChangePassword(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ChangePassword(c)
 }
 
 // Login operation middleware
@@ -2013,6 +2110,21 @@ func (siw *ServerInterfaceWrapper) IgnoreDiscoveredAsset(c *gin.Context) {
 	siw.Handler.IgnoreDiscoveredAsset(c, id)
 }
 
+// GetEnergySummary operation middleware
+func (siw *ServerInterfaceWrapper) GetEnergySummary(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetEnergySummary(c)
+}
+
 // ListAdapters operation middleware
 func (siw *ServerInterfaceWrapper) ListAdapters(c *gin.Context) {
 
@@ -2158,32 +2270,6 @@ func (siw *ServerInterfaceWrapper) CreateInventoryTask(c *gin.Context) {
 	siw.Handler.CreateInventoryTask(c)
 }
 
-// GetInventoryTask operation middleware
-func (siw *ServerInterfaceWrapper) GetInventoryTask(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "id" -------------
-	var id IdPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.GetInventoryTask(c, id)
-}
-
 // DeleteInventoryTask operation middleware
 func (siw *ServerInterfaceWrapper) DeleteInventoryTask(c *gin.Context) {
 
@@ -2208,6 +2294,32 @@ func (siw *ServerInterfaceWrapper) DeleteInventoryTask(c *gin.Context) {
 	}
 
 	siw.Handler.DeleteInventoryTask(c, id)
+}
+
+// GetInventoryTask operation middleware
+func (siw *ServerInterfaceWrapper) GetInventoryTask(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetInventoryTask(c, id)
 }
 
 // UpdateInventoryTask operation middleware
@@ -2304,6 +2416,25 @@ func (siw *ServerInterfaceWrapper) ListInventoryItems(c *gin.Context) {
 
 	c.Set(BearerAuthScopes, []string{})
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListInventoryItemsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_size", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page_size: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -2311,7 +2442,7 @@ func (siw *ServerInterfaceWrapper) ListInventoryItems(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.ListInventoryItems(c, id)
+	siw.Handler.ListInventoryItems(c, id, params)
 }
 
 // ScanInventoryItem operation middleware
@@ -2709,6 +2840,32 @@ func (siw *ServerInterfaceWrapper) CreateWorkOrder(c *gin.Context) {
 	siw.Handler.CreateWorkOrder(c)
 }
 
+// DeleteWorkOrder operation middleware
+func (siw *ServerInterfaceWrapper) DeleteWorkOrder(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteWorkOrder(c, id)
+}
+
 // GetWorkOrder operation middleware
 func (siw *ServerInterfaceWrapper) GetWorkOrder(c *gin.Context) {
 
@@ -2759,32 +2916,6 @@ func (siw *ServerInterfaceWrapper) UpdateWorkOrder(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateWorkOrder(c, id)
-}
-
-// DeleteWorkOrder operation middleware
-func (siw *ServerInterfaceWrapper) DeleteWorkOrder(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "id" -------------
-	var id IdPath
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.DeleteWorkOrder(c, id)
 }
 
 // ListWorkOrderLogs operation middleware
@@ -2897,6 +3028,21 @@ func (siw *ServerInterfaceWrapper) ListAlerts(c *gin.Context) {
 	}
 
 	siw.Handler.ListAlerts(c, params)
+}
+
+// GetAlertsTrend operation middleware
+func (siw *ServerInterfaceWrapper) GetAlertsTrend(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAlertsTrend(c)
 }
 
 // AcknowledgeAlert operation middleware
@@ -3212,6 +3358,21 @@ func (siw *ServerInterfaceWrapper) UpdateAlertRule(c *gin.Context) {
 	siw.Handler.UpdateAlertRule(c, id)
 }
 
+// GetFailureDistribution operation middleware
+func (siw *ServerInterfaceWrapper) GetFailureDistribution(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetFailureDistribution(c)
+}
+
 // ListPredictionModels operation middleware
 func (siw *ServerInterfaceWrapper) ListPredictionModels(c *gin.Context) {
 
@@ -3408,6 +3569,21 @@ func (siw *ServerInterfaceWrapper) CreateRack(c *gin.Context) {
 	}
 
 	siw.Handler.CreateRack(c)
+}
+
+// GetRackStats operation middleware
+func (siw *ServerInterfaceWrapper) GetRackStats(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetRackStats(c)
 }
 
 // DeleteRack operation middleware
@@ -3683,6 +3859,21 @@ func (siw *ServerInterfaceWrapper) UpdateRole(c *gin.Context) {
 	siw.Handler.UpdateRole(c, id)
 }
 
+// CreateSensor operation middleware
+func (siw *ServerInterfaceWrapper) CreateSensor(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateSensor(c)
+}
+
 // GetSystemHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemHealth(c *gin.Context) {
 
@@ -3696,6 +3887,21 @@ func (siw *ServerInterfaceWrapper) GetSystemHealth(c *gin.Context) {
 	}
 
 	siw.Handler.GetSystemHealth(c)
+}
+
+// CreateAssetDependency operation middleware
+func (siw *ServerInterfaceWrapper) CreateAssetDependency(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateAssetDependency(c)
 }
 
 // ListUsers operation middleware
@@ -3830,10 +4036,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/assets", wrapper.ListAssets)
 	router.POST(options.BaseURL+"/assets", wrapper.CreateAsset)
+	router.GET(options.BaseURL+"/assets/lifecycle-stats", wrapper.GetAssetLifecycleStats)
 	router.DELETE(options.BaseURL+"/assets/:id", wrapper.DeleteAsset)
 	router.GET(options.BaseURL+"/assets/:id", wrapper.GetAsset)
 	router.PUT(options.BaseURL+"/assets/:id", wrapper.UpdateAsset)
 	router.GET(options.BaseURL+"/audit/events", wrapper.QueryAuditEvents)
+	router.POST(options.BaseURL+"/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
 	router.GET(options.BaseURL+"/auth/me", wrapper.GetCurrentUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
@@ -3854,6 +4062,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/discovery/stats", wrapper.GetDiscoveryStats)
 	router.POST(options.BaseURL+"/discovery/:id/approve", wrapper.ApproveDiscoveredAsset)
 	router.POST(options.BaseURL+"/discovery/:id/ignore", wrapper.IgnoreDiscoveredAsset)
+	router.GET(options.BaseURL+"/energy/summary", wrapper.GetEnergySummary)
 	router.GET(options.BaseURL+"/integration/adapters", wrapper.ListAdapters)
 	router.POST(options.BaseURL+"/integration/adapters", wrapper.CreateAdapter)
 	router.GET(options.BaseURL+"/integration/webhooks", wrapper.ListWebhooks)
@@ -3861,8 +4070,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/integration/webhooks/:id/deliveries", wrapper.ListWebhookDeliveries)
 	router.GET(options.BaseURL+"/inventory/tasks", wrapper.ListInventoryTasks)
 	router.POST(options.BaseURL+"/inventory/tasks", wrapper.CreateInventoryTask)
-	router.GET(options.BaseURL+"/inventory/tasks/:id", wrapper.GetInventoryTask)
 	router.DELETE(options.BaseURL+"/inventory/tasks/:id", wrapper.DeleteInventoryTask)
+	router.GET(options.BaseURL+"/inventory/tasks/:id", wrapper.GetInventoryTask)
 	router.PUT(options.BaseURL+"/inventory/tasks/:id", wrapper.UpdateInventoryTask)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/complete", wrapper.CompleteInventoryTask)
 	router.POST(options.BaseURL+"/inventory/tasks/:id/import", wrapper.ImportInventoryItems)
@@ -3881,12 +4090,13 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/locations/:id/stats", wrapper.GetLocationStats)
 	router.GET(options.BaseURL+"/maintenance/orders", wrapper.ListWorkOrders)
 	router.POST(options.BaseURL+"/maintenance/orders", wrapper.CreateWorkOrder)
+	router.DELETE(options.BaseURL+"/maintenance/orders/:id", wrapper.DeleteWorkOrder)
 	router.GET(options.BaseURL+"/maintenance/orders/:id", wrapper.GetWorkOrder)
 	router.PUT(options.BaseURL+"/maintenance/orders/:id", wrapper.UpdateWorkOrder)
-	router.DELETE(options.BaseURL+"/maintenance/orders/:id", wrapper.DeleteWorkOrder)
 	router.GET(options.BaseURL+"/maintenance/orders/:id/logs", wrapper.ListWorkOrderLogs)
 	router.POST(options.BaseURL+"/maintenance/orders/:id/transition", wrapper.TransitionWorkOrder)
 	router.GET(options.BaseURL+"/monitoring/alerts", wrapper.ListAlerts)
+	router.GET(options.BaseURL+"/monitoring/alerts/trend", wrapper.GetAlertsTrend)
 	router.POST(options.BaseURL+"/monitoring/alerts/:id/ack", wrapper.AcknowledgeAlert)
 	router.POST(options.BaseURL+"/monitoring/alerts/:id/resolve", wrapper.ResolveAlert)
 	router.GET(options.BaseURL+"/monitoring/incidents", wrapper.ListIncidents)
@@ -3897,6 +4107,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/monitoring/rules", wrapper.ListAlertRules)
 	router.POST(options.BaseURL+"/monitoring/rules", wrapper.CreateAlertRule)
 	router.PUT(options.BaseURL+"/monitoring/rules/:id", wrapper.UpdateAlertRule)
+	router.GET(options.BaseURL+"/prediction/failure-distribution", wrapper.GetFailureDistribution)
 	router.GET(options.BaseURL+"/prediction/models", wrapper.ListPredictionModels)
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)
@@ -3908,6 +4119,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/quality/scan", wrapper.TriggerQualityScan)
 	router.GET(options.BaseURL+"/quality/worst", wrapper.GetWorstAssets)
 	router.POST(options.BaseURL+"/racks", wrapper.CreateRack)
+	router.GET(options.BaseURL+"/racks/stats", wrapper.GetRackStats)
 	router.DELETE(options.BaseURL+"/racks/:id", wrapper.DeleteRack)
 	router.GET(options.BaseURL+"/racks/:id", wrapper.GetRack)
 	router.PUT(options.BaseURL+"/racks/:id", wrapper.UpdateRack)
@@ -3919,7 +4131,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/roles", wrapper.CreateRole)
 	router.DELETE(options.BaseURL+"/roles/:id", wrapper.DeleteRole)
 	router.PUT(options.BaseURL+"/roles/:id", wrapper.UpdateRole)
+	router.POST(options.BaseURL+"/sensors", wrapper.CreateSensor)
 	router.GET(options.BaseURL+"/system/health", wrapper.GetSystemHealth)
+	router.POST(options.BaseURL+"/topology/dependencies", wrapper.CreateAssetDependency)
 	router.GET(options.BaseURL+"/users", wrapper.ListUsers)
 	router.POST(options.BaseURL+"/users", wrapper.CreateUser)
 	router.GET(options.BaseURL+"/users/:id", wrapper.GetUser)

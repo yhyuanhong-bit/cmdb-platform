@@ -43,3 +43,29 @@ output-options:
     - syncStats
     - getMaintenanceOrderComments
     - createMaintenanceOrderComment
+    - acceptUpgradeRecommendation
+    - createItemNote
+    - createRackNetworkConnection
+    - createWorkOrderComment
+    - deleteAssetDependency
+    - deleteRackNetworkConnection
+    - deleteSensor
+    - getActivityFeed
+    - getAssetRUL
+    - getAssetUpgradeRecommendations
+    - getAuditEventDetail
+    - getEnergyBreakdown
+    - getEnergyTrend
+    - getInventoryDiscrepancies
+    - getInventoryRacksSummary
+    - getItemNotes
+    - getRackMaintenance
+    - getTopologyGraph
+    - listSensors
+    - resolveInventoryDiscrepancy
+    - sensorHeartbeat
+    - updateSensor
+    - listAssetDependencies
+    - listRackNetworkConnections
+    - listUserSessions
+    - listWorkOrderComments

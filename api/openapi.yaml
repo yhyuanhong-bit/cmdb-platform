@@ -910,6 +910,8 @@ paths:
                   type: string
                 model:
                   type: string
+                serial_number:
+                  type: string
                 attributes:
                   type: object
                   additionalProperties: true
@@ -917,6 +919,47 @@ paths:
                   type: array
                   items:
                     type: string
+                bmc_ip:
+                  type: string
+                  nullable: true
+                bmc_type:
+                  type: string
+                  nullable: true
+                bmc_firmware:
+                  type: string
+                  nullable: true
+                purchase_date:
+                  type: string
+                  nullable: true
+                  description: ISO-8601 date (YYYY-MM-DD)
+                purchase_cost:
+                  type: number
+                  format: double
+                  nullable: true
+                warranty_start:
+                  type: string
+                  nullable: true
+                  description: ISO-8601 date (YYYY-MM-DD)
+                warranty_end:
+                  type: string
+                  nullable: true
+                  description: ISO-8601 date (YYYY-MM-DD)
+                warranty_vendor:
+                  type: string
+                  nullable: true
+                warranty_contract:
+                  type: string
+                  nullable: true
+                eol_date:
+                  type: string
+                  nullable: true
+                  description: ISO-8601 date (YYYY-MM-DD)
+                expected_lifespan_months:
+                  type: integer
+                  nullable: true
+                ip_address:
+                  type: string
+                  nullable: true
       responses:
         '200':
           description: Asset updated
@@ -1995,6 +2038,8 @@ paths:
                       asset_tag: { type: string }
                       serial_number: { type: string }
                       expected_location: { type: string }
+                      property_number: { type: string }
+                      control_number: { type: string }
       responses:
         '200':
           description: Import results
@@ -4194,6 +4239,44 @@ components:
           items:
             type: string
           default: []
+        bmc_ip:
+          type: string
+          nullable: true
+        bmc_type:
+          type: string
+          nullable: true
+        bmc_firmware:
+          type: string
+          nullable: true
+        purchase_date:
+          type: string
+          nullable: true
+          description: ISO-8601 date (YYYY-MM-DD)
+        purchase_cost:
+          type: number
+          format: double
+          nullable: true
+        warranty_start:
+          type: string
+          nullable: true
+          description: ISO-8601 date (YYYY-MM-DD)
+        warranty_end:
+          type: string
+          nullable: true
+          description: ISO-8601 date (YYYY-MM-DD)
+        warranty_vendor:
+          type: string
+          nullable: true
+        warranty_contract:
+          type: string
+          nullable: true
+        eol_date:
+          type: string
+          nullable: true
+          description: ISO-8601 date (YYYY-MM-DD)
+        expected_lifespan_months:
+          type: integer
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -4244,6 +4327,14 @@ components:
           additionalProperties: true
         sort_order:
           type: integer
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
         created_at:
           type: string
           format: date-time

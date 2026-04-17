@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"strconv"
 	"strings"
 	"time"
 
@@ -52,19 +51,8 @@ func (s *APIServer) GetInventoryTask(c *gin.Context, id IdPath) {
 
 // ListInventoryItems returns a paginated list of items in an inventory task.
 // (GET /inventory/tasks/{id}/items)
-func (s *APIServer) ListInventoryItems(c *gin.Context, id IdPath) {
-	var pg, pgs *int
-	if p := c.Query("page"); p != "" {
-		if v, err := strconv.Atoi(p); err == nil {
-			pg = &v
-		}
-	}
-	if ps := c.Query("page_size"); ps != "" {
-		if v, err := strconv.Atoi(ps); err == nil {
-			pgs = &v
-		}
-	}
-	page, pageSize, limit, offset := paginationDefaults(pg, pgs)
+func (s *APIServer) ListInventoryItems(c *gin.Context, id IdPath, params ListInventoryItemsParams) {
+	page, pageSize, limit, offset := paginationDefaults(params.Page, params.PageSize)
 
 	items, total, err := s.inventorySvc.ListItems(c.Request.Context(), uuid.UUID(id), limit, offset)
 	if err != nil {
