@@ -139,7 +139,7 @@
 
 **文件**: 
 - 前端: `src/pages/SensorConfiguration.tsx` (line 502)
-- 後端: `cmdb-core/internal/api/phase4_sensor_endpoints.go`
+- 後端: `cmdb-core/internal/api/sensor_endpoints.go`
 
 **問題**: Polling interval dropdown 的 `onChange` 只顯示 "Coming Soon"，沒有實際更新。
 
