@@ -325,6 +325,21 @@ func main() {
 		}
 		authMW(c)
 	})
+
+	// Rate limiter runs after auth so user_id keying beats shared-IP NAT collisions.
+	if cfg.RateLimitEnabled {
+		rl := middleware.NewRateLimiter(middleware.RateLimiterConfig{
+			RequestsPerSecond: cfg.RateLimitRPS,
+			Burst:             cfg.RateLimitBurst,
+			IdleTTL:           10 * time.Minute,
+		})
+		defer rl.Stop()
+		v1.Use(rl.Middleware())
+		zap.L().Info("Rate limiting enabled",
+			zap.Float64("rps", cfg.RateLimitRPS),
+			zap.Int("burst", cfg.RateLimitBurst))
+	}
+
 	v1.Use(middleware.RBAC(queries, redisClient))
 
 	// Register all API routes via generated handler

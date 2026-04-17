@@ -26,6 +26,9 @@ type Config struct {
 	SyncEnabled           bool
 	SyncSnapshotBatchSize int
 	EdgeNodeID            string
+	RateLimitEnabled      bool
+	RateLimitRPS          float64
+	RateLimitBurst        int
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -66,6 +69,9 @@ func Load() (*Config, error) {
 	cfg.SyncEnabled = envOrDefault("SYNC_ENABLED", "true") == "true"
 	cfg.SyncSnapshotBatchSize = envOrDefaultInt("SYNC_SNAPSHOT_BATCH_SIZE", 500)
 	cfg.EdgeNodeID = envOrDefault("EDGE_NODE_ID", "")
+	cfg.RateLimitEnabled = envOrDefault("RATE_LIMIT_ENABLED", "true") == "true"
+	cfg.RateLimitRPS = envOrDefaultFloat("RATE_LIMIT_RPS", 100)
+	cfg.RateLimitBurst = envOrDefaultInt("RATE_LIMIT_BURST", 200)
 
 	if cfg.DeployMode == "edge" && cfg.TenantID == "" {
 		return nil, fmt.Errorf("TENANT_ID is required in edge deploy mode")
