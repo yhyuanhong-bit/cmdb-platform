@@ -25,13 +25,10 @@ func (s *APIServer) LocationDetectGetDiffs(c *gin.Context) {
 	response.OK(c, diffs)
 }
 
-// LocationDetectGetHistory returns location change history for an asset.
-func (s *APIServer) LocationDetectGetHistory(c *gin.Context) {
-	assetID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid asset ID")
-		return
-	}
+// GetAssetLocationHistory returns location change history for an asset.
+// GET /api/v1/assets/:id/location-history
+func (s *APIServer) GetAssetLocationHistory(c *gin.Context, id IdPath) {
+	assetID := uuid.UUID(id)
 	history, err := s.locationDetectSvc.GetLocationHistory(c.Request.Context(), assetID, 50)
 	if err != nil {
 		response.InternalError(c, "failed to get location history")

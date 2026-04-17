@@ -136,13 +136,9 @@ type lifecycleEvent struct {
 
 // GetAssetLifecycle handles GET /assets/:id/lifecycle
 // Returns the lifecycle timeline for an asset, combining audit_events with warranty milestones.
-func (s *APIServer) GetAssetLifecycle(c *gin.Context) {
+func (s *APIServer) GetAssetLifecycle(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
-	assetID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid asset ID")
-		return
-	}
+	assetID := uuid.UUID(id)
 	ctx := c.Request.Context()
 
 	// 1. Get asset basic info (for warranty/EOL dates and summary)

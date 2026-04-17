@@ -18,6 +18,54 @@ const (
 	BearerAuthScopes = "BearerAuth.Scopes"
 )
 
+// Defines values for AssetLifecycleUpgradePriority.
+const (
+	AssetLifecycleUpgradePriorityHigh   AssetLifecycleUpgradePriority = "high"
+	AssetLifecycleUpgradePriorityLow    AssetLifecycleUpgradePriority = "low"
+	AssetLifecycleUpgradePriorityMedium AssetLifecycleUpgradePriority = "medium"
+	AssetLifecycleUpgradePriorityNone   AssetLifecycleUpgradePriority = "none"
+)
+
+// Valid indicates whether the value is a known member of the AssetLifecycleUpgradePriority enum.
+func (e AssetLifecycleUpgradePriority) Valid() bool {
+	switch e {
+	case AssetLifecycleUpgradePriorityHigh:
+		return true
+	case AssetLifecycleUpgradePriorityLow:
+		return true
+	case AssetLifecycleUpgradePriorityMedium:
+		return true
+	case AssetLifecycleUpgradePriorityNone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AssetLifecycleWarrantyStatus.
+const (
+	Active       AssetLifecycleWarrantyStatus = "active"
+	Expired      AssetLifecycleWarrantyStatus = "expired"
+	ExpiringSoon AssetLifecycleWarrantyStatus = "expiring_soon"
+	Unknown      AssetLifecycleWarrantyStatus = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the AssetLifecycleWarrantyStatus enum.
+func (e AssetLifecycleWarrantyStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Expired:
+		return true
+	case ExpiringSoon:
+		return true
+	case Unknown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateUpgradeRuleRequestPriority.
 const (
 	CreateUpgradeRuleRequestPriorityHigh   CreateUpgradeRuleRequestPriority = "high"
@@ -57,6 +105,36 @@ func (e LocationAnomalySeverity) Valid() bool {
 	case LocationAnomalySeverityLow:
 		return true
 	case LocationAnomalySeverityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QRAssetPayloadT.
+const (
+	QRAssetPayloadTAsset QRAssetPayloadT = "asset"
+)
+
+// Valid indicates whether the value is a known member of the QRAssetPayloadT enum.
+func (e QRAssetPayloadT) Valid() bool {
+	switch e {
+	case QRAssetPayloadTAsset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QRRackPayloadT.
+const (
+	QRRackPayloadTRack QRRackPayloadT = "rack"
+)
+
+// Valid indicates whether the value is a known member of the QRRackPayloadT enum.
+func (e QRRackPayloadT) Valid() bool {
+	switch e {
+	case QRRackPayloadTRack:
 		return true
 	default:
 		return false
@@ -104,19 +182,19 @@ func (e UpdateUpgradeRuleRequestPriority) Valid() bool {
 
 // Defines values for UpgradeRulePriority.
 const (
-	UpgradeRulePriorityHigh   UpgradeRulePriority = "high"
-	UpgradeRulePriorityLow    UpgradeRulePriority = "low"
-	UpgradeRulePriorityMedium UpgradeRulePriority = "medium"
+	High   UpgradeRulePriority = "high"
+	Low    UpgradeRulePriority = "low"
+	Medium UpgradeRulePriority = "medium"
 )
 
 // Valid indicates whether the value is a known member of the UpgradeRulePriority enum.
 func (e UpgradeRulePriority) Valid() bool {
 	switch e {
-	case UpgradeRulePriorityHigh:
+	case High:
 		return true
-	case UpgradeRulePriorityLow:
+	case Low:
 		return true
-	case UpgradeRulePriorityMedium:
+	case Medium:
 		return true
 	default:
 		return false
@@ -290,6 +368,25 @@ type Asset struct {
 	WarrantyVendor *string `json:"warranty_vendor,omitempty"`
 }
 
+// AssetLifecycle defines model for AssetLifecycle.
+type AssetLifecycle struct {
+	AgeDays               *int                           `json:"age_days,omitempty"`
+	AgeMonths             *int                           `json:"age_months,omitempty"`
+	AssetId               *openapi_types.UUID            `json:"asset_id,omitempty"`
+	DepreciationPct       *float32                       `json:"depreciation_pct,omitempty"`
+	RecommendedAction     *string                        `json:"recommended_action,omitempty"`
+	UpgradePriority       *AssetLifecycleUpgradePriority `json:"upgrade_priority,omitempty"`
+	WarrantyRemainingDays *int                           `json:"warranty_remaining_days,omitempty"`
+	WarrantyStatus        *AssetLifecycleWarrantyStatus  `json:"warranty_status,omitempty"`
+	AdditionalProperties  map[string]interface{}         `json:"-"`
+}
+
+// AssetLifecycleUpgradePriority defines model for AssetLifecycle.UpgradePriority.
+type AssetLifecycleUpgradePriority string
+
+// AssetLifecycleWarrantyStatus defines model for AssetLifecycle.WarrantyStatus.
+type AssetLifecycleWarrantyStatus string
+
 // AssignRoleRequest defines model for AssignRoleRequest.
 type AssignRoleRequest struct {
 	RoleId openapi_types.UUID `json:"role_id"`
@@ -372,6 +469,11 @@ type CapacityPlanning struct {
 	TotalRacks           *int                   `json:"total_racks,omitempty"`
 	UsedRackUnits        *int                   `json:"used_rack_units,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// ConfirmLocationRequest defines model for ConfirmLocationRequest.
+type ConfirmLocationRequest struct {
+	RackId openapi_types.UUID `json:"rack_id"`
 }
 
 // CreateQualityRuleRequest defines model for CreateQualityRuleRequest.
@@ -541,6 +643,25 @@ type LocationAnomaly struct {
 // LocationAnomalySeverity defines model for LocationAnomaly.Severity.
 type LocationAnomalySeverity string
 
+// LocationAssetCount defines model for LocationAssetCount.
+type LocationAssetCount struct {
+	AssetCount   int                `json:"asset_count"`
+	LocationId   openapi_types.UUID `json:"location_id"`
+	LocationName *string            `json:"location_name,omitempty"`
+}
+
+// LocationChange defines model for LocationChange.
+type LocationChange struct {
+	AssetId              *openapi_types.UUID    `json:"asset_id,omitempty"`
+	DetectedAt           *time.Time             `json:"detected_at,omitempty"`
+	FromRackId           *openapi_types.UUID    `json:"from_rack_id,omitempty"`
+	Id                   *openapi_types.UUID    `json:"id,omitempty"`
+	Source               *string                `json:"source,omitempty"`
+	ToRackId             *openapi_types.UUID    `json:"to_rack_id,omitempty"`
+	WorkOrderId          *openapi_types.UUID    `json:"work_order_id,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
 // LocationDetectReport defines model for LocationDetectReport.
 type LocationDetectReport struct {
 	AuthorizedRelocations   *int64  `json:"authorized_relocations,omitempty"`
@@ -642,6 +763,29 @@ type PredictionResult struct {
 	Result            map[string]interface{} `json:"result"`
 	Severity          string                 `json:"severity"`
 }
+
+// QRAssetPayload defines model for QRAssetPayload.
+type QRAssetPayload struct {
+	Id   openapi_types.UUID `json:"id"`
+	Name string             `json:"name"`
+	Sn   *string            `json:"sn,omitempty"`
+	T    QRAssetPayloadT    `json:"t"`
+	Tag  string             `json:"tag"`
+}
+
+// QRAssetPayloadT defines model for QRAssetPayload.T.
+type QRAssetPayloadT string
+
+// QRRackPayload defines model for QRRackPayload.
+type QRRackPayload struct {
+	Id   openapi_types.UUID `json:"id"`
+	Loc  *string            `json:"loc,omitempty"`
+	Name string             `json:"name"`
+	T    QRRackPayloadT     `json:"t"`
+}
+
+// QRRackPayloadT defines model for QRRackPayload.T.
+type QRRackPayloadT string
 
 // QualityDashboard defines model for QualityDashboard.
 type QualityDashboard struct {
@@ -1391,6 +1535,9 @@ type CreateAssetJSONRequestBody = Asset
 // UpdateAssetJSONRequestBody defines body for UpdateAsset for application/json ContentType.
 type UpdateAssetJSONRequestBody UpdateAssetJSONBody
 
+// ConfirmAssetLocationJSONRequestBody defines body for ConfirmAssetLocation for application/json ContentType.
+type ConfirmAssetLocationJSONRequestBody = ConfirmLocationRequest
+
 // ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
 type ChangePasswordJSONRequestBody ChangePasswordJSONBody
 
@@ -1513,6 +1660,179 @@ type UpdateUserJSONRequestBody UpdateUserJSONBody
 
 // AssignRoleToUserJSONRequestBody defines body for AssignRoleToUser for application/json ContentType.
 type AssignRoleToUserJSONRequestBody = AssignRoleRequest
+
+// Getter for additional properties for AssetLifecycle. Returns the specified
+// element and whether it was found
+func (a AssetLifecycle) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for AssetLifecycle
+func (a *AssetLifecycle) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for AssetLifecycle to handle AdditionalProperties
+func (a *AssetLifecycle) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["age_days"]; found {
+		err = json.Unmarshal(raw, &a.AgeDays)
+		if err != nil {
+			return fmt.Errorf("error reading 'age_days': %w", err)
+		}
+		delete(object, "age_days")
+	}
+
+	if raw, found := object["age_months"]; found {
+		err = json.Unmarshal(raw, &a.AgeMonths)
+		if err != nil {
+			return fmt.Errorf("error reading 'age_months': %w", err)
+		}
+		delete(object, "age_months")
+	}
+
+	if raw, found := object["asset_id"]; found {
+		err = json.Unmarshal(raw, &a.AssetId)
+		if err != nil {
+			return fmt.Errorf("error reading 'asset_id': %w", err)
+		}
+		delete(object, "asset_id")
+	}
+
+	if raw, found := object["depreciation_pct"]; found {
+		err = json.Unmarshal(raw, &a.DepreciationPct)
+		if err != nil {
+			return fmt.Errorf("error reading 'depreciation_pct': %w", err)
+		}
+		delete(object, "depreciation_pct")
+	}
+
+	if raw, found := object["recommended_action"]; found {
+		err = json.Unmarshal(raw, &a.RecommendedAction)
+		if err != nil {
+			return fmt.Errorf("error reading 'recommended_action': %w", err)
+		}
+		delete(object, "recommended_action")
+	}
+
+	if raw, found := object["upgrade_priority"]; found {
+		err = json.Unmarshal(raw, &a.UpgradePriority)
+		if err != nil {
+			return fmt.Errorf("error reading 'upgrade_priority': %w", err)
+		}
+		delete(object, "upgrade_priority")
+	}
+
+	if raw, found := object["warranty_remaining_days"]; found {
+		err = json.Unmarshal(raw, &a.WarrantyRemainingDays)
+		if err != nil {
+			return fmt.Errorf("error reading 'warranty_remaining_days': %w", err)
+		}
+		delete(object, "warranty_remaining_days")
+	}
+
+	if raw, found := object["warranty_status"]; found {
+		err = json.Unmarshal(raw, &a.WarrantyStatus)
+		if err != nil {
+			return fmt.Errorf("error reading 'warranty_status': %w", err)
+		}
+		delete(object, "warranty_status")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for AssetLifecycle to handle AdditionalProperties
+func (a AssetLifecycle) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.AgeDays != nil {
+		object["age_days"], err = json.Marshal(a.AgeDays)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'age_days': %w", err)
+		}
+	}
+
+	if a.AgeMonths != nil {
+		object["age_months"], err = json.Marshal(a.AgeMonths)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'age_months': %w", err)
+		}
+	}
+
+	if a.AssetId != nil {
+		object["asset_id"], err = json.Marshal(a.AssetId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'asset_id': %w", err)
+		}
+	}
+
+	if a.DepreciationPct != nil {
+		object["depreciation_pct"], err = json.Marshal(a.DepreciationPct)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'depreciation_pct': %w", err)
+		}
+	}
+
+	if a.RecommendedAction != nil {
+		object["recommended_action"], err = json.Marshal(a.RecommendedAction)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'recommended_action': %w", err)
+		}
+	}
+
+	if a.UpgradePriority != nil {
+		object["upgrade_priority"], err = json.Marshal(a.UpgradePriority)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'upgrade_priority': %w", err)
+		}
+	}
+
+	if a.WarrantyRemainingDays != nil {
+		object["warranty_remaining_days"], err = json.Marshal(a.WarrantyRemainingDays)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'warranty_remaining_days': %w", err)
+		}
+	}
+
+	if a.WarrantyStatus != nil {
+		object["warranty_status"], err = json.Marshal(a.WarrantyStatus)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'warranty_status': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
 
 // Getter for additional properties for CapacityPlanning. Returns the specified
 // element and whether it was found
@@ -1913,6 +2233,164 @@ func (a LocationAnomaly) MarshalJSON() ([]byte, error) {
 	return json.Marshal(object)
 }
 
+// Getter for additional properties for LocationChange. Returns the specified
+// element and whether it was found
+func (a LocationChange) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for LocationChange
+func (a *LocationChange) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for LocationChange to handle AdditionalProperties
+func (a *LocationChange) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["asset_id"]; found {
+		err = json.Unmarshal(raw, &a.AssetId)
+		if err != nil {
+			return fmt.Errorf("error reading 'asset_id': %w", err)
+		}
+		delete(object, "asset_id")
+	}
+
+	if raw, found := object["detected_at"]; found {
+		err = json.Unmarshal(raw, &a.DetectedAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'detected_at': %w", err)
+		}
+		delete(object, "detected_at")
+	}
+
+	if raw, found := object["from_rack_id"]; found {
+		err = json.Unmarshal(raw, &a.FromRackId)
+		if err != nil {
+			return fmt.Errorf("error reading 'from_rack_id': %w", err)
+		}
+		delete(object, "from_rack_id")
+	}
+
+	if raw, found := object["id"]; found {
+		err = json.Unmarshal(raw, &a.Id)
+		if err != nil {
+			return fmt.Errorf("error reading 'id': %w", err)
+		}
+		delete(object, "id")
+	}
+
+	if raw, found := object["source"]; found {
+		err = json.Unmarshal(raw, &a.Source)
+		if err != nil {
+			return fmt.Errorf("error reading 'source': %w", err)
+		}
+		delete(object, "source")
+	}
+
+	if raw, found := object["to_rack_id"]; found {
+		err = json.Unmarshal(raw, &a.ToRackId)
+		if err != nil {
+			return fmt.Errorf("error reading 'to_rack_id': %w", err)
+		}
+		delete(object, "to_rack_id")
+	}
+
+	if raw, found := object["work_order_id"]; found {
+		err = json.Unmarshal(raw, &a.WorkOrderId)
+		if err != nil {
+			return fmt.Errorf("error reading 'work_order_id': %w", err)
+		}
+		delete(object, "work_order_id")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for LocationChange to handle AdditionalProperties
+func (a LocationChange) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.AssetId != nil {
+		object["asset_id"], err = json.Marshal(a.AssetId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'asset_id': %w", err)
+		}
+	}
+
+	if a.DetectedAt != nil {
+		object["detected_at"], err = json.Marshal(a.DetectedAt)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'detected_at': %w", err)
+		}
+	}
+
+	if a.FromRackId != nil {
+		object["from_rack_id"], err = json.Marshal(a.FromRackId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'from_rack_id': %w", err)
+		}
+	}
+
+	if a.Id != nil {
+		object["id"], err = json.Marshal(a.Id)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'id': %w", err)
+		}
+	}
+
+	if a.Source != nil {
+		object["source"], err = json.Marshal(a.Source)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'source': %w", err)
+		}
+	}
+
+	if a.ToRackId != nil {
+		object["to_rack_id"], err = json.Marshal(a.ToRackId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'to_rack_id': %w", err)
+		}
+	}
+
+	if a.WorkOrderId != nil {
+		object["work_order_id"], err = json.Marshal(a.WorkOrderId)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'work_order_id': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
 // Getter for additional properties for LocationDiff. Returns the specified
 // element and whether it was found
 func (a LocationDiff) Get(fieldName string) (value interface{}, found bool) {
@@ -2049,6 +2527,18 @@ type ServerInterface interface {
 	// Update an asset
 	// (PUT /assets/{id})
 	UpdateAsset(c *gin.Context, id IdPath)
+	// Update asset location from a QR scan
+	// (POST /assets/{id}/confirm-location)
+	ConfirmAssetLocation(c *gin.Context, id IdPath)
+	// Return lifecycle status (age, warranty, depreciation, upgrade recommendation)
+	// (GET /assets/{id}/lifecycle)
+	GetAssetLifecycle(c *gin.Context, id IdPath)
+	// Recent location change history for an asset
+	// (GET /assets/{id}/location-history)
+	GetAssetLocationHistory(c *gin.Context, id IdPath)
+	// Return asset payload to encode into a QR code
+	// (GET /assets/{id}/qr-data)
+	GetAssetQRData(c *gin.Context, id IdPath)
 	// Query audit events
 	// (GET /audit/events)
 	QueryAuditEvents(c *gin.Context, params QueryAuditEventsParams)
@@ -2214,6 +2704,9 @@ type ServerInterface interface {
 	// Create a new location
 	// (POST /locations)
 	CreateLocation(c *gin.Context)
+	// Counts of assets grouped by location
+	// (GET /locations/asset-counts)
+	GetLocationAssetCounts(c *gin.Context)
 	// Delete a location
 	// (DELETE /locations/{id})
 	DeleteLocation(c *gin.Context, id IdPath)
@@ -2373,6 +2866,9 @@ type ServerInterface interface {
 	// Delete a network connection
 	// (DELETE /racks/{id}/network-connections/{connectionId})
 	DeleteRackNetworkConnection(c *gin.Context, id IdPath, connectionId openapi_types.UUID)
+	// Return rack payload to encode into a QR code
+	// (GET /racks/{id}/qr-data)
+	GetRackQRData(c *gin.Context, id IdPath)
 	// List rack slot assignments
 	// (GET /racks/{id}/slots)
 	ListRackSlots(c *gin.Context, id IdPath)
@@ -2685,6 +3181,110 @@ func (siw *ServerInterfaceWrapper) UpdateAsset(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateAsset(c, id)
+}
+
+// ConfirmAssetLocation operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmAssetLocation(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ConfirmAssetLocation(c, id)
+}
+
+// GetAssetLifecycle operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetLifecycle(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAssetLifecycle(c, id)
+}
+
+// GetAssetLocationHistory operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetLocationHistory(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAssetLocationHistory(c, id)
+}
+
+// GetAssetQRData operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetQRData(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAssetQRData(c, id)
 }
 
 // QueryAuditEvents operation middleware
@@ -4053,6 +4653,21 @@ func (siw *ServerInterfaceWrapper) CreateLocation(c *gin.Context) {
 	siw.Handler.CreateLocation(c)
 }
 
+// GetLocationAssetCounts operation middleware
+func (siw *ServerInterfaceWrapper) GetLocationAssetCounts(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetLocationAssetCounts(c)
+}
+
 // DeleteLocation operation middleware
 func (siw *ServerInterfaceWrapper) DeleteLocation(c *gin.Context) {
 
@@ -5396,6 +6011,32 @@ func (siw *ServerInterfaceWrapper) DeleteRackNetworkConnection(c *gin.Context) {
 	siw.Handler.DeleteRackNetworkConnection(c, id, connectionId)
 }
 
+// GetRackQRData operation middleware
+func (siw *ServerInterfaceWrapper) GetRackQRData(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetRackQRData(c, id)
+}
+
 // ListRackSlots operation middleware
 func (siw *ServerInterfaceWrapper) ListRackSlots(c *gin.Context) {
 
@@ -6205,6 +6846,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/assets/:id", wrapper.DeleteAsset)
 	router.GET(options.BaseURL+"/assets/:id", wrapper.GetAsset)
 	router.PUT(options.BaseURL+"/assets/:id", wrapper.UpdateAsset)
+	router.POST(options.BaseURL+"/assets/:id/confirm-location", wrapper.ConfirmAssetLocation)
+	router.GET(options.BaseURL+"/assets/:id/lifecycle", wrapper.GetAssetLifecycle)
+	router.GET(options.BaseURL+"/assets/:id/location-history", wrapper.GetAssetLocationHistory)
+	router.GET(options.BaseURL+"/assets/:id/qr-data", wrapper.GetAssetQRData)
 	router.GET(options.BaseURL+"/audit/events", wrapper.QueryAuditEvents)
 	router.POST(options.BaseURL+"/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
@@ -6260,6 +6905,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/location-detect/summary", wrapper.LocationDetectGetSummary)
 	router.GET(options.BaseURL+"/locations", wrapper.ListLocations)
 	router.POST(options.BaseURL+"/locations", wrapper.CreateLocation)
+	router.GET(options.BaseURL+"/locations/asset-counts", wrapper.GetLocationAssetCounts)
 	router.DELETE(options.BaseURL+"/locations/:id", wrapper.DeleteLocation)
 	router.GET(options.BaseURL+"/locations/:id", wrapper.GetLocation)
 	router.PUT(options.BaseURL+"/locations/:id", wrapper.UpdateLocation)
@@ -6313,6 +6959,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/racks/:id/network-connections", wrapper.ListRackNetworkConnections)
 	router.POST(options.BaseURL+"/racks/:id/network-connections", wrapper.CreateRackNetworkConnection)
 	router.DELETE(options.BaseURL+"/racks/:id/network-connections/:connectionId", wrapper.DeleteRackNetworkConnection)
+	router.GET(options.BaseURL+"/racks/:id/qr-data", wrapper.GetRackQRData)
 	router.GET(options.BaseURL+"/racks/:id/slots", wrapper.ListRackSlots)
 	router.POST(options.BaseURL+"/racks/:id/slots", wrapper.CreateRackSlot)
 	router.DELETE(options.BaseURL+"/racks/:id/slots/:slotId", wrapper.DeleteRackSlot)

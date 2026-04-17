@@ -10,18 +10,14 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
-// QRGetAssetData returns QR code data for an asset (JSON content to encode into QR).
+// GetAssetQRData returns QR code data for an asset (JSON content to encode into QR).
 // GET /api/v1/assets/:id/qr-data
-func (s *APIServer) QRGetAssetData(c *gin.Context) {
+func (s *APIServer) GetAssetQRData(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
-	assetID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid asset ID")
-		return
-	}
+	assetID := uuid.UUID(id)
 
 	var tag, sn, name string
-	err = s.pool.QueryRow(c.Request.Context(),
+	err := s.pool.QueryRow(c.Request.Context(),
 		"SELECT asset_tag, COALESCE(serial_number, ''), name FROM assets WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
 		assetID, tenantID).Scan(&tag, &sn, &name)
 	if err != nil {
@@ -39,18 +35,14 @@ func (s *APIServer) QRGetAssetData(c *gin.Context) {
 	response.OK(c, qrData)
 }
 
-// QRGetRackData returns QR code data for a rack.
+// GetRackQRData returns QR code data for a rack.
 // GET /api/v1/racks/:id/qr-data
-func (s *APIServer) QRGetRackData(c *gin.Context) {
+func (s *APIServer) GetRackQRData(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
-	rackID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid rack ID")
-		return
-	}
+	rackID := uuid.UUID(id)
 
 	var rackName, locName string
-	err = s.pool.QueryRow(c.Request.Context(),
+	err := s.pool.QueryRow(c.Request.Context(),
 		`SELECT r.name, COALESCE(l.name, '')
 		 FROM racks r LEFT JOIN locations l ON r.location_id = l.id
 		 WHERE r.id = $1 AND r.tenant_id = $2`,
@@ -69,17 +61,13 @@ func (s *APIServer) QRGetRackData(c *gin.Context) {
 	response.OK(c, qrData)
 }
 
-// QRConfirmLocation updates asset location via QR scan.
+// ConfirmAssetLocation updates asset location via QR scan.
 // POST /api/v1/assets/:id/confirm-location
 // Body: {"rack_id": "uuid"}
-func (s *APIServer) QRConfirmLocation(c *gin.Context) {
+func (s *APIServer) ConfirmAssetLocation(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
 	userID := userIDFromContext(c)
-	assetID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid asset ID")
-		return
-	}
+	assetID := uuid.UUID(id)
 
 	var req struct {
 		RackID string `json:"rack_id" binding:"required"`

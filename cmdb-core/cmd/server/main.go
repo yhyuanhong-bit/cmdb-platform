@@ -356,7 +356,6 @@ func main() {
 	v1.GET("/racks/:id/maintenance", apiServer.GetRackMaintenance)
 
 	// Phase 3 routes
-	v1.GET("/locations/asset-counts", apiServer.GetLocationAssetCounts)
 	v1.GET("/topology/dependencies", apiServer.GetAssetDependencies)
 	v1.POST("/topology/dependencies", apiServer.CreateAssetDependency)
 	v1.DELETE("/topology/dependencies/:id", apiServer.DeleteAssetDependency)
@@ -367,7 +366,6 @@ func main() {
 	// Phase 4 Group 1 routes
 	v1.GET("/prediction/rul/:id", apiServer.GetAssetRUL)
 	v1.GET("/prediction/failure-distribution", apiServer.GetFailureDistribution)
-	v1.GET("/assets/:id/lifecycle", apiServer.GetAssetLifecycle)
 	v1.GET("/assets/:id/upgrade-recommendations", apiServer.GetAssetUpgradeRecommendations)
 	v1.POST("/assets/:id/upgrade-recommendations/:category/accept", apiServer.AcceptUpgradeRecommendation)
 
@@ -387,14 +385,6 @@ func main() {
 	v1.POST("/auth/change-password", apiServer.ChangePassword)
 
 	// Discovery + credentials routes are registered via api.RegisterHandlers (line 207)
-
-	// QR code endpoints
-	v1.GET("/assets/:id/qr-data", apiServer.QRGetAssetData)
-	v1.GET("/racks/:id/qr-data", apiServer.QRGetRackData)
-	v1.POST("/assets/:id/confirm-location", apiServer.QRConfirmLocation)
-
-	// Location detection endpoints
-	v1.GET("/assets/:id/location-history", apiServer.LocationDetectGetHistory)
 
 	// MCP Server
 	if cfg.MCPEnabled {
