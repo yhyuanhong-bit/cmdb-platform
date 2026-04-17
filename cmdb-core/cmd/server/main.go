@@ -405,14 +405,6 @@ func main() {
 	// Location detection endpoints
 	v1.GET("/assets/:id/location-history", apiServer.LocationDetectGetHistory)
 
-	// Sync endpoints
-	v1.GET("/sync/changes", apiServer.SyncGetChanges)
-	v1.GET("/sync/state", apiServer.SyncGetState)
-	v1.GET("/sync/conflicts", apiServer.SyncGetConflicts)
-	v1.POST("/sync/conflicts/:id/resolve", apiServer.SyncResolveConflict)
-	v1.GET("/sync/snapshot", apiServer.SyncSnapshot)
-	v1.GET("/sync/stats", apiServer.SyncStats)
-
 	// MCP Server
 	if cfg.MCPEnabled {
 		mcpSrv := cmdbmcp.New(queries)

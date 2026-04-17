@@ -63,6 +63,24 @@ func (e LocationAnomalySeverity) Valid() bool {
 	}
 }
 
+// Defines values for SyncResolveRequestResolution.
+const (
+	LocalWins  SyncResolveRequestResolution = "local_wins"
+	RemoteWins SyncResolveRequestResolution = "remote_wins"
+)
+
+// Valid indicates whether the value is a known member of the SyncResolveRequestResolution enum.
+func (e SyncResolveRequestResolution) Valid() bool {
+	switch e {
+	case LocalWins:
+		return true
+	case RemoteWins:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateUpgradeRuleRequestPriority.
 const (
 	UpdateUpgradeRuleRequestPriorityHigh   UpdateUpgradeRuleRequestPriority = "high"
@@ -99,6 +117,84 @@ func (e UpgradeRulePriority) Valid() bool {
 	case UpgradeRulePriorityLow:
 		return true
 	case UpgradeRulePriorityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SyncGetChangesParamsEntityType.
+const (
+	SyncGetChangesParamsEntityTypeAlertEvents    SyncGetChangesParamsEntityType = "alert_events"
+	SyncGetChangesParamsEntityTypeAlertRules     SyncGetChangesParamsEntityType = "alert_rules"
+	SyncGetChangesParamsEntityTypeAssets         SyncGetChangesParamsEntityType = "assets"
+	SyncGetChangesParamsEntityTypeAuditEvents    SyncGetChangesParamsEntityType = "audit_events"
+	SyncGetChangesParamsEntityTypeInventoryItems SyncGetChangesParamsEntityType = "inventory_items"
+	SyncGetChangesParamsEntityTypeInventoryTasks SyncGetChangesParamsEntityType = "inventory_tasks"
+	SyncGetChangesParamsEntityTypeLocations      SyncGetChangesParamsEntityType = "locations"
+	SyncGetChangesParamsEntityTypeRacks          SyncGetChangesParamsEntityType = "racks"
+	SyncGetChangesParamsEntityTypeWorkOrders     SyncGetChangesParamsEntityType = "work_orders"
+)
+
+// Valid indicates whether the value is a known member of the SyncGetChangesParamsEntityType enum.
+func (e SyncGetChangesParamsEntityType) Valid() bool {
+	switch e {
+	case SyncGetChangesParamsEntityTypeAlertEvents:
+		return true
+	case SyncGetChangesParamsEntityTypeAlertRules:
+		return true
+	case SyncGetChangesParamsEntityTypeAssets:
+		return true
+	case SyncGetChangesParamsEntityTypeAuditEvents:
+		return true
+	case SyncGetChangesParamsEntityTypeInventoryItems:
+		return true
+	case SyncGetChangesParamsEntityTypeInventoryTasks:
+		return true
+	case SyncGetChangesParamsEntityTypeLocations:
+		return true
+	case SyncGetChangesParamsEntityTypeRacks:
+		return true
+	case SyncGetChangesParamsEntityTypeWorkOrders:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SyncSnapshotParamsEntityType.
+const (
+	SyncSnapshotParamsEntityTypeAlertEvents    SyncSnapshotParamsEntityType = "alert_events"
+	SyncSnapshotParamsEntityTypeAlertRules     SyncSnapshotParamsEntityType = "alert_rules"
+	SyncSnapshotParamsEntityTypeAssets         SyncSnapshotParamsEntityType = "assets"
+	SyncSnapshotParamsEntityTypeAuditEvents    SyncSnapshotParamsEntityType = "audit_events"
+	SyncSnapshotParamsEntityTypeInventoryItems SyncSnapshotParamsEntityType = "inventory_items"
+	SyncSnapshotParamsEntityTypeInventoryTasks SyncSnapshotParamsEntityType = "inventory_tasks"
+	SyncSnapshotParamsEntityTypeLocations      SyncSnapshotParamsEntityType = "locations"
+	SyncSnapshotParamsEntityTypeRacks          SyncSnapshotParamsEntityType = "racks"
+	SyncSnapshotParamsEntityTypeWorkOrders     SyncSnapshotParamsEntityType = "work_orders"
+)
+
+// Valid indicates whether the value is a known member of the SyncSnapshotParamsEntityType enum.
+func (e SyncSnapshotParamsEntityType) Valid() bool {
+	switch e {
+	case SyncSnapshotParamsEntityTypeAlertEvents:
+		return true
+	case SyncSnapshotParamsEntityTypeAlertRules:
+		return true
+	case SyncSnapshotParamsEntityTypeAssets:
+		return true
+	case SyncSnapshotParamsEntityTypeAuditEvents:
+		return true
+	case SyncSnapshotParamsEntityTypeInventoryItems:
+		return true
+	case SyncSnapshotParamsEntityTypeInventoryTasks:
+		return true
+	case SyncSnapshotParamsEntityTypeLocations:
+		return true
+	case SyncSnapshotParamsEntityTypeRacks:
+		return true
+	case SyncSnapshotParamsEntityTypeWorkOrders:
 		return true
 	default:
 		return false
@@ -612,6 +708,54 @@ type Role struct {
 	IsSystem    bool                `json:"is_system"`
 	Name        string              `json:"name"`
 	Permissions map[string][]string `json:"permissions"`
+}
+
+// SyncChangeSet defines model for SyncChangeSet.
+type SyncChangeSet struct {
+	Changes       []map[string]interface{} `json:"changes"`
+	HasMore       bool                     `json:"has_more"`
+	LatestVersion int64                    `json:"latest_version"`
+}
+
+// SyncConflict defines model for SyncConflict.
+type SyncConflict struct {
+	CreatedAt     *time.Time              `json:"created_at,omitempty"`
+	EntityId      *openapi_types.UUID     `json:"entity_id,omitempty"`
+	EntityType    *string                 `json:"entity_type,omitempty"`
+	Id            *openapi_types.UUID     `json:"id,omitempty"`
+	LocalDiff     *map[string]interface{} `json:"local_diff,omitempty"`
+	LocalVersion  *int64                  `json:"local_version,omitempty"`
+	RemoteDiff    *map[string]interface{} `json:"remote_diff,omitempty"`
+	RemoteVersion *int64                  `json:"remote_version,omitempty"`
+}
+
+// SyncEntityStats defines model for SyncEntityStats.
+type SyncEntityStats struct {
+	EntityType string `json:"entity_type"`
+	MaxVersion int64  `json:"max_version"`
+	Nodes      []struct {
+		Gap             int64  `json:"gap"`
+		LastSyncVersion int64  `json:"last_sync_version"`
+		NodeId          string `json:"node_id"`
+	} `json:"nodes"`
+}
+
+// SyncResolveRequest defines model for SyncResolveRequest.
+type SyncResolveRequest struct {
+	Resolution SyncResolveRequestResolution `json:"resolution"`
+}
+
+// SyncResolveRequestResolution defines model for SyncResolveRequest.Resolution.
+type SyncResolveRequestResolution string
+
+// SyncStateRow defines model for SyncStateRow.
+type SyncStateRow struct {
+	EntityType      *string    `json:"entity_type,omitempty"`
+	ErrorMessage    *string    `json:"error_message,omitempty"`
+	LastSyncAt      *time.Time `json:"last_sync_at,omitempty"`
+	LastSyncVersion *int64     `json:"last_sync_version,omitempty"`
+	NodeId          *string    `json:"node_id,omitempty"`
+	Status          *string    `json:"status,omitempty"`
 }
 
 // SystemHealth defines model for SystemHealth.
@@ -1162,6 +1306,24 @@ type ListSensorsParams struct {
 // CreateSensorJSONBody defines parameters for CreateSensor.
 type CreateSensorJSONBody = map[string]interface{}
 
+// SyncGetChangesParams defines parameters for SyncGetChanges.
+type SyncGetChangesParams struct {
+	EntityType   SyncGetChangesParamsEntityType `form:"entity_type" json:"entity_type"`
+	SinceVersion *int64                         `form:"since_version,omitempty" json:"since_version,omitempty"`
+	Limit        *int                           `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// SyncGetChangesParamsEntityType defines parameters for SyncGetChanges.
+type SyncGetChangesParamsEntityType string
+
+// SyncSnapshotParams defines parameters for SyncSnapshot.
+type SyncSnapshotParams struct {
+	EntityType SyncSnapshotParamsEntityType `form:"entity_type" json:"entity_type"`
+}
+
+// SyncSnapshotParamsEntityType defines parameters for SyncSnapshot.
+type SyncSnapshotParamsEntityType string
+
 // CreateAssetDependencyJSONBody defines parameters for CreateAssetDependency.
 type CreateAssetDependencyJSONBody = map[string]interface{}
 
@@ -1294,6 +1456,9 @@ type UpdateRoleJSONRequestBody UpdateRoleJSONBody
 
 // CreateSensorJSONRequestBody defines body for CreateSensor for application/json ContentType.
 type CreateSensorJSONRequestBody = CreateSensorJSONBody
+
+// SyncResolveConflictJSONRequestBody defines body for SyncResolveConflict for application/json ContentType.
+type SyncResolveConflictJSONRequestBody = SyncResolveRequest
 
 // CreateAssetDependencyJSONRequestBody defines body for CreateAssetDependency for application/json ContentType.
 type CreateAssetDependencyJSONRequestBody = CreateAssetDependencyJSONBody
@@ -2190,6 +2355,24 @@ type ServerInterface interface {
 	// Send sensor heartbeat
 	// (POST /sensors/{id}/heartbeat)
 	SensorHeartbeat(c *gin.Context, id IdPath)
+	// Incremental changes for a given entity type since a version
+	// (GET /sync/changes)
+	SyncGetChanges(c *gin.Context, params SyncGetChangesParams)
+	// Pending sync conflicts
+	// (GET /sync/conflicts)
+	SyncGetConflicts(c *gin.Context)
+	// Resolve a sync conflict
+	// (POST /sync/conflicts/{id}/resolve)
+	SyncResolveConflict(c *gin.Context, id IdPath)
+	// Full NDJSON snapshot of an entity type for initial sync
+	// (GET /sync/snapshot)
+	SyncSnapshot(c *gin.Context, params SyncSnapshotParams)
+	// Sync state for all replicas/entity-types
+	// (GET /sync/state)
+	SyncGetState(c *gin.Context)
+	// Per-entity max versions and per-node sync gaps
+	// (GET /sync/stats)
+	SyncStats(c *gin.Context)
 	// Get system health status
 	// (GET /system/health)
 	GetSystemHealth(c *gin.Context)
@@ -5277,6 +5460,163 @@ func (siw *ServerInterfaceWrapper) SensorHeartbeat(c *gin.Context) {
 	siw.Handler.SensorHeartbeat(c, id)
 }
 
+// SyncGetChanges operation middleware
+func (siw *ServerInterfaceWrapper) SyncGetChanges(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SyncGetChangesParams
+
+	// ------------- Required query parameter "entity_type" -------------
+
+	if paramValue := c.Query("entity_type"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument entity_type is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "entity_type", c.Request.URL.Query(), &params.EntityType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity_type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "since_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "since_version", c.Request.URL.Query(), &params.SinceVersion, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter since_version: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SyncGetChanges(c, params)
+}
+
+// SyncGetConflicts operation middleware
+func (siw *ServerInterfaceWrapper) SyncGetConflicts(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SyncGetConflicts(c)
+}
+
+// SyncResolveConflict operation middleware
+func (siw *ServerInterfaceWrapper) SyncResolveConflict(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SyncResolveConflict(c, id)
+}
+
+// SyncSnapshot operation middleware
+func (siw *ServerInterfaceWrapper) SyncSnapshot(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SyncSnapshotParams
+
+	// ------------- Required query parameter "entity_type" -------------
+
+	if paramValue := c.Query("entity_type"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument entity_type is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "entity_type", c.Request.URL.Query(), &params.EntityType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter entity_type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SyncSnapshot(c, params)
+}
+
+// SyncGetState operation middleware
+func (siw *ServerInterfaceWrapper) SyncGetState(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SyncGetState(c)
+}
+
+// SyncStats operation middleware
+func (siw *ServerInterfaceWrapper) SyncStats(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SyncStats(c)
+}
+
 // GetSystemHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemHealth(c *gin.Context) {
 
@@ -5753,6 +6093,12 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/sensors/:id", wrapper.DeleteSensor)
 	router.PUT(options.BaseURL+"/sensors/:id", wrapper.UpdateSensor)
 	router.POST(options.BaseURL+"/sensors/:id/heartbeat", wrapper.SensorHeartbeat)
+	router.GET(options.BaseURL+"/sync/changes", wrapper.SyncGetChanges)
+	router.GET(options.BaseURL+"/sync/conflicts", wrapper.SyncGetConflicts)
+	router.POST(options.BaseURL+"/sync/conflicts/:id/resolve", wrapper.SyncResolveConflict)
+	router.GET(options.BaseURL+"/sync/snapshot", wrapper.SyncSnapshot)
+	router.GET(options.BaseURL+"/sync/state", wrapper.SyncGetState)
+	router.GET(options.BaseURL+"/sync/stats", wrapper.SyncStats)
 	router.GET(options.BaseURL+"/system/health", wrapper.GetSystemHealth)
 	router.POST(options.BaseURL+"/topology/dependencies", wrapper.CreateAssetDependency)
 	router.GET(options.BaseURL+"/upgrade-rules", wrapper.GetUpgradeRules)

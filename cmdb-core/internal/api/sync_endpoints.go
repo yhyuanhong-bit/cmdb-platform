@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -14,20 +13,25 @@ import (
 
 // SyncGetChanges returns incremental changes for a given entity type since a version.
 // GET /api/v1/sync/changes?entity_type=assets&since_version=0&limit=100
-func (s *APIServer) SyncGetChanges(c *gin.Context) {
+func (s *APIServer) SyncGetChanges(c *gin.Context, params SyncGetChangesParams) {
 	tenantID := tenantIDFromContext(c)
-	entityType := c.Query("entity_type")
-	if entityType == "" {
-		response.BadRequest(c, "entity_type is required")
-		return
-	}
+	entityType := string(params.EntityType)
 
-	sinceVersion, _ := strconv.ParseInt(c.DefaultQuery("since_version", "0"), 10, 64)
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+	var sinceVersion int64
+	if params.SinceVersion != nil {
+		sinceVersion = *params.SinceVersion
+	}
+	limit := 100
+	if params.Limit != nil {
+		limit = *params.Limit
+	}
 	if limit > 1000 {
 		limit = 1000
 	}
 
+	// oapi-codegen validates EntityType against the spec enum, so the allowlist
+	// check is redundant — but keep it as a defense-in-depth guard against future
+	// enum drift.
 	allowedTables := map[string]bool{
 		"assets": true, "locations": true, "racks": true,
 		"work_orders": true, "alert_events": true, "inventory_tasks": true,
@@ -159,13 +163,9 @@ func (s *APIServer) SyncGetConflicts(c *gin.Context) {
 
 // SyncResolveConflict resolves a sync conflict and applies the resolution to the entity.
 // POST /api/v1/sync/conflicts/:id/resolve
-func (s *APIServer) SyncResolveConflict(c *gin.Context) {
+func (s *APIServer) SyncResolveConflict(c *gin.Context, id IdPath) {
 	userID := userIDFromContext(c)
-	conflictID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid conflict ID")
-		return
-	}
+	conflictID := uuid.UUID(id)
 
 	var req struct {
 		Resolution string `json:"resolution" binding:"required"`
@@ -184,7 +184,7 @@ func (s *APIServer) SyncResolveConflict(c *gin.Context) {
 	// 1. Read the conflict to get entity info
 	var entityType, entityID string
 	var remoteDiff json.RawMessage
-	err = s.pool.QueryRow(ctx,
+	err := s.pool.QueryRow(ctx,
 		"SELECT entity_type, entity_id, remote_diff FROM sync_conflicts WHERE id = $1 AND resolution = 'pending'",
 		conflictID).Scan(&entityType, &entityID, &remoteDiff)
 	if err != nil {
@@ -310,10 +310,12 @@ func (s *APIServer) SyncStats(c *gin.Context) {
 
 // SyncSnapshot streams a full snapshot of an entity type for initial sync.
 // GET /api/v1/sync/snapshot?entity_type=assets
-func (s *APIServer) SyncSnapshot(c *gin.Context) {
+func (s *APIServer) SyncSnapshot(c *gin.Context, params SyncSnapshotParams) {
 	tenantID := tenantIDFromContext(c)
-	entityType := c.Query("entity_type")
+	entityType := string(params.EntityType)
 
+	// oapi-codegen enforces the enum; this allowlist is a defense-in-depth
+	// guard against future schema drift.
 	allowedTables := map[string]bool{
 		"assets": true, "locations": true, "racks": true,
 		"work_orders": true, "alert_events": true, "inventory_tasks": true,
