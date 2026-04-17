@@ -40,7 +40,7 @@ type APIServer struct {
 	pool              *pgxpool.Pool
 	cfg               *config.Config
 	eventBus          eventbus.Bus
-	authSvc           *identity.AuthService
+	authSvc           authService
 	identitySvc       *identity.Service
 	topologySvc       *topology.Service
 	assetSvc          *asset.Service
@@ -63,7 +63,7 @@ func NewAPIServer(
 	pool *pgxpool.Pool,
 	cfg *config.Config,
 	bus eventbus.Bus,
-	authSvc *identity.AuthService,
+	authSvc authService,
 	identitySvc *identity.Service,
 	topologySvc *topology.Service,
 	assetSvc *asset.Service,
