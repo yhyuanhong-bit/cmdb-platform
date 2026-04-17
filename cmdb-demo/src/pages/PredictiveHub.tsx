@@ -36,12 +36,8 @@ const TAB_DEFINITIONS: { key: TabKey; labelKey: string }[] = [
    Tab 1: Overview data
    ────────────────────────────────────────────── */
 
-const AI_MESSAGES = [
-  { role: 'ai' as const, textKey: 'predictive_hub.ai_msg_1', time: '14:18' },
-  { role: 'ai' as const, textKey: 'predictive_hub.ai_msg_2', time: '14:19' },
-  { role: 'user' as const, textKey: 'predictive_hub.ai_msg_3', time: '14:19' },
-  { role: 'ai' as const, textKey: 'predictive_hub.ai_msg_4', time: '14:20' },
-]
+type AdvisorMessage = { text: string; time: string }
+
 
 /* ──────────────────────────────────────────────
    Tab 2: Alerts data
@@ -217,6 +213,35 @@ function OverviewTab() {
     low: { color: 'text-secondary', bg: 'bg-secondary-container' },
   }
 
+  const advisorMessages = useMemo<AdvisorMessage[]>(() => {
+    if (predictions.length === 0) {
+      return [{ text: t('predictive_hub.ai_advisor_empty'), time: '' }]
+    }
+    const rankWeight: Record<string, number> = { critical: 3, high: 2, medium: 1, low: 0 }
+    const ranked = [...predictions].sort((a, b) => {
+      const wa = rankWeight[(a.severity ?? 'medium').toLowerCase()] ?? 1
+      const wb = rankWeight[(b.severity ?? 'medium').toLowerCase()] ?? 1
+      return wb - wa
+    })
+    return ranked.slice(0, 4).map((p) => {
+      const horizon = p.expires_at
+        ? t('predictive_hub.ai_advisor_horizon_days', {
+            days: Math.max(0, Math.round((new Date(p.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))),
+          })
+        : t('predictive_hub.ai_advisor_horizon_unknown')
+      const text = t('predictive_hub.ai_advisor_message', {
+        asset: p.ci_id,
+        type: p.prediction_type,
+        severity: (p.severity ?? 'medium').toUpperCase(),
+        horizon,
+      })
+      const time = p.created_at
+        ? new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : ''
+      return { text, time }
+    })
+  }, [predictions, t])
+
   // Map API predictions to ASSETS shape, fall back to empty array
   const ASSETS = predictions.map((p) => {
     const sevKey = (p.severity ?? 'medium').toLowerCase()
@@ -373,19 +398,19 @@ function OverviewTab() {
           </span>
         </div>
         <div className="bg-surface-container-low rounded-xl p-4 flex flex-col gap-3 max-h-[320px] overflow-y-auto">
-          {AI_MESSAGES.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] rounded-xl px-4 py-3 ${msg.role === 'user' ? 'bg-surface-container-high text-on-surface' : 'bg-surface-container text-on-surface'}`}>
-                {msg.role === 'ai' && (
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Icon name="smart_toy" className="text-primary text-sm" />
-                    <span className="text-[10px] text-primary font-label font-bold tracking-widest uppercase">
-                      {t('predictive.ai_advisor')}
-                    </span>
-                  </div>
+          {advisorMessages.map((msg, i) => (
+            <div key={i} className="flex justify-start">
+              <div className="max-w-[85%] rounded-xl px-4 py-3 bg-surface-container text-on-surface">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Icon name="smart_toy" className="text-primary text-sm" />
+                  <span className="text-[10px] text-primary font-label font-bold tracking-widest uppercase">
+                    {t('predictive.ai_advisor')}
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed">{msg.text}</p>
+                {msg.time && (
+                  <p className="text-[10px] text-on-surface-variant mt-2 text-right tabular-nums">{msg.time}</p>
                 )}
-                <p className="text-sm leading-relaxed">{t(msg.textKey)}</p>
-                <p className="text-[10px] text-on-surface-variant mt-2 text-right tabular-nums">{msg.time}</p>
               </div>
             </div>
           ))}

@@ -78,71 +78,98 @@ const priorityColors: Record<string, string> = {
   Low: 'bg-surface-container-highest text-on-surface-variant',
 }
 
+interface CalendarSlot {
+  label: string
+  color: string
+  time: string
+}
+
 interface CalendarBlock {
   day: string
   dayKey: string
   date: number
-  slots: { labelKey: string; color: string; time: string }[]
+  isoDate: string
+  isToday: boolean
+  slots: CalendarSlot[]
 }
 
-const weekDataTemplate: { dayKey: string; date: number; slots: { labelKey: string; color: string; time: string }[] }[] = [
-  {
-    dayKey: 'maintenance_schedule.calendar_mon',
-    date: 23,
-    slots: [
-      { labelKey: 'maintenance_schedule.calendar_hvac_inspection', color: 'bg-[#1e3a5f]', time: '09:00-11:00' },
-    ],
-  },
-  {
-    dayKey: 'maintenance_schedule.calendar_tue',
-    date: 24,
-    slots: [
-      { labelKey: 'maintenance_schedule.calendar_network_audit', color: 'bg-[#92400e]', time: '14:00-18:00' },
-    ],
-  },
-  {
-    dayKey: 'maintenance_schedule.calendar_wed',
-    date: 25,
-    slots: [
-      { labelKey: 'maintenance_schedule.calendar_fw_failover_test', color: 'bg-[#064e3b]', time: '06:00-08:00' },
-      { labelKey: 'maintenance_schedule.calendar_pdu_calibration', color: 'bg-[#1e3a5f]', time: '13:00-15:00' },
-    ],
-  },
-  {
-    dayKey: 'maintenance_schedule.calendar_thu',
-    date: 26,
-    slots: [
-      { labelKey: 'maintenance_schedule.calendar_cooling_repair', color: 'bg-error-container', time: '08:00-16:00' },
-    ],
-  },
-  {
-    dayKey: 'maintenance_schedule.calendar_fri',
-    date: 27,
-    slots: [],
-  },
-  {
-    dayKey: 'maintenance_schedule.calendar_sat',
-    date: 28,
-    slots: [
-      { labelKey: 'maintenance_schedule.calendar_ups_battery_swap', color: 'bg-error-container', time: '02:00-06:00' },
-    ],
-  },
-  {
-    dayKey: 'maintenance_schedule.calendar_sun',
-    date: 29,
-    slots: [
-      { labelKey: 'maintenance_schedule.calendar_firmware_update', color: 'bg-[#92400e]', time: '01:00-04:00' },
-    ],
-  },
-]
+const DAY_KEYS = [
+  'maintenance_schedule.calendar_mon',
+  'maintenance_schedule.calendar_tue',
+  'maintenance_schedule.calendar_wed',
+  'maintenance_schedule.calendar_thu',
+  'maintenance_schedule.calendar_fri',
+  'maintenance_schedule.calendar_sat',
+  'maintenance_schedule.calendar_sun',
+] as const
 
-function getWeekData(t: ReturnType<typeof useTranslation>['t']): CalendarBlock[] {
-  return weekDataTemplate.map((d) => ({
-    day: t(d.dayKey),
-    dayKey: d.dayKey,
-    date: d.date,
-    slots: d.slots.map((s) => ({ ...s, labelKey: s.labelKey })),
-  }))
+function priorityToColor(priority: MaintenanceTask['priority']): string {
+  switch (priority) {
+    case 'Critical':
+      return 'bg-error-container'
+    case 'High':
+      return 'bg-[#92400e]'
+    case 'Medium':
+      return 'bg-[#1e3a5f]'
+    default:
+      return 'bg-[#064e3b]'
+  }
+}
+
+function formatWindow(wo: WorkOrder | undefined): string {
+  if (!wo?.scheduled_start) return ''
+  const start = new Date(wo.scheduled_start)
+  const end = wo.scheduled_end ? new Date(wo.scheduled_end) : null
+  const fmt = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+  return end ? `${fmt(start)}-${fmt(end)}` : fmt(start)
+}
+
+function startOfWeek(date: Date): Date {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  const weekday = (d.getDay() + 6) % 7 // Mon=0, Sun=6
+  d.setDate(d.getDate() - weekday)
+  return d
+}
+
+function buildWeekData(
+  tasks: MaintenanceTask[],
+  workOrders: WorkOrder[],
+  t: ReturnType<typeof useTranslation>['t'],
+): CalendarBlock[] {
+  const weekStart = startOfWeek(new Date())
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const workOrderById = new Map(workOrders.map((wo) => [wo.id, wo]))
+
+  return DAY_KEYS.map((dayKey, offset) => {
+    const day = new Date(weekStart)
+    day.setDate(weekStart.getDate() + offset)
+    const isoDate = day.toISOString().slice(0, 10)
+    const slots: CalendarSlot[] = tasks
+      .filter((task) => task.scheduledDate === isoDate)
+      .map((task) => ({
+        label: task.description,
+        color: priorityToColor(task.priority),
+        time: formatWindow(workOrderById.get(task.woId)),
+      }))
+    return {
+      day: t(dayKey),
+      dayKey,
+      date: day.getDate(),
+      isoDate,
+      isToday: isoDate === todayIso,
+      slots,
+    }
+  })
+}
+
+function formatWeekRange(blocks: CalendarBlock[]): string {
+  if (blocks.length === 0) return ''
+  const start = new Date(blocks[0].isoDate)
+  const end = new Date(blocks[blocks.length - 1].isoDate)
+  const fmt = (d: Date) =>
+    d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  return `${fmt(start)} - ${fmt(end)}, ${end.getFullYear()}`
 }
 
 function buildSummaryCards(workOrders: WorkOrder[]) {
@@ -171,17 +198,20 @@ function ScheduleView({
   navigate,
   t,
   tasks,
+  workOrders,
 }: {
   search: string
   navigate: ReturnType<typeof useNavigate>
   t: ReturnType<typeof useTranslation>['t']
   tasks: MaintenanceTask[]
+  workOrders: WorkOrder[]
 }) {
   const filteredTasks = tasks.filter(
     (task) => !search || task.description.toLowerCase().includes(search.toLowerCase()) || task.id.toLowerCase().includes(search.toLowerCase()),
   )
 
-  const weekData = getWeekData(t)
+  const weekData = useMemo(() => buildWeekData(tasks, workOrders, t), [tasks, workOrders, t])
+  const weekRange = useMemo(() => formatWeekRange(weekData), [weekData])
 
   return (
     <>
@@ -189,7 +219,7 @@ function ScheduleView({
       <div className="mb-6 bg-surface-container rounded overflow-hidden">
         <div className="flex items-center justify-between bg-surface-container-low px-4 py-3">
           <h2 className="font-headline text-sm font-semibold text-on-surface">
-            {t('maintenance_schedule.week_of')} March 23 - 29, 2026
+            {t('maintenance_schedule.week_of')} {weekRange}
           </h2>
           <div className="flex items-center gap-2">
             <button onClick={() => toast.info(t('common.coming_soon'))} className="p-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest transition-colors">
@@ -206,9 +236,9 @@ function ScheduleView({
         <div className="grid grid-cols-7 gap-px bg-surface-container-low">
           {weekData.map((day) => (
             <div
-              key={day.dayKey}
+              key={day.isoDate}
               className={`bg-surface-container p-3 min-h-[120px] ${
-                day.date === 28 ? 'bg-surface-container-high' : ''
+                day.isToday ? 'bg-surface-container-high' : ''
               }`}
             >
               <div className="mb-2 flex items-center justify-between">
@@ -217,7 +247,7 @@ function ScheduleView({
                 </span>
                 <span
                   className={`text-sm font-semibold ${
-                    day.date === 28
+                    day.isToday
                       ? 'flex h-6 w-6 items-center justify-center rounded-full bg-on-primary-container text-white text-xs'
                       : 'text-on-surface'
                   }`}
@@ -232,7 +262,7 @@ function ScheduleView({
                     className={`${slot.color} rounded px-2 py-1.5 cursor-pointer hover:brightness-125 transition-all`}
                   >
                     <p className="text-[0.625rem] font-semibold text-white truncate">
-                      {t(slot.labelKey)}
+                      {slot.label}
                     </p>
                     <p className="text-[0.5625rem] text-white/70">{slot.time}</p>
                   </div>
@@ -544,7 +574,7 @@ export default function MaintenanceHub() {
 
       {/* Content Area */}
       {viewMode === 'schedule' && (
-        <ScheduleView search={search} navigate={navigate} t={t} tasks={tasks.filter(task => {
+        <ScheduleView search={search} navigate={navigate} t={t} workOrders={workOrders} tasks={tasks.filter(task => {
           if (statusFilter !== 'All Status' && task.status.toLowerCase() !== statusFilter.toLowerCase()) return false
           return true
         })} />

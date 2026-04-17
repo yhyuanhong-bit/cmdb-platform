@@ -6,7 +6,6 @@ import Icon from '../../components/Icon'
 import BIAComplianceIcon from '../../components/BIAComplianceIcon'
 import CreateAssessmentModal from '../../components/CreateAssessmentModal'
 import { useBIAScoringRules, useBIAAssessments, useBIAStats } from '../../hooks/useBIA'
-import { SEED_RULES, SEED_ASSESSMENTS, SEED_STATS } from '../../data/fallbacks/bia'
 
 /* ──────────────────────────────────────────────
    Local types
@@ -146,14 +145,25 @@ export default function BIAOverview() {
   const [modalOpen, setModalOpen] = useState(false)
   const [tierFilter, setTierFilter] = useState<string | null>(null)
 
-  // Data hooks (fall back to seed data when API unavailable)
   const rulesQuery = useBIAScoringRules()
   const assessmentsQuery = useBIAAssessments()
   const statsQuery = useBIAStats()
 
-  const rules: BIARule[] = (rulesQuery.data as ApiListResponse<BIARule>)?.data || SEED_RULES
-  const rawAssessments: BIAAssessment[] = (assessmentsQuery.data as ApiListResponse<BIAAssessment>)?.data || (assessmentsQuery.data as ApiListResponse<BIAAssessment>)?.items || SEED_ASSESSMENTS
-  const stats: BIAStats = (statsQuery.data as ApiDataResponse<BIAStats>)?.data ?? SEED_STATS
+  const rules: BIARule[] = (rulesQuery.data as ApiListResponse<BIARule>)?.data ?? []
+  const rawAssessments: BIAAssessment[] =
+    (assessmentsQuery.data as ApiListResponse<BIAAssessment>)?.data ??
+    (assessmentsQuery.data as ApiListResponse<BIAAssessment>)?.items ??
+    []
+  const stats: BIAStats =
+    (statsQuery.data as ApiDataResponse<BIAStats>)?.data ?? {
+      total: 0,
+      by_tier: {},
+      avg_compliance: 0,
+      data_compliant: 0,
+      asset_compliant: 0,
+      audit_compliant: 0,
+      total_dependencies: 0,
+    }
 
   const assessments = useMemo(() => {
     if (!tierFilter) return rawAssessments
@@ -335,7 +345,7 @@ export default function BIAOverview() {
               <div className="space-y-3">
                 <div className="rounded-lg bg-surface-container-low p-4 text-center">
                   <p className="font-headline text-3xl font-bold text-on-surface">
-                    {stats.total_dependencies ?? 8}
+                    {stats.total_dependencies ?? 0}
                   </p>
                   <p className="text-[0.6875rem] uppercase tracking-wider text-on-surface-variant mt-1">
                     {t('bia_overview.linked_cis')}
