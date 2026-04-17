@@ -375,9 +375,6 @@ func main() {
 	v1.POST("/topology/dependencies", apiServer.CreateAssetDependency)
 	v1.DELETE("/topology/dependencies/:id", apiServer.DeleteAssetDependency)
 	v1.GET("/topology/graph", apiServer.GetTopologyGraph)
-	v1.GET("/racks/:id/network-connections", apiServer.GetRackNetworkConnections)
-	v1.POST("/racks/:id/network-connections", apiServer.CreateRackNetworkConnection)
-	v1.DELETE("/racks/:id/network-connections/:connectionId", apiServer.DeleteRackNetworkConnection)
 	v1.GET("/activity-feed", apiServer.GetActivityFeed)
 	v1.GET("/audit/events/:id", apiServer.GetAuditEventDetail)
 

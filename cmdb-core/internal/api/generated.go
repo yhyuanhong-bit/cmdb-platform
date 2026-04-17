@@ -1789,6 +1789,15 @@ type ServerInterface interface {
 	// List assets in a rack
 	// (GET /racks/{id}/assets)
 	ListRackAssets(c *gin.Context, id IdPath)
+	// List network connections in a rack
+	// (GET /racks/{id}/network-connections)
+	ListRackNetworkConnections(c *gin.Context, id IdPath)
+	// Create a network connection
+	// (POST /racks/{id}/network-connections)
+	CreateRackNetworkConnection(c *gin.Context, id IdPath)
+	// Delete a network connection
+	// (DELETE /racks/{id}/network-connections/{connectionId})
+	DeleteRackNetworkConnection(c *gin.Context, id IdPath, connectionId openapi_types.UUID)
 	// List rack slot assignments
 	// (GET /racks/{id}/slots)
 	ListRackSlots(c *gin.Context, id IdPath)
@@ -4315,6 +4324,93 @@ func (siw *ServerInterfaceWrapper) ListRackAssets(c *gin.Context) {
 	siw.Handler.ListRackAssets(c, id)
 }
 
+// ListRackNetworkConnections operation middleware
+func (siw *ServerInterfaceWrapper) ListRackNetworkConnections(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListRackNetworkConnections(c, id)
+}
+
+// CreateRackNetworkConnection operation middleware
+func (siw *ServerInterfaceWrapper) CreateRackNetworkConnection(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateRackNetworkConnection(c, id)
+}
+
+// DeleteRackNetworkConnection operation middleware
+func (siw *ServerInterfaceWrapper) DeleteRackNetworkConnection(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "connectionId" -------------
+	var connectionId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "connectionId", c.Param("connectionId"), &connectionId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter connectionId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteRackNetworkConnection(c, id, connectionId)
+}
+
 // ListRackSlots operation middleware
 func (siw *ServerInterfaceWrapper) ListRackSlots(c *gin.Context) {
 
@@ -4952,6 +5048,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/racks/:id", wrapper.GetRack)
 	router.PUT(options.BaseURL+"/racks/:id", wrapper.UpdateRack)
 	router.GET(options.BaseURL+"/racks/:id/assets", wrapper.ListRackAssets)
+	router.GET(options.BaseURL+"/racks/:id/network-connections", wrapper.ListRackNetworkConnections)
+	router.POST(options.BaseURL+"/racks/:id/network-connections", wrapper.CreateRackNetworkConnection)
+	router.DELETE(options.BaseURL+"/racks/:id/network-connections/:connectionId", wrapper.DeleteRackNetworkConnection)
 	router.GET(options.BaseURL+"/racks/:id/slots", wrapper.ListRackSlots)
 	router.POST(options.BaseURL+"/racks/:id/slots", wrapper.CreateRackSlot)
 	router.DELETE(options.BaseURL+"/racks/:id/slots/:slotId", wrapper.DeleteRackSlot)

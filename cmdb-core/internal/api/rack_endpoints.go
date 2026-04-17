@@ -6,18 +6,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
-// GetRackNetworkConnections handles GET /racks/:id/network-connections
+// ListRackNetworkConnections handles GET /racks/{id}/network-connections
 // Returns all network connections for a given rack.
-func (s *APIServer) GetRackNetworkConnections(c *gin.Context) {
-	rackID := c.Param("id")
-	if rackID == "" {
-		response.BadRequest(c, "missing rack id")
-		return
-	}
+func (s *APIServer) ListRackNetworkConnections(c *gin.Context, id IdPath) {
+	rackID := uuid.UUID(id).String()
 	tenantID := tenantIDFromContext(c)
 
 	// Fix #11: verify tenant ownership via JOIN with racks table
@@ -73,15 +70,10 @@ func (s *APIServer) GetRackNetworkConnections(c *gin.Context) {
 	response.OK(c, gin.H{"connections": connections})
 }
 
-// CreateRackNetworkConnection handles POST /racks/:id/network-connections
+// CreateRackNetworkConnection handles POST /racks/{id}/network-connections
 // Adds a new network connection record for the rack.
-func (s *APIServer) CreateRackNetworkConnection(c *gin.Context) {
-	rackID := c.Param("id")
-	if rackID == "" {
-		response.BadRequest(c, "missing rack id")
-		return
-	}
-
+func (s *APIServer) CreateRackNetworkConnection(c *gin.Context, id IdPath) {
+	rackID := uuid.UUID(id).String()
 	tenantID := tenantIDFromContext(c)
 
 	var body struct {
@@ -133,15 +125,11 @@ func (s *APIServer) CreateRackNetworkConnection(c *gin.Context) {
 	response.Created(c, gin.H{"id": newID})
 }
 
-// DeleteRackNetworkConnection handles DELETE /racks/:id/network-connections/:connectionId
+// DeleteRackNetworkConnection handles DELETE /racks/{id}/network-connections/{connectionId}
 // Removes a specific network connection by its ID.
-func (s *APIServer) DeleteRackNetworkConnection(c *gin.Context) {
-	rackID := c.Param("id")
-	connectionID := c.Param("connectionId")
-	if connectionID == "" {
-		response.BadRequest(c, "missing connection id")
-		return
-	}
+func (s *APIServer) DeleteRackNetworkConnection(c *gin.Context, id IdPath, connectionId openapi_types.UUID) {
+	rackID := uuid.UUID(id).String()
+	connID := uuid.UUID(connectionId)
 	tenantID := tenantIDFromContext(c)
 
 	// Fix #10: verify the connection belongs to the specified rack and tenant
@@ -150,7 +138,7 @@ func (s *APIServer) DeleteRackNetworkConnection(c *gin.Context) {
 		WHERE id = $1
 		  AND rack_id = $2
 		  AND rack_id IN (SELECT r.id FROM racks r WHERE r.tenant_id = $3 AND r.deleted_at IS NULL)
-	`, connectionID, rackID, tenantID)
+	`, connID, rackID, tenantID)
 	if err != nil {
 		response.InternalError(c, "failed to delete network connection")
 		return
@@ -160,7 +148,6 @@ func (s *APIServer) DeleteRackNetworkConnection(c *gin.Context) {
 		return
 	}
 
-	connID, _ := uuid.Parse(connectionID)
 	s.recordAudit(c, "network_connection.deleted", "topology", "rack_network_connection", connID, nil)
 	c.Status(http.StatusNoContent)
 }

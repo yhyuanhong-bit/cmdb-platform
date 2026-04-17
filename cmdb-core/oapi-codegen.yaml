@@ -30,10 +30,8 @@ output-options:
     - createMaintenanceOrderComment
     - acceptUpgradeRecommendation
     - createItemNote
-    - createRackNetworkConnection
     - createWorkOrderComment
     - deleteAssetDependency
-    - deleteRackNetworkConnection
     - deleteSensor
     - getActivityFeed
     - getAssetRUL
@@ -51,6 +49,5 @@ output-options:
     - sensorHeartbeat
     - updateSensor
     - listAssetDependencies
-    - listRackNetworkConnections
     - listUserSessions
     - listWorkOrderComments
