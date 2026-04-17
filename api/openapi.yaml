@@ -3412,6 +3412,602 @@ paths:
                   data: { $ref: '#/components/schemas/DiscoveryStats' }
                   meta: { $ref: '#/components/schemas/Meta' }
 
+  # ── Asset lifecycle / import / QR / location ───────────────────────────────
+  /assets/import-template:
+    get:
+      operationId: downloadImportTemplate
+      tags: [assets]
+      summary: Download CSV import template for assets
+      responses:
+        '200':
+          description: CSV template stream
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+
+  /assets/{id}/lifecycle:
+    get:
+      operationId: getAssetLifecycle
+      tags: [assets]
+      summary: Return lifecycle status (age, warranty, depreciation, upgrade recommendation)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Asset lifecycle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AssetLifecycle' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /assets/{id}/location-history:
+    get:
+      operationId: getAssetLocationHistory
+      tags: [assets]
+      summary: Recent location change history for an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: History list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/LocationChange' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /assets/{id}/qr-data:
+    get:
+      operationId: getAssetQRData
+      tags: [assets]
+      summary: Return asset payload to encode into a QR code
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: QR payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/QRAssetPayload' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /assets/{id}/confirm-location:
+    post:
+      operationId: confirmAssetLocation
+      tags: [assets]
+      summary: Update asset location from a QR scan
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfirmLocationRequest' }
+      responses:
+        '200':
+          description: Location updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status: { type: string }
+                      rack_id: { type: string, format: uuid }
+                    required: [status, rack_id]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /locations/asset-counts:
+    get:
+      operationId: getLocationAssetCounts
+      tags: [topology]
+      summary: Counts of assets grouped by location
+      responses:
+        '200':
+          description: Location asset counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/LocationAssetCount' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  # ── Upgrade rules CRUD ─────────────────────────────────────────────────────
+  /upgrade-rules:
+    get:
+      operationId: getUpgradeRules
+      tags: [prediction]
+      summary: List upgrade rules for the current tenant
+      responses:
+        '200':
+          description: Upgrade rules
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      rules:
+                        type: array
+                        items: { $ref: '#/components/schemas/UpgradeRule' }
+                    required: [rules]
+                  meta: { $ref: '#/components/schemas/Meta' }
+    post:
+      operationId: createUpgradeRule
+      tags: [prediction]
+      summary: Create a new upgrade rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUpgradeRuleRequest' }
+      responses:
+        '201':
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                    required: [id]
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /upgrade-rules/{id}:
+    put:
+      operationId: updateUpgradeRule
+      tags: [prediction]
+      summary: Update an existing upgrade rule
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUpgradeRuleRequest' }
+      responses:
+        '200':
+          description: Rule updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      updated: { type: boolean }
+                    required: [updated]
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    delete:
+      operationId: deleteUpgradeRule
+      tags: [prediction]
+      summary: Delete an upgrade rule
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Rule deleted
+
+  # ── User roles assignment ─────────────────────────────────────────────────
+  /users/{id}/roles:
+    get:
+      operationId: listUserRoles
+      tags: [identity]
+      summary: List roles assigned to a user
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Role IDs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { type: string, format: uuid }
+                  meta: { $ref: '#/components/schemas/Meta' }
+    post:
+      operationId: assignRoleToUser
+      tags: [identity]
+      summary: Assign a role to a user
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssignRoleRequest' }
+      responses:
+        '200':
+          description: Role assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      assigned: { type: boolean }
+                    required: [assigned]
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /users/{id}/roles/{roleId}:
+    delete:
+      operationId: removeRoleFromUser
+      tags: [identity]
+      summary: Remove a role from a user
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: roleId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Role removed
+
+  # ── Notifications ──────────────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [identity]
+      summary: List unread notifications for the current user
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notification' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /notifications/count:
+    get:
+      operationId: countUnreadNotifications
+      tags: [identity]
+      summary: Count unread notifications for the current user
+      responses:
+        '200':
+          description: Count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      count: { type: integer, format: int64 }
+                    required: [count]
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [identity]
+      summary: Mark a single notification as read
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Marked as read
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [identity]
+      summary: Mark all notifications as read for the current user
+      responses:
+        '204':
+          description: All marked as read
+
+  # ── Racks QR ───────────────────────────────────────────────────────────────
+  /racks/{id}/qr-data:
+    get:
+      operationId: getRackQRData
+      tags: [topology]
+      summary: Return rack payload to encode into a QR code
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: QR payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/QRRackPayload' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Location detection ────────────────────────────────────────────────────
+  /location-detect/diffs:
+    get:
+      operationId: locationDetectGetDiffs
+      tags: [assets]
+      summary: List location discrepancies between CMDB records and detected state
+      responses:
+        '200':
+          description: Diffs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/LocationDiff' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /location-detect/summary:
+    get:
+      operationId: locationDetectGetSummary
+      tags: [assets]
+      summary: Summary stats of the location detection system
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/LocationDetectSummary' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /location-detect/anomalies:
+    get:
+      operationId: locationDetectGetAnomalies
+      tags: [assets]
+      summary: Detected location anomalies
+      responses:
+        '200':
+          description: Anomalies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/LocationAnomaly' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /location-detect/report:
+    get:
+      operationId: locationDetectGetReport
+      tags: [assets]
+      summary: Location governance report over a time window
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 30
+      responses:
+        '200':
+          description: Report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/LocationDetectReport' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  # ── Capacity planning / fleet metrics ─────────────────────────────────────
+  /capacity-planning:
+    get:
+      operationId: getCapacityPlanning
+      tags: [dashboard]
+      summary: Tenant-wide capacity planning snapshot (power/cooling/rack U utilization)
+      responses:
+        '200':
+          description: Capacity snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/CapacityPlanning' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /fleet-metrics:
+    get:
+      operationId: getFleetMetricsSummary
+      tags: [dashboard]
+      summary: Fleet-wide aggregate metrics (CPU, memory, health distribution)
+      responses:
+        '200':
+          description: Fleet metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/FleetMetrics' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  # ── Sync (edge/replica synchronization) ───────────────────────────────────
+  /sync/changes:
+    get:
+      operationId: syncGetChanges
+      tags: [integration]
+      summary: Incremental changes for a given entity type since a version
+      parameters:
+        - name: entity_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [assets, locations, racks, work_orders, alert_events, inventory_tasks, alert_rules, inventory_items, audit_events]
+        - name: since_version
+          in: query
+          schema:
+            type: integer
+            format: int64
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+      responses:
+        '200':
+          description: Change set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SyncChangeSet' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /sync/state:
+    get:
+      operationId: syncGetState
+      tags: [integration]
+      summary: Sync state for all replicas/entity-types
+      responses:
+        '200':
+          description: Sync state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/SyncStateRow' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /sync/conflicts:
+    get:
+      operationId: syncGetConflicts
+      tags: [integration]
+      summary: Pending sync conflicts
+      responses:
+        '200':
+          description: Conflicts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/SyncConflict' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /sync/conflicts/{id}/resolve:
+    post:
+      operationId: syncResolveConflict
+      tags: [integration]
+      summary: Resolve a sync conflict
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SyncResolveRequest' }
+      responses:
+        '204':
+          description: Conflict resolved
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sync/snapshot:
+    get:
+      operationId: syncSnapshot
+      tags: [integration]
+      summary: Full NDJSON snapshot of an entity type for initial sync
+      parameters:
+        - name: entity_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [assets, locations, racks, work_orders, alert_events, inventory_tasks, alert_rules, inventory_items, audit_events]
+      responses:
+        '200':
+          description: NDJSON stream (one JSON object per line)
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /sync/stats:
+    get:
+      operationId: syncStats
+      tags: [integration]
+      summary: Per-entity max versions and per-node sync gaps
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/SyncEntityStats' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
 components:
   securitySchemes:
     BearerAuth:
@@ -4584,3 +5180,275 @@ components:
         approved: { type: integer }
         ignored: { type: integer }
         matched: { type: integer }
+
+    # ── Asset lifecycle / QR / location schemas ────────────────────────────
+    AssetLifecycle:
+      type: object
+      properties:
+        asset_id: { type: string, format: uuid }
+        age_days: { type: integer }
+        age_months: { type: integer }
+        warranty_remaining_days: { type: integer, nullable: true }
+        warranty_status: { type: string, enum: [active, expiring_soon, expired, unknown] }
+        depreciation_pct: { type: number, format: float, nullable: true }
+        upgrade_priority: { type: string, enum: [none, low, medium, high], nullable: true }
+        recommended_action: { type: string, nullable: true }
+      additionalProperties: true
+
+    LocationChange:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        asset_id: { type: string, format: uuid }
+        from_rack_id: { type: string, format: uuid, nullable: true }
+        to_rack_id: { type: string, format: uuid, nullable: true }
+        source: { type: string }
+        detected_at: { type: string, format: date-time }
+        work_order_id: { type: string, format: uuid, nullable: true }
+      additionalProperties: true
+
+    QRAssetPayload:
+      type: object
+      properties:
+        t: { type: string, enum: [asset] }
+        id: { type: string, format: uuid }
+        tag: { type: string }
+        sn: { type: string }
+        name: { type: string }
+      required: [t, id, tag, name]
+
+    QRRackPayload:
+      type: object
+      properties:
+        t: { type: string, enum: [rack] }
+        id: { type: string, format: uuid }
+        name: { type: string }
+        loc: { type: string }
+      required: [t, id, name]
+
+    ConfirmLocationRequest:
+      type: object
+      properties:
+        rack_id: { type: string, format: uuid }
+      required: [rack_id]
+
+    LocationAssetCount:
+      type: object
+      properties:
+        location_id: { type: string, format: uuid }
+        location_name: { type: string }
+        asset_count: { type: integer }
+      required: [location_id, asset_count]
+
+    # ── Upgrade rules ──────────────────────────────────────────────────────
+    UpgradeRule:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        asset_type: { type: string }
+        category: { type: string }
+        metric_name: { type: string }
+        threshold: { type: number, format: double }
+        duration_days: { type: integer }
+        priority: { type: string, enum: [low, medium, high] }
+        recommendation: { type: string }
+        enabled: { type: boolean }
+      required: [id, asset_type, category, priority, enabled]
+
+    CreateUpgradeRuleRequest:
+      type: object
+      properties:
+        asset_type: { type: string }
+        category: { type: string }
+        metric_name: { type: string }
+        threshold: { type: number, format: double }
+        duration_days: { type: integer, default: 7 }
+        priority: { type: string, enum: [low, medium, high], default: medium }
+        recommendation: { type: string }
+        enabled: { type: boolean, default: true }
+      required: [asset_type, category]
+
+    UpdateUpgradeRuleRequest:
+      type: object
+      properties:
+        threshold: { type: number, format: double }
+        duration_days: { type: integer }
+        priority: { type: string, enum: [low, medium, high] }
+        recommendation: { type: string }
+        enabled: { type: boolean }
+
+    # ── Inventory scan ─────────────────────────────────────────────────────
+    ItemScanRecord:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        item_id: { type: string, format: uuid }
+        scanned_by: { type: string, format: uuid }
+        scanned_at: { type: string, format: date-time }
+        location_rack_id: { type: string, format: uuid, nullable: true }
+        note: { type: string, nullable: true }
+      additionalProperties: true
+
+    ItemScanRequest:
+      type: object
+      properties:
+        rack_id: { type: string, format: uuid, nullable: true }
+        note: { type: string }
+
+    # ── Maintenance order comment ──────────────────────────────────────────
+    WorkOrderComment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        work_order_id: { type: string, format: uuid }
+        author_id: { type: string, format: uuid }
+        author_name: { type: string, nullable: true }
+        body: { type: string }
+        created_at: { type: string, format: date-time }
+      required: [id, work_order_id, body, created_at]
+
+    # ── Identity / notifications ───────────────────────────────────────────
+    AssignRoleRequest:
+      type: object
+      properties:
+        role_id: { type: string, format: uuid }
+      required: [role_id]
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        title: { type: string }
+        body: { type: string, nullable: true }
+        resource_type: { type: string, nullable: true }
+        resource_id: { type: string, format: uuid, nullable: true }
+        is_read: { type: boolean }
+        created_at: { type: string, format: date-time }
+      required: [id, type, title, is_read, created_at]
+
+    # ── Location detection ─────────────────────────────────────────────────
+    LocationDiff:
+      type: object
+      additionalProperties: true
+      properties:
+        asset_id: { type: string, format: uuid }
+        recorded_rack_id: { type: string, format: uuid, nullable: true }
+        detected_rack_id: { type: string, format: uuid, nullable: true }
+        reason: { type: string }
+
+    LocationDetectSummary:
+      type: object
+      properties:
+        total_assets: { type: integer, format: int64 }
+        tracked_by_network: { type: integer, format: int64 }
+        relocations_24h: { type: integer, format: int64 }
+        missing: { type: integer, format: int64 }
+        unregistered: { type: integer, format: int64 }
+        coverage_pct: { type: number, format: float }
+
+    LocationAnomaly:
+      type: object
+      additionalProperties: true
+      properties:
+        type: { type: string }
+        asset_id: { type: string, format: uuid, nullable: true }
+        description: { type: string }
+        severity: { type: string, enum: [low, medium, high, critical] }
+
+    LocationDetectReport:
+      type: object
+      properties:
+        period_days: { type: integer }
+        total_assets: { type: integer, format: int64 }
+        tracked_by_network: { type: integer, format: int64 }
+        coverage_pct: { type: string }
+        total_relocations: { type: integer, format: int64 }
+        authorized_relocations: { type: integer, format: int64 }
+        unauthorized_relocations: { type: integer, format: int64 }
+        unregistered_devices: { type: integer, format: int64 }
+        location_alerts: { type: integer, format: int64 }
+        auto_corrections: { type: integer, format: int64 }
+
+    # ── Capacity / fleet ───────────────────────────────────────────────────
+    CapacityPlanning:
+      type: object
+      additionalProperties: true
+      properties:
+        total_racks: { type: integer }
+        used_rack_units: { type: integer }
+        total_rack_units: { type: integer }
+        rack_utilization_pct: { type: number, format: float }
+        power_capacity_kw: { type: number, format: float }
+        power_consumption_kw: { type: number, format: float }
+        power_utilization_pct: { type: number, format: float }
+        projected_full_months: { type: integer, nullable: true }
+
+    FleetMetrics:
+      type: object
+      additionalProperties: true
+      properties:
+        total_assets: { type: integer }
+        avg_cpu_pct: { type: number, format: float }
+        avg_memory_pct: { type: number, format: float }
+        health_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+
+    # ── Sync ───────────────────────────────────────────────────────────────
+    SyncChangeSet:
+      type: object
+      properties:
+        changes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        has_more: { type: boolean }
+        latest_version: { type: integer, format: int64 }
+      required: [changes, has_more, latest_version]
+
+    SyncStateRow:
+      type: object
+      properties:
+        node_id: { type: string }
+        entity_type: { type: string }
+        last_sync_version: { type: integer, format: int64 }
+        last_sync_at: { type: string, format: date-time, nullable: true }
+        status: { type: string }
+        error_message: { type: string, nullable: true }
+
+    SyncConflict:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        entity_type: { type: string }
+        entity_id: { type: string, format: uuid }
+        local_version: { type: integer, format: int64 }
+        remote_version: { type: integer, format: int64 }
+        local_diff: { type: object, additionalProperties: true, nullable: true }
+        remote_diff: { type: object, additionalProperties: true, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    SyncResolveRequest:
+      type: object
+      properties:
+        resolution: { type: string, enum: [local_wins, remote_wins] }
+      required: [resolution]
+
+    SyncEntityStats:
+      type: object
+      properties:
+        entity_type: { type: string }
+        max_version: { type: integer, format: int64 }
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              node_id: { type: string }
+              last_sync_version: { type: integer, format: int64 }
+              gap: { type: integer, format: int64 }
+            required: [node_id, last_sync_version, gap]
+      required: [entity_type, max_version, nodes]
