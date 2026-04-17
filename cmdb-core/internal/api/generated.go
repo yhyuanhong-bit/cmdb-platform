@@ -201,6 +201,27 @@ func (e UpgradeRulePriority) Valid() bool {
 	}
 }
 
+// Defines values for GetActivityFeedParamsTargetType.
+const (
+	GetActivityFeedParamsTargetTypeAsset    GetActivityFeedParamsTargetType = "asset"
+	GetActivityFeedParamsTargetTypeLocation GetActivityFeedParamsTargetType = "location"
+	GetActivityFeedParamsTargetTypeRack     GetActivityFeedParamsTargetType = "rack"
+)
+
+// Valid indicates whether the value is a known member of the GetActivityFeedParamsTargetType enum.
+func (e GetActivityFeedParamsTargetType) Valid() bool {
+	switch e {
+	case GetActivityFeedParamsTargetTypeAsset:
+		return true
+	case GetActivityFeedParamsTargetTypeLocation:
+		return true
+	case GetActivityFeedParamsTargetTypeRack:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ResolveInventoryDiscrepancyJSONBodyAction.
 const (
 	AddFindings ResolveInventoryDiscrepancyJSONBodyAction = "add_findings"
@@ -1058,6 +1079,15 @@ type NotFound = ErrorResponse
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = ErrorResponse
 
+// GetActivityFeedParams defines parameters for GetActivityFeed.
+type GetActivityFeedParams struct {
+	TargetType GetActivityFeedParamsTargetType `form:"target_type" json:"target_type"`
+	TargetId   openapi_types.UUID              `form:"target_id" json:"target_id"`
+}
+
+// GetActivityFeedParamsTargetType defines parameters for GetActivityFeed.
+type GetActivityFeedParamsTargetType string
+
 // ListAssetsParams defines parameters for ListAssets.
 type ListAssetsParams struct {
 	Page         *Page               `form:"page,omitempty" json:"page,omitempty"`
@@ -1501,8 +1531,18 @@ type SyncSnapshotParams struct {
 // SyncSnapshotParamsEntityType defines parameters for SyncSnapshot.
 type SyncSnapshotParamsEntityType string
 
+// ListAssetDependenciesParams defines parameters for ListAssetDependencies.
+type ListAssetDependenciesParams struct {
+	AssetId *openapi_types.UUID `form:"asset_id,omitempty" json:"asset_id,omitempty"`
+}
+
 // CreateAssetDependencyJSONBody defines parameters for CreateAssetDependency.
 type CreateAssetDependencyJSONBody = map[string]interface{}
+
+// GetTopologyGraphParams defines parameters for GetTopologyGraph.
+type GetTopologyGraphParams struct {
+	LocationId *openapi_types.UUID `form:"location_id,omitempty" json:"location_id,omitempty"`
+}
 
 // ListUsersParams defines parameters for ListUsers.
 type ListUsersParams struct {
@@ -2506,6 +2546,9 @@ func (a LocationDiff) MarshalJSON() ([]byte, error) {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Get activity feed for a target (rack, asset, or location)
+	// (GET /activity-feed)
+	GetActivityFeed(c *gin.Context, params GetActivityFeedParams)
 	// List assets with pagination and filters
 	// (GET /assets)
 	ListAssets(c *gin.Context, params ListAssetsParams)
@@ -2539,9 +2582,18 @@ type ServerInterface interface {
 	// Return asset payload to encode into a QR code
 	// (GET /assets/{id}/qr-data)
 	GetAssetQRData(c *gin.Context, id IdPath)
+	// Get upgrade recommendations for an asset
+	// (GET /assets/{id}/upgrade-recommendations)
+	GetAssetUpgradeRecommendations(c *gin.Context, id IdPath)
+	// Accept an upgrade recommendation
+	// (POST /assets/{id}/upgrade-recommendations/{category}/accept)
+	AcceptUpgradeRecommendation(c *gin.Context, id IdPath, category string)
 	// Query audit events
 	// (GET /audit/events)
 	QueryAuditEvents(c *gin.Context, params QueryAuditEventsParams)
+	// Get detailed audit event
+	// (GET /audit/events/{id})
+	GetAuditEventDetail(c *gin.Context, id IdPath)
 	// Change the authenticated user's password
 	// (POST /auth/change-password)
 	ChangePassword(c *gin.Context)
@@ -2821,6 +2873,9 @@ type ServerInterface interface {
 	// List predictions for a specific asset
 	// (GET /prediction/results/ci/{ciId})
 	ListPredictionsByAsset(c *gin.Context, ciId openapi_types.UUID)
+	// Get remaining useful life for an asset
+	// (GET /prediction/rul/{id})
+	GetAssetRUL(c *gin.Context, id IdPath)
 	// Get quality dashboard with aggregate scores
 	// (GET /quality/dashboard)
 	GetQualityDashboard(c *gin.Context)
@@ -2857,6 +2912,9 @@ type ServerInterface interface {
 	// List assets in a rack
 	// (GET /racks/{id}/assets)
 	ListRackAssets(c *gin.Context, id IdPath)
+	// Get maintenance history for a rack
+	// (GET /racks/{id}/maintenance)
+	GetRackMaintenance(c *gin.Context, id IdPath)
 	// List network connections in a rack
 	// (GET /racks/{id}/network-connections)
 	ListRackNetworkConnections(c *gin.Context, id IdPath)
@@ -2926,9 +2984,18 @@ type ServerInterface interface {
 	// Get system health status
 	// (GET /system/health)
 	GetSystemHealth(c *gin.Context)
+	// List asset dependencies
+	// (GET /topology/dependencies)
+	ListAssetDependencies(c *gin.Context, params ListAssetDependenciesParams)
 	// Create asset dependency
 	// (POST /topology/dependencies)
 	CreateAssetDependency(c *gin.Context)
+	// Delete asset dependency
+	// (DELETE /topology/dependencies/{id})
+	DeleteAssetDependency(c *gin.Context, id IdPath)
+	// Get topology graph for a location
+	// (GET /topology/graph)
+	GetTopologyGraph(c *gin.Context, params GetTopologyGraphParams)
 	// List upgrade rules for the current tenant
 	// (GET /upgrade-rules)
 	GetUpgradeRules(c *gin.Context)
@@ -2965,6 +3032,9 @@ type ServerInterface interface {
 	// Remove a role from a user
 	// (DELETE /users/{id}/roles/{roleId})
 	RemoveRoleFromUser(c *gin.Context, id IdPath, roleId openapi_types.UUID)
+	// List active sessions for a user
+	// (GET /users/{id}/sessions)
+	ListUserSessions(c *gin.Context, id IdPath)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -2975,6 +3045,56 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// GetActivityFeed operation middleware
+func (siw *ServerInterfaceWrapper) GetActivityFeed(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetActivityFeedParams
+
+	// ------------- Required query parameter "target_type" -------------
+
+	if paramValue := c.Query("target_type"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument target_type is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "target_type", c.Request.URL.Query(), &params.TargetType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter target_type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "target_id" -------------
+
+	if paramValue := c.Query("target_id"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument target_id is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "target_id", c.Request.URL.Query(), &params.TargetId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter target_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetActivityFeed(c, params)
+}
 
 // ListAssets operation middleware
 func (siw *ServerInterfaceWrapper) ListAssets(c *gin.Context) {
@@ -3287,6 +3407,67 @@ func (siw *ServerInterfaceWrapper) GetAssetQRData(c *gin.Context) {
 	siw.Handler.GetAssetQRData(c, id)
 }
 
+// GetAssetUpgradeRecommendations operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetUpgradeRecommendations(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAssetUpgradeRecommendations(c, id)
+}
+
+// AcceptUpgradeRecommendation operation middleware
+func (siw *ServerInterfaceWrapper) AcceptUpgradeRecommendation(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "category" -------------
+	var category string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "category", c.Param("category"), &category, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter category: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AcceptUpgradeRecommendation(c, id, category)
+}
+
 // QueryAuditEvents operation middleware
 func (siw *ServerInterfaceWrapper) QueryAuditEvents(c *gin.Context) {
 
@@ -3345,6 +3526,32 @@ func (siw *ServerInterfaceWrapper) QueryAuditEvents(c *gin.Context) {
 	}
 
 	siw.Handler.QueryAuditEvents(c, params)
+}
+
+// GetAuditEventDetail operation middleware
+func (siw *ServerInterfaceWrapper) GetAuditEventDetail(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAuditEventDetail(c, id)
 }
 
 // ChangePassword operation middleware
@@ -5689,6 +5896,32 @@ func (siw *ServerInterfaceWrapper) ListPredictionsByAsset(c *gin.Context) {
 	siw.Handler.ListPredictionsByAsset(c, ciId)
 }
 
+// GetAssetRUL operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetRUL(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAssetRUL(c, id)
+}
+
 // GetQualityDashboard operation middleware
 func (siw *ServerInterfaceWrapper) GetQualityDashboard(c *gin.Context) {
 
@@ -5922,6 +6155,32 @@ func (siw *ServerInterfaceWrapper) ListRackAssets(c *gin.Context) {
 	}
 
 	siw.Handler.ListRackAssets(c, id)
+}
+
+// GetRackMaintenance operation middleware
+func (siw *ServerInterfaceWrapper) GetRackMaintenance(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetRackMaintenance(c, id)
 }
 
 // ListRackNetworkConnections operation middleware
@@ -6499,6 +6758,34 @@ func (siw *ServerInterfaceWrapper) GetSystemHealth(c *gin.Context) {
 	siw.Handler.GetSystemHealth(c)
 }
 
+// ListAssetDependencies operation middleware
+func (siw *ServerInterfaceWrapper) ListAssetDependencies(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAssetDependenciesParams
+
+	// ------------- Optional query parameter "asset_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "asset_id", c.Request.URL.Query(), &params.AssetId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter asset_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAssetDependencies(c, params)
+}
+
 // CreateAssetDependency operation middleware
 func (siw *ServerInterfaceWrapper) CreateAssetDependency(c *gin.Context) {
 
@@ -6512,6 +6799,60 @@ func (siw *ServerInterfaceWrapper) CreateAssetDependency(c *gin.Context) {
 	}
 
 	siw.Handler.CreateAssetDependency(c)
+}
+
+// DeleteAssetDependency operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAssetDependency(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteAssetDependency(c, id)
+}
+
+// GetTopologyGraph operation middleware
+func (siw *ServerInterfaceWrapper) GetTopologyGraph(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTopologyGraphParams
+
+	// ------------- Optional query parameter "location_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location_id", c.Request.URL.Query(), &params.LocationId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter location_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTopologyGraph(c, params)
 }
 
 // GetUpgradeRules operation middleware
@@ -6812,6 +7153,32 @@ func (siw *ServerInterfaceWrapper) RemoveRoleFromUser(c *gin.Context) {
 	siw.Handler.RemoveRoleFromUser(c, id, roleId)
 }
 
+// ListUserSessions operation middleware
+func (siw *ServerInterfaceWrapper) ListUserSessions(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListUserSessions(c, id)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -6839,6 +7206,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.GET(options.BaseURL+"/activity-feed", wrapper.GetActivityFeed)
 	router.GET(options.BaseURL+"/assets", wrapper.ListAssets)
 	router.POST(options.BaseURL+"/assets", wrapper.CreateAsset)
 	router.GET(options.BaseURL+"/assets/import-template", wrapper.DownloadImportTemplate)
@@ -6850,7 +7218,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/assets/:id/lifecycle", wrapper.GetAssetLifecycle)
 	router.GET(options.BaseURL+"/assets/:id/location-history", wrapper.GetAssetLocationHistory)
 	router.GET(options.BaseURL+"/assets/:id/qr-data", wrapper.GetAssetQRData)
+	router.GET(options.BaseURL+"/assets/:id/upgrade-recommendations", wrapper.GetAssetUpgradeRecommendations)
+	router.POST(options.BaseURL+"/assets/:id/upgrade-recommendations/:category/accept", wrapper.AcceptUpgradeRecommendation)
 	router.GET(options.BaseURL+"/audit/events", wrapper.QueryAuditEvents)
+	router.GET(options.BaseURL+"/audit/events/:id", wrapper.GetAuditEventDetail)
 	router.POST(options.BaseURL+"/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
 	router.GET(options.BaseURL+"/auth/me", wrapper.GetCurrentUser)
@@ -6944,6 +7315,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)
 	router.GET(options.BaseURL+"/prediction/results/ci/:ciId", wrapper.ListPredictionsByAsset)
+	router.GET(options.BaseURL+"/prediction/rul/:id", wrapper.GetAssetRUL)
 	router.GET(options.BaseURL+"/quality/dashboard", wrapper.GetQualityDashboard)
 	router.GET(options.BaseURL+"/quality/history/:id", wrapper.GetAssetQualityHistory)
 	router.GET(options.BaseURL+"/quality/rules", wrapper.ListQualityRules)
@@ -6956,6 +7328,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/racks/:id", wrapper.GetRack)
 	router.PUT(options.BaseURL+"/racks/:id", wrapper.UpdateRack)
 	router.GET(options.BaseURL+"/racks/:id/assets", wrapper.ListRackAssets)
+	router.GET(options.BaseURL+"/racks/:id/maintenance", wrapper.GetRackMaintenance)
 	router.GET(options.BaseURL+"/racks/:id/network-connections", wrapper.ListRackNetworkConnections)
 	router.POST(options.BaseURL+"/racks/:id/network-connections", wrapper.CreateRackNetworkConnection)
 	router.DELETE(options.BaseURL+"/racks/:id/network-connections/:connectionId", wrapper.DeleteRackNetworkConnection)
@@ -6979,7 +7352,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/sync/state", wrapper.SyncGetState)
 	router.GET(options.BaseURL+"/sync/stats", wrapper.SyncStats)
 	router.GET(options.BaseURL+"/system/health", wrapper.GetSystemHealth)
+	router.GET(options.BaseURL+"/topology/dependencies", wrapper.ListAssetDependencies)
 	router.POST(options.BaseURL+"/topology/dependencies", wrapper.CreateAssetDependency)
+	router.DELETE(options.BaseURL+"/topology/dependencies/:id", wrapper.DeleteAssetDependency)
+	router.GET(options.BaseURL+"/topology/graph", wrapper.GetTopologyGraph)
 	router.GET(options.BaseURL+"/upgrade-rules", wrapper.GetUpgradeRules)
 	router.POST(options.BaseURL+"/upgrade-rules", wrapper.CreateUpgradeRule)
 	router.DELETE(options.BaseURL+"/upgrade-rules/:id", wrapper.DeleteUpgradeRule)
@@ -6992,4 +7368,5 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/users/:id/roles", wrapper.ListUserRoles)
 	router.POST(options.BaseURL+"/users/:id/roles", wrapper.AssignRoleToUser)
 	router.DELETE(options.BaseURL+"/users/:id/roles/:roleId", wrapper.RemoveRoleFromUser)
+	router.GET(options.BaseURL+"/users/:id/sessions", wrapper.ListUserSessions)
 }

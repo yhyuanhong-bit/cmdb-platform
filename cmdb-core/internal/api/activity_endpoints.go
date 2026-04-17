@@ -12,15 +12,10 @@ import (
 // GetActivityFeed handles GET /activity-feed?target_type=rack&target_id=uuid
 // Returns a unified activity feed (audit events, alert events, work order logs)
 // for a given target, ordered by timestamp descending.
-func (s *APIServer) GetActivityFeed(c *gin.Context) {
+func (s *APIServer) GetActivityFeed(c *gin.Context, params GetActivityFeedParams) {
 	tenantID := tenantIDFromContext(c)
-	targetType := c.Query("target_type")
-	targetID := c.Query("target_id")
-
-	if targetType == "" || targetID == "" {
-		response.BadRequest(c, "target_type and target_id query params are required")
-		return
-	}
+	targetType := string(params.TargetType)
+	targetID := uuid.UUID(params.TargetId).String()
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT event_type, action, description, timestamp, severity, operator
@@ -113,13 +108,9 @@ func (s *APIServer) GetActivityFeed(c *gin.Context) {
 
 // GetAuditEventDetail handles GET /audit/events/:id
 // Returns full detail of a single audit event including operator info and diff.
-func (s *APIServer) GetAuditEventDetail(c *gin.Context) {
+func (s *APIServer) GetAuditEventDetail(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
-	eventID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid event id")
-		return
-	}
+	eventID := uuid.UUID(id)
 
 	row := s.pool.QueryRow(c.Request.Context(), `
 		SELECT
@@ -139,14 +130,14 @@ func (s *APIServer) GetAuditEventDetail(c *gin.Context) {
 		WHERE ae.id = $1 AND ae.tenant_id = $2
 	`, eventID, tenantID)
 
-	var id, action, module, targetType, source, displayName, email string
+	var eventIDStr, action, module, targetType, source, displayName, email string
 	var diff []byte
 	var createdAt time.Time
 	var targetID pgtype.UUID
 	var operatorID pgtype.UUID
 
 	if err := row.Scan(
-		&id, &action, &module, &targetType,
+		&eventIDStr, &action, &module, &targetType,
 		&targetID, &operatorID,
 		&diff, &source, &createdAt,
 		&displayName, &email,
@@ -169,7 +160,7 @@ func (s *APIServer) GetAuditEventDetail(c *gin.Context) {
 
 	response.OK(c, gin.H{
 		"event": gin.H{
-			"id":             id,
+			"id":             eventIDStr,
 			"action":         action,
 			"module":         module,
 			"target_type":    targetType,

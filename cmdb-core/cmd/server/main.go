@@ -353,21 +353,9 @@ func main() {
 	v1.GET("/racks/stats", apiServer.GetRackStats)
 	v1.GET("/assets/lifecycle-stats", apiServer.GetAssetLifecycleStats)
 	v1.GET("/monitoring/alerts/trend", apiServer.GetAlertsTrend)
-	v1.GET("/racks/:id/maintenance", apiServer.GetRackMaintenance)
-
-	// Phase 3 routes
-	v1.GET("/topology/dependencies", apiServer.GetAssetDependencies)
-	v1.POST("/topology/dependencies", apiServer.CreateAssetDependency)
-	v1.DELETE("/topology/dependencies/:id", apiServer.DeleteAssetDependency)
-	v1.GET("/topology/graph", apiServer.GetTopologyGraph)
-	v1.GET("/activity-feed", apiServer.GetActivityFeed)
-	v1.GET("/audit/events/:id", apiServer.GetAuditEventDetail)
 
 	// Phase 4 Group 1 routes
-	v1.GET("/prediction/rul/:id", apiServer.GetAssetRUL)
 	v1.GET("/prediction/failure-distribution", apiServer.GetFailureDistribution)
-	v1.GET("/assets/:id/upgrade-recommendations", apiServer.GetAssetUpgradeRecommendations)
-	v1.POST("/assets/:id/upgrade-recommendations/:category/accept", apiServer.AcceptUpgradeRecommendation)
 
 	// One-time data migration: draft/pending → submitted
 	v1.POST("/admin/migrate-statuses", func(c *gin.Context) {
@@ -381,7 +369,6 @@ func main() {
 	// Notification routes — auto-registered via api.RegisterHandlers (Track A)
 
 	// Phase 4 Group 2 routes
-	v1.GET("/users/:id/sessions", apiServer.GetUserSessions)
 	v1.POST("/auth/change-password", apiServer.ChangePassword)
 
 	// Discovery + credentials routes are registered via api.RegisterHandlers (line 207)

@@ -10,15 +10,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAssetDependencies handles GET /topology/dependencies?asset_id=
+// ListAssetDependencies handles GET /topology/dependencies?asset_id=
 // Returns all dependency edges where the asset is either the source or target.
-func (s *APIServer) GetAssetDependencies(c *gin.Context) {
+// asset_id is optional in the OpenAPI spec but required here — the handler
+// always scopes to one asset.
+func (s *APIServer) ListAssetDependencies(c *gin.Context, params ListAssetDependenciesParams) {
 	tenantID := tenantIDFromContext(c)
-	assetID := c.Query("asset_id")
-	if assetID == "" {
+	if params.AssetId == nil {
 		response.BadRequest(c, "asset_id query param required")
 		return
 	}
+	assetID := uuid.UUID(*params.AssetId).String()
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT
@@ -110,16 +112,12 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 
 // DeleteAssetDependency handles DELETE /topology/dependencies/:id
 // Removes a dependency edge by its ID.
-func (s *APIServer) DeleteAssetDependency(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "missing id")
-		return
-	}
+func (s *APIServer) DeleteAssetDependency(c *gin.Context, id IdPath) {
+	depID := uuid.UUID(id)
 
 	tag, err := s.pool.Exec(c.Request.Context(), `
 		DELETE FROM asset_dependencies WHERE id = $1
-	`, id)
+	`, depID)
 	if err != nil {
 		response.InternalError(c, "failed to delete dependency")
 		return
@@ -129,7 +127,6 @@ func (s *APIServer) DeleteAssetDependency(c *gin.Context) {
 		return
 	}
 
-	depID, _ := uuid.Parse(id)
 	s.recordAudit(c, "dependency.deleted", "topology", "asset_dependency", depID, nil)
 	c.Status(http.StatusNoContent)
 }
@@ -151,13 +148,15 @@ type topologyAsset struct {
 
 // GetTopologyGraph handles GET /topology/graph?location_id=
 // Returns a graph of asset nodes and dependency edges for a given location.
-func (s *APIServer) GetTopologyGraph(c *gin.Context) {
+// location_id is optional in the OpenAPI spec but required here — the graph
+// is always scoped to one location.
+func (s *APIServer) GetTopologyGraph(c *gin.Context, params GetTopologyGraphParams) {
 	tenantID := tenantIDFromContext(c)
-	locationID := c.Query("location_id")
-	if locationID == "" {
+	if params.LocationId == nil {
 		response.BadRequest(c, "location_id query param required")
 		return
 	}
+	locationID := uuid.UUID(*params.LocationId).String()
 
 	// Step 1: fetch assets in the location and its descendants (up to 200)
 	assetRows, err := s.pool.Query(c.Request.Context(), `

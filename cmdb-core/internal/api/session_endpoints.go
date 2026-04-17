@@ -5,6 +5,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // userSession represents one session record returned by GetUserSessions.
@@ -33,14 +34,10 @@ func deviceIcon(deviceType string) string {
 	}
 }
 
-// GetUserSessions handles GET /users/:id/sessions
+// ListUserSessions handles GET /users/:id/sessions
 // Returns the 20 most recent sessions for a given user.
-func (s *APIServer) GetUserSessions(c *gin.Context) {
-	userID := c.Param("id")
-	if userID == "" {
-		response.BadRequest(c, "missing user id")
-		return
-	}
+func (s *APIServer) ListUserSessions(c *gin.Context, id IdPath) {
+	userID := uuid.UUID(id)
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT id, ip_address, device_type, browser, created_at, last_active_at, is_current

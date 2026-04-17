@@ -4,18 +4,3 @@ generate:
   models: true
   gin-server: true
   embedded-spec: false
-output-options:
-  # These operations are documented in openapi.yaml but registered manually
-  # in cmd/server/main.go (outside api.RegisterHandlers). They intentionally
-  # do not implement the generated ServerInterface signature.
-  exclude-operation-ids:
-    - acceptUpgradeRecommendation
-    - deleteAssetDependency
-    - getActivityFeed
-    - getAssetRUL
-    - getAssetUpgradeRecommendations
-    - getAuditEventDetail
-    - getRackMaintenance
-    - getTopologyGraph
-    - listAssetDependencies
-    - listUserSessions

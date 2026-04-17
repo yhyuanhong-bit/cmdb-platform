@@ -2263,14 +2263,17 @@ paths:
     get:
       operationId: getActivityFeed
       tags: [audit]
-      summary: Get activity feed for a resource
+      summary: Get activity feed for a target (rack, asset, or location)
       parameters:
-        - name: resource_type
+        - name: target_type
           in: query
+          required: true
           schema:
             type: string
-        - name: resource_id
+            enum: [rack, asset, location]
+        - name: target_id
           in: query
+          required: true
           schema:
             type: string
             format: uuid

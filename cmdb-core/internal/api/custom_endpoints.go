@@ -368,13 +368,9 @@ type rackMaintenanceRecord struct {
 
 // GetRackMaintenance handles GET /racks/:id/maintenance
 // Returns the last 20 work orders for assets installed in the given rack.
-func (s *APIServer) GetRackMaintenance(c *gin.Context) {
+func (s *APIServer) GetRackMaintenance(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
-	rackID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		response.BadRequest(c, "invalid rack id")
-		return
-	}
+	rackID := uuid.UUID(id)
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT

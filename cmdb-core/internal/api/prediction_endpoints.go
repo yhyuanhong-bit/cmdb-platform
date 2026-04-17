@@ -36,18 +36,14 @@ func parseJSONAttributes(data []byte) map[string]string {
 
 // GetAssetRUL handles GET /prediction/rul/:id
 // Calculates the Remaining Useful Life for an asset based on warranty and expected lifespan.
-func (s *APIServer) GetAssetRUL(c *gin.Context) {
-	assetID := c.Param("id")
-	if assetID == "" {
-		response.BadRequest(c, "missing asset id")
-		return
-	}
+func (s *APIServer) GetAssetRUL(c *gin.Context, id IdPath) {
+	assetID := uuid.UUID(id)
 
 	var (
-		name        string
-		assetType   string
-		attrBytes   []byte
-		createdAt   time.Time
+		name      string
+		assetType string
+		attrBytes []byte
+		createdAt time.Time
 	)
 	err := s.pool.QueryRow(c.Request.Context(), `
 		SELECT name, type, attributes, created_at
@@ -251,8 +247,8 @@ func (s *APIServer) GetFailureDistribution(c *gin.Context) {
 // GetAssetUpgradeRecommendations handles GET /assets/:id/upgrade-recommendations
 // Returns upgrade recommendations for an asset based on metric thresholds.
 // Enhancements: EOL/warranty filter, P95 check, BIA priority boost, cost estimate, warranty warning.
-func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
-	assetID := c.Param("id")
+func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context, id IdPath) {
+	assetID := uuid.UUID(id)
 	tenantID := tenantIDFromContext(c)
 
 	// Get asset type, attributes, lifecycle fields, BIA level, and model
@@ -531,9 +527,8 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context) {
 
 // AcceptUpgradeRecommendation handles POST /assets/:id/upgrade-recommendations/:category/accept
 // Creates a work order for the accepted upgrade recommendation.
-func (s *APIServer) AcceptUpgradeRecommendation(c *gin.Context) {
-	assetID := c.Param("id")
-	category := c.Param("category")
+func (s *APIServer) AcceptUpgradeRecommendation(c *gin.Context, id IdPath, category string) {
+	assetUUID := uuid.UUID(id)
 	tenantID := tenantIDFromContext(c)
 	userID := userIDFromContext(c)
 
@@ -546,7 +541,7 @@ func (s *APIServer) AcceptUpgradeRecommendation(c *gin.Context) {
 		JOIN assets a ON a.type = ur.asset_type AND a.tenant_id = ur.tenant_id
 		WHERE a.id = $1 AND ur.category = $2 AND ur.tenant_id = $3 AND ur.enabled = true
 		LIMIT 1
-	`, assetID, category, tenantID).Scan(&ruleRecommendation, &assetType)
+	`, assetUUID, category, tenantID).Scan(&ruleRecommendation, &assetType)
 	if err != nil {
 		response.NotFound(c, "no matching upgrade rule found")
 		return
@@ -554,11 +549,6 @@ func (s *APIServer) AcceptUpgradeRecommendation(c *gin.Context) {
 
 	// Create work order via service layer
 	title := fmt.Sprintf("Upgrade %s %s: %s", assetType, category, ruleRecommendation)
-	assetUUID, err := uuid.Parse(assetID)
-	if err != nil {
-		response.BadRequest(c, "invalid asset ID")
-		return
-	}
 
 	order, err := s.maintenanceSvc.Create(c.Request.Context(), tenantID, userID, maintenance.CreateOrderRequest{
 		Title:    title,
