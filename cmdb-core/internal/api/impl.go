@@ -8,11 +8,9 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/bia"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/discovery"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
 	location_detect "github.com/cmdb-platform/cmdb-core/internal/domain/location_detect"
@@ -41,13 +39,13 @@ type APIServer struct {
 	cfg               *config.Config
 	eventBus          eventbus.Bus
 	authSvc           authService
-	identitySvc       *identity.Service
+	identitySvc       identityService
 	topologySvc       *topology.Service
 	assetSvc          *asset.Service
 	maintenanceSvc    *maintenance.Service
 	monitoringSvc     *monitoring.Service
 	inventorySvc      *inventory.Service
-	auditSvc          *audit.Service
+	auditSvc          auditService
 	dashboardSvc      *dashboard.Service
 	predictionSvc     *prediction.Service
 	integrationSvc    *integration.Service
@@ -64,13 +62,13 @@ func NewAPIServer(
 	cfg *config.Config,
 	bus eventbus.Bus,
 	authSvc authService,
-	identitySvc *identity.Service,
+	identitySvc identityService,
 	topologySvc *topology.Service,
 	assetSvc *asset.Service,
 	maintenanceSvc *maintenance.Service,
 	monitoringSvc *monitoring.Service,
 	inventorySvc *inventory.Service,
-	auditSvc *audit.Service,
+	auditSvc auditService,
 	dashboardSvc *dashboard.Service,
 	predictionSvc *prediction.Service,
 	integrationSvc *integration.Service,
@@ -194,6 +192,9 @@ func uuidPtrFromPGUUID(pg pgtype.UUID) *uuid.UUID {
 func (s *APIServer) recordAudit(c *gin.Context, action, module, targetType string, targetID uuid.UUID, diff map[string]any) {
 	tenantID := tenantIDFromContext(c)
 	operatorID := userIDFromContext(c)
+	if s.auditSvc == nil {
+		return
+	}
 	if err := s.auditSvc.Record(c.Request.Context(), tenantID, action, module, targetType, targetID, operatorID, diff, "api"); err != nil {
 		// Log but don't fail the request
 		zap.L().Error("audit record error", zap.Error(err))
