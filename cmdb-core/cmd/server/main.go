@@ -345,33 +345,12 @@ func main() {
 	// Register all API routes via generated handler
 	api.RegisterHandlers(v1, apiServer)
 
-	// Energy monitoring endpoints (breakdown and trend are auto-registered
-	// via RegisterHandlers; only /energy/summary remains custom)
-	v1.GET("/energy/summary", apiServer.GetEnergySummary)
-
-	// Custom endpoints (Phase 2)
-	v1.GET("/racks/stats", apiServer.GetRackStats)
-	v1.GET("/assets/lifecycle-stats", apiServer.GetAssetLifecycleStats)
-	v1.GET("/monitoring/alerts/trend", apiServer.GetAlertsTrend)
-
-	// Phase 4 Group 1 routes
-	v1.GET("/prediction/failure-distribution", apiServer.GetFailureDistribution)
-
-	// One-time data migration: draft/pending → submitted
+	// One-time data migration: draft/pending → submitted (admin-only, not in spec)
 	v1.POST("/admin/migrate-statuses", func(c *gin.Context) {
 		res1, _ := pool.Exec(c.Request.Context(), "UPDATE work_orders SET status = 'submitted' WHERE status IN ('draft', 'pending')")
 		res2, _ := pool.Exec(c.Request.Context(), "UPDATE work_orders SET status = 'verified' WHERE status = 'closed'")
 		c.JSON(200, gin.H{"migrated_to_submitted": res1.RowsAffected(), "migrated_to_verified": res2.RowsAffected()})
 	})
-
-	// Role assignment + user deletion routes — auto-registered via api.RegisterHandlers (Track A)
-
-	// Notification routes — auto-registered via api.RegisterHandlers (Track A)
-
-	// Phase 4 Group 2 routes
-	v1.POST("/auth/change-password", apiServer.ChangePassword)
-
-	// Discovery + credentials routes are registered via api.RegisterHandlers (line 207)
 
 	// MCP Server
 	if cfg.MCPEnabled {
