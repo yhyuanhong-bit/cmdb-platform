@@ -170,15 +170,15 @@ func rotateAdapters(ctx context.Context, pool *pgxpool.Pool, ring *crypto.KeyRin
 	prefix := activeVersionPrefix(active)
 
 	// Count: rows with non-NULL ciphertext that do NOT already start with
-	// the active version prefix. starts_with lets Postgres use a simple
-	// byte comparison; bytea indexing isn't useful here because the
-	// cardinality is low but the query is also bounded by tenant scope
-	// at the UPDATE site.
+	// the active version prefix. position($1 IN bytea) returns the 1-based
+	// offset of the first occurrence, or 0 if not found — so "does not
+	// start with prefix" is position != 1. Postgres has no starts_with
+	// overload for bytea, which is why we don't use that here.
 	err := pool.QueryRow(ctx, `
 		SELECT COUNT(*)
 		FROM integration_adapters
 		WHERE config_encrypted IS NOT NULL
-		  AND NOT starts_with(config_encrypted, $1)
+		  AND position($1 IN config_encrypted) <> 1
 	`, prefix).Scan(&stats.candidate)
 	if err != nil {
 		return stats, fmt.Errorf("count adapters: %w", err)
@@ -192,7 +192,7 @@ func rotateAdapters(ctx context.Context, pool *pgxpool.Pool, ring *crypto.KeyRin
 		SELECT id, tenant_id, config_encrypted
 		FROM integration_adapters
 		WHERE config_encrypted IS NOT NULL
-		  AND NOT starts_with(config_encrypted, $1)
+		  AND position($1 IN config_encrypted) <> 1
 	`, prefix)
 	if err != nil {
 		return stats, fmt.Errorf("select adapters: %w", err)
@@ -238,7 +238,7 @@ func rotateAdapters(ctx context.Context, pool *pgxpool.Pool, ring *crypto.KeyRin
 			SET config_encrypted = $1
 			WHERE id = $2 AND tenant_id = $3
 			  AND config_encrypted IS NOT NULL
-			  AND NOT starts_with(config_encrypted, $4)
+			  AND position($4 IN config_encrypted) <> 1
 		`, newCt, id, tenantID, prefix)
 		if err != nil {
 			stats.errors++
@@ -274,7 +274,7 @@ func rotateWebhooks(ctx context.Context, pool *pgxpool.Pool, ring *crypto.KeyRin
 		SELECT COUNT(*)
 		FROM webhook_subscriptions
 		WHERE secret_encrypted IS NOT NULL
-		  AND NOT starts_with(secret_encrypted, $1)
+		  AND position($1 IN secret_encrypted) <> 1
 	`, prefix).Scan(&stats.candidate)
 	if err != nil {
 		return stats, fmt.Errorf("count webhooks: %w", err)
@@ -288,7 +288,7 @@ func rotateWebhooks(ctx context.Context, pool *pgxpool.Pool, ring *crypto.KeyRin
 		SELECT id, tenant_id, secret_encrypted
 		FROM webhook_subscriptions
 		WHERE secret_encrypted IS NOT NULL
-		  AND NOT starts_with(secret_encrypted, $1)
+		  AND position($1 IN secret_encrypted) <> 1
 	`, prefix)
 	if err != nil {
 		return stats, fmt.Errorf("select webhooks: %w", err)
@@ -327,7 +327,7 @@ func rotateWebhooks(ctx context.Context, pool *pgxpool.Pool, ring *crypto.KeyRin
 			SET secret_encrypted = $1
 			WHERE id = $2 AND tenant_id = $3
 			  AND secret_encrypted IS NOT NULL
-			  AND NOT starts_with(secret_encrypted, $4)
+			  AND position($4 IN secret_encrypted) <> 1
 		`, newCt, id, tenantID, prefix)
 		if err != nil {
 			stats.errors++
