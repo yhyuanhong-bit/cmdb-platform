@@ -12,6 +12,9 @@ import (
 )
 
 // CustomRESTAdapter implements MetricsAdapter for any REST API with configurable JSON path.
+// It consults the package-level SSRF guard (configured via SetNetGuard at
+// startup) to reject loopback/metadata/private targets — both at URL-parse
+// time and again at DialContext to defeat DNS rebinding.
 type CustomRESTAdapter struct{}
 
 type customRESTConfig struct {
@@ -39,6 +42,12 @@ func (a *CustomRESTAdapter) Fetch(ctx context.Context, endpoint string, config j
 		method = strings.ToUpper(cfg.Method)
 	}
 
+	// SSRF defense — refuse loopback/metadata/private targets before dial.
+	guard := GetNetGuard()
+	if err := guard.ValidateURL(targetURL); err != nil {
+		return nil, fmt.Errorf("custom_rest: target rejected by netguard: %w", err)
+	}
+
 	var bodyReader *strings.Reader
 	if cfg.Body != "" {
 		bodyReader = strings.NewReader(cfg.Body)
@@ -59,7 +68,12 @@ func (a *CustomRESTAdapter) Fetch(ctx context.Context, endpoint string, config j
 		req.Header.Set(k, v)
 	}
 
-	client := http.Client{Timeout: 15 * time.Second}
+	// Guarded transport re-checks the resolved IP at dial time (defeats
+	// DNS rebinding between ValidateURL and Do()).
+	client := http.Client{
+		Transport: guard.SafeTransport(nil),
+		Timeout:   15 * time.Second,
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("http request: %w", err)
@@ -147,3 +161,4 @@ func (a *CustomRESTAdapter) Fetch(ctx context.Context, endpoint string, config j
 
 	return points, nil
 }
+

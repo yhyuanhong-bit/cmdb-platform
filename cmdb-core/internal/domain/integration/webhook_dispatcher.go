@@ -14,6 +14,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -23,16 +24,27 @@ import (
 type WebhookDispatcher struct {
 	queries *dbgen.Queries
 	cipher  crypto.Cipher
+	guard   *netguard.Guard
 	client  *http.Client
 }
 
-// NewWebhookDispatcher creates a new dispatcher.
-func NewWebhookDispatcher(queries *dbgen.Queries, cipher crypto.Cipher) *WebhookDispatcher {
+// NewWebhookDispatcher creates a new dispatcher. The guard is required: it
+// enforces SSRF protection at URL-parse time and again at DialContext time
+// (defeats DNS rebinding). Pass netguard.Permissive() in tests that need
+// to hit 127.0.0.1.
+func NewWebhookDispatcher(queries *dbgen.Queries, cipher crypto.Cipher, guard *netguard.Guard) *WebhookDispatcher {
+	if guard == nil {
+		// Fail-closed: a misconfigured guard must NOT silently drop to
+		// default transport that would allow loopback dials.
+		panic("netguard Guard is required for WebhookDispatcher")
+	}
 	return &WebhookDispatcher{
 		queries: queries,
 		cipher:  cipher,
+		guard:   guard,
 		client: &http.Client{
-			Timeout: 10 * time.Second,
+			Transport: guard.SafeTransport(nil),
+			Timeout:   10 * time.Second,
 		},
 	}
 }
@@ -43,7 +55,7 @@ func (d *WebhookDispatcher) HandleEvent(ctx context.Context, event eventbus.Even
 	tenantUUID, _ := uuid.Parse(event.TenantID)
 	subs, err := d.queries.ListWebhooksByEvent(ctx, dbgen.ListWebhooksByEventParams{
 		TenantID: tenantUUID,
-		Column2: event.Subject,
+		Column2:  event.Subject,
 	})
 	if err != nil {
 		zap.L().Error("failed to list webhooks for event", zap.String("subject", event.Subject), zap.Error(err))
@@ -101,6 +113,22 @@ func (d *WebhookDispatcher) deliver(sub dbgen.WebhookSubscription, event eventbu
 		"timestamp":  time.Now().UTC().Format(time.RFC3339),
 	}
 	body, _ := json.Marshal(deliveryPayload)
+
+	// SSRF pre-check: reject loopback/metadata/private targets before we
+	// ever dial. Record a synthetic delivery row so operators see the
+	// rejection in the delivery log instead of silent drops.
+	if err := d.guard.ValidateURL(sub.Url); err != nil {
+		zap.L().Warn("webhook url rejected by netguard",
+			zap.String("url", sub.Url), zap.String("webhook_id", sub.ID.String()), zap.Error(err))
+		_ = d.queries.CreateDelivery(ctx, dbgen.CreateDeliveryParams{
+			SubscriptionID: sub.ID,
+			EventType:      event.Subject,
+			Payload:        body,
+			StatusCode:     pgtype.Int4{Int32: 0, Valid: true},
+			ResponseBody:   pgtype.Text{String: "url_rejected: " + err.Error(), Valid: true},
+		})
+		return
+	}
 
 	// Attempt delivery with retry (3 attempts: immediate, 1s, 5s)
 	delays := []time.Duration{0, 1 * time.Second, 5 * time.Second}

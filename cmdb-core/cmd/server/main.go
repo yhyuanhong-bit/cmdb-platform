@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"github.com/cmdb-platform/cmdb-core/internal/api"
+	"github.com/cmdb-platform/cmdb-core/internal/auth"
 	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
@@ -41,6 +42,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/cache"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	cmdbws "github.com/cmdb-platform/cmdb-core/internal/websocket"
 	"github.com/gin-gonic/gin"
@@ -234,8 +236,25 @@ func main() {
 		defer natsBus.Close()
 	}
 
+	// 7b. Build SSRF guard from config — outbound integration calls,
+	// webhook deliveries, and custom REST adapters all route their URLs
+	// through this guard to block loopback / RFC1918 / cloud-metadata
+	// targets. Admin allowlist (CMDB_INTEGRATION_ALLOWED_HOSTS) bypasses
+	// for intentional on-prem integrations.
+	netGuard, err := netguard.New(nil, cfg.IntegrationAllowedOutboundHosts)
+	if err != nil {
+		zap.L().Fatal("failed to build netguard", zap.Error(err))
+	}
+	workflows.SetNetGuard(netGuard)
+	zap.L().Info("SSRF outbound guard configured",
+		zap.Int("allow_hosts", len(cfg.IntegrationAllowedOutboundHosts)))
+
 	// 8. Create all services
-	authSvc := identity.NewAuthService(queries, redisClient, cfg.JWTSecret, pool)
+	// Redis-backed JWT blacklist — revocations (logout, admin-issued) self-
+	// expire along with the tokens.
+	blacklist := auth.NewBlacklist(redisClient)
+	authSvc := identity.NewAuthService(queries, redisClient, cfg.JWTSecret, pool).
+		WithBlacklist(blacklist)
 	identitySvc := identity.NewService(queries)
 	topologySvc := topology.NewService(queries, pool)
 	assetSvc := asset.NewService(queries, bus, pool)
@@ -330,7 +349,7 @@ func main() {
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
-		cipher,
+		cipher, netGuard,
 	)
 
 	// 10. Set up Gin router
@@ -351,9 +370,15 @@ func main() {
 	// Prometheus metrics endpoint (no auth)
 	router.GET("/metrics", telemetry.MetricsHandler())
 
-	// API v1 group with auth middleware that skips public endpoints
+	// API v1 group with auth middleware that skips public endpoints.
+	// The blacklist revokes access tokens on logout; PasswordChangedAt
+	// invalidates tokens issued before the user last rotated their password.
 	v1 := router.Group("/api/v1")
-	authMW := middleware.Auth(cfg.JWTSecret)
+	authMW := middleware.Auth(
+		cfg.JWTSecret,
+		middleware.WithBlacklist(blacklist),
+		middleware.WithPasswordChangeChecker(authSvc),
+	)
 	v1.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
 		if path == "/api/v1/auth/login" || path == "/api/v1/auth/refresh" || path == "/api/v1/ws" {
@@ -400,6 +425,11 @@ func main() {
 
 	// Register all API routes via generated handler
 	api.RegisterHandlers(v1, apiServer)
+
+	// POST /auth/logout — registered manually because the OpenAPI spec has
+	// not been regenerated yet for this endpoint. Goes through the same
+	// auth chain as every other v1 route (auth -> RBAC -> handler).
+	v1.POST("/auth/logout", apiServer.Logout)
 
 	// One-time data migration: draft/pending → submitted (admin-only, not in spec)
 	v1.POST("/admin/migrate-statuses", func(c *gin.Context) {
@@ -481,7 +511,7 @@ func main() {
 
 	// Webhook dispatcher
 	if bus != nil {
-		dispatcher := integration.NewWebhookDispatcher(queries, cipher)
+		dispatcher := integration.NewWebhookDispatcher(queries, cipher, netGuard)
 		webhookSubjects := []string{"asset.>", "maintenance.>", "alert.>", "prediction.>"}
 		for _, subj := range webhookSubjects {
 			subj := subj

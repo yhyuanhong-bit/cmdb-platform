@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -164,10 +166,29 @@ func (mockCipher) Decrypt(ciphertext []byte) ([]byte, error) {
 // ---------------------------------------------------------------------------
 
 func newIntegrationTestServer(svc *mockIntegrationService, audit *mockAuditService) *APIServer {
+	// Tests default to no netGuard (nil) so unrelated suites can continue to
+	// use plain example.com URLs without DNS roundtrips. Suites that
+	// exercise SSRF behaviour install a real guard via the returned server.
 	return &APIServer{
 		integrationSvc: svc,
 		auditSvc:       audit,
 		cipher:         mockCipher{},
+	}
+}
+
+// newIntegrationTestServerWithGuard builds a server wired to a real
+// netguard for SSRF-specific tests.
+func newIntegrationTestServerWithGuard(t *testing.T, svc *mockIntegrationService, audit *mockAuditService) *APIServer {
+	t.Helper()
+	g, err := netguard.New(nil, nil)
+	if err != nil {
+		t.Fatalf("netguard.New: %v", err)
+	}
+	return &APIServer{
+		integrationSvc: svc,
+		auditSvc:       audit,
+		cipher:         mockCipher{},
+		netGuard:       g,
 	}
 }
 
@@ -667,3 +688,158 @@ func TestDeleteWebhook_CrossTenant_404(t *testing.T) {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// SSRF defense (netguard wiring)
+// ---------------------------------------------------------------------------
+
+func TestCreateAdapter_BlockedEndpoint_400(t *testing.T) {
+	tenantID := uuid.New()
+	svc := &mockIntegrationService{
+		// createAdapterFn intentionally absent — if we ever get past the
+		// netguard check, the mock panics the test.
+	}
+	s := newIntegrationTestServerWithGuard(t, svc, &mockAuditService{})
+
+	badEndpoint := "http://169.254.169.254/latest/meta-data/"
+	body := CreateAdapterJSONRequestBody{
+		Name:      "meta",
+		Type:      "custom_rest",
+		Direction: "outbound",
+		Endpoint:  &badEndpoint,
+	}
+	rec := runHandler(t, s.CreateAdapter, http.MethodPost, "/integration/adapters", body,
+		nil,
+		map[string]string{"tenant_id": tenantID.String()})
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "blocked network") {
+		t.Errorf("expected body to mention blocked network, got %q", rec.Body.String())
+	}
+}
+
+func TestCreateAdapter_BlockedConfigURL_400(t *testing.T) {
+	tenantID := uuid.New()
+	svc := &mockIntegrationService{}
+	s := newIntegrationTestServerWithGuard(t, svc, &mockAuditService{})
+
+	// Endpoint OK, but config.url is the metadata endpoint — blocked.
+	endpoint := "https://metrics.example.com/api"
+	cfg := map[string]interface{}{"url": "http://10.0.0.1:8080/exfil"}
+	body := CreateAdapterJSONRequestBody{
+		Name:      "sneaky",
+		Type:      "custom_rest",
+		Direction: "outbound",
+		Endpoint:  &endpoint,
+		Config:    &cfg,
+	}
+	rec := runHandler(t, s.CreateAdapter, http.MethodPost, "/integration/adapters", body,
+		nil,
+		map[string]string{"tenant_id": tenantID.String()})
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "blocked network") {
+		t.Errorf("expected body to mention blocked network, got %q", rec.Body.String())
+	}
+}
+
+func TestUpdateAdapter_BlockedEndpoint_400(t *testing.T) {
+	adapterID := uuid.New()
+	tenantID := uuid.New()
+	svc := &mockIntegrationService{
+		getAdapterFn: func(context.Context, uuid.UUID, uuid.UUID) (dbgen.IntegrationAdapter, error) {
+			return stubAdapter(adapterID, tenantID, "existing"), nil
+		},
+	}
+	s := newIntegrationTestServerWithGuard(t, svc, &mockAuditService{})
+
+	bad := "http://127.0.0.1:8080/"
+	body := UpdateAdapterJSONRequestBody{Endpoint: &bad}
+	rec := runHandler(t, func(c *gin.Context) {
+		s.UpdateAdapter(c, IdPath(adapterID))
+	}, http.MethodPatch, "/integration/adapters/"+adapterID.String(), body,
+		idParams(adapterID),
+		map[string]string{"tenant_id": tenantID.String()})
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateWebhook_BlockedURL_400(t *testing.T) {
+	tenantID := uuid.New()
+	svc := &mockIntegrationService{}
+	s := newIntegrationTestServerWithGuard(t, svc, &mockAuditService{})
+
+	// Valid scheme, but private IP.
+	body := CreateWebhookJSONRequestBody{
+		Name:   "leak",
+		Url:    "http://192.168.1.10/ingest",
+		Events: []string{"alert.fired"},
+	}
+	rec := runHandler(t, s.CreateWebhook, http.MethodPost, "/integration/webhooks", body,
+		nil,
+		map[string]string{"tenant_id": tenantID.String()})
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "blocked network") {
+		t.Errorf("expected body to mention blocked network, got %q", rec.Body.String())
+	}
+}
+
+func TestUpdateWebhook_BlockedURL_400(t *testing.T) {
+	webhookID := uuid.New()
+	tenantID := uuid.New()
+	svc := &mockIntegrationService{
+		getWebhookFn: func(context.Context, uuid.UUID, uuid.UUID) (dbgen.WebhookSubscription, error) {
+			return stubWebhook(webhookID, tenantID, "hook"), nil
+		},
+	}
+	s := newIntegrationTestServerWithGuard(t, svc, &mockAuditService{})
+
+	bad := "http://169.254.169.254/token"
+	body := UpdateWebhookJSONRequestBody{Url: &bad}
+	rec := runHandler(t, func(c *gin.Context) {
+		s.UpdateWebhook(c, IdPath(webhookID))
+	}, http.MethodPatch, "/integration/webhooks/"+webhookID.String(), body,
+		idParams(webhookID),
+		map[string]string{"tenant_id": tenantID.String()})
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateAdapter_PublicEndpoint_Allowed(t *testing.T) {
+	// Sanity check: a public IP literal must NOT trip the guard.
+	adapterID := uuid.New()
+	tenantID := uuid.New()
+	svc := &mockIntegrationService{
+		createAdapterFn: func(_ context.Context, p dbgen.CreateAdapterParams) (dbgen.IntegrationAdapter, error) {
+			return stubAdapter(adapterID, tenantID, p.Name), nil
+		},
+	}
+	s := newIntegrationTestServerWithGuard(t, svc, &mockAuditService{})
+
+	endpoint := "https://1.1.1.1/api"
+	body := CreateAdapterJSONRequestBody{
+		Name:      "public",
+		Type:      "custom_rest",
+		Direction: "outbound",
+		Endpoint:  &endpoint,
+	}
+	rec := runHandler(t, s.CreateAdapter, http.MethodPost, "/integration/adapters", body,
+		nil,
+		map[string]string{"tenant_id": tenantID.String()})
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", rec.Code, rec.Body.String())
+	}
+}
+

@@ -3,7 +3,10 @@ package workflows
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
+
+	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
 )
 
 // MetricPoint is the unified internal format for all metrics adapters.
@@ -45,4 +48,48 @@ func SupportedAdapterTypes() []string {
 		types = append(types, k)
 	}
 	return types
+}
+
+// Package-level SSRF guard shared by outbound adapters. Initialised from
+// main.go via SetNetGuard at startup. If the application forgets to
+// configure one, GetNetGuard returns a Guard backed by DefaultBlockedCIDRs —
+// this keeps us secure-by-default even when wiring is missed.
+var (
+	netGuardMu      sync.RWMutex
+	netGuardCurrent *netguard.Guard
+)
+
+// SetNetGuard installs the process-wide Guard used by outbound adapters.
+// Call this once at startup; subsequent calls replace the previous guard
+// (useful for tests).
+func SetNetGuard(g *netguard.Guard) {
+	netGuardMu.Lock()
+	defer netGuardMu.Unlock()
+	netGuardCurrent = g
+}
+
+// GetNetGuard returns the active Guard. Falls back to a defaults-only Guard
+// if none was configured, so adapters always have SSRF protection.
+func GetNetGuard() *netguard.Guard {
+	netGuardMu.RLock()
+	g := netGuardCurrent
+	netGuardMu.RUnlock()
+	if g != nil {
+		return g
+	}
+	// Lazily initialise a default guard — the CIDRs are static, so this
+	// cannot fail. If it somehow does, fall back to Permissive rather than
+	// panicking the request path; a startup log warning in main.go makes
+	// the misconfiguration visible.
+	fallback, err := netguard.New(nil, nil)
+	if err != nil {
+		return netguard.Permissive()
+	}
+	netGuardMu.Lock()
+	if netGuardCurrent == nil {
+		netGuardCurrent = fallback
+	}
+	g = netGuardCurrent
+	netGuardMu.Unlock()
+	return g
 }

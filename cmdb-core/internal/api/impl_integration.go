@@ -16,6 +16,19 @@ import (
 // Integration endpoints
 // ---------------------------------------------------------------------------
 
+// extractConfigURL looks for the common "url" key in an adapter config map
+// (used by CustomRESTAdapter as an endpoint override). Returns "" if the
+// key is absent or not a string, in which case there is nothing additional
+// to SSRF-check.
+func extractConfigURL(cfg map[string]interface{}) string {
+	if v, ok := cfg["url"]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
 // ListAdapters returns all integration adapters for the tenant.
 // (GET /integration/adapters)
 func (s *APIServer) ListAdapters(c *gin.Context) {
@@ -36,6 +49,25 @@ func (s *APIServer) CreateAdapter(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request body")
 		return
+	}
+
+	// SSRF defense: any URL caller is about to persist is resolved now
+	// and rejected if it targets a blocked network (loopback, RFC1918,
+	// link-local, cloud metadata, ...). Admin allowlist in config
+	// bypasses for intentional on-prem integrations.
+	if req.Endpoint != nil && *req.Endpoint != "" && s.netGuard != nil {
+		if err := s.netGuard.ValidateURL(*req.Endpoint); err != nil {
+			response.BadRequest(c, "endpoint resolves to a blocked network")
+			return
+		}
+	}
+	if req.Config != nil && s.netGuard != nil {
+		if u := extractConfigURL(*req.Config); u != "" {
+			if err := s.netGuard.ValidateURL(u); err != nil {
+				response.BadRequest(c, "adapter config url resolves to a blocked network")
+				return
+			}
+		}
 	}
 
 	tenantID := tenantIDFromContext(c)
@@ -111,6 +143,15 @@ func (s *APIServer) CreateWebhook(c *gin.Context) {
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 		response.BadRequest(c, "invalid webhook url: must be http(s) URL with host")
 		return
+	}
+
+	// SSRF defense: reject targets that resolve to loopback/metadata/
+	// private networks. Admin allowlist bypasses.
+	if s.netGuard != nil {
+		if err := s.netGuard.ValidateURL(req.Url); err != nil {
+			response.BadRequest(c, "webhook url resolves to a blocked network")
+			return
+		}
 	}
 
 	tenantID := tenantIDFromContext(c)
@@ -207,10 +248,25 @@ func (s *APIServer) UpdateAdapter(c *gin.Context, id IdPath) {
 		diff["direction"] = *req.Direction
 	}
 	if req.Endpoint != nil {
+		// SSRF defense on endpoint change.
+		if *req.Endpoint != "" && s.netGuard != nil {
+			if err := s.netGuard.ValidateURL(*req.Endpoint); err != nil {
+				response.BadRequest(c, "endpoint resolves to a blocked network")
+				return
+			}
+		}
 		params.Endpoint = pgtype.Text{String: *req.Endpoint, Valid: true}
 		diff["endpoint"] = *req.Endpoint
 	}
 	if req.Config != nil {
+		if s.netGuard != nil {
+			if u := extractConfigURL(*req.Config); u != "" {
+				if err := s.netGuard.ValidateURL(u); err != nil {
+					response.BadRequest(c, "adapter config url resolves to a blocked network")
+					return
+				}
+			}
+		}
 		configBytes, err := json.Marshal(*req.Config)
 		if err != nil {
 			response.BadRequest(c, "invalid adapter config")
@@ -298,6 +354,13 @@ func (s *APIServer) UpdateWebhook(c *gin.Context, id IdPath) {
 		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 			response.BadRequest(c, "invalid webhook url: must be http(s) URL with host")
 			return
+		}
+		// SSRF defense on URL change.
+		if s.netGuard != nil {
+			if err := s.netGuard.ValidateURL(*req.Url); err != nil {
+				response.BadRequest(c, "webhook url resolves to a blocked network")
+				return
+			}
 		}
 		params.Url = pgtype.Text{String: *req.Url, Valid: true}
 		diff["url"] = *req.Url

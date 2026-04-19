@@ -18,10 +18,14 @@ import (
 // permsCacheTTL is how long merged permissions stay in Redis.
 const permsCacheTTL = 5 * time.Minute
 
-// publicPaths that bypass RBAC entirely.
+// publicPaths that bypass RBAC entirely. These routes either don't require
+// authentication at all (login, refresh, ws) or are authenticated-but-
+// self-service so every signed-in user must be able to reach them regardless
+// of RBAC grants (logout).
 var publicPaths = map[string]bool{
 	"/api/v1/auth/login":   true,
 	"/api/v1/auth/refresh": true,
+	"/api/v1/auth/logout":  true,
 	"/api/v1/ws":           true,
 	"/healthz":             true,
 	"/metrics":             true,

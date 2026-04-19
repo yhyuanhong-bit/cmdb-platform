@@ -120,6 +120,22 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Revoke the current access token and all refresh tokens
+      description: |
+        Adds the current access token's jti to the Redis blacklist and
+        deletes every outstanding refresh token for the calling user. Use
+        this when a user actively signs out so that a stolen bearer token
+        cannot continue to authenticate until its natural expiry.
+      responses:
+        '204':
+          description: Logged out
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /auth/change-password:
     post:
       operationId: changePassword

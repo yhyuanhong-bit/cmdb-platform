@@ -1,12 +1,20 @@
 package middleware
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func TestGenerateAndValidateJWT(t *testing.T) {
@@ -141,5 +149,222 @@ func TestValidateJWT_MalformedTokenTable(t *testing.T) {
 				t.Errorf("expected error for malformed token %q", tt.token)
 			}
 		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Part A: JTI + IAT round-trip
+// ---------------------------------------------------------------------------
+
+const testSecret = "test-secret-that-is-at-least-32-chars"
+
+func issueWithJTI(t *testing.T, id string, iat, exp time.Time) string {
+	t.Helper()
+	tok, err := GenerateJWT(JWTClaims{
+		UserID:    "user-123",
+		Username:  "admin",
+		TenantID:  "tenant-456",
+		ID:        id,
+		IssuedAt:  iat.Unix(),
+		ExpiresAt: exp.Unix(),
+	}, testSecret)
+	if err != nil {
+		t.Fatalf("GenerateJWT: %v", err)
+	}
+	return tok
+}
+
+func TestJWT_RoundTripsJTI(t *testing.T) {
+	jti := uuid.New().String()
+	iat := time.Now()
+	tok := issueWithJTI(t, jti, iat, iat.Add(15*time.Minute))
+
+	parsed, err := validateJWT(tok, testSecret)
+	if err != nil {
+		t.Fatalf("validateJWT: %v", err)
+	}
+	if parsed.ID != jti {
+		t.Errorf("jti = %q, want %q", parsed.ID, jti)
+	}
+	if _, err := uuid.Parse(parsed.ID); err != nil {
+		t.Errorf("jti is not a valid uuid: %v", err)
+	}
+}
+
+func TestJWT_RoundTripsIAT(t *testing.T) {
+	iat := time.Now()
+	tok := issueWithJTI(t, uuid.New().String(), iat, iat.Add(15*time.Minute))
+
+	parsed, err := validateJWT(tok, testSecret)
+	if err != nil {
+		t.Fatalf("validateJWT: %v", err)
+	}
+	delta := parsed.IssuedAt - iat.Unix()
+	if delta < -2 || delta > 2 {
+		t.Errorf("iat drift = %ds, want <= 2s", delta)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Part C: middleware blacklist + password-change checks
+// ---------------------------------------------------------------------------
+
+type stubBlacklist struct {
+	revoked map[string]bool
+	err     error
+}
+
+func (s *stubBlacklist) IsRevoked(_ context.Context, jti string) (bool, error) {
+	if s.err != nil {
+		return false, s.err
+	}
+	return s.revoked[jti], nil
+}
+
+type stubPwdChecker struct {
+	changedAt time.Time
+	err       error
+}
+
+func (s *stubPwdChecker) PasswordChangedAt(_ context.Context, _ string) (time.Time, error) {
+	if s.err != nil {
+		return time.Time{}, s.err
+	}
+	return s.changedAt, nil
+}
+
+func runAuth(t *testing.T, mw gin.HandlerFunc, bearer string) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req, _ := http.NewRequest(http.MethodGet, "/api/v1/ping", nil)
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
+	}
+	c.Request = req
+	mw(c)
+	// If middleware aborted, handler chain ends here.
+	if !c.IsAborted() {
+		c.Writer.WriteHeader(http.StatusOK)
+		_, _ = c.Writer.Write([]byte(`{"ok":true}`))
+	}
+	return rec
+}
+
+func TestAuthMiddleware_RejectsRevokedJTI(t *testing.T) {
+	jti := uuid.New().String()
+	tok := issueWithJTI(t, jti, time.Now(), time.Now().Add(15*time.Minute))
+	bl := &stubBlacklist{revoked: map[string]bool{jti: true}}
+
+	mw := Auth(testSecret, WithBlacklist(bl))
+	rec := runAuth(t, mw, tok)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+	var body struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if body.Error.Code != "TOKEN_REVOKED" {
+		t.Errorf("error.code = %q, want TOKEN_REVOKED", body.Error.Code)
+	}
+}
+
+func TestAuthMiddleware_AllowsUnrevokedJTI(t *testing.T) {
+	jti := uuid.New().String()
+	tok := issueWithJTI(t, jti, time.Now(), time.Now().Add(15*time.Minute))
+	bl := &stubBlacklist{revoked: map[string]bool{}}
+
+	mw := Auth(testSecret, WithBlacklist(bl))
+	rec := runAuth(t, mw, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200. body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAuthMiddleware_BlacklistErrorFailsOpen(t *testing.T) {
+	jti := uuid.New().String()
+	tok := issueWithJTI(t, jti, time.Now(), time.Now().Add(15*time.Minute))
+	bl := &stubBlacklist{err: errors.New("redis down")}
+
+	mw := Auth(testSecret, WithBlacklist(bl))
+	rec := runAuth(t, mw, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected fail-open on blacklist error, got %d", rec.Code)
+	}
+}
+
+func TestAuthMiddleware_RejectsTokenIssuedBeforePasswordChange(t *testing.T) {
+	iat := time.Now().Add(-10 * time.Minute)
+	tok := issueWithJTI(t, uuid.New().String(), iat, time.Now().Add(5*time.Minute))
+	pwd := &stubPwdChecker{changedAt: time.Now().Add(-5 * time.Minute)}
+
+	mw := Auth(testSecret, WithPasswordChangeChecker(pwd))
+	rec := runAuth(t, mw, tok)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+	var body struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if body.Error.Code != "TOKEN_OUTDATED" {
+		t.Errorf("error.code = %q, want TOKEN_OUTDATED", body.Error.Code)
+	}
+}
+
+func TestAuthMiddleware_AllowsTokenIssuedAfterPasswordChange(t *testing.T) {
+	pwdChanged := time.Now().Add(-10 * time.Minute)
+	tok := issueWithJTI(t, uuid.New().String(), time.Now(), time.Now().Add(5*time.Minute))
+	pwd := &stubPwdChecker{changedAt: pwdChanged}
+
+	mw := Auth(testSecret, WithPasswordChangeChecker(pwd))
+	rec := runAuth(t, mw, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200. body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAuthMiddleware_PasswordCheckerErrorFailsOpen(t *testing.T) {
+	tok := issueWithJTI(t, uuid.New().String(), time.Now(), time.Now().Add(5*time.Minute))
+	pwd := &stubPwdChecker{err: errors.New("db down")}
+
+	mw := Auth(testSecret, WithPasswordChangeChecker(pwd))
+	rec := runAuth(t, mw, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected fail-open on pwd-checker error, got %d", rec.Code)
+	}
+}
+
+func TestAuthMiddleware_SetsJTIAndExpOnContext(t *testing.T) {
+	jti := uuid.New().String()
+	exp := time.Now().Add(15 * time.Minute)
+	tok := issueWithJTI(t, jti, time.Now(), exp)
+
+	mw := Auth(testSecret)
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req, _ := http.NewRequest(http.MethodGet, "/api/v1/ping", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	c.Request = req
+	mw(c)
+
+	if c.IsAborted() {
+		t.Fatalf("middleware aborted unexpectedly. body=%s", rec.Body.String())
+	}
+	if got := c.GetString("jti"); got != jti {
+		t.Errorf("context jti = %q, want %q", got, jti)
+	}
+	if got, _ := c.Get("token_exp"); got.(int64) != exp.Unix() {
+		t.Errorf("context token_exp = %v, want %d", got, exp.Unix())
 	}
 }

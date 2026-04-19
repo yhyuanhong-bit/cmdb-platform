@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -10,19 +11,67 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // JWTClaims holds the custom claims embedded in a JWT token.
+//
+// ID (the standard "jti" claim) uniquely identifies each issued token; it is
+// used to revoke individual access tokens via Redis blacklist on logout.
+// IssuedAt (the standard "iat" claim) records when the token was minted; it
+// lets the server reject tokens issued before a user's last password change.
 type JWTClaims struct {
 	UserID    string `json:"user_id"`
 	Username  string `json:"username"`
 	TenantID  string `json:"tenant_id"`
 	DeptID    string `json:"dept_id,omitempty"`
+	ID        string `json:"jti,omitempty"`
+	IssuedAt  int64  `json:"iat,omitempty"`
 	ExpiresAt int64  `json:"exp"`
 }
 
+// RevocationChecker is implemented by auth.Blacklist (and test doubles).
+// Defined here to avoid an import cycle between middleware and auth packages.
+type RevocationChecker interface {
+	IsRevoked(ctx context.Context, jti string) (bool, error)
+}
+
+// PasswordChangeChecker reports the timestamp of a user's most recent
+// password change. Tokens issued before that moment are rejected.
+type PasswordChangeChecker interface {
+	PasswordChangedAt(ctx context.Context, userID string) (time.Time, error)
+}
+
+// AuthOption configures optional behaviour of the Auth middleware.
+type AuthOption func(*authConfig)
+
+type authConfig struct {
+	blacklist  RevocationChecker
+	pwdChecker PasswordChangeChecker
+}
+
+// WithBlacklist installs a revocation checker. When set, the middleware
+// rejects tokens whose jti has been revoked.
+func WithBlacklist(b RevocationChecker) AuthOption {
+	return func(c *authConfig) { c.blacklist = b }
+}
+
+// WithPasswordChangeChecker installs a password-rotation checker. When set,
+// the middleware rejects tokens issued before the user's last password
+// change.
+func WithPasswordChangeChecker(p PasswordChangeChecker) AuthOption {
+	return func(c *authConfig) { c.pwdChecker = p }
+}
+
 // Auth returns a Gin middleware that validates JWT Bearer tokens using HMAC-SHA256.
-func Auth(secret string) gin.HandlerFunc {
+// Optional checkers (blacklist, password-change) layer on top: when nil, those
+// checks are skipped, which keeps existing tests and dev setups working without
+// a Redis/DB connection.
+func Auth(secret string, opts ...AuthOption) gin.HandlerFunc {
+	cfg := &authConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if !strings.HasPrefix(header, "Bearer ") {
@@ -45,11 +94,50 @@ func Auth(secret string) gin.HandlerFunc {
 			return
 		}
 
+		// Revocation check via Redis blacklist. A Redis outage fails OPEN with
+		// a loud warning so dev environments stay usable; production should
+		// alert on this log line.
+		if cfg.blacklist != nil && claims.ID != "" {
+			revoked, rerr := cfg.blacklist.IsRevoked(c.Request.Context(), claims.ID)
+			switch {
+			case rerr != nil:
+				zap.L().Warn("auth middleware: blacklist unavailable, failing open",
+					zap.String("jti", claims.ID),
+					zap.Error(rerr))
+			case revoked:
+				response.Err(c, 401, "TOKEN_REVOKED", "token has been revoked")
+				c.Abort()
+				return
+			}
+		}
+
+		// Password-rotation check. Any token minted before the user last
+		// rotated their password is rejected.
+		if cfg.pwdChecker != nil && claims.IssuedAt > 0 {
+			pwdChangedAt, perr := cfg.pwdChecker.PasswordChangedAt(c.Request.Context(), claims.UserID)
+			switch {
+			case perr != nil:
+				zap.L().Warn("auth middleware: password-change check failed, failing open",
+					zap.String("user_id", claims.UserID),
+					zap.Error(perr))
+			case !pwdChangedAt.IsZero() && claims.IssuedAt < pwdChangedAt.Unix():
+				response.Err(c, 401, "TOKEN_OUTDATED", "token was issued before last password change")
+				c.Abort()
+				return
+			}
+		}
+
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
 		c.Set("tenant_id", claims.TenantID)
 		if claims.DeptID != "" {
 			c.Set("dept_id", claims.DeptID)
+		}
+		if claims.ID != "" {
+			c.Set("jti", claims.ID)
+		}
+		if claims.ExpiresAt > 0 {
+			c.Set("token_exp", claims.ExpiresAt)
 		}
 
 		c.Next()

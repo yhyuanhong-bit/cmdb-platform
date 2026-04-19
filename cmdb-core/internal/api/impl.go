@@ -20,6 +20,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -54,6 +55,7 @@ type APIServer struct {
 	syncSvc           *sync.Service
 	locationDetectSvc *location_detect.Service
 	cipher            crypto.Cipher
+	netGuard          *netguard.Guard
 }
 
 // NewAPIServer constructs an APIServer with all required domain services.
@@ -78,6 +80,7 @@ func NewAPIServer(
 	syncSvc *sync.Service,
 	locationDetectSvc *location_detect.Service,
 	cipher crypto.Cipher,
+	netGuard *netguard.Guard,
 ) *APIServer {
 	return &APIServer{
 		pool:              pool,
@@ -100,6 +103,7 @@ func NewAPIServer(
 		syncSvc:           syncSvc,
 		locationDetectSvc: locationDetectSvc,
 		cipher:            cipher,
+		netGuard:          netGuard,
 	}
 }
 

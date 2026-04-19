@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,7 +24,22 @@ const (
 	accessTokenTTL  = 15 * time.Minute
 	refreshTokenTTL = 7 * 24 * time.Hour
 	refreshPrefix   = "refresh:"
+	// refreshUserIndexPrefix keys a Redis Set of refresh token keys owned by
+	// a given user, so that logout and password-change flows can invalidate
+	// every outstanding refresh token in one call.
+	refreshUserIndexPrefix = "refresh_index:user:"
+	// pwdChangedCachePrefix caches users.password_changed_at so that every
+	// authenticated request does not hit the DB. Bust on password change.
+	pwdChangedCachePrefix = "pwd_changed:"
+	pwdChangedCacheTTL    = 60 * time.Second
 )
+
+// Blacklist is the subset of *auth.Blacklist needed by AuthService. A narrow
+// interface keeps the domain package decoupled from the auth package's
+// concrete Redis client.
+type Blacklist interface {
+	Revoke(ctx context.Context, jti string, expiresAt time.Time) error
+}
 
 // AuthService handles authentication and token management.
 type AuthService struct {
@@ -31,6 +47,7 @@ type AuthService struct {
 	redis     *redis.Client
 	jwtSecret string
 	pool      *pgxpool.Pool
+	blacklist Blacklist
 }
 
 // NewAuthService creates a new AuthService.
@@ -41,6 +58,13 @@ func NewAuthService(queries *dbgen.Queries, rdb *redis.Client, jwtSecret string,
 		jwtSecret: jwtSecret,
 		pool:      pool,
 	}
+}
+
+// WithBlacklist installs a token blacklist. Logout uses it to revoke the
+// current access token's jti. Safe to call with nil to disable (tests).
+func (s *AuthService) WithBlacklist(b Blacklist) *AuthService {
+	s.blacklist = b
+	return s
 }
 
 // Login authenticates a user by username and password and returns tokens.
@@ -110,6 +134,14 @@ func (s *AuthService) recordSession(ctx context.Context, userID uuid.UUID, clien
 }
 
 // ChangePassword validates the current password and sets a new one.
+//
+// On success it also:
+//  1. Bumps users.password_changed_at — tokens issued before this point are
+//     rejected by the auth middleware.
+//  2. Revokes every outstanding refresh token for the user.
+//
+// The access-token revocation is handled implicitly by the password_changed_at
+// check (no blacklist write per-jti is needed).
 func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error {
 	user, err := s.queries.GetUser(ctx, userID)
 	if err != nil {
@@ -123,9 +155,34 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 	if s.pool != nil {
-		_, err = s.pool.Exec(ctx, `UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`, string(hash), userID)
+		if _, err = s.pool.Exec(ctx,
+			`UPDATE users SET password_hash = $1, password_changed_at = now(), updated_at = now() WHERE id = $2`,
+			string(hash), userID); err != nil {
+			return fmt.Errorf("failed to update password: %w", err)
+		}
 	}
-	return err
+	// Best-effort refresh-token revocation and password-change cache bust.
+	if s.redis != nil {
+		s.revokeAllRefreshTokens(ctx, userID)
+		// Bust any cached password_changed_at so the middleware picks up the
+		// new value immediately rather than after the cache TTL.
+		_ = s.redis.Del(ctx, pwdChangedCachePrefix+userID.String()).Err()
+	}
+	return nil
+}
+
+// Logout revokes the access token identified by jti (via Redis blacklist)
+// and deletes every outstanding refresh token for the user.
+func (s *AuthService) Logout(ctx context.Context, userID uuid.UUID, jti string, tokenExpiresAt time.Time) error {
+	if s.blacklist != nil && jti != "" {
+		if err := s.blacklist.Revoke(ctx, jti, tokenExpiresAt); err != nil {
+			return fmt.Errorf("failed to revoke access token: %w", err)
+		}
+	}
+	if s.redis != nil && userID != uuid.Nil {
+		s.revokeAllRefreshTokens(ctx, userID)
+	}
+	return nil
 }
 
 // Refresh validates a refresh token and issues a new token pair (rotation).
@@ -136,8 +193,9 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*TokenR
 		return nil, errors.New("invalid or expired refresh token")
 	}
 
-	// Delete the used refresh token (rotation)
+	// Delete the used refresh token (rotation) and its index entry.
 	s.redis.Del(ctx, key)
+	s.redis.SRem(ctx, refreshUserIndexPrefix+userIDStr, key)
 
 	userID := parseUUID(userIDStr)
 	user, err := s.queries.GetUser(ctx, userID)
@@ -185,18 +243,23 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, userID string) (*Curre
 }
 
 // issueTokens creates a JWT access token and a random refresh token stored in Redis.
+// Each token carries a fresh jti (uuid) and iat so individual tokens can be
+// revoked via the blacklist.
 func (s *AuthService) issueTokens(ctx context.Context, user dbgen.User) (*TokenResponse, error) {
 	deptID := ""
 	if user.DeptID.Valid {
 		deptID = uuid.UUID(user.DeptID.Bytes).String()
 	}
 
+	now := time.Now()
 	claims := middleware.JWTClaims{
 		UserID:    user.ID.String(),
 		Username:  user.Username,
 		TenantID:  user.TenantID.String(),
 		DeptID:    deptID,
-		ExpiresAt: time.Now().Add(accessTokenTTL).Unix(),
+		ID:        uuid.New().String(),
+		IssuedAt:  now.Unix(),
+		ExpiresAt: now.Add(accessTokenTTL).Unix(),
 	}
 
 	accessToken, err := middleware.GenerateJWT(claims, s.jwtSecret)
@@ -214,11 +277,82 @@ func (s *AuthService) issueTokens(ctx context.Context, user dbgen.User) (*TokenR
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
+	// Best-effort per-user index so logout / password-change can wipe every
+	// outstanding refresh token. A failure here should not fail login.
+	indexKey := refreshUserIndexPrefix + user.ID.String()
+	if err := s.redis.SAdd(ctx, indexKey, key).Err(); err != nil {
+		zap.L().Warn("issueTokens: failed to index refresh token for user",
+			zap.String("user_id", user.ID.String()), zap.Error(err))
+	} else {
+		// Keep the index from growing forever in the presence of orphaned
+		// keys: expire the set itself after one refresh-token lifetime past
+		// now. Cleanup on logout / password-change still happens explicitly.
+		_ = s.redis.Expire(ctx, indexKey, refreshTokenTTL).Err()
+	}
+
 	return &TokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int(accessTokenTTL.Seconds()),
 	}, nil
+}
+
+// revokeAllRefreshTokens deletes every refresh token registered for a user
+// plus the index itself. Safe to call even when no tokens exist.
+func (s *AuthService) revokeAllRefreshTokens(ctx context.Context, userID uuid.UUID) {
+	indexKey := refreshUserIndexPrefix + userID.String()
+	keys, err := s.redis.SMembers(ctx, indexKey).Result()
+	if err != nil {
+		zap.L().Warn("revokeAllRefreshTokens: SMembers failed",
+			zap.String("user_id", userID.String()), zap.Error(err))
+		return
+	}
+	if len(keys) > 0 {
+		if err := s.redis.Del(ctx, keys...).Err(); err != nil {
+			zap.L().Warn("revokeAllRefreshTokens: Del tokens failed",
+				zap.String("user_id", userID.String()), zap.Error(err))
+		}
+	}
+	if err := s.redis.Del(ctx, indexKey).Err(); err != nil {
+		zap.L().Warn("revokeAllRefreshTokens: Del index failed",
+			zap.String("user_id", userID.String()), zap.Error(err))
+	}
+}
+
+// PasswordChangedAt returns the password_changed_at timestamp for a user.
+// Values are cached in Redis for 60s to avoid a DB round-trip per request.
+// A missing cache entry or failed DB query returns (zero time, nil) which
+// the middleware treats as "no change timestamp available" (fail-open).
+//
+// Implements middleware.PasswordChangeChecker.
+func (s *AuthService) PasswordChangedAt(ctx context.Context, userIDStr string) (time.Time, error) {
+	if s.pool == nil {
+		return time.Time{}, nil
+	}
+	userID := parseUUID(userIDStr)
+	if userID == uuid.Nil {
+		return time.Time{}, nil
+	}
+
+	if s.redis != nil {
+		if val, err := s.redis.Get(ctx, pwdChangedCachePrefix+userIDStr).Result(); err == nil {
+			if ts, perr := strconv.ParseInt(val, 10, 64); perr == nil {
+				return time.Unix(ts, 0), nil
+			}
+		}
+	}
+
+	var changedAt time.Time
+	row := s.pool.QueryRow(ctx, `SELECT password_changed_at FROM users WHERE id = $1`, userID)
+	if err := row.Scan(&changedAt); err != nil {
+		return time.Time{}, fmt.Errorf("fetch password_changed_at: %w", err)
+	}
+
+	if s.redis != nil {
+		_ = s.redis.Set(ctx, pwdChangedCachePrefix+userIDStr,
+			strconv.FormatInt(changedAt.Unix(), 10), pwdChangedCacheTTL).Err()
+	}
+	return changedAt, nil
 }
 
 // generateSecureToken produces a 32-byte cryptographically random token encoded as base64url.

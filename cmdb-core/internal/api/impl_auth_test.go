@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
 	"github.com/gin-gonic/gin"
@@ -20,6 +21,7 @@ type mockAuthService struct {
 	refreshFn        func(ctx context.Context, refreshToken string) (*identity.TokenResponse, error)
 	getCurrentUserFn func(ctx context.Context, userID string) (*identity.CurrentUser, error)
 	changePasswordFn func(ctx context.Context, userID uuid.UUID, curr, next string) error
+	logoutFn         func(ctx context.Context, userID uuid.UUID, jti string, exp time.Time) error
 }
 
 func (m *mockAuthService) Login(ctx context.Context, req identity.LoginRequest) (*identity.TokenResponse, error) {
@@ -48,6 +50,13 @@ func (m *mockAuthService) ChangePassword(ctx context.Context, userID uuid.UUID, 
 		return errors.New("mock: ChangePassword not implemented")
 	}
 	return m.changePasswordFn(ctx, userID, curr, next)
+}
+
+func (m *mockAuthService) Logout(ctx context.Context, userID uuid.UUID, jti string, exp time.Time) error {
+	if m.logoutFn == nil {
+		return nil
+	}
+	return m.logoutFn(ctx, userID, jti, exp)
 }
 
 func newTestServer(svc *mockAuthService) *APIServer {
@@ -361,5 +370,102 @@ func TestChangePassword_ServiceError(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401. body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Logout
+// ---------------------------------------------------------------------------
+
+func TestLogout_Success(t *testing.T) {
+	userID := uuid.New()
+	jti := uuid.New().String()
+	exp := time.Now().Add(5 * time.Minute)
+
+	var capturedUID uuid.UUID
+	var capturedJTI string
+	var capturedExp time.Time
+	svc := &mockAuthService{
+		logoutFn: func(_ context.Context, uid uuid.UUID, j string, e time.Time) error {
+			capturedUID = uid
+			capturedJTI = j
+			capturedExp = e
+			return nil
+		},
+	}
+	s := newTestServer(svc)
+
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Set("user_id", userID.String())
+	c.Set("jti", jti)
+	c.Set("token_exp", exp.Unix())
+	req, _ := http.NewRequest(http.MethodPost, "/auth/logout", nil)
+	c.Request = req
+	s.Logout(c)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204. body=%s", rec.Code, rec.Body.String())
+	}
+	if capturedUID != userID {
+		t.Errorf("userID = %s, want %s", capturedUID, userID)
+	}
+	if capturedJTI != jti {
+		t.Errorf("jti = %q, want %q", capturedJTI, jti)
+	}
+	if capturedExp.Unix() != exp.Unix() {
+		t.Errorf("exp = %d, want %d", capturedExp.Unix(), exp.Unix())
+	}
+}
+
+func TestLogout_ServiceError(t *testing.T) {
+	svc := &mockAuthService{
+		logoutFn: func(_ context.Context, _ uuid.UUID, _ string, _ time.Time) error {
+			return errors.New("redis down")
+		},
+	}
+	s := newTestServer(svc)
+
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Set("user_id", uuid.New().String())
+	c.Set("jti", "some-jti")
+	c.Set("token_exp", time.Now().Add(5*time.Minute).Unix())
+	req, _ := http.NewRequest(http.MethodPost, "/auth/logout", nil)
+	c.Request = req
+	s.Logout(c)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+}
+
+func TestLogout_FallsBackWhenTokenExpMissing(t *testing.T) {
+	// Defensive: when the middleware chain didn't populate token_exp (e.g.
+	// legacy tokens), the handler should still succeed with a safe default.
+	var capturedExp time.Time
+	svc := &mockAuthService{
+		logoutFn: func(_ context.Context, _ uuid.UUID, _ string, e time.Time) error {
+			capturedExp = e
+			return nil
+		},
+	}
+	s := newTestServer(svc)
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Set("user_id", uuid.New().String())
+	c.Set("jti", "jti")
+	req, _ := http.NewRequest(http.MethodPost, "/auth/logout", nil)
+	c.Request = req
+	s.Logout(c)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	if capturedExp.IsZero() {
+		t.Error("handler should supply a non-zero fallback exp")
 	}
 }

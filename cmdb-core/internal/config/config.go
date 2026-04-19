@@ -29,6 +29,12 @@ type Config struct {
 	RateLimitEnabled      bool
 	RateLimitRPS          float64
 	RateLimitBurst        int
+
+	// IntegrationAllowedOutboundHosts is an admin-configured allowlist of
+	// hostnames (exact match, case-insensitive) that bypass SSRF protection
+	// for outbound integration, webhook, and adapter HTTP calls. Comma-
+	// separated in CMDB_INTEGRATION_ALLOWED_HOSTS. Empty by default.
+	IntegrationAllowedOutboundHosts []string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -72,6 +78,16 @@ func Load() (*Config, error) {
 	cfg.RateLimitEnabled = envOrDefault("RATE_LIMIT_ENABLED", "true") == "true"
 	cfg.RateLimitRPS = envOrDefaultFloat("RATE_LIMIT_RPS", 100)
 	cfg.RateLimitBurst = envOrDefaultInt("RATE_LIMIT_BURST", 200)
+
+	// SSRF allowlist for integration outbound calls. Accepts a comma-
+	// separated list of hostnames. Blank entries are discarded.
+	if raw := os.Getenv("CMDB_INTEGRATION_ALLOWED_HOSTS"); raw != "" {
+		for _, h := range strings.Split(raw, ",") {
+			if trimmed := strings.TrimSpace(h); trimmed != "" {
+				cfg.IntegrationAllowedOutboundHosts = append(cfg.IntegrationAllowedOutboundHosts, trimmed)
+			}
+		}
+	}
 
 	if cfg.DeployMode == "edge" && cfg.TenantID == "" {
 		return nil, fmt.Errorf("TENANT_ID is required in edge deploy mode")

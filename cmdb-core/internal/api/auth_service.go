@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
 	"github.com/google/uuid"
@@ -15,4 +16,5 @@ type authService interface {
 	Refresh(ctx context.Context, refreshToken string) (*identity.TokenResponse, error)
 	GetCurrentUser(ctx context.Context, userID string) (*identity.CurrentUser, error)
 	ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword string) error
+	Logout(ctx context.Context, userID uuid.UUID, jti string, tokenExpiresAt time.Time) error
 }
