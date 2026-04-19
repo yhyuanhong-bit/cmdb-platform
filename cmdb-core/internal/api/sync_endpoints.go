@@ -3,13 +3,151 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
+
+// allowedResolveColumns is the per-entity_type whitelist of columns that a
+// sync_conflicts.remote_diff JSON blob is allowed to write when resolving
+// with remote_wins. Any JSON key outside this set is rejected with
+// INVALID_FIELD — this is the only defense against attacker-controlled
+// column names being concatenated into UPDATE statements.
+//
+// System-owned columns (id, tenant_id, created_at, updated_at,
+// sync_version) are intentionally excluded: the handler sets updated_at
+// itself and bumps sync_version separately, and rewriting tenant_id or id
+// would be a tenancy-break or identity-swap.
+var allowedResolveColumns = map[string]map[string]bool{
+	"assets": {
+		"name":            true,
+		"type":            true,
+		"sub_type":        true,
+		"status":          true,
+		"bia_level":       true,
+		"location_id":     true,
+		"rack_id":         true,
+		"vendor":          true,
+		"model":           true,
+		"serial_number":   true,
+		"asset_tag":       true,
+		"property_number": true,
+		"control_number":  true,
+		"attributes":      true,
+		"tags":            true,
+	},
+	"locations": {
+		"name":       true,
+		"name_en":    true,
+		"slug":       true,
+		"level":      true,
+		"parent_id":  true,
+		"status":     true,
+		"metadata":   true,
+		"sort_order": true,
+	},
+	"racks": {
+		"name":              true,
+		"row_label":         true,
+		"total_u":           true,
+		"power_capacity_kw": true,
+		"status":            true,
+		"tags":              true,
+		"location_id":       true,
+	},
+	"work_orders": {
+		"title":             true,
+		"type":              true,
+		"status":            true,
+		"priority":          true,
+		"description":       true,
+		"reason":            true,
+		"location_id":       true,
+		"asset_id":          true,
+		"requestor_id":      true,
+		"assignee_id":       true,
+		"scheduled_start":   true,
+		"scheduled_end":     true,
+		"actual_start":      true,
+		"actual_end":        true,
+		"execution_status":  true,
+		"governance_status": true,
+	},
+	"alert_events": {
+		"status":        true,
+		"severity":      true,
+		"message":       true,
+		"trigger_value": true,
+		"acked_at":      true,
+		"resolved_at":   true,
+	},
+	"alert_rules": {
+		"name":        true,
+		"metric_name": true,
+		"condition":   true,
+		"severity":    true,
+		"enabled":     true,
+	},
+	"inventory_tasks": {
+		"name":              true,
+		"code":              true,
+		"scope_location_id": true,
+		"status":            true,
+		"method":            true,
+		"planned_date":      true,
+		"completed_date":    true,
+		"assigned_to":       true,
+	},
+	"inventory_items": {
+		"actual":     true,
+		"status":     true,
+		"scanned_at": true,
+		"scanned_by": true,
+	},
+}
+
+// tablesWithUpdatedAt tracks which syncable tables carry an `updated_at`
+// column. Only those get `updated_at = now()` appended to the SET clause.
+// alert_events, alert_rules, inventory_tasks, and inventory_items have no
+// such column in the current schema (see db/migrations/000006, 000007).
+var tablesWithUpdatedAt = map[string]bool{
+	"assets":      true,
+	"locations":   true,
+	"racks":       true, // added in migration 000037
+	"work_orders": true,
+}
+
+// tablesWithoutTenantID names entity tables that do not carry a tenant_id
+// column directly. For these, we skip the `AND tenant_id = $N` guard on the
+// follow-up entity UPDATE — the preceding sync_conflicts SELECT already
+// confirmed the conflict belongs to the caller's tenant, which transitively
+// authorizes mutating the referenced entity row. inventory_items is scoped
+// to a tenant only via its parent inventory_tasks.task_id relationship.
+var tablesWithoutTenantID = map[string]bool{
+	"inventory_items": true,
+}
+
+// validateResolveColumns ensures every key in diff is a column we're
+// willing to write on the given entityType. The returned error embeds the
+// INVALID_FIELD marker so the HTTP layer can surface a machine-readable
+// code to the client.
+func validateResolveColumns(entityType string, diff map[string]any) error {
+	allowed, ok := allowedResolveColumns[entityType]
+	if !ok {
+		return fmt.Errorf("INVALID_FIELD: entity_type %q is not resolvable", entityType)
+	}
+	for key := range diff {
+		if !allowed[key] {
+			return fmt.Errorf("INVALID_FIELD: field %q is not resolvable for entity_type %q", key, entityType)
+		}
+	}
+	return nil
+}
 
 // SyncGetChanges returns incremental changes for a given entity type since a version.
 // GET /api/v1/sync/changes?entity_type=assets&since_version=0&limit=100
@@ -163,7 +301,16 @@ func (s *APIServer) SyncGetConflicts(c *gin.Context) {
 
 // SyncResolveConflict resolves a sync conflict and applies the resolution to the entity.
 // POST /api/v1/sync/conflicts/:id/resolve
+//
+// Security notes:
+//   - The SELECT and UPDATE on sync_conflicts are scoped by tenant_id, so a
+//     user cannot read or resolve a conflict belonging to another tenant.
+//   - remote_diff keys are validated against a per-entity column whitelist
+//     (allowedResolveColumns) before any UPDATE is built. Column names are
+//     further sanitized via pgx.Identifier{}.Sanitize(); values always flow
+//     through positional placeholders.
 func (s *APIServer) SyncResolveConflict(c *gin.Context, id IdPath) {
+	tenantID := tenantIDFromContext(c)
 	userID := userIDFromContext(c)
 	conflictID := uuid.UUID(id)
 
@@ -181,49 +328,82 @@ func (s *APIServer) SyncResolveConflict(c *gin.Context, id IdPath) {
 
 	ctx := c.Request.Context()
 
-	// 1. Read the conflict to get entity info
+	// 1. Read the conflict to get entity info. Scoped by tenant_id — a
+	//    conflict owned by another tenant must surface as a 404.
 	var entityType, entityID string
 	var remoteDiff json.RawMessage
 	err := s.pool.QueryRow(ctx,
-		"SELECT entity_type, entity_id, remote_diff FROM sync_conflicts WHERE id = $1 AND resolution = 'pending'",
-		conflictID).Scan(&entityType, &entityID, &remoteDiff)
+		"SELECT entity_type, entity_id, remote_diff FROM sync_conflicts WHERE id = $1 AND tenant_id = $2 AND resolution = 'pending'",
+		conflictID, tenantID).Scan(&entityType, &entityID, &remoteDiff)
 	if err != nil {
 		response.NotFound(c, "conflict not found or already resolved")
 		return
 	}
 
-	// 2. Mark conflict as resolved
+	// 2. If remote_wins, validate the diff keys BEFORE marking the
+	//    conflict resolved. If validation fails, the conflict stays
+	//    pending so an operator can inspect it.
+	var diffMap map[string]interface{}
+	if req.Resolution == "remote_wins" && remoteDiff != nil {
+		if err := json.Unmarshal(remoteDiff, &diffMap); err != nil {
+			response.Err(c, http.StatusBadRequest, "INVALID_FIELD",
+				"remote_diff is not a valid JSON object")
+			return
+		}
+		if err := validateResolveColumns(entityType, diffMap); err != nil {
+			response.Err(c, http.StatusBadRequest, "INVALID_FIELD", err.Error())
+			return
+		}
+	}
+
+	// 3. Mark conflict as resolved. Scoped by tenant_id as a second guard.
 	_, err = s.pool.Exec(ctx,
-		"UPDATE sync_conflicts SET resolution = $1, resolved_by = $2, resolved_at = now() WHERE id = $3",
-		req.Resolution, userID, conflictID)
+		"UPDATE sync_conflicts SET resolution = $1, resolved_by = $2, resolved_at = now() WHERE id = $3 AND tenant_id = $4",
+		req.Resolution, userID, conflictID, tenantID)
 	if err != nil {
 		response.InternalError(c, "failed to resolve conflict")
 		return
 	}
 
-	// 3. If remote_wins, apply remote_diff to entity
-	if req.Resolution == "remote_wins" && remoteDiff != nil {
-		var diffMap map[string]interface{}
-		if json.Unmarshal(remoteDiff, &diffMap) == nil && len(diffMap) > 0 {
-			setClauses := []string{}
-			args := []interface{}{}
-			argIdx := 1
-			for key, val := range diffMap {
-				setClauses = append(setClauses, fmt.Sprintf("%s = $%d", key, argIdx))
-				args = append(args, val)
-				argIdx++
-			}
-			if len(setClauses) > 0 {
-				query := fmt.Sprintf("UPDATE %s SET %s, updated_at = now() WHERE id = $%d",
-					entityType, strings.Join(setClauses, ", "), argIdx)
-				args = append(args, entityID)
-				s.pool.Exec(ctx, query, args...)
+	// 4. If remote_wins, apply remote_diff to the entity. Column names are
+	//    whitelisted (step 2) and further sanitized via pgx.Identifier;
+	//    values are bound through positional placeholders.
+	if req.Resolution == "remote_wins" && len(diffMap) > 0 {
+		setClauses := make([]string, 0, len(diffMap))
+		args := make([]interface{}, 0, len(diffMap)+1)
+		argIdx := 1
+		for key, val := range diffMap {
+			colIdent := pgx.Identifier{key}.Sanitize()
+			setClauses = append(setClauses, fmt.Sprintf("%s = $%d", colIdent, argIdx))
+			args = append(args, val)
+			argIdx++
+		}
+		if tablesWithUpdatedAt[entityType] {
+			setClauses = append(setClauses, "updated_at = now()")
+		}
+		tableIdent := pgx.Identifier{entityType}.Sanitize()
+		var query, versionQuery string
+		if tablesWithoutTenantID[entityType] {
+			query = fmt.Sprintf("UPDATE %s SET %s WHERE id = $%d",
+				tableIdent, strings.Join(setClauses, ", "), argIdx)
+			args = append(args, entityID)
+			versionQuery = fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", tableIdent)
+		} else {
+			query = fmt.Sprintf("UPDATE %s SET %s WHERE id = $%d AND tenant_id = $%d",
+				tableIdent, strings.Join(setClauses, ", "), argIdx, argIdx+1)
+			args = append(args, entityID, tenantID)
+			versionQuery = fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1 AND tenant_id = $2", tableIdent)
+		}
+		if _, err := s.pool.Exec(ctx, query, args...); err != nil {
+			response.InternalError(c, "failed to apply remote diff")
+			return
+		}
 
-				// Increment sync_version
-				s.pool.Exec(ctx,
-					fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", entityType),
-					entityID)
-			}
+		// Increment sync_version separately; tenant-scoped where applicable.
+		if tablesWithoutTenantID[entityType] {
+			s.pool.Exec(ctx, versionQuery, entityID)
+		} else {
+			s.pool.Exec(ctx, versionQuery, entityID, tenantID)
 		}
 	}
 
