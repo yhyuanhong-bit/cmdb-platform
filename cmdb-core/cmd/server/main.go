@@ -73,14 +73,29 @@ func main() {
 		zap.L().Fatal("invalid JWT secret", zap.Error(err))
 	}
 
-	ctx := context.Background()
+	// Root server context — cancelled on SIGINT/SIGTERM. Every background
+	// worker (alert evaluator, workflow tickers, webhook dispatcher
+	// fan-out, sync reconciler, WS hub, MCP server, etc.) derives its
+	// lifecycle from this ctx so a single signal unwinds the whole stack.
+	// Per-request handlers keep using c.Request.Context(), which is
+	// scoped to the HTTP request and unrelated to shutdown.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	// 3. OpenTelemetry tracing
-	shutdownTracer, err := telemetry.InitTracer(ctx, cfg.OTELEndpoint, "cmdb-core", "1.0.0")
+	// Init/shutdown use a fresh context so a cancelled server ctx cannot
+	// short-circuit tracer shutdown before spans are flushed.
+	tracerInitCtx, tracerInitCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer tracerInitCancel()
+	shutdownTracer, err := telemetry.InitTracer(tracerInitCtx, cfg.OTELEndpoint, "cmdb-core", "1.0.0")
 	if err != nil {
 		zap.L().Fatal("failed to init tracer", zap.Error(err))
 	}
-	defer shutdownTracer(ctx)
+	defer func() {
+		tracerShutdownCtx, tracerShutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer tracerShutdownCancel()
+		_ = shutdownTracer(tracerShutdownCtx)
+	}()
 
 	// 3a. Load at-rest encryption key ring. Missing key is a hard failure —
 	// we never want to silently run without encrypting adapter configs or
@@ -317,9 +332,12 @@ func main() {
 				locationDetectSvc.UpdateMACCache(ctx, tenantID, entries)
 				zap.L().Info("MAC cache updated from SNMP scan", zap.Int("entries", len(entries)))
 
-				// Immediately run location comparison after cache update
+				// Immediately run location comparison after cache update.
+				// Use the server ctx, not context.Background(), so SIGTERM
+				// cancels a comparison that was kicked off but not yet
+				// completed when shutdown arrives.
 				go func() {
-					locationDetectSvc.RunDetection(context.Background(), tenantID)
+					locationDetectSvc.RunDetection(ctx, tenantID)
 				}()
 			}
 			return nil
@@ -469,12 +487,25 @@ func main() {
 			zap.L().Info("MCP Server auth enabled")
 		}
 
+		// Wrap in an http.Server so Shutdown can tear it down on SIGTERM
+		// instead of orphaning the listener goroutine.
+		mcpHTTPSrv := &http.Server{
+			Addr:    fmt.Sprintf(":%d", cfg.MCPPort),
+			Handler: mcpHandler,
+		}
 		go func() {
-			addr := fmt.Sprintf(":%d", cfg.MCPPort)
-			zap.L().Info("MCP Server starting", zap.String("addr", addr))
-			if err := http.ListenAndServe(addr, mcpHandler); err != nil {
+			zap.L().Info("MCP Server starting", zap.String("addr", mcpHTTPSrv.Addr))
+			if err := mcpHTTPSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				zap.L().Error("MCP Server error", zap.Error(err))
 			}
+		}()
+		// When the root ctx is cancelled (SIGTERM), shut the MCP listener
+		// down with its own bounded timeout.
+		go func() {
+			<-ctx.Done()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutdownCancel()
+			_ = mcpHTTPSrv.Shutdown(shutdownCtx)
 		}()
 	}
 
@@ -509,7 +540,8 @@ func main() {
 
 	// Workflow subscribers (cross-module reactions)
 	if bus != nil {
-		wfSub := workflows.New(pool, queries, bus, maintenanceSvc, cipher)
+		wfSub := workflows.New(pool, queries, bus, maintenanceSvc, cipher).
+			WithQualityScanner(qualitySvc)
 		wfSub.Register()
 		wfSub.StartSLAChecker(ctx)
 		wfSub.StartSessionCleanup(ctx)
@@ -522,6 +554,11 @@ func main() {
 		// Daily sweep for webhook_deliveries (30d) and webhook_deliveries_dlq (90d).
 		// Emits webhook_retention_deletes_total so a dead cron is observable.
 		wfSub.StartWebhookRetention(ctx)
+		// Phase 2.11: daily full-tenant quality scan. First tick runs
+		// ~30s after startup so deploys produce an observable scan,
+		// then every 24h. Per-tenant cron config is explicitly
+		// deferred (roadmap-optional).
+		wfSub.StartQualityScanner(ctx)
 	}
 
 	// Alert evaluator goroutine. Uses the same server context as every
@@ -531,9 +568,14 @@ func main() {
 	go alertEvaluator.Start(ctx)
 	zap.L().Info("Alert rule evaluator launched", zap.Duration("interval", monitoring.DefaultEvaluatorInterval))
 
-	// Webhook dispatcher
+	// Webhook dispatcher. Each fan-out delivery goroutine derives from the
+	// server ctx via WithBaseContext, so SIGTERM cancels in-flight retries
+	// (including the 1s / 5s backoff sleeps) instead of pinning them until
+	// the per-request HTTP timeout fires.
 	if bus != nil {
-		dispatcher := integration.NewWebhookDispatcher(queries, cipher, netGuard).WithEventBus(bus)
+		dispatcher := integration.NewWebhookDispatcher(queries, cipher, netGuard).
+			WithEventBus(bus).
+			WithBaseContext(ctx)
 		webhookSubjects := []string{"asset.>", "maintenance.>", "alert.>", "prediction.>"}
 		for _, subj := range webhookSubjects {
 			subj := subj
@@ -560,17 +602,23 @@ func main() {
 		}
 	}()
 
-	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	// Wait for SIGINT/SIGTERM. signal.NotifyContext cancels ctx on signal
+	// receipt, so every background worker (evaluator, workflow tickers,
+	// webhook dispatcher, sync reconciler, WS hub, MCP server) starts
+	// exiting through its own ctx.Done() case immediately.
+	<-ctx.Done()
 
 	zap.L().Info("shutting down server...")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+
+	// The HTTP server uses a *fresh* timeout context so in-flight requests
+	// have a full 30s to drain even though the server ctx is already
+	// cancelled. Background goroutines observe the cancelled ctx in
+	// parallel and unwind on their own.
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		zap.L().Fatal("server forced to shutdown", zap.Error(err))
+		zap.L().Error("server forced to shutdown", zap.Error(err))
 	}
 
 	zap.L().Info("server exited gracefully")

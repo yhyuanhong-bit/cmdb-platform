@@ -43,6 +43,11 @@ type WebhookDispatcher struct {
 	client  *http.Client
 	bus     eventbus.Bus // optional; used to emit SubjectWebhookDisabled
 	now     func() time.Time
+	// baseCtx is the server-lifecycle context. HandleEvent fan-out
+	// goroutines derive their own short-lived ctx from this so a SIGTERM
+	// cancels every in-flight retry/sleep. Falls back to context.Background
+	// when unset (e.g. in tests), so existing call sites keep working.
+	baseCtx context.Context
 }
 
 // NewWebhookDispatcher creates a new dispatcher. The guard is required: it
@@ -73,6 +78,26 @@ func NewWebhookDispatcher(queries *dbgen.Queries, cipher crypto.Cipher, guard *n
 func (d *WebhookDispatcher) WithEventBus(bus eventbus.Bus) *WebhookDispatcher {
 	d.bus = bus
 	return d
+}
+
+// WithBaseContext wires the server-lifecycle context so background
+// delivery goroutines (each HandleEvent fan-out spawns one per
+// subscription) cancel immediately on SIGTERM instead of running their
+// full backoff schedule against a torn-down process. Optional — defaults
+// to context.Background so existing tests and call sites don't need to
+// plumb a ctx.
+func (d *WebhookDispatcher) WithBaseContext(ctx context.Context) *WebhookDispatcher {
+	d.baseCtx = ctx
+	return d
+}
+
+// deliveryContext returns the context that a delivery goroutine should
+// use. Prefers baseCtx when set so shutdown cancels in-flight retries.
+func (d *WebhookDispatcher) deliveryContext() context.Context {
+	if d.baseCtx != nil {
+		return d.baseCtx
+	}
+	return context.Background()
 }
 
 // HandleEvent processes an event and delivers it to matching webhook subscriptions.
@@ -132,8 +157,13 @@ func (d *WebhookDispatcher) HandleEvent(ctx context.Context, event eventbus.Even
 // deliver attempts up to 3 HTTP POSTs with backoff. Each attempt records its
 // own webhook_deliveries row. On terminal failure the subscription's
 // consecutive_failures counter is incremented and the breaker may trip.
+//
+// The dispatcher's baseCtx (set by WithBaseContext from main) is used so a
+// SIGTERM cancels in-flight deliveries and pending backoff sleeps rather
+// than stranding goroutines until the 10s per-request HTTP timeout fires
+// three times.
 func (d *WebhookDispatcher) deliver(sub dbgen.WebhookSubscription, event eventbus.Event) {
-	ctx := context.Background()
+	ctx := d.deliveryContext()
 
 	// Defensive re-check: even though ListWebhooksByEvent filters on
 	// disabled_at, a race could allow a sub to be tripped between list
@@ -176,7 +206,20 @@ func (d *WebhookDispatcher) deliver(sub dbgen.WebhookSubscription, event eventbu
 
 	for attempt, delay := range delays {
 		if delay > 0 {
-			time.Sleep(delay)
+			// Respect shutdown: a cancelled baseCtx must interrupt the
+			// backoff wait instead of pinning the goroutine for 5s after
+			// SIGTERM. On cancellation, record the last status and return
+			// without continuing to the next attempt.
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				zap.L().Info("webhook delivery aborted by shutdown",
+					zap.String("url", sub.Url),
+					zap.Int("attempt", attempt+1))
+				return
+			case <-timer.C:
+			}
 		}
 		attemptNumber := int32(attempt + 1)
 
