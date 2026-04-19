@@ -46,6 +46,8 @@ services:
       INGESTION_CELERY_BROKER_URL: redis://redis:6379/1
       INGESTION_NATS_URL: nats://nats:4222
       INGESTION_OTEL_ENDPOINT: otel-collector:4317
+      INGESTION_DEPLOY_MODE: ${INGESTION_DEPLOY_MODE:-development}
+      INGESTION_CREDENTIAL_ENCRYPTION_KEY: ${INGESTION_CREDENTIAL_ENCRYPTION_KEY:-}
     ports:
       - "8081:8081"
     depends_on:
@@ -71,6 +73,8 @@ services:
       INGESTION_REDIS_URL: redis://redis:6379/0
       INGESTION_CELERY_BROKER_URL: redis://redis:6379/1
       INGESTION_NATS_URL: nats://nats:4222
+      INGESTION_DEPLOY_MODE: ${INGESTION_DEPLOY_MODE:-development}
+      INGESTION_CREDENTIAL_ENCRYPTION_KEY: ${INGESTION_CREDENTIAL_ENCRYPTION_KEY:-}
     depends_on:
       redis:
         condition: service_healthy
