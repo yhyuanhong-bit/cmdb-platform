@@ -83,6 +83,35 @@ var (
 		Help: "Rows detected where the encrypted and plaintext integration-secret columns disagree.",
 	}, []string{"table"})
 
+	// MonitoringEvaluatorRunsTotal counts full evaluator tick outcomes. One
+	// tick = one scan of ListEnabledAlertRules and evaluation of every rule.
+	// outcome: ok | error
+	MonitoringEvaluatorRunsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "monitoring_evaluator_runs_total",
+		Help: "Total alert-evaluator tick executions by outcome (ok|error).",
+	}, []string{"outcome"})
+
+	// MonitoringRuleEvaluationDuration measures how long a single rule takes
+	// to evaluate (condition parse + metric aggregation + comparison +
+	// optional emit). Label cardinality: operator (~6) × aggregation (~5) =
+	// at most 30 series. We deliberately do NOT label by rule_id — a noisy
+	// tenant with thousands of rules would blow up the timeseries budget.
+	// See pattern in telemetry.DBQueryDuration / httpRequestDuration above.
+	MonitoringRuleEvaluationDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "monitoring_rule_evaluation_duration_seconds",
+		Help:    "Duration of a single alert rule evaluation, bucketed by operator and aggregation.",
+		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5},
+	}, []string{"operator", "aggregation"})
+
+	// MonitoringAlertsEmittedTotal counts emissions from the evaluator. We
+	// label by severity + status + action rather than rule_id for the same
+	// cardinality reason above. action: inserted | updated (dedup upsert)
+	// so operators can distinguish new firings from repeated same-hour hits.
+	MonitoringAlertsEmittedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "monitoring_alerts_emitted_total",
+		Help: "Total alert_event rows emitted by the evaluator, by status (firing|resolved), severity, and action (inserted|updated).",
+	}, []string{"status", "severity", "action"})
+
 	// AdapterPullAttemptsTotal counts metric-puller attempts per tenant and
 	// outcome. The puller's `ListDuePullAdapters` query is intentionally
 	// cross-tenant (it IS the scheduler), but every emitted observation is

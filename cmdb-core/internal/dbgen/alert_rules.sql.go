@@ -116,6 +116,47 @@ func (q *Queries) ListAlertRules(ctx context.Context, arg ListAlertRulesParams) 
 	return items, nil
 }
 
+const listEnabledAlertRules = `-- name: ListEnabledAlertRules :many
+SELECT id, tenant_id, name, metric_name, condition, severity, enabled, created_at, sync_version FROM alert_rules
+WHERE enabled = true
+ORDER BY tenant_id, id
+`
+
+// Used by the in-process evaluator (internal/domain/monitoring/evaluator.go).
+// Returns every enabled rule across every tenant so a single tick can fan out
+// over the whole fleet. The evaluator MUST keep each rule's tenant_id as the
+// scope for its metric aggregation and alert_event insertion — this is the
+// scheduler read, not a data read.
+func (q *Queries) ListEnabledAlertRules(ctx context.Context) ([]AlertRule, error) {
+	rows, err := q.db.Query(ctx, listEnabledAlertRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AlertRule{}
+	for rows.Next() {
+		var i AlertRule
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Name,
+			&i.MetricName,
+			&i.Condition,
+			&i.Severity,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.SyncVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateAlertRule = `-- name: UpdateAlertRule :one
 UPDATE alert_rules SET
     name        = COALESCE($1, name),

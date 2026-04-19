@@ -148,7 +148,7 @@ func main() {
 
 	// 4b. Verify database migration version matches code expectations
 	{
-		const expectedMigration = 38 // bump this when adding new migrations
+		const expectedMigration = 47 // bump this when adding new migrations
 		var dbVersion int
 		err := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&dbVersion)
 		if err != nil {
@@ -260,6 +260,18 @@ func main() {
 	assetSvc := asset.NewService(queries, bus, pool)
 	maintenanceSvc := maintenance.NewService(queries, bus, pool)
 	monitoringSvc := monitoring.NewService(queries, bus)
+
+	// Alert Rule Evaluator (Phase 2.1 — REMEDIATION-ROADMAP.md). Scans
+	// alert_rules every 60s, aggregates TimescaleDB metrics, and emits
+	// alert_events rows on threshold breach. Strictly tenant-scoped per
+	// rule. Launched as a background goroutine off the server context so
+	// SIGTERM stops it within one interval.
+	alertEvaluator := monitoring.NewEvaluator(
+		queries,
+		monitoring.NewPoolAdapter(pool),
+		bus,
+		monitoring.WithInterval(monitoring.DefaultEvaluatorInterval),
+	)
 	inventorySvc := inventory.NewService(queries, bus)
 	auditSvc := audit.NewService(queries)
 	dashboardSvc := dashboard.NewService(queries, pool, redisClient)
@@ -508,6 +520,13 @@ func main() {
 		// Gated behind CMDB_INTEGRATION_DIVERGENCE_CHECK=1; default off.
 		wfSub.StartDivergenceChecker(ctx)
 	}
+
+	// Alert evaluator goroutine. Uses the same server context as every
+	// other background worker so a single SIGTERM stops the whole stack.
+	// Starts unconditionally (no feature flag) — an empty alert_rules table
+	// is a zero-cost scan.
+	go alertEvaluator.Start(ctx)
+	zap.L().Info("Alert rule evaluator launched", zap.Duration("interval", monitoring.DefaultEvaluatorInterval))
 
 	// Webhook dispatcher
 	if bus != nil {
