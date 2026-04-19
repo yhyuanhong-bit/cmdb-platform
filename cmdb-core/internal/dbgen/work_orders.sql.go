@@ -12,6 +12,56 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const breachSLAWorkOrders = `-- name: BreachSLAWorkOrders :many
+UPDATE work_orders
+SET sla_breached = true, updated_at = now()
+WHERE tenant_id IS NOT NULL
+  AND status IN ('approved', 'in_progress')
+  AND sla_deadline IS NOT NULL
+  AND sla_deadline < now()
+  AND NOT sla_breached
+  AND deleted_at IS NULL
+RETURNING id, tenant_id, code, assignee_id
+`
+
+type BreachSLAWorkOrdersRow struct {
+	ID         uuid.UUID   `json:"id"`
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	Code       string      `json:"code"`
+	AssigneeID pgtype.UUID `json:"assignee_id"`
+}
+
+// Atomic cross-tenant SLA breach sweep: flips sla_breached=true and
+// RETURNs every row that transitioned, in one round-trip. The
+// `NOT sla_breached` guard inside the UPDATE is what makes this
+// TOCTOU-safe: a second concurrent caller finds the already-flipped
+// flag and gets zero rows back. Called by the scheduler only; has no
+// tenant filter by design (see workflows/sla.go).
+func (q *Queries) BreachSLAWorkOrders(ctx context.Context) ([]BreachSLAWorkOrdersRow, error) {
+	rows, err := q.db.Query(ctx, breachSLAWorkOrders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BreachSLAWorkOrdersRow{}
+	for rows.Next() {
+		var i BreachSLAWorkOrdersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Code,
+			&i.AssigneeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countWorkOrders = `-- name: CountWorkOrders :one
 SELECT count(*) FROM work_orders
 WHERE tenant_id = $1

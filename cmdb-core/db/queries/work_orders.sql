@@ -87,6 +87,23 @@ UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2 
 -- name: MarkSLABreached :exec
 UPDATE work_orders SET sla_breached = true WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
 
+-- name: BreachSLAWorkOrders :many
+-- Atomic cross-tenant SLA breach sweep: flips sla_breached=true and
+-- RETURNs every row that transitioned, in one round-trip. The
+-- `NOT sla_breached` guard inside the UPDATE is what makes this
+-- TOCTOU-safe: a second concurrent caller finds the already-flipped
+-- flag and gets zero rows back. Called by the scheduler only; has no
+-- tenant filter by design (see workflows/sla.go).
+UPDATE work_orders
+SET sla_breached = true, updated_at = now()
+WHERE tenant_id IS NOT NULL
+  AND status IN ('approved', 'in_progress')
+  AND sla_deadline IS NOT NULL
+  AND sla_deadline < now()
+  AND NOT sla_breached
+  AND deleted_at IS NULL
+RETURNING id, tenant_id, code, assignee_id;
+
 -- name: ListOverdueSLAOrders :many
 SELECT * FROM work_orders
 WHERE tenant_id = $1

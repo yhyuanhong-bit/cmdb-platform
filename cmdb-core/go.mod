@@ -18,6 +18,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.50.0
+	golang.org/x/mod v0.35.0
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.44.0
 )
@@ -77,7 +78,6 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/arch v0.24.0 // indirect
-	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
