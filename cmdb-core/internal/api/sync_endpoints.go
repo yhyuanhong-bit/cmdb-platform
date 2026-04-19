@@ -267,6 +267,10 @@ func (s *APIServer) SyncGetState(c *gin.Context) {
 
 // SyncGetConflicts returns pending sync conflicts.
 // GET /api/v1/sync/conflicts
+//
+// sync_conflicts is a manual-intervention channel — rows are filed by
+// operators, not by the sync agent. See SyncResolveConflict and
+// docs/SYNC_CONFLICT.md for the full policy.
 func (s *APIServer) SyncGetConflicts(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 	rows, err := s.pool.Query(c.Request.Context(),
@@ -301,6 +305,21 @@ func (s *APIServer) SyncGetConflicts(c *gin.Context) {
 
 // SyncResolveConflict resolves a sync conflict and applies the resolution to the entity.
 // POST /api/v1/sync/conflicts/:id/resolve
+//
+// Conflict lifecycle (IMPORTANT):
+//
+// This handler is the resolution half of a MANUAL-INTERVENTION channel.
+// Nothing in the sync pipeline inserts rows into sync_conflicts automatically
+// — the default conflict strategy for automatic sync is last-write-wins
+// (see internal/domain/sync/agent.go and docs/SYNC_CONFLICT.md). Rows land
+// in sync_conflicts only when an operator explicitly files one via admin
+// tooling / a support workflow to arbitrate a human-reported dispute.
+//
+// That is why there is no auto-detection counterpart to this handler: a
+// proper version-based detection scheme would require every write path to
+// stamp a version/hash and diff it against the incoming envelope, which is
+// non-trivial and not yet designed. Until that design lands, sync_conflicts
+// is the operator escape hatch for edge-case divergence.
 //
 // Security notes:
 //   - The SELECT and UPDATE on sync_conflicts are scoped by tenant_id, so a

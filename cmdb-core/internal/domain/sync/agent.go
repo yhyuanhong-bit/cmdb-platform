@@ -1,4 +1,25 @@
 // agent.go
+//
+// Package sync implements the Edge-node sync agent and conflict-resolution
+// surface for the CMDB. It consumes SyncEnvelope messages from the event bus
+// and applies them to local tables.
+//
+// Conflict policy (IMPORTANT):
+//
+// The default conflict strategy for automatic sync is last-write-wins (LWW).
+// Apply functions compare the envelope's version against the local row's
+// sync_version and unconditionally overwrite when the envelope is newer —
+// they do NOT detect divergent concurrent edits, and they do NOT automatically
+// insert rows into the sync_conflicts table. Any row newer than what we have
+// wins; older envelopes are silently skipped by the `sync_version < $N`
+// guards in each UPDATE.
+//
+// The sync_conflicts table exists as a manual-intervention channel only:
+// operators file rows into it via admin tooling / support workflows when a
+// human dispute needs arbitration, and the SyncResolveConflict HTTP handler
+// applies the chosen resolution. Nothing in this package inserts into
+// sync_conflicts; see docs/SYNC_CONFLICT.md for the full policy and operator
+// playbook.
 package sync
 
 import (
@@ -165,6 +186,10 @@ func (a *Agent) handleIncomingEnvelope(ctx context.Context, event eventbus.Event
 	return nil
 }
 
+// applyWorkOrder applies a work-order envelope using last-write-wins.
+// The `sync_version < $N` guard ensures older envelopes are dropped, but
+// concurrent divergent edits are NOT detected — rows are NOT inserted into
+// sync_conflicts. See the package doc comment and docs/SYNC_CONFLICT.md.
 func (a *Agent) applyWorkOrder(ctx context.Context, env SyncEnvelope) error {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(env.Diff, &payload); err != nil {
@@ -208,6 +233,9 @@ func (a *Agent) applyWorkOrder(ctx context.Context, env SyncEnvelope) error {
 	return err
 }
 
+// applyAlertEvent applies an alert-event envelope using last-write-wins
+// (ordered by fired_at, then sync_version). No automatic conflict detection;
+// see package doc and docs/SYNC_CONFLICT.md.
 func (a *Agent) applyAlertEvent(ctx context.Context, env SyncEnvelope) error {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(env.Diff, &payload); err != nil {
@@ -233,6 +261,10 @@ func (a *Agent) applyAlertEvent(ctx context.Context, env SyncEnvelope) error {
 	return err
 }
 
+// applyAlertRule applies an alert-rule envelope using last-write-wins.
+// Any incoming row fully replaces the local row via ON CONFLICT DO UPDATE
+// with no version guard — the newest envelope delivered always wins. No
+// sync_conflicts insertion; see package doc and docs/SYNC_CONFLICT.md.
 func (a *Agent) applyAlertRule(ctx context.Context, env SyncEnvelope) error {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(env.Diff, &payload); err != nil {
@@ -256,6 +288,9 @@ func (a *Agent) applyAlertRule(ctx context.Context, env SyncEnvelope) error {
 	return err
 }
 
+// applyInventoryTask applies an inventory-task envelope using last-write-wins
+// gated on sync_version. No automatic conflict detection; see package doc
+// and docs/SYNC_CONFLICT.md.
 func (a *Agent) applyInventoryTask(ctx context.Context, env SyncEnvelope) error {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(env.Diff, &payload); err != nil {
@@ -281,6 +316,9 @@ func (a *Agent) applyInventoryTask(ctx context.Context, env SyncEnvelope) error 
 	return err
 }
 
+// applyInventoryItem applies an inventory-item envelope using last-write-wins
+// gated on sync_version. No automatic conflict detection; see package doc
+// and docs/SYNC_CONFLICT.md.
 func (a *Agent) applyInventoryItem(ctx context.Context, env SyncEnvelope) error {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(env.Diff, &payload); err != nil {
@@ -306,6 +344,10 @@ func (a *Agent) applyInventoryItem(ctx context.Context, env SyncEnvelope) error 
 	return err
 }
 
+// applyAuditEvent applies an audit-event envelope. Audit events are
+// append-only, keyed by id with ON CONFLICT DO NOTHING — so duplicates are
+// dropped rather than overwritten. There is no conflict surface here: audit
+// events cannot diverge. See package doc and docs/SYNC_CONFLICT.md.
 func (a *Agent) applyAuditEvent(ctx context.Context, env SyncEnvelope) error {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(env.Diff, &payload); err != nil {
@@ -324,6 +366,10 @@ func (a *Agent) applyAuditEvent(ctx context.Context, env SyncEnvelope) error {
 	return err
 }
 
+// applyGeneric is the fallback apply path for entity types without a
+// dedicated handler. It bumps sync_version + updated_at only, using
+// last-write-wins on sync_version. No conflict detection, no sync_conflicts
+// insertion. See package doc and docs/SYNC_CONFLICT.md.
 func (a *Agent) applyGeneric(ctx context.Context, env SyncEnvelope) error {
 	_, err := a.pool.Exec(ctx,
 		fmt.Sprintf("UPDATE %s SET sync_version = $1, updated_at = now() WHERE id = $2 AND sync_version < $1", env.EntityType),
