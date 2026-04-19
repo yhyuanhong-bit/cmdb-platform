@@ -49,6 +49,39 @@ func (q *Queries) GetTenantBySlug(ctx context.Context, slug string) (Tenant, err
 	return i, err
 }
 
+const listActiveTenants = `-- name: ListActiveTenants :many
+SELECT id, name, slug FROM tenants WHERE status = 'active' ORDER BY name
+`
+
+type ListActiveTenantsRow struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+	Slug string    `json:"slug"`
+}
+
+// Returns tenants currently eligible for scheduled per-tenant work
+// (governance scans, etc.). `status = 'active'` is the tenants-table
+// soft-active signal; the table has no `deleted_at` column.
+func (q *Queries) ListActiveTenants(ctx context.Context) ([]ListActiveTenantsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveTenants)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveTenantsRow{}
+	for rows.Next() {
+		var i ListActiveTenantsRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Slug); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTenants = `-- name: ListTenants :many
 SELECT id, name, slug, status, settings, created_at, updated_at FROM tenants ORDER BY name
 `

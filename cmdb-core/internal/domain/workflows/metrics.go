@@ -8,6 +8,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -75,6 +76,22 @@ func (w *WorkflowSubscriber) StartMetricsPuller(ctx context.Context) {
 // pullMetricsFromAdapters iterates due-to-pull adapters. Backoff gating
 // happens in SQL (see ListDuePullAdapters) so adapters in a cool-down
 // window are not even returned here.
+//
+// IMPORTANT — cross-tenant by design: unlike the governance scans
+// (checkShadowIT / checkDuplicateSerials / checkMissingLocation), which
+// were converted to per-tenant loops in Phase 1.4, this puller is the
+// *scheduler itself*. `ListDuePullAdapters` runs a single global query
+// so the backoff predicate (`next_attempt_at <= now()`) is evaluated
+// atomically across the whole fleet and the 5-minute tick does not
+// multiply by tenant-count. Every downstream query, work order, and
+// metric emitted by this loop is still scoped by a.TenantID — the
+// cross-tenant read here is a read-only scheduler fan-out, not a
+// tenant-mixing data path. Do NOT naively convert this to a per-tenant
+// loop without redesigning the backoff schedule.
+//
+// Per-tenant observability is preserved via
+// telemetry.AdapterPullAttemptsTotal with the tenant_id label, so an
+// operator can still spot one tenant dominating the batch or flapping.
 func (w *WorkflowSubscriber) pullMetricsFromAdapters(ctx context.Context) {
 	adapters, err := w.queries.ListDuePullAdapters(ctx)
 	if err != nil {
@@ -87,24 +104,32 @@ func (w *WorkflowSubscriber) pullMetricsFromAdapters(ctx context.Context) {
 			continue
 		}
 
+		tenantLabel := a.TenantID.String()
+
 		plainConfig, err := integration.DecryptConfigWithFallback(w.cipher, a.ConfigEncrypted, a.Config)
 		if err != nil {
 			zap.L().Warn("metrics puller: decrypt config failed",
+				zap.String("tenant_id", tenantLabel),
 				zap.String("adapter", a.Name), zap.Error(err))
+			telemetry.AdapterPullAttemptsTotal.WithLabelValues(tenantLabel, "failure").Inc()
 			continue
 		}
 
 		pullErr := w.pullFromAdapter(ctx, a.TenantID, a.Name, a.Type, a.Endpoint.String, plainConfig)
 		if pullErr != nil {
+			telemetry.AdapterPullAttemptsTotal.WithLabelValues(tenantLabel, "failure").Inc()
 			w.handleAdapterFailure(ctx, a.ID, a.TenantID, a.Name, a.Type, pullErr)
 			continue
 		}
+
+		telemetry.AdapterPullAttemptsTotal.WithLabelValues(tenantLabel, "success").Inc()
 
 		if err := w.queries.RecordAdapterSuccess(ctx, dbgen.RecordAdapterSuccessParams{
 			ID:       a.ID,
 			TenantID: a.TenantID,
 		}); err != nil {
 			zap.L().Warn("metrics puller: failed to record success",
+				zap.String("tenant_id", tenantLabel),
 				zap.String("adapter", a.Name), zap.Error(err))
 		}
 	}

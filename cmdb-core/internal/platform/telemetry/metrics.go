@@ -82,6 +82,18 @@ var (
 		Name: "integration_dual_write_divergence_total",
 		Help: "Rows detected where the encrypted and plaintext integration-secret columns disagree.",
 	}, []string{"table"})
+
+	// AdapterPullAttemptsTotal counts metric-puller attempts per tenant and
+	// outcome. The puller's `ListDuePullAdapters` query is intentionally
+	// cross-tenant (it IS the scheduler), but every emitted observation is
+	// still labelled with `tenant_id` so operators can see at a glance
+	// whether one tenant's adapters dominate the batch or are failing.
+	//
+	// outcome: success | failure
+	AdapterPullAttemptsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "adapter_pull_attempts_total",
+		Help: "Total adapter pull attempts by tenant and outcome (success|failure).",
+	}, []string{"tenant_id", "outcome"})
 )
 
 // Label values for the integration_* metrics. Exported so callers don't

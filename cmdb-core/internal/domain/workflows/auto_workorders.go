@@ -400,35 +400,75 @@ func (w *WorkflowSubscriber) checkOverLifespan(ctx context.Context) {
 
 // --- Auto Work Order 6: Shadow IT — Discovered but not in CMDB ---
 
+// checkShadowIT iterates active tenants and runs the shadow-IT scan per
+// tenant. A failure in one tenant is logged and does not abort the batch,
+// so a single tenant's bad data cannot starve the remaining tenants of
+// scan coverage.
 func (w *WorkflowSubscriber) checkShadowIT(ctx context.Context) {
+	tenants, err := w.queries.ListActiveTenants(ctx)
+	if err != nil {
+		zap.L().Warn("shadow IT checker: list active tenants failed", zap.Error(err))
+		return
+	}
+	for _, t := range tenants {
+		if err := w.checkShadowITForTenant(ctx, t.ID); err != nil {
+			zap.L().Warn("shadow IT checker: tenant scan failed",
+				zap.String("tenant_id", t.ID.String()),
+				zap.Error(err))
+			// Continue to next tenant — one failure must not abort the batch.
+		}
+	}
+}
+
+// checkShadowITForTenant runs the shadow-IT scan for a single tenant.
+// Both the discovered_assets source and the work_orders dedup predicate
+// are scoped to tenantID, so a WO seeded under tenant A cannot suppress
+// a WO needed under tenant B.
+//
+// NOTE on LIKE dedup: the dedup-by-description-LIKE is a known
+// pre-existing workaround tracked in Phase 2.15 of the remediation
+// roadmap ("replace LIKE dedup with explicit dedup table"). Intentionally
+// preserved here; this function only narrows it to per-tenant scope.
+func (w *WorkflowSubscriber) checkShadowITForTenant(ctx context.Context, tenantID uuid.UUID) error {
+	// Drive-by correctness: the previous SQL referenced `da.created_at`,
+	// which does not exist on discovered_assets — the real column is
+	// `discovered_at` (see 000016_discovered_assets.up.sql). The
+	// pre-refactor query therefore errored on every run and the scan
+	// never actually emitted a WO. Switching to `discovered_at`
+	// preserves the intended semantics ("discovered >7 days ago and
+	// still unreviewed") and is required for this per-tenant refactor
+	// to produce any observable behavior.
 	rows, err := w.pool.Query(ctx,
-		`SELECT da.id, da.tenant_id, da.hostname, da.ip_address, da.source, da.created_at
+		`SELECT da.id, da.hostname, da.ip_address, da.source, da.discovered_at
 		 FROM discovered_assets da
-		 WHERE da.status = 'pending'
+		 WHERE da.tenant_id = $1
+		   AND da.status = 'pending'
 		   AND da.matched_asset_id IS NULL
-		   AND da.created_at < now() - interval '7 days'
+		   AND da.discovered_at < now() - interval '7 days'
 		   AND NOT EXISTS (
 		     SELECT 1 FROM work_orders wo
-		     WHERE wo.type = 'shadow_it_registration'
+		     WHERE wo.tenant_id = $1
+		     AND wo.type = 'shadow_it_registration'
 		     AND wo.description LIKE '%' || da.ip_address || '%'
 		     AND wo.status NOT IN ('completed','verified','rejected')
 		     AND wo.deleted_at IS NULL
-		   )`)
+		   )`, tenantID)
 	if err != nil {
-		zap.L().Warn("shadow IT checker: query failed", zap.Error(err))
-		return
+		return fmt.Errorf("query discovered_assets: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var daID, tenantID uuid.UUID
+		var daID uuid.UUID
 		var hostname, ipAddress, source string
-		var createdAt time.Time
-		if rows.Scan(&daID, &tenantID, &hostname, &ipAddress, &source, &createdAt) != nil {
+		var discoveredAt time.Time
+		if err := rows.Scan(&daID, &hostname, &ipAddress, &source, &discoveredAt); err != nil {
+			zap.L().Debug("shadow IT checker: row scan failed",
+				zap.String("tenant_id", tenantID.String()), zap.Error(err))
 			continue
 		}
 
-		daysPending := int(time.Since(createdAt).Hours() / 24)
+		daysPending := int(time.Since(discoveredAt).Hours() / 24)
 
 		_, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
 			Title:       fmt.Sprintf("Shadow IT: Unregistered device %s (%s)", hostname, ipAddress),
@@ -437,46 +477,88 @@ func (w *WorkflowSubscriber) checkShadowIT(ctx context.Context) {
 			Description: fmt.Sprintf("Network scan (%s) discovered device '%s' (IP: %s) %d days ago but it has no matching CMDB record. This is potential shadow IT. Action: register as new asset, or mark as ignored in discovery.", source, hostname, ipAddress, daysPending),
 		})
 		if err != nil {
-			zap.L().Debug("shadow IT checker: WO creation skipped", zap.String("ip", ipAddress), zap.Error(err))
+			zap.L().Debug("shadow IT checker: WO creation skipped",
+				zap.String("tenant_id", tenantID.String()),
+				zap.String("ip", ipAddress), zap.Error(err))
 			continue
 		}
-		zap.L().Info("shadow IT checker: created registration WO", zap.String("ip", ipAddress), zap.String("hostname", hostname))
+		zap.L().Info("shadow IT checker: created registration WO",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("ip", ipAddress),
+			zap.String("hostname", hostname))
 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate discovered_assets: %w", err)
+	}
+	return nil
 }
 
 // --- Auto Work Order 7: Duplicate Serial Number → Dedup Audit ---
 
+// checkDuplicateSerials iterates active tenants and runs the duplicate-
+// serial scan per tenant so WOs are always tagged with the right
+// tenant_id. One tenant's failure must not abort the batch.
 func (w *WorkflowSubscriber) checkDuplicateSerials(ctx context.Context) {
+	tenants, err := w.queries.ListActiveTenants(ctx)
+	if err != nil {
+		zap.L().Warn("dedup checker: list active tenants failed", zap.Error(err))
+		return
+	}
+	for _, t := range tenants {
+		if err := w.checkDuplicateSerialsForTenant(ctx, t.ID); err != nil {
+			zap.L().Warn("dedup checker: tenant scan failed",
+				zap.String("tenant_id", t.ID.String()),
+				zap.Error(err))
+			// Continue to next tenant — one failure must not abort the batch.
+		}
+	}
+}
+
+// checkDuplicateSerialsForTenant finds serial-number duplicates within a
+// single tenant. The GROUP BY drops `tenant_id` since the outer WHERE
+// already pins a single tenant.
+//
+// NOTE on LIKE dedup: the existing-WO probe still uses `description LIKE`.
+// That pattern is scheduled for replacement in Phase 2.15 of the roadmap
+// ("replace LIKE dedup with explicit dedup table"); intentionally
+// preserved here, but now narrowed to tenantID.
+func (w *WorkflowSubscriber) checkDuplicateSerialsForTenant(ctx context.Context, tenantID uuid.UUID) error {
 	rows, err := w.pool.Query(ctx,
-		`SELECT serial_number, tenant_id, array_agg(id) AS asset_ids, array_agg(asset_tag) AS asset_tags
+		`SELECT serial_number, array_agg(id) AS asset_ids, array_agg(asset_tag) AS asset_tags
 		 FROM assets
-		 WHERE serial_number IS NOT NULL
+		 WHERE tenant_id = $1
+		   AND serial_number IS NOT NULL
 		   AND serial_number != ''
 		   AND deleted_at IS NULL
-		 GROUP BY serial_number, tenant_id
-		 HAVING count(*) > 1`)
+		 GROUP BY serial_number
+		 HAVING count(*) > 1`, tenantID)
 	if err != nil {
-		zap.L().Warn("dedup checker: query failed", zap.Error(err))
-		return
+		return fmt.Errorf("query assets: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
 		var serial string
-		var tenantID uuid.UUID
 		var assetIDs []uuid.UUID
 		var assetTags []string
-		if rows.Scan(&serial, &tenantID, &assetIDs, &assetTags) != nil {
+		if err := rows.Scan(&serial, &assetIDs, &assetTags); err != nil {
+			zap.L().Debug("dedup checker: row scan failed",
+				zap.String("tenant_id", tenantID.String()), zap.Error(err))
 			continue
 		}
 
 		var existingCount int
-		w.pool.QueryRow(ctx,
+		if err := w.pool.QueryRow(ctx,
 			`SELECT count(*) FROM work_orders
 			 WHERE type = 'dedup_audit' AND description LIKE '%' || $1 || '%'
 			 AND status NOT IN ('completed','verified','rejected')
 			 AND deleted_at IS NULL AND tenant_id = $2`,
-			serial, tenantID).Scan(&existingCount)
+			serial, tenantID).Scan(&existingCount); err != nil {
+			zap.L().Debug("dedup checker: existing-WO probe failed",
+				zap.String("tenant_id", tenantID.String()),
+				zap.String("serial", serial), zap.Error(err))
+			continue
+		}
 		if existingCount > 0 {
 			continue
 		}
@@ -490,46 +572,82 @@ func (w *WorkflowSubscriber) checkDuplicateSerials(ctx context.Context) {
 			Description: fmt.Sprintf("Serial number '%s' appears on %d assets: [%s]. This violates data uniqueness. Action: identify the correct asset, merge or delete duplicates, investigate how the duplication occurred.", serial, len(assetIDs), tagList),
 		})
 		if err != nil {
-			zap.L().Debug("dedup checker: WO creation skipped", zap.String("serial", serial), zap.Error(err))
+			zap.L().Debug("dedup checker: WO creation skipped",
+				zap.String("tenant_id", tenantID.String()),
+				zap.String("serial", serial), zap.Error(err))
 			continue
 		}
-		zap.L().Info("dedup checker: created audit WO", zap.String("serial", serial), zap.Int("count", len(assetIDs)))
+		zap.L().Info("dedup checker: created audit WO",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("serial", serial),
+			zap.Int("count", len(assetIDs)))
 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate assets: %w", err)
+	}
+	return nil
 }
 
 // --- Auto Work Order 8: Missing Location → Location Completion ---
 
+// checkMissingLocation iterates active tenants and runs the missing-
+// location scan per tenant. A failure in one tenant is logged and does
+// not abort the batch.
+//
+// Bonus fix over the old cross-tenant version: the "bulk" fallback WO
+// is now correctly attributed to the tenant whose assets triggered it
+// — previously firstTenantID was whichever tenant happened to be
+// scanned first, which was a latent cross-tenant leak.
 func (w *WorkflowSubscriber) checkMissingLocation(ctx context.Context) {
+	tenants, err := w.queries.ListActiveTenants(ctx)
+	if err != nil {
+		zap.L().Warn("location completion checker: list active tenants failed", zap.Error(err))
+		return
+	}
+	for _, t := range tenants {
+		if err := w.checkMissingLocationForTenant(ctx, t.ID); err != nil {
+			zap.L().Warn("location completion checker: tenant scan failed",
+				zap.String("tenant_id", t.ID.String()),
+				zap.Error(err))
+			// Continue to next tenant — one failure must not abort the batch.
+		}
+	}
+}
+
+// checkMissingLocationForTenant runs the missing-location scan for a
+// single tenant. Both the assets source and the work_orders dedup
+// predicate are scoped to tenantID, and the bulk fallback WO is created
+// under tenantID so its attribution is unambiguous.
+func (w *WorkflowSubscriber) checkMissingLocationForTenant(ctx context.Context, tenantID uuid.UUID) error {
 	rows, err := w.pool.Query(ctx,
-		`SELECT a.id, a.tenant_id, a.asset_tag, a.name
+		`SELECT a.id, a.asset_tag, a.name
 		 FROM assets a
-		 WHERE a.location_id IS NULL
+		 WHERE a.tenant_id = $1
+		   AND a.location_id IS NULL
 		   AND a.rack_id IS NULL
 		   AND a.status NOT IN ('disposed', 'decommission', 'procurement')
 		   AND a.deleted_at IS NULL
 		   AND NOT EXISTS (
 		     SELECT 1 FROM work_orders wo
-		     WHERE wo.asset_id = a.id
+		     WHERE wo.tenant_id = $1
+		     AND wo.asset_id = a.id
 		     AND wo.type = 'location_completion'
 		     AND wo.status NOT IN ('completed','verified','rejected')
 		     AND wo.deleted_at IS NULL
-		   )`)
+		   )`, tenantID)
 	if err != nil {
-		zap.L().Warn("location completion checker: query failed", zap.Error(err))
-		return
+		return fmt.Errorf("query assets: %w", err)
 	}
 	defer rows.Close()
 
 	count := 0
-	var firstTenantID uuid.UUID
 	for rows.Next() {
-		var assetID, tenantID uuid.UUID
+		var assetID uuid.UUID
 		var assetTag, name string
-		if rows.Scan(&assetID, &tenantID, &assetTag, &name) != nil {
+		if err := rows.Scan(&assetID, &assetTag, &name); err != nil {
+			zap.L().Debug("location completion checker: row scan failed",
+				zap.String("tenant_id", tenantID.String()), zap.Error(err))
 			continue
-		}
-		if count == 0 {
-			firstTenantID = tenantID
 		}
 		count++
 
@@ -542,26 +660,35 @@ func (w *WorkflowSubscriber) checkMissingLocation(ctx context.Context) {
 				Description: fmt.Sprintf("Asset '%s' has no location or rack assigned. An asset without a known location cannot be physically managed. Please assign location and rack.", name),
 			})
 			if err != nil {
-				zap.L().Debug("location completion checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+				zap.L().Debug("location completion checker: WO creation skipped",
+					zap.String("tenant_id", tenantID.String()),
+					zap.String("asset", assetTag), zap.Error(err))
 			}
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate assets: %w", err)
+	}
 
 	if count > 10 {
-		_, err := w.maintenanceSvc.Create(ctx, firstTenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		_, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
 			Title:       fmt.Sprintf("Bulk Location Completion: %d assets missing location", count),
 			Type:        "location_completion",
 			Priority:    "medium",
 			Description: fmt.Sprintf("%d assets have no location or rack assigned. Run a location audit to assign physical positions.", count),
 		})
 		if err != nil {
-			zap.L().Debug("location completion checker: bulk WO creation skipped", zap.Error(err))
+			zap.L().Debug("location completion checker: bulk WO creation skipped",
+				zap.String("tenant_id", tenantID.String()), zap.Error(err))
 		}
 	}
 
 	if count > 0 {
-		zap.L().Info("location completion checker: found assets without location", zap.Int("count", count))
+		zap.L().Info("location completion checker: found assets without location",
+			zap.String("tenant_id", tenantID.String()),
+			zap.Int("count", count))
 	}
+	return nil
 }
 
 // --- Auto Work Order 9: Firmware Outdated → Firmware Upgrade ---
