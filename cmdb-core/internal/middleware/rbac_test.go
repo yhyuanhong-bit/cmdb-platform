@@ -111,6 +111,25 @@ func TestMergePermissions_EmptyRoles(t *testing.T) {
 	}
 }
 
+func TestIsSuperAdmin(t *testing.T) {
+	tests := []struct {
+		name  string
+		perms map[string][]string
+		want  bool
+	}{
+		{"wildcard star-star", map[string][]string{"*": {"*"}}, true},
+		{"wildcard without star action", map[string][]string{"*": {"read"}}, false},
+		{"no wildcard", map[string][]string{"assets": {"*"}}, false},
+		{"empty", map[string][]string{}, false},
+		{"nil", nil, false},
+	}
+	for _, tt := range tests {
+		if got := isSuperAdmin(tt.perms); got != tt.want {
+			t.Errorf("%s: isSuperAdmin = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestMergePermissions_InvalidJSON(t *testing.T) {
 	roles := []dbgen.Role{
 		{Permissions: []byte(`not-json`)},
