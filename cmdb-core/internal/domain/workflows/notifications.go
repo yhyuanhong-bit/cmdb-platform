@@ -113,10 +113,20 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 		return nil
 	}
 
-	// Dedup: check if an open work order already exists for this asset
+	// Dedup: only suppress if an open emergency work order already exists
+	// for this asset in this tenant. A pending maintenance/inspection WO
+	// addresses a different lifecycle and MUST NOT mute an incoming
+	// critical alert — before this narrowing, a single stale routine WO
+	// silently swallowed every downstream critical alert for the same
+	// asset. Tenant_id stays in the predicate for isolation.
 	var existingCount int
 	err = w.pool.QueryRow(ctx,
-		"SELECT count(*) FROM work_orders WHERE asset_id = $1 AND status NOT IN ('completed','verified','rejected') AND deleted_at IS NULL AND tenant_id = $2",
+		`SELECT count(*) FROM work_orders
+		  WHERE asset_id = $1
+		    AND tenant_id = $2
+		    AND type = 'emergency'
+		    AND status IN ('approved','in_progress','submitted')
+		    AND deleted_at IS NULL`,
 		assetUUID, tenantID).Scan(&existingCount)
 	if err != nil {
 		zap.L().Warn("workflow: dedup check failed", zap.Error(err))
@@ -124,7 +134,7 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 	}
 
 	if existingCount > 0 {
-		return nil // already has an open work order
+		return nil // already has an open emergency work order for this asset
 	}
 
 	// Create emergency work order via service layer
@@ -140,19 +150,24 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 		return nil
 	}
 
-	// Auto-advance to in_progress (skip approval for emergencies)
-	// uuid.Nil as operatorID signals a system operation, bypassing self-approval checks
-	if _, err := w.maintenanceSvc.Transition(ctx, tenantID, order.ID, uuid.Nil, []string{"super-admin"}, maintenance.TransitionRequest{
-		Status:  "approved",
-		Comment: "Auto-approved: emergency work order",
-	}); err != nil {
-		zap.L().Error("workflow: failed to auto-approve emergency WO", zap.String("order_id", order.ID.String()), zap.Error(err))
-	}
-	if _, err := w.maintenanceSvc.Transition(ctx, tenantID, order.ID, uuid.Nil, nil, maintenance.TransitionRequest{
-		Status:  "in_progress",
-		Comment: "Auto-started: emergency work order",
-	}); err != nil {
-		zap.L().Error("workflow: failed to auto-start emergency WO", zap.String("order_id", order.ID.String()), zap.Error(err))
+	// Atomically flip governance_status='approved' AND execution_status='working'
+	// in a single SQL UPDATE. Previously this was a two-step Transition(approved) +
+	// Transition(in_progress) flow — a crash, DB timeout, or retry between the two
+	// steps could strand the WO half-approved (approved-but-not-started), which
+	// then trips the SLA scanner and hides real emergencies behind phantom tickets.
+	//
+	// Idempotency: the service returns (nil, nil) if 0 rows matched (already
+	// transitioned, concurrent winner, or stale retry). That is success — the
+	// caller's intent ("ensure this emergency WO is approved+in_progress") is
+	// already satisfied.
+	//
+	// uuid.Nil as approverID marks this as a system auto-approval in the audit log.
+	if _, err := w.maintenanceSvc.TransitionEmergencyAtomic(ctx, tenantID, order.ID, uuid.Nil); err != nil {
+		zap.L().Error("workflow: failed to atomic-approve emergency WO",
+			zap.String("order_id", order.ID.String()), zap.Error(err))
+		// No compensation path: the atomic UPDATE either fully succeeded, fully
+		// failed (no state change), or matched 0 rows (nothing to undo). Log and
+		// move on — the next alert-fire event will retry idempotently.
 	}
 
 	zap.L().Info("workflow: auto-created emergency work order",
