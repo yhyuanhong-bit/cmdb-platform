@@ -352,6 +352,25 @@ func main() {
 		authMW(c)
 	})
 
+	// Per-IP rate limit for login and refresh only. These endpoints are
+	// unauthenticated so we cannot key on user_id (the global limiter below
+	// would fall back to IP as well, but expresses its budget per-second
+	// rather than per-minute which is the useful granularity for brute-force
+	// mitigation). The wrapper ensures the limiter runs ONLY for these two
+	// paths and never for the rest of the API surface.
+	loginLimiter := middleware.NewIPRateLimiter(5)
+	loginLimiterMW := loginLimiter.Middleware()
+	v1.Use(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if path == "/api/v1/auth/login" || path == "/api/v1/auth/refresh" {
+			loginLimiterMW(c)
+			// When the limiter aborts, c.Next() is a no-op; when it
+			// allows, gin will advance to the next middleware after we
+			// return. We must NOT call c.Next() here or the chain runs
+			// twice.
+		}
+	})
+
 	// Rate limiter runs after auth so user_id keying beats shared-IP NAT collisions.
 	if cfg.RateLimitEnabled {
 		rl := middleware.NewRateLimiter(middleware.RateLimiterConfig{
