@@ -107,8 +107,13 @@ func (s *APIServer) CreateInventoryTask(c *gin.Context) {
 
 // CompleteInventoryTask marks an inventory task as completed.
 // (POST /inventory/tasks/{id}/complete)
+//
+// Scoped to the caller's tenant: the underlying UPDATE filters by
+// `tenant_id` so a tenant-B caller holding a tenant-A task UUID can
+// never flip its status. A miss returns 404 (not 403) to avoid
+// leaking "exists in another tenant".
 func (s *APIServer) CompleteInventoryTask(c *gin.Context, id IdPath) {
-	task, err := s.inventorySvc.Complete(c.Request.Context(), uuid.UUID(id))
+	task, err := s.inventorySvc.Complete(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "inventory task not found")
 		return
@@ -193,11 +198,13 @@ func (s *APIServer) ScanInventoryItem(c *gin.Context, id IdPath, itemId openapi_
 		return
 	}
 
-	// Auto-activate task if still planned
+	// Auto-activate task if still planned. Tenant-scoped: a cross-tenant
+	// item.id (if one ever leaked here) must not be able to flip another
+	// tenant's task status.
 	taskID := uuid.UUID(id)
 	s.pool.Exec(ctx,
-		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND status = 'planned'",
-		taskID)
+		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND tenant_id = $2 AND status = 'planned'",
+		taskID, tenantIDFromContext(c))
 
 	s.recordAudit(c, "item.scanned", "inventory", "inventory_item", uuid.UUID(itemId), map[string]any{
 		"status": req.Status,
@@ -306,10 +313,11 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 			taskID, asset.ID, asset.RackID, expectedJSON)
 	}
 
-	// Auto-transition task: planned → in_progress (inside transaction)
+	// Auto-transition task: planned → in_progress (inside transaction).
+	// Tenant-scoped so a cross-tenant task UUID cannot be flipped.
 	tx.Exec(ctx,
-		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND status = 'planned'",
-		taskID)
+		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND tenant_id = $2 AND status = 'planned'",
+		taskID, tenantID)
 
 	if err := tx.Commit(ctx); err != nil {
 		response.InternalError(c, "failed to commit import")

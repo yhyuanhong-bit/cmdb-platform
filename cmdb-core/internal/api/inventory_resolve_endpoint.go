@@ -69,10 +69,12 @@ func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context, id IdPath, itemI
 		"INSERT INTO inventory_scan_history (id, item_id, scanned_by, method, result, note, scanned_at) VALUES ($1, $2, $3, 'manual', $4, $5, now())",
 		scanID, itemID, userID, req.Action, req.Note)
 
-	// Auto-activate task if still planned
+	// Auto-activate task if still planned. Tenant-scoped so a cross-tenant
+	// task UUID (or one leaked via an item-ID resolve) cannot flip another
+	// tenant's task state.
 	s.pool.Exec(ctx,
-		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND status = 'planned'",
-		taskID)
+		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND tenant_id = $2 AND status = 'planned'",
+		taskID, tenantIDFromContext(c))
 
 	s.recordAudit(c, "item.discrepancy_resolved", "inventory", "inventory_item", itemID, map[string]any{
 		"task_id": taskID.String(),

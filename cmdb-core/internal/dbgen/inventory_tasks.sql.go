@@ -14,12 +14,17 @@ import (
 
 const activateInventoryTask = `-- name: ActivateInventoryTask :one
 UPDATE inventory_tasks SET status = 'in_progress'
-WHERE id = $1 AND status = 'planned'
+WHERE id = $1 AND tenant_id = $2 AND status = 'planned'
 RETURNING id, tenant_id, code, name, scope_location_id, status, method, planned_date, completed_date, assigned_to, created_at, deleted_at, sync_version
 `
 
-func (q *Queries) ActivateInventoryTask(ctx context.Context, id uuid.UUID) (InventoryTask, error) {
-	row := q.db.QueryRow(ctx, activateInventoryTask, id)
+type ActivateInventoryTaskParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) ActivateInventoryTask(ctx context.Context, arg ActivateInventoryTaskParams) (InventoryTask, error) {
+	row := q.db.QueryRow(ctx, activateInventoryTask, arg.ID, arg.TenantID)
 	var i InventoryTask
 	err := row.Scan(
 		&i.ID,
@@ -41,12 +46,17 @@ func (q *Queries) ActivateInventoryTask(ctx context.Context, id uuid.UUID) (Inve
 
 const completeInventoryTask = `-- name: CompleteInventoryTask :one
 UPDATE inventory_tasks SET status = 'completed', completed_date = now()
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 RETURNING id, tenant_id, code, name, scope_location_id, status, method, planned_date, completed_date, assigned_to, created_at, deleted_at, sync_version
 `
 
-func (q *Queries) CompleteInventoryTask(ctx context.Context, id uuid.UUID) (InventoryTask, error) {
-	row := q.db.QueryRow(ctx, completeInventoryTask, id)
+type CompleteInventoryTaskParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) CompleteInventoryTask(ctx context.Context, arg CompleteInventoryTaskParams) (InventoryTask, error) {
+	row := q.db.QueryRow(ctx, completeInventoryTask, arg.ID, arg.TenantID)
 	var i InventoryTask
 	err := row.Scan(
 		&i.ID,

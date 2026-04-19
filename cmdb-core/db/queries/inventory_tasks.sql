@@ -31,7 +31,7 @@ RETURNING *;
 
 -- name: CompleteInventoryTask :one
 UPDATE inventory_tasks SET status = 'completed', completed_date = now()
-WHERE id = $1
+WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
 RETURNING *;
 
 -- name: ScanInventoryItem :one
@@ -67,7 +67,7 @@ RETURNING *;
 
 -- name: ActivateInventoryTask :one
 UPDATE inventory_tasks SET status = 'in_progress'
-WHERE id = $1 AND status = 'planned'
+WHERE id = $1 AND tenant_id = $2 AND status = 'planned'
 RETURNING *;
 
 -- name: SoftDeleteInventoryTask :exec

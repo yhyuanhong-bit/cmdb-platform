@@ -87,9 +87,14 @@ func (s *Service) Create(ctx context.Context, params dbgen.CreateInventoryTaskPa
 	return &task, nil
 }
 
-// Complete marks an inventory task as completed.
-func (s *Service) Complete(ctx context.Context, id uuid.UUID) (*dbgen.InventoryTask, error) {
-	task, err := s.queries.CompleteInventoryTask(ctx, id)
+// Complete marks an inventory task as completed. The update is scoped to the
+// given tenant — a cross-tenant caller gets pgx.ErrNoRows, which callers
+// surface as 404 to avoid leaking "exists in another tenant".
+func (s *Service) Complete(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.InventoryTask, error) {
+	task, err := s.queries.CompleteInventoryTask(ctx, dbgen.CompleteInventoryTaskParams{
+		ID:       id,
+		TenantID: tenantID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("complete inventory task: %w", err)
 	}
