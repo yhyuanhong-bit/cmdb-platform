@@ -8,6 +8,30 @@ import (
 	"github.com/google/uuid"
 )
 
+// hasAdminRole reports whether the current request is authenticated as an
+// admin. The RBAC middleware sets "is_admin" on the Gin context when the
+// merged permissions grant wildcard access ("*":["*"]). Tests may also set
+// the flag directly.
+func hasAdminRole(c *gin.Context) bool {
+	v, ok := c.Get("is_admin")
+	if !ok {
+		return false
+	}
+	b, _ := v.(bool)
+	return b
+}
+
+// canListUserSessions enforces that the caller is either listing their own
+// sessions or has admin privileges. Extracted so the authorization decision
+// is unit-testable without a database.
+func canListUserSessions(c *gin.Context, pathUserID uuid.UUID) bool {
+	currentUserID := userIDFromContext(c)
+	if pathUserID == currentUserID {
+		return true
+	}
+	return hasAdminRole(c)
+}
+
 // userSession represents one session record returned by GetUserSessions.
 type userSession struct {
 	ID         string `json:"id"`
@@ -36,8 +60,14 @@ func deviceIcon(deviceType string) string {
 
 // ListUserSessions handles GET /users/:id/sessions
 // Returns the 20 most recent sessions for a given user.
+// Authorization: caller must be listing their own sessions OR be an admin.
 func (s *APIServer) ListUserSessions(c *gin.Context, id IdPath) {
 	userID := uuid.UUID(id)
+
+	if !canListUserSessions(c, userID) {
+		response.Forbidden(c, "cannot list other users' sessions")
+		return
+	}
 
 	rows, err := s.pool.Query(c.Request.Context(), `
 		SELECT id, ip_address, device_type, browser, created_at, last_active_at, is_current

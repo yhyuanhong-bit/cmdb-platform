@@ -115,6 +115,11 @@ func RBAC(queries *dbgen.Queries, redisClient *redis.Client) gin.HandlerFunc {
 			return
 		}
 
+		// Surface admin status so downstream handlers can make ownership
+		// decisions (e.g. self-or-admin checks on user-scoped resources)
+		// without re-querying the database.
+		c.Set("is_admin", isSuperAdmin(perms))
+
 		if !checkPermission(perms, resource, action) {
 			response.Forbidden(c, fmt.Sprintf("insufficient permissions for %s:%s", resource, action))
 			c.Abort()
@@ -123,6 +128,13 @@ func RBAC(queries *dbgen.Queries, redisClient *redis.Client) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// isSuperAdmin reports whether the merged permission map grants wildcard
+// access on every resource ("*":["*"]).
+func isSuperAdmin(perms map[string][]string) bool {
+	wildcard, ok := perms["*"]
+	return ok && containsStr(wildcard, "*")
 }
 
 // extractResource parses the first segment after /api/v1/ and maps it to a
@@ -191,7 +203,7 @@ func mergePermissions(roles []dbgen.Role) map[string][]string {
 // requested action on the given resource.
 func checkPermission(perms map[string][]string, resource, action string) bool {
 	// Super-admin: wildcard resource with wildcard action.
-	if wildcard, ok := perms["*"]; ok && containsStr(wildcard, "*") {
+	if isSuperAdmin(perms) {
 		return true
 	}
 
