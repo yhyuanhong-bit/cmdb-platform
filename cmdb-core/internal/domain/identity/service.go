@@ -2,6 +2,7 @@ package identity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
@@ -10,9 +11,38 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// ErrCrossTenantRole is returned by AssignRole when the caller attempts to
+// assign a tenant-scoped role to a user in a different tenant. The API layer
+// translates this to HTTP 400 with code CROSS_TENANT_ROLE.
+//
+// System roles (roles.tenant_id IS NULL) are intentionally global and do not
+// trigger this error.
+var ErrCrossTenantRole = errors.New("cross-tenant role assignment")
+
+// identityQueries is the subset of *dbgen.Queries that Service depends on.
+// Defined as an interface so AssignRole's cross-tenant check can be unit
+// tested with a lightweight fake. *dbgen.Queries satisfies this interface
+// automatically; no adapter is required.
+type identityQueries interface {
+	ListUsers(ctx context.Context, arg dbgen.ListUsersParams) ([]dbgen.User, error)
+	CountUsers(ctx context.Context, tenantID uuid.UUID) (int64, error)
+	GetUser(ctx context.Context, id uuid.UUID) (dbgen.User, error)
+	CreateUser(ctx context.Context, arg dbgen.CreateUserParams) (dbgen.User, error)
+	UpdateUser(ctx context.Context, arg dbgen.UpdateUserParams) (dbgen.User, error)
+	DeactivateUser(ctx context.Context, arg dbgen.DeactivateUserParams) error
+	ListRoles(ctx context.Context, tenantID pgtype.UUID) ([]dbgen.Role, error)
+	GetRole(ctx context.Context, id uuid.UUID) (dbgen.Role, error)
+	CreateRole(ctx context.Context, arg dbgen.CreateRoleParams) (dbgen.Role, error)
+	UpdateRole(ctx context.Context, arg dbgen.UpdateRoleParams) (dbgen.Role, error)
+	DeleteRole(ctx context.Context, arg dbgen.DeleteRoleParams) error
+	AssignRole(ctx context.Context, arg dbgen.AssignRoleParams) error
+	RemoveRole(ctx context.Context, arg dbgen.RemoveRoleParams) error
+	ListUserRoleIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
+}
+
 // Service provides user and role listing operations.
 type Service struct {
-	queries *dbgen.Queries
+	queries identityQueries
 }
 
 // NewService creates a new identity Service.
@@ -99,10 +129,40 @@ func (s *Service) UpdateRole(ctx context.Context, params dbgen.UpdateRoleParams)
 	return &role, nil
 }
 
-// AssignRole assigns a role to a user.
+// AssignRole assigns a role to a user, enforcing same-tenant isolation.
+//
+// Two layers of defense:
+//  1. Application-layer check here — fetch users.tenant_id and roles.tenant_id,
+//     return ErrCrossTenantRole when the role is tenant-scoped and differs
+//     from the user's tenant. System roles (roles.tenant_id IS NULL) bypass
+//     this check and are assignable to any user.
+//  2. Database trigger trg_user_roles_tenant_check (migration 000045) which
+//     re-validates on INSERT/UPDATE and stamps user_roles.tenant_id. If this
+//     check is bypassed (e.g. raw SQL), the trigger still fails closed.
+//
+// Lookup failures for either the user or the role are propagated as errors,
+// never silently swallowed — fail-closed by design.
 func (s *Service) AssignRole(ctx context.Context, userID, roleID uuid.UUID) error {
-	err := s.queries.AssignRole(ctx, dbgen.AssignRoleParams{UserID: userID, RoleID: roleID})
+	user, err := s.queries.GetUser(ctx, userID)
 	if err != nil {
+		return fmt.Errorf("assign role: lookup user: %w", err)
+	}
+	role, err := s.queries.GetRole(ctx, roleID)
+	if err != nil {
+		return fmt.Errorf("assign role: lookup role: %w", err)
+	}
+
+	// System roles carry a NULL tenant_id and may be assigned to any user.
+	// Tenant-scoped roles must match the user's tenant exactly.
+	if role.TenantID.Valid {
+		roleTenant := uuid.UUID(role.TenantID.Bytes)
+		if roleTenant != user.TenantID {
+			return fmt.Errorf("%w: user_tenant=%s role_tenant=%s",
+				ErrCrossTenantRole, user.TenantID, roleTenant)
+		}
+	}
+
+	if err := s.queries.AssignRole(ctx, dbgen.AssignRoleParams{UserID: userID, RoleID: roleID}); err != nil {
 		return fmt.Errorf("assign role: %w", err)
 	}
 	return nil

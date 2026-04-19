@@ -2,8 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -234,6 +237,11 @@ func (s *APIServer) AssignRoleToUser(c *gin.Context, id IdPath) {
 	}
 	roleID := uuid.UUID(req.RoleId)
 	if err := s.identitySvc.AssignRole(c.Request.Context(), userID, roleID); err != nil {
+		if errors.Is(err, identity.ErrCrossTenantRole) {
+			response.Err(c, http.StatusBadRequest, "CROSS_TENANT_ROLE",
+				"role belongs to a different tenant than the user")
+			return
+		}
 		response.InternalError(c, "failed to assign role")
 		return
 	}

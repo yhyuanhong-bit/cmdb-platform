@@ -547,26 +547,28 @@ type UpgradeRule struct {
 }
 
 type User struct {
-	ID           uuid.UUID          `json:"id"`
-	TenantID     uuid.UUID          `json:"tenant_id"`
-	DeptID       pgtype.UUID        `json:"dept_id"`
-	Username     string             `json:"username"`
-	DisplayName  string             `json:"display_name"`
-	Email        string             `json:"email"`
-	Phone        pgtype.Text        `json:"phone"`
-	PasswordHash string             `json:"password_hash"`
-	Status       string             `json:"status"`
-	Source       string             `json:"source"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
-	LastLoginAt  pgtype.Timestamptz `json:"last_login_at"`
-	LastLoginIp  pgtype.Text        `json:"last_login_ip"`
-	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
+	ID                uuid.UUID          `json:"id"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	DeptID            pgtype.UUID        `json:"dept_id"`
+	Username          string             `json:"username"`
+	DisplayName       string             `json:"display_name"`
+	Email             string             `json:"email"`
+	Phone             pgtype.Text        `json:"phone"`
+	PasswordHash      string             `json:"password_hash"`
+	Status            string             `json:"status"`
+	Source            string             `json:"source"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	LastLoginAt       pgtype.Timestamptz `json:"last_login_at"`
+	LastLoginIp       pgtype.Text        `json:"last_login_ip"`
+	DeletedAt         pgtype.Timestamptz `json:"deleted_at"`
+	PasswordChangedAt time.Time          `json:"password_changed_at"`
 }
 
 type UserRole struct {
-	UserID uuid.UUID `json:"user_id"`
-	RoleID uuid.UUID `json:"role_id"`
+	UserID   uuid.UUID `json:"user_id"`
+	RoleID   uuid.UUID `json:"role_id"`
+	TenantID uuid.UUID `json:"tenant_id"`
 }
 
 type UserSession struct {

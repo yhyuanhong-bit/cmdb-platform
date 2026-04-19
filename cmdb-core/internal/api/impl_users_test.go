@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -148,6 +150,43 @@ func TestAssignRoleToUser_InvalidBody(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", rec.Code)
+	}
+}
+
+// Cross-tenant role assignment must return HTTP 400 with code CROSS_TENANT_ROLE
+// (not a generic 500) so the caller can distinguish a policy violation from an
+// infrastructure failure.
+func TestAssignRoleToUser_CrossTenantReturns400(t *testing.T) {
+	userID := uuid.New()
+	roleID := uuid.New()
+	svc := &mockIdentityService{
+		assignRoleFn: func(_ context.Context, _, _ uuid.UUID) error {
+			// Match the sentinel the service layer returns on cross-tenant.
+			return fmt.Errorf("wrapper: %w", identity.ErrCrossTenantRole)
+		},
+	}
+	s := newUsersTestServer(svc)
+	handler := func(c *gin.Context) { s.AssignRoleToUser(c, IdPath(userID)) }
+	rec := runHandler(t, handler, http.MethodPost, "/users/"+userID.String()+"/roles",
+		map[string]string{"role_id": roleID.String()},
+		gin.Params{{Key: "id", Value: userID.String()}},
+		map[string]string{"user_id": uuid.New().String(), "tenant_id": uuid.New().String()})
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400. body=%s", rec.Code, rec.Body.String())
+	}
+
+	var env struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if env.Error.Code != "CROSS_TENANT_ROLE" {
+		t.Errorf("error code = %q, want CROSS_TENANT_ROLE", env.Error.Code)
 	}
 }
 

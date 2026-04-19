@@ -80,6 +80,25 @@ func (q *Queries) DeleteRole(ctx context.Context, arg DeleteRoleParams) error {
 	return err
 }
 
+const getRole = `-- name: GetRole :one
+SELECT id, tenant_id, name, description, permissions, is_system, created_at FROM roles WHERE id = $1
+`
+
+func (q *Queries) GetRole(ctx context.Context, id uuid.UUID) (Role, error) {
+	row := q.db.QueryRow(ctx, getRole, id)
+	var i Role
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Name,
+		&i.Description,
+		&i.Permissions,
+		&i.IsSystem,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listRoles = `-- name: ListRoles :many
 SELECT id, tenant_id, name, description, permissions, is_system, created_at FROM roles
 WHERE tenant_id = $1 OR tenant_id IS NULL

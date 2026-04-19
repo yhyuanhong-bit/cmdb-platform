@@ -30,7 +30,7 @@ INSERT INTO users (
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9
-) RETURNING id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at
+) RETURNING id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at
 `
 
 type CreateUserParams struct {
@@ -74,6 +74,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LastLoginAt,
 		&i.LastLoginIp,
 		&i.DeletedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }
@@ -93,7 +94,7 @@ func (q *Queries) DeactivateUser(ctx context.Context, arg DeactivateUserParams) 
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at FROM users WHERE id = $1
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
@@ -115,12 +116,13 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.LastLoginAt,
 		&i.LastLoginIp,
 		&i.DeletedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at FROM users WHERE username = $1
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE username = $1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
@@ -142,12 +144,13 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.LastLoginAt,
 		&i.LastLoginIp,
 		&i.DeletedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at FROM users
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users
 WHERE tenant_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -184,6 +187,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.LastLoginAt,
 			&i.LastLoginIp,
 			&i.DeletedAt,
+			&i.PasswordChangedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -205,7 +209,7 @@ UPDATE users SET
     status        = COALESCE($6, status),
     updated_at    = now()
 WHERE id = $7
-RETURNING id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at
+RETURNING id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at
 `
 
 type UpdateUserParams struct {
@@ -245,6 +249,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.LastLoginAt,
 		&i.LastLoginIp,
 		&i.DeletedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }

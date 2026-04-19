@@ -21,6 +21,9 @@ RETURNING *;
 -- name: DeleteRole :exec
 DELETE FROM roles WHERE id = $1 AND tenant_id = $2 AND is_system = false;
 
+-- name: GetRole :one
+SELECT * FROM roles WHERE id = $1;
+
 -- name: ListUserRoles :many
 SELECT r.* FROM roles r
 JOIN user_roles ur ON ur.role_id = r.id
