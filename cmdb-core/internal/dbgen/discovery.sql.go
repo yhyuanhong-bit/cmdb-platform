@@ -30,8 +30,18 @@ type ApproveDiscoveredAssetParams struct {
 	ReviewedBy      pgtype.UUID `json:"reviewed_by"`
 }
 
+// Marks a discovered_asset as approved and links it to the newly-created
+// asset row (or the pre-existing one on an idempotent retry).
+//
+// Tenant-scoped: callers must pass their tenant_id; a row owned by a
+// different tenant will not match and the handler returns 404.
 func (q *Queries) ApproveDiscoveredAsset(ctx context.Context, arg ApproveDiscoveredAssetParams) (DiscoveredAsset, error) {
-	row := q.db.QueryRow(ctx, approveDiscoveredAsset, arg.ID, arg.TenantID, arg.ApprovedAssetID, arg.ReviewedBy)
+	row := q.db.QueryRow(ctx, approveDiscoveredAsset,
+		arg.ID,
+		arg.TenantID,
+		arg.ApprovedAssetID,
+		arg.ReviewedBy,
+	)
 	var i DiscoveredAsset
 	err := row.Scan(
 		&i.ID,

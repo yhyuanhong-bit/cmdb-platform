@@ -7,6 +7,7 @@ package dbgen
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -17,7 +18,7 @@ UPDATE alert_events SET
     status   = 'acknowledged',
     acked_at = now()
 WHERE id = $1 AND tenant_id = $2 AND status = 'firing'
-RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version
+RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version, dedup_key, updated_at
 `
 
 type AcknowledgeAlertParams struct {
@@ -41,6 +42,8 @@ func (q *Queries) AcknowledgeAlert(ctx context.Context, arg AcknowledgeAlertPara
 		&i.AckedAt,
 		&i.ResolvedAt,
 		&i.SyncVersion,
+		&i.DedupKey,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -95,7 +98,7 @@ func (q *Queries) CountAlertsUnderLocation(ctx context.Context, arg CountAlertsU
 }
 
 const listAlerts = `-- name: ListAlerts :many
-SELECT id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version FROM alert_events
+SELECT id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version, dedup_key, updated_at FROM alert_events
 WHERE tenant_id = $1
   AND ($4::varchar IS NULL OR status = $4)
   AND ($5::varchar IS NULL OR severity = $5)
@@ -142,6 +145,8 @@ func (q *Queries) ListAlerts(ctx context.Context, arg ListAlertsParams) ([]Alert
 			&i.AckedAt,
 			&i.ResolvedAt,
 			&i.SyncVersion,
+			&i.DedupKey,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -158,7 +163,7 @@ UPDATE alert_events SET
     status      = 'resolved',
     resolved_at = now()
 WHERE id = $1 AND tenant_id = $2 AND status IN ('firing', 'acknowledged')
-RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version
+RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version, dedup_key, updated_at
 `
 
 type ResolveAlertParams struct {
@@ -182,6 +187,86 @@ func (q *Queries) ResolveAlert(ctx context.Context, arg ResolveAlertParams) (Ale
 		&i.AckedAt,
 		&i.ResolvedAt,
 		&i.SyncVersion,
+		&i.DedupKey,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertAlertEventByDedup = `-- name: UpsertAlertEventByDedup :one
+INSERT INTO alert_events (
+    tenant_id, rule_id, asset_id, status, severity, message, trigger_value, dedup_key, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+ON CONFLICT (dedup_key) DO UPDATE SET
+    status        = EXCLUDED.status,
+    trigger_value = EXCLUDED.trigger_value,
+    message       = EXCLUDED.message,
+    updated_at    = now()
+RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version, dedup_key, updated_at, (xmax = 0) AS inserted
+`
+
+type UpsertAlertEventByDedupParams struct {
+	TenantID     uuid.UUID      `json:"tenant_id"`
+	RuleID       pgtype.UUID    `json:"rule_id"`
+	AssetID      pgtype.UUID    `json:"asset_id"`
+	Status       string         `json:"status"`
+	Severity     string         `json:"severity"`
+	Message      pgtype.Text    `json:"message"`
+	TriggerValue pgtype.Numeric `json:"trigger_value"`
+	DedupKey     string         `json:"dedup_key"`
+}
+
+type UpsertAlertEventByDedupRow struct {
+	ID           uuid.UUID          `json:"id"`
+	TenantID     uuid.UUID          `json:"tenant_id"`
+	RuleID       pgtype.UUID        `json:"rule_id"`
+	AssetID      pgtype.UUID        `json:"asset_id"`
+	Status       string             `json:"status"`
+	Severity     string             `json:"severity"`
+	Message      pgtype.Text        `json:"message"`
+	TriggerValue pgtype.Numeric     `json:"trigger_value"`
+	FiredAt      time.Time          `json:"fired_at"`
+	AckedAt      pgtype.Timestamptz `json:"acked_at"`
+	ResolvedAt   pgtype.Timestamptz `json:"resolved_at"`
+	SyncVersion  int64              `json:"sync_version"`
+	DedupKey     string             `json:"dedup_key"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+	Inserted     bool               `json:"inserted"`
+}
+
+// Idempotent per-hour alert insertion used by the evaluator. The unique
+// index on alert_events.dedup_key enforces "one row per rule + asset + hour";
+// on conflict we refresh trigger_value + status + updated_at but keep
+// fired_at pinned to the first firing of the window so operators can see
+// the original time the breach started.
+func (q *Queries) UpsertAlertEventByDedup(ctx context.Context, arg UpsertAlertEventByDedupParams) (UpsertAlertEventByDedupRow, error) {
+	row := q.db.QueryRow(ctx, upsertAlertEventByDedup,
+		arg.TenantID,
+		arg.RuleID,
+		arg.AssetID,
+		arg.Status,
+		arg.Severity,
+		arg.Message,
+		arg.TriggerValue,
+		arg.DedupKey,
+	)
+	var i UpsertAlertEventByDedupRow
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.RuleID,
+		&i.AssetID,
+		&i.Status,
+		&i.Severity,
+		&i.Message,
+		&i.TriggerValue,
+		&i.FiredAt,
+		&i.AckedAt,
+		&i.ResolvedAt,
+		&i.SyncVersion,
+		&i.DedupKey,
+		&i.UpdatedAt,
+		&i.Inserted,
 	)
 	return i, err
 }

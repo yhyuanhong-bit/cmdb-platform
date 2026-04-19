@@ -12,6 +12,69 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const aggregateMetricPerAsset = `-- name: AggregateMetricPerAsset :many
+SELECT
+    asset_id,
+    CASE $3::text
+        WHEN 'avg' THEN avg(value)
+        WHEN 'max' THEN max(value)
+        WHEN 'min' THEN min(value)
+        WHEN 'p95' THEN percentile_cont(0.95) WITHIN GROUP (ORDER BY value)
+        WHEN 'p99' THEN percentile_cont(0.99) WITHIN GROUP (ORDER BY value)
+        ELSE NULL
+    END AS aggregated_value,
+    count(*) AS sample_count
+FROM metrics
+WHERE tenant_id = $1
+  AND name = $2
+  AND time > $4
+GROUP BY asset_id
+`
+
+type AggregateMetricPerAssetParams struct {
+	TenantID pgtype.UUID `json:"tenant_id"`
+	Name     string      `json:"name"`
+	Column3  string      `json:"column_3"`
+	Time     time.Time   `json:"time"`
+}
+
+type AggregateMetricPerAssetRow struct {
+	AssetID         pgtype.UUID `json:"asset_id"`
+	AggregatedValue interface{} `json:"aggregated_value"`
+	SampleCount     int64       `json:"sample_count"`
+}
+
+// Tenant-scoped aggregation used by the alert evaluator. Every call is
+// strictly scoped by tenant_id so rules never read another tenant's metrics.
+// The aggregation is chosen via $3 ('avg'|'max'|'min'|'p95'|'p99'); anything
+// else short-circuits to NULL and the evaluator treats the row as missing.
+// We group by asset_id so each asset is judged against the threshold
+// independently — one rule, one metric, many assets.
+func (q *Queries) AggregateMetricPerAsset(ctx context.Context, arg AggregateMetricPerAssetParams) ([]AggregateMetricPerAssetRow, error) {
+	rows, err := q.db.Query(ctx, aggregateMetricPerAsset,
+		arg.TenantID,
+		arg.Name,
+		arg.Column3,
+		arg.Time,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AggregateMetricPerAssetRow{}
+	for rows.Next() {
+		var i AggregateMetricPerAssetRow
+		if err := rows.Scan(&i.AssetID, &i.AggregatedValue, &i.SampleCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertMetric = `-- name: InsertMetric :exec
 INSERT INTO metrics (time, asset_id, tenant_id, name, value, labels)
 VALUES ($1, $2, $3, $4, $5, $6)

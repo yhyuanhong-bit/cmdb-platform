@@ -25,6 +25,8 @@ type AlertEvent struct {
 	AckedAt      pgtype.Timestamptz `json:"acked_at"`
 	ResolvedAt   pgtype.Timestamptz `json:"resolved_at"`
 	SyncVersion  int64              `json:"sync_version"`
+	DedupKey     string             `json:"dedup_key"`
+	UpdatedAt    time.Time          `json:"updated_at"`
 }
 
 type AlertRule struct {
