@@ -1,13 +1,17 @@
 package api
 
 import (
+	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/bia"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"go.uber.org/zap"
 )
 
@@ -172,7 +176,7 @@ func (s *APIServer) UpdateBIAAssessment(c *gin.Context, id IdPath) {
 
 	// Propagate BIA level to linked assets if tier changed
 	if req.Tier != nil {
-		if err := s.biaSvc.PropagateBIALevel(c.Request.Context(), updated.ID); err != nil {
+		if err := s.biaSvc.PropagateBIALevel(c.Request.Context(), tenantIDFromContext(c), updated.ID); err != nil {
 			zap.L().Error("BIA propagation error", zap.Error(err))
 		}
 	}
@@ -272,6 +276,11 @@ func (s *APIServer) ListBIADependencies(c *gin.Context, id IdPath) {
 
 // CreateBIADependency adds a dependency to a BIA assessment.
 // (POST /bia/assessments/{id}/dependencies)
+//
+// The service layer runs the INSERT and tier propagation inside a single
+// transaction, so a propagation failure rolls back the new dependency. If
+// the assessment belongs to a different tenant, the service returns
+// bia.ErrNotFound and we surface a 404 rather than leaking existence.
 func (s *APIServer) CreateBIADependency(c *gin.Context, id IdPath) {
 	var req CreateBIADependencyJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -293,6 +302,10 @@ func (s *APIServer) CreateBIADependency(c *gin.Context, id IdPath) {
 
 	created, err := s.biaSvc.CreateDependency(c.Request.Context(), params)
 	if err != nil {
+		if errors.Is(err, bia.ErrNotFound) {
+			response.NotFound(c, "BIA assessment not found")
+			return
+		}
 		response.InternalError(c, "failed to create BIA dependency")
 		return
 	}
@@ -302,6 +315,41 @@ func (s *APIServer) CreateBIADependency(c *gin.Context, id IdPath) {
 		"dependency_type": req.DependencyType,
 	})
 	response.Created(c, toAPIBIADependency(*created))
+}
+
+// DeleteBIADependency removes a dependency from a BIA assessment.
+// (DELETE /bia/assessments/{id}/dependencies/{depId})
+//
+// The service layer verifies tenant ownership of the dependency, deletes it,
+// and recomputes the bia_level of the affected asset — all inside a single
+// transaction so a propagation failure rolls back the delete. 404 is
+// returned when the dependency does not exist within the caller's tenant.
+func (s *APIServer) DeleteBIADependency(c *gin.Context, id IdPath, depId openapi_types.UUID) {
+	tenantID := tenantIDFromContext(c)
+	assessmentID := uuid.UUID(id)
+	dependencyID := uuid.UUID(depId)
+
+	// Tenant-scoped assessment existence check. Prevents callers in tenant A
+	// from hitting a dependency id in tenant B through the path.
+	if _, err := s.biaSvc.GetAssessment(c.Request.Context(), tenantID, assessmentID); err != nil {
+		response.NotFound(c, "BIA assessment not found")
+		return
+	}
+
+	if err := s.biaSvc.DeleteDependency(c.Request.Context(), tenantID, dependencyID); err != nil {
+		if errors.Is(err, bia.ErrNotFound) {
+			response.NotFound(c, "BIA dependency not found")
+			return
+		}
+		response.InternalError(c, "failed to delete BIA dependency")
+		return
+	}
+	s.recordAudit(c, "bia.dependency.deleted", "bia", "bia_dependency", dependencyID, map[string]any{
+		"assessment_id": assessmentID.String(),
+	})
+	// AbortWithStatus forces the header to flush immediately — matches the
+	// project's Logout handler convention and keeps 204 observable in tests.
+	c.AbortWithStatus(http.StatusNoContent)
 }
 
 // GetBIAStats returns aggregated BIA statistics.

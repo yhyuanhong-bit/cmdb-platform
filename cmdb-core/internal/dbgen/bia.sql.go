@@ -273,6 +273,19 @@ func (q *Queries) GetBIAAssessment(ctx context.Context, arg GetBIAAssessmentPara
 	return i, err
 }
 
+const getBIAAssessmentTenant = `-- name: GetBIAAssessmentTenant :one
+SELECT tenant_id FROM bia_assessments WHERE id = $1
+`
+
+// Minimal tenant-guard lookup: returns the tenant_id for an assessment id.
+// Used to verify the caller owns the assessment before mutating dependencies.
+func (q *Queries) GetBIAAssessmentTenant(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getBIAAssessmentTenant, id)
+	var tenant_id uuid.UUID
+	err := row.Scan(&tenant_id)
+	return tenant_id, err
+}
+
 const getBIAComplianceStats = `-- name: GetBIAComplianceStats :one
 SELECT
     count(*) as total,
@@ -298,6 +311,32 @@ func (q *Queries) GetBIAComplianceStats(ctx context.Context, tenantID uuid.UUID)
 		&i.DataCompliant,
 		&i.AssetCompliant,
 		&i.AuditCompliant,
+	)
+	return i, err
+}
+
+const getBIADependency = `-- name: GetBIADependency :one
+SELECT id, tenant_id, assessment_id, asset_id, dependency_type, criticality, created_at FROM bia_dependencies WHERE id = $1 AND tenant_id = $2
+`
+
+type GetBIADependencyParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+// Tenant-scoped lookup used before delete to enforce ownership and to
+// capture asset_id / assessment_id for post-delete propagation.
+func (q *Queries) GetBIADependency(ctx context.Context, arg GetBIADependencyParams) (BiaDependency, error) {
+	row := q.db.QueryRow(ctx, getBIADependency, arg.ID, arg.TenantID)
+	var i BiaDependency
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AssessmentID,
+		&i.AssetID,
+		&i.DependencyType,
+		&i.Criticality,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -479,23 +518,74 @@ UPDATE assets SET
 FROM (
     SELECT bd.asset_id,
         CASE
-            WHEN 'critical' = ANY(array_agg(ba.tier)) THEN 'critical'
+            WHEN 'critical'  = ANY(array_agg(ba.tier)) THEN 'critical'
             WHEN 'important' = ANY(array_agg(ba.tier)) THEN 'important'
-            WHEN 'normal' = ANY(array_agg(ba.tier)) THEN 'normal'
+            WHEN 'normal'    = ANY(array_agg(ba.tier)) THEN 'normal'
             ELSE 'minor'
         END as max_tier
     FROM bia_dependencies bd
-    JOIN bia_assessments ba ON ba.id = bd.assessment_id
-    WHERE bd.asset_id IN (
-        SELECT bd2.asset_id FROM bia_dependencies bd2 WHERE bd2.assessment_id = $1
-    )
+    JOIN bia_assessments ba ON ba.id = bd.assessment_id AND ba.tenant_id = $2
+    WHERE bd.tenant_id = $2
+      AND bd.asset_id IN (
+          SELECT bd2.asset_id
+          FROM bia_dependencies bd2
+          WHERE bd2.assessment_id = $1
+            AND bd2.tenant_id = $2
+      )
     GROUP BY bd.asset_id
 ) sub
 WHERE assets.id = sub.asset_id
+  AND assets.tenant_id = $2
 `
 
-func (q *Queries) PropagateBIALevelByAssessment(ctx context.Context, assessmentID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, propagateBIALevelByAssessment, assessmentID)
+type PropagateBIALevelByAssessmentParams struct {
+	AssessmentID uuid.UUID `json:"assessment_id"`
+	TenantID     uuid.UUID `json:"tenant_id"`
+}
+
+// Tenant-scoped. Walks the BIA dependency graph starting from $1=assessment_id
+// (restricted to $2=tenant_id) and rewrites assets.bia_level to the
+// highest-priority tier connected to each asset via any in-tenant assessment.
+// Assets that share at least one dependency row with this assessment are
+// refreshed; orphaned-after-delete assets are handled separately by
+// RecomputeBIALevelForAsset.
+func (q *Queries) PropagateBIALevelByAssessment(ctx context.Context, arg PropagateBIALevelByAssessmentParams) error {
+	_, err := q.db.Exec(ctx, propagateBIALevelByAssessment, arg.AssessmentID, arg.TenantID)
+	return err
+}
+
+const recomputeBIALevelForAsset = `-- name: RecomputeBIALevelForAsset :exec
+UPDATE assets SET
+    bia_level = COALESCE(sub.max_tier, 'normal'),
+    updated_at = now()
+FROM (
+    SELECT $2::uuid as asset_id,
+        CASE
+            WHEN 'critical'  = ANY(array_agg(ba.tier)) THEN 'critical'
+            WHEN 'important' = ANY(array_agg(ba.tier)) THEN 'important'
+            WHEN 'normal'    = ANY(array_agg(ba.tier)) THEN 'normal'
+            WHEN array_length(array_agg(ba.tier), 1) IS NOT NULL THEN 'minor'
+            ELSE NULL
+        END as max_tier
+    FROM bia_dependencies bd
+    JOIN bia_assessments ba ON ba.id = bd.assessment_id AND ba.tenant_id = $1
+    WHERE bd.asset_id = $2
+      AND bd.tenant_id = $1
+) sub
+WHERE assets.id = sub.asset_id
+  AND assets.tenant_id = $1
+`
+
+type RecomputeBIALevelForAssetParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	AssetID  uuid.UUID `json:"asset_id"`
+}
+
+// Tenant-scoped. Recomputes a single asset's bia_level from its remaining
+// BIA dependencies. If the asset has no remaining dependencies (common after
+// a DELETE), bia_level falls back to 'normal' (the schema default).
+func (q *Queries) RecomputeBIALevelForAsset(ctx context.Context, arg RecomputeBIALevelForAssetParams) error {
+	_, err := q.db.Exec(ctx, recomputeBIALevelForAsset, arg.TenantID, arg.AssetID)
 	return err
 }
 

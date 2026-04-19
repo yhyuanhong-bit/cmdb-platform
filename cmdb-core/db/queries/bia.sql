@@ -89,25 +89,70 @@ FROM bia_assessments
 WHERE tenant_id = $1;
 
 -- name: PropagateBIALevelByAssessment :exec
+-- Tenant-scoped. Walks the BIA dependency graph starting from $1=assessment_id
+-- (restricted to $2=tenant_id) and rewrites assets.bia_level to the
+-- highest-priority tier connected to each asset via any in-tenant assessment.
+-- Assets that share at least one dependency row with this assessment are
+-- refreshed; orphaned-after-delete assets are handled separately by
+-- RecomputeBIALevelForAsset.
 UPDATE assets SET
     bia_level = sub.max_tier,
     updated_at = now()
 FROM (
     SELECT bd.asset_id,
         CASE
-            WHEN 'critical' = ANY(array_agg(ba.tier)) THEN 'critical'
+            WHEN 'critical'  = ANY(array_agg(ba.tier)) THEN 'critical'
             WHEN 'important' = ANY(array_agg(ba.tier)) THEN 'important'
-            WHEN 'normal' = ANY(array_agg(ba.tier)) THEN 'normal'
+            WHEN 'normal'    = ANY(array_agg(ba.tier)) THEN 'normal'
             ELSE 'minor'
         END as max_tier
     FROM bia_dependencies bd
-    JOIN bia_assessments ba ON ba.id = bd.assessment_id
-    WHERE bd.asset_id IN (
-        SELECT bd2.asset_id FROM bia_dependencies bd2 WHERE bd2.assessment_id = $1
-    )
+    JOIN bia_assessments ba ON ba.id = bd.assessment_id AND ba.tenant_id = $2
+    WHERE bd.tenant_id = $2
+      AND bd.asset_id IN (
+          SELECT bd2.asset_id
+          FROM bia_dependencies bd2
+          WHERE bd2.assessment_id = $1
+            AND bd2.tenant_id = $2
+      )
     GROUP BY bd.asset_id
 ) sub
-WHERE assets.id = sub.asset_id;
+WHERE assets.id = sub.asset_id
+  AND assets.tenant_id = $2;
+
+-- name: RecomputeBIALevelForAsset :exec
+-- Tenant-scoped. Recomputes a single asset's bia_level from its remaining
+-- BIA dependencies. If the asset has no remaining dependencies (common after
+-- a DELETE), bia_level falls back to 'normal' (the schema default).
+UPDATE assets SET
+    bia_level = COALESCE(sub.max_tier, 'normal'),
+    updated_at = now()
+FROM (
+    SELECT sqlc.arg('asset_id')::uuid as asset_id,
+        CASE
+            WHEN 'critical'  = ANY(array_agg(ba.tier)) THEN 'critical'
+            WHEN 'important' = ANY(array_agg(ba.tier)) THEN 'important'
+            WHEN 'normal'    = ANY(array_agg(ba.tier)) THEN 'normal'
+            WHEN array_length(array_agg(ba.tier), 1) IS NOT NULL THEN 'minor'
+            ELSE NULL
+        END as max_tier
+    FROM bia_dependencies bd
+    JOIN bia_assessments ba ON ba.id = bd.assessment_id AND ba.tenant_id = sqlc.arg('tenant_id')
+    WHERE bd.asset_id = sqlc.arg('asset_id')
+      AND bd.tenant_id = sqlc.arg('tenant_id')
+) sub
+WHERE assets.id = sub.asset_id
+  AND assets.tenant_id = sqlc.arg('tenant_id');
+
+-- name: GetBIADependency :one
+-- Tenant-scoped lookup used before delete to enforce ownership and to
+-- capture asset_id / assessment_id for post-delete propagation.
+SELECT * FROM bia_dependencies WHERE id = $1 AND tenant_id = $2;
+
+-- name: GetBIAAssessmentTenant :one
+-- Minimal tenant-guard lookup: returns the tenant_id for an assessment id.
+-- Used to verify the caller owns the assessment before mutating dependencies.
+SELECT tenant_id FROM bia_assessments WHERE id = $1;
 
 -- name: GetImpactedAssessments :many
 SELECT ba.* FROM bia_assessments ba

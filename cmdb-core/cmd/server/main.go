@@ -277,7 +277,7 @@ func main() {
 	dashboardSvc := dashboard.NewService(queries, pool, redisClient)
 
 	integrationSvc := integration.NewService(queries)
-	biaSvc := bia.NewService(queries)
+	biaSvc := bia.NewService(queries, pool)
 	qualitySvc := quality.NewService(queries, pool)
 	discoverySvc := discovery.NewService(queries, pool)
 
@@ -519,6 +519,9 @@ func main() {
 		wfSub.StartAssetVerificationChecker(ctx)
 		// Gated behind CMDB_INTEGRATION_DIVERGENCE_CHECK=1; default off.
 		wfSub.StartDivergenceChecker(ctx)
+		// Daily sweep for webhook_deliveries (30d) and webhook_deliveries_dlq (90d).
+		// Emits webhook_retention_deletes_total so a dead cron is observable.
+		wfSub.StartWebhookRetention(ctx)
 	}
 
 	// Alert evaluator goroutine. Uses the same server context as every
@@ -530,7 +533,7 @@ func main() {
 
 	// Webhook dispatcher
 	if bus != nil {
-		dispatcher := integration.NewWebhookDispatcher(queries, cipher, netGuard)
+		dispatcher := integration.NewWebhookDispatcher(queries, cipher, netGuard).WithEventBus(bus)
 		webhookSubjects := []string{"asset.>", "maintenance.>", "alert.>", "prediction.>"}
 		for _, subj := range webhookSubjects {
 			subj := subj

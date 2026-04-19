@@ -3321,6 +3321,27 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /bia/assessments/{id}/dependencies/{depId}:
+    delete:
+      operationId: deleteBIADependency
+      tags: [bia]
+      summary: Delete a dependency from a BIA assessment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: depId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Dependency deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /bia/stats:
     get:
       operationId: getBIAStats

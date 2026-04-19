@@ -2625,6 +2625,9 @@ type ServerInterface interface {
 	// Authenticate and obtain tokens
 	// (POST /auth/login)
 	Login(c *gin.Context)
+	// Revoke the current access token and all refresh tokens
+	// (POST /auth/logout)
+	Logout(c *gin.Context)
 	// Get current authenticated user
 	// (GET /auth/me)
 	GetCurrentUser(c *gin.Context)
@@ -2652,6 +2655,9 @@ type ServerInterface interface {
 	// Add a dependency to a BIA assessment
 	// (POST /bia/assessments/{id}/dependencies)
 	CreateBIADependency(c *gin.Context, id IdPath)
+	// Delete a dependency from a BIA assessment
+	// (DELETE /bia/assessments/{id}/dependencies/{depId})
+	DeleteBIADependency(c *gin.Context, id IdPath, depId openapi_types.UUID)
 	// Get business systems impacted by an asset
 	// (GET /bia/impact/{id})
 	GetBIAImpact(c *gin.Context, id IdPath)
@@ -3619,6 +3625,21 @@ func (siw *ServerInterfaceWrapper) Login(c *gin.Context) {
 	siw.Handler.Login(c)
 }
 
+// Logout operation middleware
+func (siw *ServerInterfaceWrapper) Logout(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Logout(c)
+}
+
 // GetCurrentUser operation middleware
 func (siw *ServerInterfaceWrapper) GetCurrentUser(c *gin.Context) {
 
@@ -3826,6 +3847,41 @@ func (siw *ServerInterfaceWrapper) CreateBIADependency(c *gin.Context) {
 	}
 
 	siw.Handler.CreateBIADependency(c, id)
+}
+
+// DeleteBIADependency operation middleware
+func (siw *ServerInterfaceWrapper) DeleteBIADependency(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "depId" -------------
+	var depId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "depId", c.Param("depId"), &depId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter depId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteBIADependency(c, id, depId)
 }
 
 // GetBIAImpact operation middleware
@@ -7365,6 +7421,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/audit/events/:id", wrapper.GetAuditEventDetail)
 	router.POST(options.BaseURL+"/auth/change-password", wrapper.ChangePassword)
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
+	router.POST(options.BaseURL+"/auth/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/auth/me", wrapper.GetCurrentUser)
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
 	router.GET(options.BaseURL+"/bia/assessments", wrapper.ListBIAAssessments)
@@ -7374,6 +7431,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/bia/assessments/:id", wrapper.UpdateBIAAssessment)
 	router.GET(options.BaseURL+"/bia/assessments/:id/dependencies", wrapper.ListBIADependencies)
 	router.POST(options.BaseURL+"/bia/assessments/:id/dependencies", wrapper.CreateBIADependency)
+	router.DELETE(options.BaseURL+"/bia/assessments/:id/dependencies/:depId", wrapper.DeleteBIADependency)
 	router.GET(options.BaseURL+"/bia/impact/:id", wrapper.GetBIAImpact)
 	router.GET(options.BaseURL+"/bia/rules", wrapper.ListBIAScoringRules)
 	router.PUT(options.BaseURL+"/bia/rules/:id", wrapper.UpdateBIAScoringRule)
