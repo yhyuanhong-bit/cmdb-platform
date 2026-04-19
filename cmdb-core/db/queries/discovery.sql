@@ -19,8 +19,18 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: ApproveDiscoveredAsset :one
-UPDATE discovered_assets SET status = 'approved', reviewed_by = $2, reviewed_at = now()
-WHERE id = $1 RETURNING *;
+-- Marks a discovered_asset as approved and links it to the newly-created
+-- asset row (or the pre-existing one on an idempotent retry).
+--
+-- Tenant-scoped: callers must pass their tenant_id; a row owned by a
+-- different tenant will not match and the handler returns 404.
+UPDATE discovered_assets
+   SET status            = 'approved',
+       approved_asset_id = $3,
+       reviewed_by       = $4,
+       reviewed_at       = now()
+ WHERE id = $1 AND tenant_id = $2
+ RETURNING *;
 
 -- name: IgnoreDiscoveredAsset :one
 UPDATE discovered_assets SET status = 'ignored', reviewed_by = $2, reviewed_at = now()

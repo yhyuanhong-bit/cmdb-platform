@@ -279,7 +279,7 @@ func main() {
 	integrationSvc := integration.NewService(queries)
 	biaSvc := bia.NewService(queries)
 	qualitySvc := quality.NewService(queries, pool)
-	discoverySvc := discovery.NewService(queries)
+	discoverySvc := discovery.NewService(queries, pool)
 
 	// Location detection
 	locationDetectSvc := location_detect.NewService(pool, bus)

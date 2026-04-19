@@ -9,7 +9,6 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/bia"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/discovery"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
 	location_detect "github.com/cmdb-platform/cmdb-core/internal/domain/location_detect"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
@@ -51,7 +50,7 @@ type APIServer struct {
 	integrationSvc    integrationService
 	biaSvc            *bia.Service
 	qualitySvc        *quality.Service
-	discoverySvc      *discovery.Service
+	discoverySvc      discoveryService
 	syncSvc           *sync.Service
 	locationDetectSvc *location_detect.Service
 	cipher            crypto.Cipher
@@ -76,7 +75,7 @@ func NewAPIServer(
 	integrationSvc integrationService,
 	biaSvc *bia.Service,
 	qualitySvc *quality.Service,
-	discoverySvc *discovery.Service,
+	discoverySvc discoveryService,
 	syncSvc *sync.Service,
 	locationDetectSvc *location_detect.Service,
 	cipher crypto.Cipher,

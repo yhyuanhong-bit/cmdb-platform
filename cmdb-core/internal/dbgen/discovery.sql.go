@@ -14,17 +14,24 @@ import (
 )
 
 const approveDiscoveredAsset = `-- name: ApproveDiscoveredAsset :one
-UPDATE discovered_assets SET status = 'approved', reviewed_by = $2, reviewed_at = now()
-WHERE id = $1 RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at
+UPDATE discovered_assets
+   SET status            = 'approved',
+       approved_asset_id = $3,
+       reviewed_by       = $4,
+       reviewed_at       = now()
+ WHERE id = $1 AND tenant_id = $2
+ RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id
 `
 
 type ApproveDiscoveredAssetParams struct {
-	ID         uuid.UUID   `json:"id"`
-	ReviewedBy pgtype.UUID `json:"reviewed_by"`
+	ID              uuid.UUID   `json:"id"`
+	TenantID        uuid.UUID   `json:"tenant_id"`
+	ApprovedAssetID pgtype.UUID `json:"approved_asset_id"`
+	ReviewedBy      pgtype.UUID `json:"reviewed_by"`
 }
 
 func (q *Queries) ApproveDiscoveredAsset(ctx context.Context, arg ApproveDiscoveredAssetParams) (DiscoveredAsset, error) {
-	row := q.db.QueryRow(ctx, approveDiscoveredAsset, arg.ID, arg.ReviewedBy)
+	row := q.db.QueryRow(ctx, approveDiscoveredAsset, arg.ID, arg.TenantID, arg.ApprovedAssetID, arg.ReviewedBy)
 	var i DiscoveredAsset
 	err := row.Scan(
 		&i.ID,
@@ -40,6 +47,7 @@ func (q *Queries) ApproveDiscoveredAsset(ctx context.Context, arg ApproveDiscove
 		&i.DiscoveredAt,
 		&i.ReviewedBy,
 		&i.ReviewedAt,
+		&i.ApprovedAssetID,
 	)
 	return i, err
 }
@@ -65,7 +73,7 @@ func (q *Queries) CountDiscoveredAssets(ctx context.Context, arg CountDiscovered
 const createDiscoveredAsset = `-- name: CreateDiscoveredAsset :one
 INSERT INTO discovered_assets (tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at
+RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id
 `
 
 type CreateDiscoveredAssetParams struct {
@@ -107,6 +115,7 @@ func (q *Queries) CreateDiscoveredAsset(ctx context.Context, arg CreateDiscovere
 		&i.DiscoveredAt,
 		&i.ReviewedBy,
 		&i.ReviewedAt,
+		&i.ApprovedAssetID,
 	)
 	return i, err
 }
@@ -162,7 +171,7 @@ func (q *Queries) FindAssetByIP(ctx context.Context, arg FindAssetByIPParams) (A
 }
 
 const getDiscoveredAsset = `-- name: GetDiscoveredAsset :one
-SELECT id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at FROM discovered_assets WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id FROM discovered_assets WHERE id = $1 AND tenant_id = $2
 `
 
 type GetDiscoveredAssetParams struct {
@@ -187,6 +196,7 @@ func (q *Queries) GetDiscoveredAsset(ctx context.Context, arg GetDiscoveredAsset
 		&i.DiscoveredAt,
 		&i.ReviewedBy,
 		&i.ReviewedAt,
+		&i.ApprovedAssetID,
 	)
 	return i, err
 }
@@ -229,7 +239,7 @@ func (q *Queries) GetDiscoveryStats(ctx context.Context, tenantID uuid.UUID) (Ge
 
 const ignoreDiscoveredAsset = `-- name: IgnoreDiscoveredAsset :one
 UPDATE discovered_assets SET status = 'ignored', reviewed_by = $2, reviewed_at = now()
-WHERE id = $1 RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at
+WHERE id = $1 RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id
 `
 
 type IgnoreDiscoveredAssetParams struct {
@@ -254,12 +264,13 @@ func (q *Queries) IgnoreDiscoveredAsset(ctx context.Context, arg IgnoreDiscovere
 		&i.DiscoveredAt,
 		&i.ReviewedBy,
 		&i.ReviewedAt,
+		&i.ApprovedAssetID,
 	)
 	return i, err
 }
 
 const listDiscoveredAssets = `-- name: ListDiscoveredAssets :many
-SELECT id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at FROM discovered_assets
+SELECT id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id FROM discovered_assets
 WHERE tenant_id = $1
   AND ($4::varchar IS NULL OR status = $4)
 ORDER BY discovered_at DESC
@@ -301,6 +312,7 @@ func (q *Queries) ListDiscoveredAssets(ctx context.Context, arg ListDiscoveredAs
 			&i.DiscoveredAt,
 			&i.ReviewedBy,
 			&i.ReviewedAt,
+			&i.ApprovedAssetID,
 		); err != nil {
 			return nil, err
 		}

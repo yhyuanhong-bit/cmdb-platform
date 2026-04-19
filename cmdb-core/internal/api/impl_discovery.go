@@ -2,12 +2,17 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/discovery"
+	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.uber.org/zap"
 )
 
 // ---------------------------------------------------------------------------
@@ -80,16 +85,62 @@ func (s *APIServer) IngestDiscoveredAsset(c *gin.Context) {
 	response.Created(c, toAPIDiscoveredAsset(*item))
 }
 
-// ApproveDiscoveredAsset approves a discovered asset.
+// ApproveDiscoveredAsset approves a discovered asset AND creates the
+// canonical row in `assets`. This is the action that "commits" a staged
+// discovery finding into the CMDB.
+//
+// Contract (see REMEDIATION-ROADMAP 2.2):
+//   - Runs inside a single Postgres transaction. INSERT into assets,
+//     UPDATE discovered_assets.status='approved', and audit write are all
+//     atomic — if any step fails the whole thing rolls back.
+//   - Tenant-scoped end-to-end. Cross-tenant approve returns 404 (not 403)
+//     to avoid leaking row existence.
+//   - Idempotent on approved_asset_id. A repeated POST returns 200 with
+//     the existing asset instead of double-creating.
+//   - Duplicate identifier (asset_tag/property_number collision) returns
+//     409 and leaves discovered_assets.status unchanged.
+//   - asset.created event is published AFTER commit. Inside the tx would
+//     mean a commit-failure emits a ghost event subscribers can't undo.
+//
 // (POST /discovery/{id}/approve)
 func (s *APIServer) ApproveDiscoveredAsset(c *gin.Context, id IdPath) {
+	ctx := c.Request.Context()
+	tenantID := tenantIDFromContext(c)
 	reviewerID := userIDFromContext(c)
-	item, err := s.discoverySvc.Approve(c.Request.Context(), uuid.UUID(id), reviewerID)
+
+	result, err := s.discoverySvc.ApproveAndCreateAsset(ctx, uuid.UUID(id), tenantID, reviewerID)
 	if err != nil {
-		response.InternalError(c, "failed to approve discovered asset")
+		switch {
+		case errors.Is(err, discovery.ErrNotFound):
+			response.NotFound(c, "discovered asset not found")
+		case errors.Is(err, discovery.ErrAssetAlreadyExists):
+			response.Err(c, http.StatusConflict, "ASSET_ALREADY_EXISTS",
+				"an asset with the same identifier already exists — rename or reconcile before approval")
+		default:
+			zap.L().Error("discovery approve failed",
+				zap.String("discovered_asset_id", uuid.UUID(id).String()),
+				zap.String("tenant_id", tenantID.String()),
+				zap.Error(err))
+			response.InternalError(c, "failed to approve discovered asset")
+		}
 		return
 	}
-	response.OK(c, toAPIDiscoveredAsset(*item))
+
+	// Event publish happens POST-commit. If this fails, the data is still
+	// consistent — subscribers just miss the notification. A cron reconciler
+	// could replay, but for now we log and continue.
+	if result.Created {
+		s.publishEvent(ctx, eventbus.SubjectAssetCreated, tenantID.String(), map[string]any{
+			"asset_id":            result.Asset.ID.String(),
+			"tenant_id":           tenantID.String(),
+			"asset_tag":           result.Asset.AssetTag,
+			"type":                result.Asset.Type,
+			"source":              "discovery",
+			"discovered_asset_id": uuid.UUID(id).String(),
+		})
+	}
+
+	response.OK(c, toAPIDiscoveredAsset(result.Discovered))
 }
 
 // IgnoreDiscoveredAsset ignores a discovered asset.
