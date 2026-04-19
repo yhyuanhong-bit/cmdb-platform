@@ -5,8 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+)
+
+// Webhook retention windows (in days). Exported as constants so tests
+// don't drift from production values.
+const (
+	WebhookDeliveriesRetentionDays int32 = 30
+	WebhookDLQRetentionDays        int32 = 90
 )
 
 func (w *WorkflowSubscriber) StartSessionCleanup(ctx context.Context) {
@@ -127,4 +135,87 @@ func (w *WorkflowSubscriber) expireStaleDiscoveries(ctx context.Context) {
 	if expired > 0 {
 		zap.L().Info("expired stale discoveries", zap.Int64("count", expired))
 	}
+}
+
+// StartWebhookRetention runs the daily webhook retention sweep. Separate
+// goroutine from the hourly cleanups because the sweep is more expensive
+// (two full-table DELETEs) and doesn't need hourly granularity.
+//
+// We align to ~03:00 UTC on first tick so the sweep runs during the
+// quietest part of the global traffic window. Subsequent ticks fire every
+// 24 hours.
+func (w *WorkflowSubscriber) StartWebhookRetention(ctx context.Context) {
+	go func() {
+		// First-tick alignment: wake up at the next 03:00 UTC, then
+		// tick every 24h. If the service starts at 04:00 UTC we'll
+		// wait 23 hours before the first sweep — that's fine, the
+		// retention windows are measured in weeks.
+		initialDelay := durationUntilNextUTCHour(w.nowUTC(), 3)
+		timer := time.NewTimer(initialDelay)
+		defer timer.Stop()
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+
+		w.runWebhookRetention(ctx)
+
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				w.runWebhookRetention(ctx)
+			}
+		}
+	}()
+	zap.L().Info("webhook retention sweep started (daily at 03:00 UTC)",
+		zap.Int32("deliveries_retention_days", WebhookDeliveriesRetentionDays),
+		zap.Int32("dlq_retention_days", WebhookDLQRetentionDays))
+}
+
+// runWebhookRetention executes the two DELETEs and updates the retention
+// counter. Errors are logged but never returned — a transient DB blip must
+// not stop the next day's sweep.
+func (w *WorkflowSubscriber) runWebhookRetention(ctx context.Context) {
+	deliveries, err := w.queries.DeleteOldWebhookDeliveries(ctx, WebhookDeliveriesRetentionDays)
+	if err != nil {
+		zap.L().Error("webhook retention: deliveries sweep failed", zap.Error(err))
+	} else if deliveries > 0 {
+		telemetry.WebhookRetentionDeletesTotal.WithLabelValues("webhook_deliveries").Add(float64(deliveries))
+	}
+
+	dlq, err := w.queries.DeleteOldWebhookDLQ(ctx, WebhookDLQRetentionDays)
+	if err != nil {
+		zap.L().Error("webhook retention: DLQ sweep failed", zap.Error(err))
+	} else if dlq > 0 {
+		telemetry.WebhookRetentionDeletesTotal.WithLabelValues("webhook_deliveries_dlq").Add(float64(dlq))
+	}
+
+	if deliveries+dlq > 0 {
+		zap.L().Info("webhook retention sweep completed",
+			zap.Int64("deliveries_deleted", deliveries),
+			zap.Int64("dlq_deleted", dlq))
+	}
+}
+
+// nowUTC is pulled out for test-overridability. Production always returns
+// the real wall clock.
+func (w *WorkflowSubscriber) nowUTC() time.Time {
+	return time.Now().UTC()
+}
+
+// durationUntilNextUTCHour returns how long until the next occurrence of
+// hourUTC:00:00. If we're already past today's hour, it returns the wait
+// until tomorrow's.
+func durationUntilNextUTCHour(now time.Time, hourUTC int) time.Duration {
+	target := time.Date(now.Year(), now.Month(), now.Day(), hourUTC, 0, 0, 0, time.UTC)
+	if !target.After(now) {
+		target = target.Add(24 * time.Hour)
+	}
+	return target.Sub(now)
 }

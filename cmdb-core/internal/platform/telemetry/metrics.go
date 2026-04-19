@@ -123,6 +123,33 @@ var (
 		Name: "adapter_pull_attempts_total",
 		Help: "Total adapter pull attempts by tenant and outcome (success|failure).",
 	}, []string{"tenant_id", "outcome"})
+
+	// WebhookRetentionDeletesTotal counts rows pruned by the daily retention
+	// sweep. Exposed so operators can confirm the cron is actually running —
+	// a counter that flatlines for >24h means the retention goroutine has
+	// died and the tables are growing unbounded.
+	//
+	// table: webhook_deliveries | webhook_deliveries_dlq
+	WebhookRetentionDeletesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "webhook_retention_deletes_total",
+		Help: "Total rows deleted by the webhook retention sweep, by table.",
+	}, []string{"table"})
+
+	// WebhookCircuitBreakerTripsTotal counts subscription trips — i.e.
+	// transitions from enabled-but-failing to disabled_at IS NOT NULL.
+	// Separate from ordinary failures because each trip requires an
+	// ops-admin to manually re-enable.
+	WebhookCircuitBreakerTripsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "webhook_circuit_breaker_trips_total",
+		Help: "Total times a webhook subscription was auto-disabled after consecutive failures.",
+	})
+
+	// WebhookDLQRowsTotal counts DLQ inserts. One row per tripped delivery
+	// attempt whose payload was parked for operator replay.
+	WebhookDLQRowsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "webhook_dlq_rows_total",
+		Help: "Total webhook payloads parked in the DLQ after a circuit breaker trip.",
+	})
 )
 
 // Label values for the integration_* metrics. Exported so callers don't

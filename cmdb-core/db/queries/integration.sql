@@ -100,14 +100,69 @@ RETURNING *;
 DELETE FROM webhook_subscriptions WHERE id = $1 AND tenant_id = $2;
 
 -- name: CreateDelivery :exec
-INSERT INTO webhook_deliveries (subscription_id, event_type, payload, status_code, response_body)
-VALUES ($1, $2, $3, $4, $5);
+-- Every retry gets its own row. Do NOT upsert — the full attempt history is
+-- the point. attempt_number defaults to 1 for the first try; the dispatcher
+-- passes 2/3 on retries.
+INSERT INTO webhook_deliveries (subscription_id, event_type, payload, status_code, response_body, attempt_number)
+VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: ListWebhooksByEvent :many
+-- Auto-disabled subscriptions (disabled_at IS NOT NULL) are filtered here
+-- so tripped hooks stop receiving events until ops re-enables them.
 SELECT * FROM webhook_subscriptions
 WHERE tenant_id = $1
   AND enabled = true
+  AND disabled_at IS NULL
   AND $2::text = ANY(events);
 
 -- name: ListDeliveries :many
 SELECT * FROM webhook_deliveries WHERE subscription_id = $1 ORDER BY delivered_at DESC LIMIT $2;
+
+-- name: RecordWebhookFailure :one
+-- Mirrors RecordAdapterFailure. Atomically increments consecutive_failures
+-- and stamps last_failure_at. Returns the new counter so the dispatcher can
+-- decide (in one round-trip) whether to also flip disabled_at.
+UPDATE webhook_subscriptions
+SET consecutive_failures = consecutive_failures + 1,
+    last_failure_at      = now()
+WHERE id = $1
+RETURNING id, tenant_id, consecutive_failures;
+
+-- name: RecordWebhookSuccess :exec
+-- Clears failure state after a successful delivery. The "AND disabled_at IS
+-- NULL" guard prevents a stray late-succeeding retry from secretly
+-- re-enabling a subscription that ops has explicitly disabled.
+UPDATE webhook_subscriptions
+SET consecutive_failures = 0,
+    last_failure_at      = NULL
+WHERE id = $1 AND disabled_at IS NULL;
+
+-- name: DisableWebhook :exec
+-- Trip the circuit breaker. Separate from RecordWebhookFailure so the
+-- dispatcher can emit the DLQ row and notification event atomically with
+-- the decision to disable.
+UPDATE webhook_subscriptions
+SET disabled_at = now()
+WHERE id = $1;
+
+-- name: CreateDLQEntry :exec
+-- Park the original payload for operator replay after the subscription is
+-- disabled. tenant_id is required (not nullable in schema) so cross-tenant
+-- DLQ browsing cannot leak payloads.
+INSERT INTO webhook_deliveries_dlq (subscription_id, event_type, payload, last_error, attempt_count, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6);
+
+-- name: DeleteOldWebhookDeliveries :execrows
+-- Daily retention sweep. Takes the retention window as a day count (int)
+-- rather than a Postgres interval literal — sqlc maps intervals to
+-- pgtype.Interval which is awkward to construct from a plain string.
+-- Backed by idx_webhook_deliveries_delivered_at.
+DELETE FROM webhook_deliveries
+WHERE delivered_at < now() - (sqlc.arg('retention_days')::int * interval '1 day');
+
+-- name: DeleteOldWebhookDLQ :execrows
+-- Daily retention sweep for the DLQ. Same reason as above for the int
+-- parameter shape. DLQ defaults to 90 days — longer than the delivery log
+-- because DLQ entries are the ones ops most likely want to retry by hand.
+DELETE FROM webhook_deliveries_dlq
+WHERE created_at < now() - (sqlc.arg('retention_days')::int * interval '1 day');

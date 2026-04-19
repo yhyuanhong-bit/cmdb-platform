@@ -50,4 +50,10 @@ const (
 	SubjectScanDifferencesDetected = "scan.differences_detected"
 
 	SubjectBMCDefaultPassword = "scan.bmc_default_password"
+
+	// SubjectWebhookDisabled is published when the circuit breaker trips a
+	// webhook subscription. Payload: {"webhook_id","tenant_id","reason",
+	// "consecutive_failures"}. Ops-admin notification listeners subscribe
+	// so a human knows to fix the receiver and re-enable.
+	SubjectWebhookDisabled = "webhook.disabled"
 )

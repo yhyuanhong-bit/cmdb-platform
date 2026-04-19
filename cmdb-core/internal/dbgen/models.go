@@ -585,6 +585,17 @@ type UserSession struct {
 	IsCurrent    bool               `json:"is_current"`
 }
 
+type WebhookDeliveriesDlq struct {
+	ID             uuid.UUID       `json:"id"`
+	SubscriptionID pgtype.UUID     `json:"subscription_id"`
+	EventType      string          `json:"event_type"`
+	Payload        json.RawMessage `json:"payload"`
+	LastError      string          `json:"last_error"`
+	AttemptCount   int32           `json:"attempt_count"`
+	TenantID       uuid.UUID       `json:"tenant_id"`
+	CreatedAt      time.Time       `json:"created_at"`
+}
+
 type WebhookDelivery struct {
 	ID             uuid.UUID          `json:"id"`
 	SubscriptionID uuid.UUID          `json:"subscription_id"`
@@ -593,19 +604,23 @@ type WebhookDelivery struct {
 	StatusCode     pgtype.Int4        `json:"status_code"`
 	ResponseBody   pgtype.Text        `json:"response_body"`
 	DeliveredAt    pgtype.Timestamptz `json:"delivered_at"`
+	AttemptNumber  int32              `json:"attempt_number"`
 }
 
 type WebhookSubscription struct {
-	ID              uuid.UUID          `json:"id"`
-	TenantID        uuid.UUID          `json:"tenant_id"`
-	Name            string             `json:"name"`
-	Url             string             `json:"url"`
-	Secret          pgtype.Text        `json:"secret"`
-	Events          []string           `json:"events"`
-	Enabled         pgtype.Bool        `json:"enabled"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	FilterBia       []string           `json:"filter_bia"`
-	SecretEncrypted []byte             `json:"secret_encrypted"`
+	ID                  uuid.UUID          `json:"id"`
+	TenantID            uuid.UUID          `json:"tenant_id"`
+	Name                string             `json:"name"`
+	Url                 string             `json:"url"`
+	Secret              pgtype.Text        `json:"secret"`
+	Events              []string           `json:"events"`
+	Enabled             pgtype.Bool        `json:"enabled"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	FilterBia           []string           `json:"filter_bia"`
+	SecretEncrypted     []byte             `json:"secret_encrypted"`
+	ConsecutiveFailures int32              `json:"consecutive_failures"`
+	LastFailureAt       pgtype.Timestamptz `json:"last_failure_at"`
+	DisabledAt          pgtype.Timestamptz `json:"disabled_at"`
 }
 
 type WorkOrder struct {

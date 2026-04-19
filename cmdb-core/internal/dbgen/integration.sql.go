@@ -60,9 +60,38 @@ func (q *Queries) CreateAdapter(ctx context.Context, arg CreateAdapterParams) (I
 	return i, err
 }
 
+const createDLQEntry = `-- name: CreateDLQEntry :exec
+INSERT INTO webhook_deliveries_dlq (subscription_id, event_type, payload, last_error, attempt_count, tenant_id)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type CreateDLQEntryParams struct {
+	SubscriptionID pgtype.UUID     `json:"subscription_id"`
+	EventType      string          `json:"event_type"`
+	Payload        json.RawMessage `json:"payload"`
+	LastError      string          `json:"last_error"`
+	AttemptCount   int32           `json:"attempt_count"`
+	TenantID       uuid.UUID       `json:"tenant_id"`
+}
+
+// Park the original payload for operator replay after the subscription is
+// disabled. tenant_id is required (not nullable in schema) so cross-tenant
+// DLQ browsing cannot leak payloads.
+func (q *Queries) CreateDLQEntry(ctx context.Context, arg CreateDLQEntryParams) error {
+	_, err := q.db.Exec(ctx, createDLQEntry,
+		arg.SubscriptionID,
+		arg.EventType,
+		arg.Payload,
+		arg.LastError,
+		arg.AttemptCount,
+		arg.TenantID,
+	)
+	return err
+}
+
 const createDelivery = `-- name: CreateDelivery :exec
-INSERT INTO webhook_deliveries (subscription_id, event_type, payload, status_code, response_body)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO webhook_deliveries (subscription_id, event_type, payload, status_code, response_body, attempt_number)
+VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type CreateDeliveryParams struct {
@@ -71,8 +100,12 @@ type CreateDeliveryParams struct {
 	Payload        json.RawMessage `json:"payload"`
 	StatusCode     pgtype.Int4     `json:"status_code"`
 	ResponseBody   pgtype.Text     `json:"response_body"`
+	AttemptNumber  int32           `json:"attempt_number"`
 }
 
+// Every retry gets its own row. Do NOT upsert — the full attempt history is
+// the point. attempt_number defaults to 1 for the first try; the dispatcher
+// passes 2/3 on retries.
 func (q *Queries) CreateDelivery(ctx context.Context, arg CreateDeliveryParams) error {
 	_, err := q.db.Exec(ctx, createDelivery,
 		arg.SubscriptionID,
@@ -80,13 +113,14 @@ func (q *Queries) CreateDelivery(ctx context.Context, arg CreateDeliveryParams) 
 		arg.Payload,
 		arg.StatusCode,
 		arg.ResponseBody,
+		arg.AttemptNumber,
 	)
 	return err
 }
 
 const createWebhook = `-- name: CreateWebhook :one
 INSERT INTO webhook_subscriptions (tenant_id, name, url, secret, secret_encrypted, events, enabled)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted, consecutive_failures, last_failure_at, disabled_at
 `
 
 type CreateWebhookParams struct {
@@ -121,6 +155,9 @@ func (q *Queries) CreateWebhook(ctx context.Context, arg CreateWebhookParams) (W
 		&i.CreatedAt,
 		&i.FilterBia,
 		&i.SecretEncrypted,
+		&i.ConsecutiveFailures,
+		&i.LastFailureAt,
+		&i.DisabledAt,
 	)
 	return i, err
 }
@@ -137,6 +174,39 @@ type DeleteAdapterParams struct {
 func (q *Queries) DeleteAdapter(ctx context.Context, arg DeleteAdapterParams) error {
 	_, err := q.db.Exec(ctx, deleteAdapter, arg.ID, arg.TenantID)
 	return err
+}
+
+const deleteOldWebhookDLQ = `-- name: DeleteOldWebhookDLQ :execrows
+DELETE FROM webhook_deliveries_dlq
+WHERE created_at < now() - ($1::int * interval '1 day')
+`
+
+// Daily retention sweep for the DLQ. Same reason as above for the int
+// parameter shape. DLQ defaults to 90 days — longer than the delivery log
+// because DLQ entries are the ones ops most likely want to retry by hand.
+func (q *Queries) DeleteOldWebhookDLQ(ctx context.Context, retentionDays int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOldWebhookDLQ, retentionDays)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteOldWebhookDeliveries = `-- name: DeleteOldWebhookDeliveries :execrows
+DELETE FROM webhook_deliveries
+WHERE delivered_at < now() - ($1::int * interval '1 day')
+`
+
+// Daily retention sweep. Takes the retention window as a day count (int)
+// rather than a Postgres interval literal — sqlc maps intervals to
+// pgtype.Interval which is awkward to construct from a plain string.
+// Backed by idx_webhook_deliveries_delivered_at.
+func (q *Queries) DeleteOldWebhookDeliveries(ctx context.Context, retentionDays int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOldWebhookDeliveries, retentionDays)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteWebhook = `-- name: DeleteWebhook :exec
@@ -168,6 +238,20 @@ type DisableAdapterParams struct {
 // so the workflow can emit an audit event atomically with the decision.
 func (q *Queries) DisableAdapter(ctx context.Context, arg DisableAdapterParams) error {
 	_, err := q.db.Exec(ctx, disableAdapter, arg.ID, arg.TenantID)
+	return err
+}
+
+const disableWebhook = `-- name: DisableWebhook :exec
+UPDATE webhook_subscriptions
+SET disabled_at = now()
+WHERE id = $1
+`
+
+// Trip the circuit breaker. Separate from RecordWebhookFailure so the
+// dispatcher can emit the DLQ row and notification event atomically with
+// the decision to disable.
+func (q *Queries) DisableWebhook(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, disableWebhook, id)
 	return err
 }
 
@@ -203,7 +287,7 @@ func (q *Queries) GetAdapterByID(ctx context.Context, arg GetAdapterByIDParams) 
 }
 
 const getWebhookByID = `-- name: GetWebhookByID :one
-SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted FROM webhook_subscriptions WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted, consecutive_failures, last_failure_at, disabled_at FROM webhook_subscriptions WHERE id = $1 AND tenant_id = $2
 `
 
 type GetWebhookByIDParams struct {
@@ -225,6 +309,9 @@ func (q *Queries) GetWebhookByID(ctx context.Context, arg GetWebhookByIDParams) 
 		&i.CreatedAt,
 		&i.FilterBia,
 		&i.SecretEncrypted,
+		&i.ConsecutiveFailures,
+		&i.LastFailureAt,
+		&i.DisabledAt,
 	)
 	return i, err
 }
@@ -269,7 +356,7 @@ func (q *Queries) ListAdapters(ctx context.Context, tenantID uuid.UUID) ([]Integ
 }
 
 const listDeliveries = `-- name: ListDeliveries :many
-SELECT id, subscription_id, event_type, payload, status_code, response_body, delivered_at FROM webhook_deliveries WHERE subscription_id = $1 ORDER BY delivered_at DESC LIMIT $2
+SELECT id, subscription_id, event_type, payload, status_code, response_body, delivered_at, attempt_number FROM webhook_deliveries WHERE subscription_id = $1 ORDER BY delivered_at DESC LIMIT $2
 `
 
 type ListDeliveriesParams struct {
@@ -294,6 +381,7 @@ func (q *Queries) ListDeliveries(ctx context.Context, arg ListDeliveriesParams) 
 			&i.StatusCode,
 			&i.ResponseBody,
 			&i.DeliveredAt,
+			&i.AttemptNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -358,7 +446,7 @@ func (q *Queries) ListDuePullAdapters(ctx context.Context) ([]ListDuePullAdapter
 }
 
 const listWebhooks = `-- name: ListWebhooks :many
-SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted FROM webhook_subscriptions WHERE tenant_id = $1 ORDER BY name
+SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted, consecutive_failures, last_failure_at, disabled_at FROM webhook_subscriptions WHERE tenant_id = $1 ORDER BY name
 `
 
 func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]WebhookSubscription, error) {
@@ -381,6 +469,9 @@ func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]Webho
 			&i.CreatedAt,
 			&i.FilterBia,
 			&i.SecretEncrypted,
+			&i.ConsecutiveFailures,
+			&i.LastFailureAt,
+			&i.DisabledAt,
 		); err != nil {
 			return nil, err
 		}
@@ -393,9 +484,10 @@ func (q *Queries) ListWebhooks(ctx context.Context, tenantID uuid.UUID) ([]Webho
 }
 
 const listWebhooksByEvent = `-- name: ListWebhooksByEvent :many
-SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted FROM webhook_subscriptions
+SELECT id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted, consecutive_failures, last_failure_at, disabled_at FROM webhook_subscriptions
 WHERE tenant_id = $1
   AND enabled = true
+  AND disabled_at IS NULL
   AND $2::text = ANY(events)
 `
 
@@ -404,6 +496,8 @@ type ListWebhooksByEventParams struct {
 	Column2  string    `json:"column_2"`
 }
 
+// Auto-disabled subscriptions (disabled_at IS NOT NULL) are filtered here
+// so tripped hooks stop receiving events until ops re-enables them.
 func (q *Queries) ListWebhooksByEvent(ctx context.Context, arg ListWebhooksByEventParams) ([]WebhookSubscription, error) {
 	rows, err := q.db.Query(ctx, listWebhooksByEvent, arg.TenantID, arg.Column2)
 	if err != nil {
@@ -424,6 +518,9 @@ func (q *Queries) ListWebhooksByEvent(ctx context.Context, arg ListWebhooksByEve
 			&i.CreatedAt,
 			&i.FilterBia,
 			&i.SecretEncrypted,
+			&i.ConsecutiveFailures,
+			&i.LastFailureAt,
+			&i.DisabledAt,
 		); err != nil {
 			return nil, err
 		}
@@ -502,6 +599,45 @@ func (q *Queries) RecordAdapterSuccess(ctx context.Context, arg RecordAdapterSuc
 	return err
 }
 
+const recordWebhookFailure = `-- name: RecordWebhookFailure :one
+UPDATE webhook_subscriptions
+SET consecutive_failures = consecutive_failures + 1,
+    last_failure_at      = now()
+WHERE id = $1
+RETURNING id, tenant_id, consecutive_failures
+`
+
+type RecordWebhookFailureRow struct {
+	ID                  uuid.UUID `json:"id"`
+	TenantID            uuid.UUID `json:"tenant_id"`
+	ConsecutiveFailures int32     `json:"consecutive_failures"`
+}
+
+// Mirrors RecordAdapterFailure. Atomically increments consecutive_failures
+// and stamps last_failure_at. Returns the new counter so the dispatcher can
+// decide (in one round-trip) whether to also flip disabled_at.
+func (q *Queries) RecordWebhookFailure(ctx context.Context, id uuid.UUID) (RecordWebhookFailureRow, error) {
+	row := q.db.QueryRow(ctx, recordWebhookFailure, id)
+	var i RecordWebhookFailureRow
+	err := row.Scan(&i.ID, &i.TenantID, &i.ConsecutiveFailures)
+	return i, err
+}
+
+const recordWebhookSuccess = `-- name: RecordWebhookSuccess :exec
+UPDATE webhook_subscriptions
+SET consecutive_failures = 0,
+    last_failure_at      = NULL
+WHERE id = $1 AND disabled_at IS NULL
+`
+
+// Clears failure state after a successful delivery. The "AND disabled_at IS
+// NULL" guard prevents a stray late-succeeding retry from secretly
+// re-enabling a subscription that ops has explicitly disabled.
+func (q *Queries) RecordWebhookSuccess(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, recordWebhookSuccess, id)
+	return err
+}
+
 const updateAdapter = `-- name: UpdateAdapter :one
 UPDATE integration_adapters SET
     name             = COALESCE($1, name),
@@ -571,7 +707,7 @@ UPDATE webhook_subscriptions SET
     events           = COALESCE($5, events),
     enabled          = COALESCE($6, enabled)
 WHERE id = $7 AND tenant_id = $8
-RETURNING id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted
+RETURNING id, tenant_id, name, url, secret, events, enabled, created_at, filter_bia, secret_encrypted, consecutive_failures, last_failure_at, disabled_at
 `
 
 type UpdateWebhookParams struct {
@@ -611,6 +747,9 @@ func (q *Queries) UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (W
 		&i.CreatedAt,
 		&i.FilterBia,
 		&i.SecretEncrypted,
+		&i.ConsecutiveFailures,
+		&i.LastFailureAt,
+		&i.DisabledAt,
 	)
 	return i, err
 }
