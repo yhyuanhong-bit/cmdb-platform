@@ -92,6 +92,169 @@ func (q *Queries) GetIncident(ctx context.Context, arg GetIncidentParams) (Incid
 	return i, err
 }
 
+const listAlertEventsByIncident = `-- name: ListAlertEventsByIncident :many
+SELECT ae.id, ae.tenant_id, ae.rule_id, ae.asset_id, ae.status,
+       ae.severity, ae.message, ae.trigger_value, ae.fired_at,
+       ae.acked_at, ae.resolved_at, ae.sync_version
+FROM alert_events ae
+JOIN incidents i
+  ON i.id = $1::uuid
+ AND i.tenant_id = $2::uuid
+WHERE ae.tenant_id = $2::uuid
+  AND ae.fired_at >= i.started_at
+  AND ae.fired_at <= COALESCE(i.resolved_at, now())
+ORDER BY ae.fired_at DESC
+LIMIT 100
+`
+
+type ListAlertEventsByIncidentParams struct {
+	IncidentID uuid.UUID `json:"incident_id"`
+	TenantID   uuid.UUID `json:"tenant_id"`
+}
+
+type ListAlertEventsByIncidentRow struct {
+	ID           uuid.UUID          `json:"id"`
+	TenantID     uuid.UUID          `json:"tenant_id"`
+	RuleID       pgtype.UUID        `json:"rule_id"`
+	AssetID      pgtype.UUID        `json:"asset_id"`
+	Status       string             `json:"status"`
+	Severity     string             `json:"severity"`
+	Message      pgtype.Text        `json:"message"`
+	TriggerValue pgtype.Numeric     `json:"trigger_value"`
+	FiredAt      time.Time          `json:"fired_at"`
+	AckedAt      pgtype.Timestamptz `json:"acked_at"`
+	ResolvedAt   pgtype.Timestamptz `json:"resolved_at"`
+	SyncVersion  int64              `json:"sync_version"`
+}
+
+// Returns alert_events considered "related" to an incident for RCA context.
+// There is no alert_events.incident_id FK, so the link is derived by:
+//  1. Same tenant (defence-in-depth; tenant_id is passed explicitly).
+//  2. The alert fired during the incident's active window: between the
+//     incident's started_at and COALESCE(resolved_at, now()).
+//
+// This is the most conservative temporal association we can make without a
+// dedicated link table. Results are ordered newest-first and capped at 100
+// rows to bound the payload handed to the AI provider.
+func (q *Queries) ListAlertEventsByIncident(ctx context.Context, arg ListAlertEventsByIncidentParams) ([]ListAlertEventsByIncidentRow, error) {
+	rows, err := q.db.Query(ctx, listAlertEventsByIncident, arg.IncidentID, arg.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAlertEventsByIncidentRow{}
+	for rows.Next() {
+		var i ListAlertEventsByIncidentRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.RuleID,
+			&i.AssetID,
+			&i.Status,
+			&i.Severity,
+			&i.Message,
+			&i.TriggerValue,
+			&i.FiredAt,
+			&i.AckedAt,
+			&i.ResolvedAt,
+			&i.SyncVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAssetsForIncident = `-- name: ListAssetsForIncident :many
+SELECT DISTINCT a.id, a.tenant_id, a.asset_tag, a.property_number,
+       a.control_number, a.name, a.type, a.sub_type, a.status, a.bia_level,
+       a.location_id, a.rack_id, a.vendor, a.model, a.serial_number,
+       a.attributes, a.tags, a.created_at, a.updated_at, a.ip_address,
+       a.deleted_at, a.sync_version, a.bmc_ip, a.bmc_type, a.bmc_firmware,
+       a.purchase_date, a.purchase_cost, a.warranty_start, a.warranty_end,
+       a.warranty_vendor, a.warranty_contract, a.expected_lifespan_months,
+       a.eol_date
+FROM assets a
+JOIN alert_events ae ON ae.asset_id = a.id
+JOIN incidents i
+  ON i.id = $1::uuid
+ AND i.tenant_id = $2::uuid
+WHERE a.tenant_id = $2::uuid
+  AND ae.tenant_id = $2::uuid
+  AND a.deleted_at IS NULL
+  AND ae.fired_at >= i.started_at
+  AND ae.fired_at <= COALESCE(i.resolved_at, now())
+ORDER BY a.name
+LIMIT 100
+`
+
+type ListAssetsForIncidentParams struct {
+	IncidentID uuid.UUID `json:"incident_id"`
+	TenantID   uuid.UUID `json:"tenant_id"`
+}
+
+// Returns DISTINCT assets referenced by alert_events related to the incident
+// (same temporal window as ListAlertEventsByIncident). Soft-deleted assets
+// are excluded. Tenant scope is enforced on BOTH alert_events and assets
+// and on the incidents row (defence-in-depth).
+func (q *Queries) ListAssetsForIncident(ctx context.Context, arg ListAssetsForIncidentParams) ([]Asset, error) {
+	rows, err := q.db.Query(ctx, listAssetsForIncident, arg.IncidentID, arg.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Asset{}
+	for rows.Next() {
+		var i Asset
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.AssetTag,
+			&i.PropertyNumber,
+			&i.ControlNumber,
+			&i.Name,
+			&i.Type,
+			&i.SubType,
+			&i.Status,
+			&i.BiaLevel,
+			&i.LocationID,
+			&i.RackID,
+			&i.Vendor,
+			&i.Model,
+			&i.SerialNumber,
+			&i.Attributes,
+			&i.Tags,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IpAddress,
+			&i.DeletedAt,
+			&i.SyncVersion,
+			&i.BmcIp,
+			&i.BmcType,
+			&i.BmcFirmware,
+			&i.PurchaseDate,
+			&i.PurchaseCost,
+			&i.WarrantyStart,
+			&i.WarrantyEnd,
+			&i.WarrantyVendor,
+			&i.WarrantyContract,
+			&i.ExpectedLifespanMonths,
+			&i.EolDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listIncidents = `-- name: ListIncidents :many
 SELECT id, tenant_id, title, status, severity, started_at, resolved_at FROM incidents
 WHERE tenant_id = $1
