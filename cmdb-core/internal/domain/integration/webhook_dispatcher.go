@@ -26,6 +26,15 @@ import (
 // in integration_adapters so ops has one number to remember.
 const circuitBreakerThreshold = 3
 
+// SignatureVersionHeader advertises the signing scheme to receivers. v1 was
+// HMAC(secret, body). v2 is HMAC(secret, timestamp + "." + body) and is
+// the ONLY scheme this dispatcher emits. Receivers must branch on this
+// header to keep replay-protection guarantees.
+const (
+	SignatureVersionHeader = "X-Webhook-Signature-Version"
+	SignatureVersionV2     = "v2"
+)
+
 // WebhookDispatcher delivers events to registered webhook subscriptions.
 type WebhookDispatcher struct {
 	queries *dbgen.Queries
@@ -222,9 +231,13 @@ func (d *WebhookDispatcher) attemptOnce(
 	req.Header.Set("X-Webhook-Event", event.Subject)
 
 	if secret != "" {
+		timestamp := d.now().UTC().Format(time.RFC3339)
+		signed := timestamp + "." + string(body)
 		mac := hmac.New(sha256.New, []byte(secret))
-		mac.Write(body)
+		mac.Write([]byte(signed))
+		req.Header.Set("X-Webhook-Timestamp", timestamp)
 		req.Header.Set("X-Webhook-Signature", "sha256="+hex.EncodeToString(mac.Sum(nil)))
+		req.Header.Set(SignatureVersionHeader, SignatureVersionV2)
 	}
 
 	resp, err := d.client.Do(req)
