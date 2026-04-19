@@ -38,6 +38,7 @@ func parseJSONAttributes(data []byte) map[string]string {
 // Calculates the Remaining Useful Life for an asset based on warranty and expected lifespan.
 func (s *APIServer) GetAssetRUL(c *gin.Context, id IdPath) {
 	assetID := uuid.UUID(id)
+	tenantID := tenantIDFromContext(c)
 
 	var (
 		name      string
@@ -48,8 +49,8 @@ func (s *APIServer) GetAssetRUL(c *gin.Context, id IdPath) {
 	err := s.pool.QueryRow(c.Request.Context(), `
 		SELECT name, type, attributes, created_at
 		FROM assets
-		WHERE id = $1
-	`, assetID).Scan(&name, &assetType, &attrBytes, &createdAt)
+		WHERE id = $1 AND tenant_id = $2
+	`, assetID, tenantID).Scan(&name, &assetType, &attrBytes, &createdAt)
 	if err != nil {
 		response.NotFound(c, "asset not found")
 		return
@@ -666,6 +667,7 @@ func (s *APIServer) CreateUpgradeRule(c *gin.Context) {
 // Updates an existing upgrade rule (threshold, duration, priority, recommendation, enabled).
 func (s *APIServer) UpdateUpgradeRule(c *gin.Context, id IdPath) {
 	ruleID := uuid.UUID(id)
+	tenantID := tenantIDFromContext(c)
 	var body UpdateUpgradeRuleJSONRequestBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, "invalid request body")
@@ -676,18 +678,22 @@ func (s *APIServer) UpdateUpgradeRule(c *gin.Context, id IdPath) {
 		p := string(*body.Priority)
 		priority = &p
 	}
-	_, err := s.pool.Exec(c.Request.Context(), `
+	tag, err := s.pool.Exec(c.Request.Context(), `
 		UPDATE upgrade_rules SET
-		  threshold      = COALESCE($2, threshold),
-		  duration_days  = COALESCE($3, duration_days),
-		  priority       = COALESCE($4, priority),
-		  recommendation = COALESCE($5, recommendation),
-		  enabled        = COALESCE($6, enabled),
+		  threshold      = COALESCE($3, threshold),
+		  duration_days  = COALESCE($4, duration_days),
+		  priority       = COALESCE($5, priority),
+		  recommendation = COALESCE($6, recommendation),
+		  enabled        = COALESCE($7, enabled),
 		  updated_at     = now()
-		WHERE id = $1
-	`, ruleID, body.Threshold, body.DurationDays, priority, body.Recommendation, body.Enabled)
+		WHERE id = $1 AND tenant_id = $2
+	`, ruleID, tenantID, body.Threshold, body.DurationDays, priority, body.Recommendation, body.Enabled)
 	if err != nil {
 		response.InternalError(c, "failed to update upgrade rule")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		response.NotFound(c, "upgrade rule not found")
 		return
 	}
 	response.OK(c, gin.H{"updated": true})
@@ -697,9 +703,15 @@ func (s *APIServer) UpdateUpgradeRule(c *gin.Context, id IdPath) {
 // Deletes an upgrade rule.
 func (s *APIServer) DeleteUpgradeRule(c *gin.Context, id IdPath) {
 	ruleID := uuid.UUID(id)
-	if _, err := s.pool.Exec(c.Request.Context(), "DELETE FROM upgrade_rules WHERE id = $1", ruleID); err != nil {
+	tenantID := tenantIDFromContext(c)
+	tag, err := s.pool.Exec(c.Request.Context(), "DELETE FROM upgrade_rules WHERE id = $1 AND tenant_id = $2", ruleID, tenantID)
+	if err != nil {
 		zap.L().Error("failed to delete upgrade rule", zap.String("id", ruleID.String()), zap.Error(err))
 		response.InternalError(c, "failed to delete rule")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		response.NotFound(c, "upgrade rule not found")
 		return
 	}
 	c.Status(204)

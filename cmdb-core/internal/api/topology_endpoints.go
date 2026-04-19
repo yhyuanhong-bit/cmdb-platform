@@ -114,10 +114,11 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 // Removes a dependency edge by its ID.
 func (s *APIServer) DeleteAssetDependency(c *gin.Context, id IdPath) {
 	depID := uuid.UUID(id)
+	tenantID := tenantIDFromContext(c)
 
 	tag, err := s.pool.Exec(c.Request.Context(), `
-		DELETE FROM asset_dependencies WHERE id = $1
-	`, depID)
+		DELETE FROM asset_dependencies WHERE id = $1 AND tenant_id = $2
+	`, depID, tenantID)
 	if err != nil {
 		response.InternalError(c, "failed to delete dependency")
 		return
