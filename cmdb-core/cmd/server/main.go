@@ -64,6 +64,13 @@ func main() {
 	zap.ReplaceGlobals(logger)
 	defer logger.Sync()
 
+	// 2a. Validate JWT signing secret strength before we accept any traffic.
+	// A weak/short secret lets attackers forge arbitrary tokens, so treat
+	// this as a hard startup failure rather than a warning.
+	if err := validateJWTSecret(cfg.JWTSecret); err != nil {
+		zap.L().Fatal("invalid JWT secret", zap.Error(err))
+	}
+
 	ctx := context.Background()
 
 	// 3. OpenTelemetry tracing
