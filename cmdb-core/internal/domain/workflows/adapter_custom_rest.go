@@ -31,7 +31,16 @@ type customRESTConfig struct {
 
 func (a *CustomRESTAdapter) Fetch(ctx context.Context, endpoint string, config json.RawMessage) ([]MetricPoint, error) {
 	var cfg customRESTConfig
-	json.Unmarshal(config, &cfg) //nolint:errcheck
+	// An invalid config JSON must reject the fetch rather than silently
+	// fall back to an all-zero struct — the pre-fix code happily issued
+	// the request with empty headers/body/URL override, masking operator
+	// mistakes. Return the parse error so the caller can surface it and
+	// the adapter failure counter bumps for the right reason.
+	if len(config) > 0 {
+		if err := json.Unmarshal(config, &cfg); err != nil {
+			return nil, fmt.Errorf("custom_rest: parse config: %w", err)
+		}
+	}
 
 	targetURL := endpoint
 	if cfg.URL != "" {
@@ -85,9 +94,15 @@ func (a *CustomRESTAdapter) Fetch(ctx context.Context, endpoint string, config j
 		return nil, fmt.Errorf("http %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	// Parse response
+	// Parse response. A malformed response body is a real adapter
+	// failure — the pre-fix `//nolint:errcheck` swallowed it, leaving
+	// `raw` as nil and the downstream ResultPath walk silently
+	// producing zero metrics. Propagate it so the adapter failure
+	// counter ticks and the ops team sees the broken upstream.
 	var raw interface{}
-	json.Unmarshal(respBody, &raw) //nolint:errcheck
+	if err := json.Unmarshal(respBody, &raw); err != nil {
+		return nil, fmt.Errorf("custom_rest: parse response: %w", err)
+	}
 
 	// Navigate to result path
 	data := raw

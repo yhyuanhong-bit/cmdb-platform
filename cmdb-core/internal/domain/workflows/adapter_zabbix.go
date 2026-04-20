@@ -43,7 +43,14 @@ type zabbixRPCResponse struct {
 
 func (a *ZabbixAdapter) Fetch(ctx context.Context, endpoint string, config json.RawMessage) ([]MetricPoint, error) {
 	var cfg zabbixConfig
-	json.Unmarshal(config, &cfg) //nolint:errcheck
+	// Reject broken config JSON up front. The pre-fix code hid a
+	// mangled config as a benign "no items" no-op, making operator
+	// misconfiguration look like a healthy empty adapter.
+	if len(config) > 0 {
+		if err := json.Unmarshal(config, &cfg); err != nil {
+			return nil, fmt.Errorf("zabbix: parse config: %w", err)
+		}
+	}
 
 	if len(cfg.Items) == 0 {
 		return nil, nil
@@ -89,7 +96,13 @@ func zabbixRPC(ctx context.Context, endpoint string, method string, params inter
 		ID:      1,
 		Auth:    auth,
 	}
-	body, _ := json.Marshal(reqBody)
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		// Given the fields above, this should be unreachable —
+		// but returning surfaces the invariant instead of sending
+		// a zero-length body and getting a confusing HTTP 400.
+		return nil, fmt.Errorf("zabbix: marshal request: %w", err)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {
@@ -124,7 +137,13 @@ func zabbixLogin(ctx context.Context, endpoint, username, password string) (stri
 		return "", err
 	}
 	var token string
-	json.Unmarshal(result, &token) //nolint:errcheck
+	// If the Zabbix API returned something that doesn't unmarshal into
+	// a plain string, the login is effectively broken — don't hand back
+	// an empty token that the caller would then treat as "no auth" and
+	// proceed to 401 every subsequent RPC.
+	if err := json.Unmarshal(result, &token); err != nil {
+		return "", fmt.Errorf("zabbix: parse login token: %w", err)
+	}
 	return token, nil
 }
 
@@ -149,7 +168,9 @@ func zabbixGetHosts(ctx context.Context, endpoint, auth string, hostGroups []str
 			IP string `json:"ip"`
 		} `json:"interfaces"`
 	}
-	json.Unmarshal(result, &hosts) //nolint:errcheck
+	if err := json.Unmarshal(result, &hosts); err != nil {
+		return nil, fmt.Errorf("zabbix: parse host.get result: %w", err)
+	}
 
 	hostMap := make(map[string]string)
 	for _, h := range hosts {
@@ -179,7 +200,9 @@ func zabbixGetItemValues(ctx context.Context, endpoint, auth, itemKey string, ho
 		LastValue string `json:"lastvalue"`
 		LastClock string `json:"lastclock"`
 	}
-	json.Unmarshal(result, &items) //nolint:errcheck
+	if err := json.Unmarshal(result, &items); err != nil {
+		return nil, fmt.Errorf("zabbix: parse item.get result: %w", err)
+	}
 
 	var points []MetricPoint
 	for _, item := range items {
