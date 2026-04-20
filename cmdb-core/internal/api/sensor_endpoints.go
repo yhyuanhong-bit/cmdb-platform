@@ -8,7 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -56,62 +58,53 @@ func sensorIcon(sensorType string) string {
 func (s *APIServer) ListSensors(c *gin.Context, _ ListSensorsParams) {
 	tenantID := tenantIDFromContext(c)
 
-	rows, err := s.pool.Query(c.Request.Context(), `
-		SELECT s.id, s.asset_id, a.name AS asset_name, s.name, s.type, s.location,
-		       s.polling_interval, s.enabled, s.status, s.last_heartbeat
-		FROM sensors s
-		LEFT JOIN assets a ON s.asset_id = a.id AND a.deleted_at IS NULL
-		WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
-		ORDER BY s.name
-	`, tenantID)
+	rows, err := dbgen.New(s.pool).ListSensorsByTenant(c.Request.Context(), tenantID)
 	if err != nil {
 		response.InternalError(c, "failed to query sensors")
 		return
 	}
-	defer rows.Close()
 
-	sensors := []sensorRecord{}
-	for rows.Next() {
-		var (
-			id              string
-			assetID         *string
-			assetName       *string
-			name            string
-			sType           string
-			location        *string
-			pollingInterval int
-			enabled         bool
-			status          string
-			lastHeartbeat   *time.Time
-		)
-		if err := rows.Scan(&id, &assetID, &assetName, &name, &sType, &location,
-			&pollingInterval, &enabled, &status, &lastHeartbeat); err != nil {
-			continue
-		}
-
+	sensors := make([]sensorRecord, 0, len(rows))
+	for _, r := range rows {
 		// Capitalize status (guard empty string)
-		displayStatus := status
-		if len(status) > 0 {
-			displayStatus = strings.ToUpper(status[:1]) + status[1:]
+		displayStatus := r.Status
+		if len(displayStatus) > 0 {
+			displayStatus = strings.ToUpper(displayStatus[:1]) + displayStatus[1:]
 		}
 
 		var lastSeen *string
-		if lastHeartbeat != nil {
-			s := lastHeartbeat.Format(time.RFC3339)
-			lastSeen = &s
+		if r.LastHeartbeat.Valid {
+			formatted := r.LastHeartbeat.Time.Format(time.RFC3339)
+			lastSeen = &formatted
+		}
+
+		var assetID *string
+		if r.AssetID.Valid {
+			idStr := uuid.UUID(r.AssetID.Bytes).String()
+			assetID = &idStr
+		}
+		var assetName *string
+		if r.AssetName.Valid {
+			name := r.AssetName.String
+			assetName = &name
+		}
+		var location *string
+		if r.Location.Valid {
+			loc := r.Location.String
+			location = &loc
 		}
 
 		sensors = append(sensors, sensorRecord{
-			ID:              id,
+			ID:              r.ID.String(),
 			AssetID:         assetID,
 			AssetName:       assetName,
-			Name:            name,
-			Type:            sType,
+			Name:            r.Name,
+			Type:            r.Type,
 			Location:        location,
-			PollingInterval: pollingInterval,
-			Enabled:         enabled,
+			PollingInterval: int(r.PollingInterval),
+			Enabled:         r.Enabled,
 			Status:          displayStatus,
-			Icon:            sensorIcon(sType),
+			Icon:            sensorIcon(r.Type),
 			LastSeen:        lastSeen,
 		})
 	}
@@ -141,21 +134,40 @@ func (s *APIServer) CreateSensor(c *gin.Context) {
 		return
 	}
 
-	pollingInterval := 30
+	pollingInterval := int32(30)
 	if body.PollingInterval != nil {
-		pollingInterval = *body.PollingInterval
+		pollingInterval = int32(*body.PollingInterval)
 	}
 	enabled := true
 	if body.Enabled != nil {
 		enabled = *body.Enabled
 	}
 
+	assetIDParam := pgtype.UUID{}
+	if body.AssetID != nil && *body.AssetID != "" {
+		parsed, err := uuid.Parse(*body.AssetID)
+		if err != nil {
+			response.BadRequest(c, "invalid asset_id")
+			return
+		}
+		assetIDParam = pgtype.UUID{Bytes: parsed, Valid: true}
+	}
+	locationParam := pgtype.Text{}
+	if body.Location != nil {
+		locationParam = pgtype.Text{String: *body.Location, Valid: true}
+	}
+
 	newID := uuid.New()
-	_, err := s.pool.Exec(c.Request.Context(), `
-		INSERT INTO sensors (id, tenant_id, asset_id, name, type, location, polling_interval, enabled, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'offline', now(), now())
-	`, newID, tenantID, body.AssetID, body.Name, body.Type, body.Location, pollingInterval, enabled)
-	if err != nil {
+	if err := dbgen.New(s.pool).CreateSensor(c.Request.Context(), dbgen.CreateSensorParams{
+		ID:              newID,
+		TenantID:        tenantID,
+		AssetID:         assetIDParam,
+		Name:            body.Name,
+		Type:            body.Type,
+		Location:        locationParam,
+		PollingInterval: pollingInterval,
+		Enabled:         enabled,
+	}); err != nil {
 		response.InternalError(c, "failed to create sensor")
 		return
 	}
@@ -167,8 +179,12 @@ func (s *APIServer) CreateSensor(c *gin.Context) {
 	response.Created(c, gin.H{"id": newID.String()})
 }
 
-// UpdateSensor handles PUT /sensors/{id}
-// Updates sensor fields using a dynamic SET clause.
+// UpdateSensor handles PUT /sensors/{id}.
+// Updates sensor fields using a dynamic SET clause. This one stays as raw
+// SQL because sqlc has no native "partial update with arbitrary columns"
+// story that composes with the COALESCE(sqlc.narg) idiom once the column
+// set grows — writing each column as a separate UPDATE would be worse.
+// The allow-list below constrains what `body` keys can reach the SQL.
 func (s *APIServer) UpdateSensor(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
 	sensorID := uuid.UUID(id)
@@ -206,7 +222,7 @@ func (s *APIServer) UpdateSensor(c *gin.Context, id IdPath) {
 		return
 	}
 
-	setClauses = append(setClauses, fmt.Sprintf("updated_at = now()"))
+	setClauses = append(setClauses, "updated_at = now()")
 	args = append(args, sensorID)
 	idIdx := idx
 	idx++
@@ -235,14 +251,15 @@ func (s *APIServer) DeleteSensor(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
 	sensorID := uuid.UUID(id)
 
-	result, err := s.pool.Exec(c.Request.Context(), `
-		DELETE FROM sensors WHERE id = $1 AND tenant_id = $2
-	`, sensorID, tenantID)
+	rowsAffected, err := dbgen.New(s.pool).DeleteSensor(c.Request.Context(), dbgen.DeleteSensorParams{
+		ID:       sensorID,
+		TenantID: tenantID,
+	})
 	if err != nil {
 		response.InternalError(c, "failed to delete sensor")
 		return
 	}
-	if result.RowsAffected() == 0 {
+	if rowsAffected == 0 {
 		response.NotFound(c, "sensor not found")
 		return
 	}
@@ -266,11 +283,11 @@ func (s *APIServer) SensorHeartbeat(c *gin.Context, id IdPath) {
 		body.Status = "online"
 	}
 
-	_, err := s.pool.Exec(c.Request.Context(), `
-		UPDATE sensors SET last_heartbeat = now(), status = $1, updated_at = now()
-		WHERE id = $2 AND tenant_id = $3
-	`, body.Status, sensorID, tenantID)
-	if err != nil {
+	if err := dbgen.New(s.pool).UpdateSensorHeartbeat(c.Request.Context(), dbgen.UpdateSensorHeartbeatParams{
+		ID:       sensorID,
+		TenantID: tenantID,
+		Status:   body.Status,
+	}); err != nil {
 		response.InternalError(c, "failed to update sensor heartbeat")
 		return
 	}
