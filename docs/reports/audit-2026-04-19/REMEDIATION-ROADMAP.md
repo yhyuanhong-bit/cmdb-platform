@@ -638,17 +638,22 @@ describe('ComponentX', () => {
 - **迁移**:所有带过滤器 / 分页 / 排序的 list 页优先:Assets / Racks / Monitoring / Audit / Inventory / Maintenance
 - **commit**:每页一个 commit
 
-### 3.7 Track B handler 迁移到 ServerInterface
+### 3.7 Track B handler 迁移到 ServerInterface — **DONE (2026-04-20)**
 
-- **现状**:60 个手写 `*gin.Context` handler 在 `main.go:349-449` 直接挂
-- **策略**:分批迁移,每次 5-10 个。每迁一个:
+> 详见 `track-b-audit.md`。`dd6bae9` 时 168 个 operation 全部走 `RegisterHandlers`,
+> `oapi-codegen.yaml` 的 `exclude-operation-ids` 已空,`main.go` v1 组只剩 3 条手动路由
+> (`/auth/logout` 是历史遗留重复需独立 bugfix 清理;`/ws`、`/admin/migrate-statuses`
+> 由 `UndocumentedAllowlist` 白名单,属基础设施路由,保持不变)。`make check-api-routes` 通过。
+
+- **原现状**:60 个手写 `*gin.Context` handler 在 `main.go:349-449` 直接挂
+- **历史策略**:分批迁移,每次 5-10 个。每迁一个:
   1. 在 `openapi.yaml` 补 operation + schemas
   2. `make generate-api` 生成新方法签名
   3. 把原 handler 函数签名改为 `ServerInterface` 要求的形式
   4. 从 `oapi-codegen.yaml` 的 `exclude-operation-ids` 移除该 operationId
   5. 从 `main.go` 删除手动路由注册
   6. CI 的 `check-api-routes` 自动验证
-- **commit**:`refactor(api): migrate <group> Track B handlers to ServerInterface`
+- **已落地 commits**:`d36a6cf` `52b935d` `66f2df8` `eb1ddbd` `ba54db4` `9a91826`
 
 ### 3.8 sqlc 覆盖补齐
 
