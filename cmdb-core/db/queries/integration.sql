@@ -160,6 +160,19 @@ VALUES ($1, $2, $3, $4, $5, $6);
 DELETE FROM webhook_deliveries
 WHERE delivered_at < now() - (sqlc.arg('retention_days')::int * interval '1 day');
 
+-- name: SampleWebhookSecretsForDivergence :many
+-- cross-tenant: the dual-write divergence sweep runs as a server-level
+-- maintenance task, not on behalf of any tenant. It samples up to $1
+-- webhook_subscriptions rows where both secret and secret_encrypted are
+-- populated so the plaintext and ciphertext can be compared.
+SELECT id, tenant_id, secret, secret_encrypted
+FROM webhook_subscriptions
+WHERE secret IS NOT NULL
+  AND secret <> ''
+  AND secret_encrypted IS NOT NULL
+ORDER BY id
+LIMIT $1;
+
 -- name: DeleteOldWebhookDLQ :execrows
 -- Daily retention sweep for the DLQ. Same reason as above for the int
 -- parameter shape. DLQ defaults to 90 days — longer than the delivery log

@@ -638,6 +638,52 @@ func (q *Queries) RecordWebhookSuccess(ctx context.Context, id uuid.UUID) error 
 	return err
 }
 
+const sampleWebhookSecretsForDivergence = `-- name: SampleWebhookSecretsForDivergence :many
+SELECT id, tenant_id, secret, secret_encrypted
+FROM webhook_subscriptions
+WHERE secret IS NOT NULL
+  AND secret <> ''
+  AND secret_encrypted IS NOT NULL
+ORDER BY id
+LIMIT $1
+`
+
+type SampleWebhookSecretsForDivergenceRow struct {
+	ID              uuid.UUID   `json:"id"`
+	TenantID        uuid.UUID   `json:"tenant_id"`
+	Secret          pgtype.Text `json:"secret"`
+	SecretEncrypted []byte      `json:"secret_encrypted"`
+}
+
+// cross-tenant: the dual-write divergence sweep runs as a server-level
+// maintenance task, not on behalf of any tenant. It samples up to $1
+// webhook_subscriptions rows where both secret and secret_encrypted are
+// populated so the plaintext and ciphertext can be compared.
+func (q *Queries) SampleWebhookSecretsForDivergence(ctx context.Context, limit int32) ([]SampleWebhookSecretsForDivergenceRow, error) {
+	rows, err := q.db.Query(ctx, sampleWebhookSecretsForDivergence, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SampleWebhookSecretsForDivergenceRow{}
+	for rows.Next() {
+		var i SampleWebhookSecretsForDivergenceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Secret,
+			&i.SecretEncrypted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateAdapter = `-- name: UpdateAdapter :one
 UPDATE integration_adapters SET
     name             = COALESCE($1, name),

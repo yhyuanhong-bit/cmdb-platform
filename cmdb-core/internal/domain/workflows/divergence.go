@@ -150,38 +150,30 @@ func (w *WorkflowSubscriber) checkAdapterDivergence(ctx context.Context, limit i
 // checkWebhookDivergence samples up to `limit` webhook_subscriptions rows
 // where both secret and secret_encrypted are populated.
 func (w *WorkflowSubscriber) checkWebhookDivergence(ctx context.Context, limit int) (int, int) {
-	rows, err := w.pool.Query(ctx, `
-		SELECT id, tenant_id, secret, secret_encrypted
-		FROM webhook_subscriptions
-		WHERE secret IS NOT NULL
-		  AND secret <> ''
-		  AND secret_encrypted IS NOT NULL
-		ORDER BY id
-		LIMIT $1
-	`, limit)
+	rows, err := w.queries.SampleWebhookSecretsForDivergence(ctx, int32(limit))
 	if err != nil {
 		zap.L().Warn("divergence check: query webhooks failed", zap.Error(err))
 		return 0, 0
 	}
-	defer rows.Close()
 
 	scanned, diverged := 0, 0
-	for rows.Next() {
-		var id, tenantID uuid.UUID
-		var plaintext string
-		var ciphertext []byte
-		if err := rows.Scan(&id, &tenantID, &plaintext, &ciphertext); err != nil {
-			zap.L().Warn("divergence check: webhook scan error", zap.Error(err))
-			continue
-		}
+	for _, r := range rows {
 		scanned++
 
-		decrypted, err := integration.DecryptSecretWithFallback(w.cipher, ciphertext, "")
-		if err != nil {
+		// r.Secret is pgtype.Text — the query filters on NOT NULL and
+		// non-empty, but double-check before dereferencing so a future
+		// query edit that relaxes the filter doesn't crash here.
+		if !r.Secret.Valid {
+			continue
+		}
+		plaintext := r.Secret.String
+
+		decrypted, derr := integration.DecryptSecretWithFallback(w.cipher, r.SecretEncrypted, "")
+		if derr != nil {
 			zap.L().Error("divergence check: webhook decrypt failed",
-				zap.String("webhook_id", id.String()),
-				zap.String("tenant_id", tenantID.String()),
-				zap.Error(err))
+				zap.String("webhook_id", r.ID.String()),
+				zap.String("tenant_id", r.TenantID.String()),
+				zap.Error(derr))
 			telemetry.IntegrationDualWriteDivergenceTotal.WithLabelValues(
 				telemetry.IntegrationTableWebhooks).Inc()
 			diverged++
@@ -193,15 +185,12 @@ func (w *WorkflowSubscriber) checkWebhookDivergence(ctx context.Context, limit i
 				telemetry.IntegrationTableWebhooks).Inc()
 			diverged++
 			zap.L().Error("integration webhook dual-write divergence",
-				zap.String("webhook_id", id.String()),
-				zap.String("tenant_id", tenantID.String()),
+				zap.String("webhook_id", r.ID.String()),
+				zap.String("tenant_id", r.TenantID.String()),
 				zap.String("table", telemetry.IntegrationTableWebhooks),
 				zap.Int("plaintext_len", len(plaintext)),
 				zap.Int("decrypted_len", len(decrypted)))
 		}
-	}
-	if err := rows.Err(); err != nil {
-		zap.L().Warn("divergence check: webhook row iteration error", zap.Error(err))
 	}
 	return scanned, diverged
 }
