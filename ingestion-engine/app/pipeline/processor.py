@@ -120,14 +120,28 @@ async def process_batch(
         progress_callback: Optional callback called every 50 items with (processed, total)
 
     Returns:
-        Dict with stats: {created, updated, skipped, conflicts, errors}
+        Dict with stats:
+            {
+                created, updated, skipped, conflicts,  # int counters
+                error_count,                           # int, total failing rows
+                errors,                                # list[dict] with per-row detail
+            }
+
+        Each element in ``errors`` is a structured record:
+            {
+                "row": <1-based row index>,
+                "reason": <str(exc)>,
+                "field": <offending field name if known, else None>,
+                "exception_type": <exception class name>,
+            }
     """
-    stats = {
+    stats: dict = {
         "created": 0,
         "updated": 0,
         "skipped": 0,
         "conflicts": 0,
-        "errors": 0,
+        "error_count": 0,
+        "errors": [],
     }
 
     for i, raw in enumerate(items):
@@ -142,8 +156,16 @@ async def process_batch(
                 stats["conflicts"] += 1
             elif result.action == "skipped":
                 stats["skipped"] += 1
-        except Exception:
-            stats["errors"] += 1
+        except Exception as e:
+            stats["error_count"] += 1
+            stats["errors"].append(
+                {
+                    "row": i + 1,
+                    "reason": str(e),
+                    "field": getattr(e, "field", None),
+                    "exception_type": type(e).__name__,
+                }
+            )
 
         # Progress callback every 50 items
         if progress_callback and (i + 1) % 50 == 0:
