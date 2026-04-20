@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCreateBIAAssessment } from '../hooks/useBIA'
+import { Modal } from './ui/Modal'
 
 interface Props {
   open: boolean
@@ -23,25 +24,23 @@ export default function CreateAssessmentModal({ open, onClose }: Props) {
   const [formData, setFormData] = useState({ ...initial })
   const mutation = useCreateBIAAssessment()
 
-  if (!open) return null
-
   const inputCls =
     'w-full p-2 bg-surface-container-lowest rounded border border-outline-variant/30 text-on-surface text-sm focus:border-primary focus:outline-none'
   const labelCls = 'block text-sm text-on-surface-variant mb-1'
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={onClose}
+    <Modal
+      open={open}
+      onOpenChange={(next) => { if (!next) onClose() }}
+      panelClassName="bg-surface-container text-on-surface"
     >
-      <div
-        className="bg-surface-container p-6 rounded-xl w-[28rem] space-y-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-headline font-bold text-on-surface">
-          {t('assessment_modal.title')}
-        </h3>
-
+      <Modal.Header
+        title={
+          <span className="font-headline">{t('assessment_modal.title')}</span>
+        }
+        onClose={onClose}
+      />
+      <Modal.Body>
         <div>
           <label className={labelCls}>{t('assessment_modal.system_name_label')} *</label>
           <input
@@ -156,34 +155,33 @@ export default function CreateAssessmentModal({ open, onClose }: Props) {
             placeholder={t('assessment_modal.description_placeholder')}
           />
         </div>
-
-        <div className="flex gap-2 justify-end pt-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded bg-surface-container-high text-on-surface text-sm hover:bg-surface-container-highest transition-colors"
-          >
-            {t('assessment_modal.btn_cancel')}
-          </button>
-          <button
-            onClick={() =>
-              mutation.mutate(formData, {
-                onSuccess: () => {
-                  onClose()
-                  setFormData({ ...initial })
-                },
-              })
-            }
-            disabled={
-              mutation.isPending ||
-              !formData.system_name ||
-              !formData.system_code
-            }
-            className="px-4 py-2 rounded machined-gradient text-on-primary text-sm font-semibold disabled:opacity-50"
-          >
-            {mutation.isPending ? t('assessment_modal.btn_running') : t('assessment_modal.btn_run')}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button
+          onClick={onClose}
+          className="px-4 py-2 rounded bg-surface-container-high text-on-surface text-sm hover:bg-surface-container-highest transition-colors"
+        >
+          {t('assessment_modal.btn_cancel')}
+        </button>
+        <button
+          onClick={() =>
+            mutation.mutate(formData, {
+              onSuccess: () => {
+                onClose()
+                setFormData({ ...initial })
+              },
+            })
+          }
+          disabled={
+            mutation.isPending ||
+            !formData.system_name ||
+            !formData.system_code
+          }
+          className="px-4 py-2 rounded machined-gradient text-on-primary text-sm font-semibold disabled:opacity-50"
+        >
+          {mutation.isPending ? t('assessment_modal.btn_running') : t('assessment_modal.btn_run')}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
