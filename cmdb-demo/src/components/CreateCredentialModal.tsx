@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCreateCredential, useUpdateCredential } from '../hooks/useCredentials'
+import { Modal } from './ui/Modal'
 
 interface CredentialRecord {
   id: string
@@ -74,8 +75,6 @@ export default function CreateCredentialModal({ open, onClose, editing }: Props)
     }
   }, [editing, open])
 
-  if (!open) return null
-
   const set = (key: string, value: string) => setFormData(p => ({ ...p, [key]: value }))
 
   function buildParams() {
@@ -129,15 +128,12 @@ export default function CreateCredentialModal({ open, onClose, editing }: Props)
   const isEdit = !!editing
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div
-        className="bg-[#1a1f2e] p-6 rounded-xl w-[28rem] space-y-4 max-h-[90vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-bold text-white">
-          {isEdit ? t('credential_modal.title_edit') : t('credential_modal.title_create')}
-        </h3>
-
+    <Modal open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      <Modal.Header
+        title={isEdit ? t('credential_modal.title_edit') : t('credential_modal.title_create')}
+        onClose={onClose}
+      />
+      <Modal.Body>
         {/* Name */}
         <div>
           <label className="block text-sm text-gray-400 mb-1">{t('credential_modal.label_name')} *</label>
@@ -303,21 +299,21 @@ export default function CreateCredentialModal({ open, onClose, editing }: Props)
           </>
         )}
 
-        <div className="flex gap-2 justify-end pt-2">
-          <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">
-            {t('credential_modal.btn_cancel')}
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isPending || !formData.name}
-            className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50"
-          >
-            {isPending
-              ? (isEdit ? t('credential_modal.btn_saving') : t('credential_modal.btn_creating'))
-              : isEdit ? t('credential_modal.btn_update') : t('credential_modal.btn_create')}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">
+          {t('credential_modal.btn_cancel')}
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={isPending || !formData.name}
+          className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50"
+        >
+          {isPending
+            ? (isEdit ? t('credential_modal.btn_saving') : t('credential_modal.btn_creating'))
+            : isEdit ? t('credential_modal.btn_update') : t('credential_modal.btn_create')}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
