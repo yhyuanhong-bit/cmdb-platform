@@ -90,7 +90,13 @@
     "coming_soon": "即將推出",
     "saving": "儲存中...",
     "deleting": "刪除中...",
-    "back_to_dashboard": "返回儀表板"
+    "back_to_dashboard": "返回儀表板",
+    "empty_no_data_title": "暫無資料",
+    "empty_no_data_desc": "資料採集管道回傳記錄後，此處將自動顯示。",
+    "empty_awaiting_signal_title": "等待遙測訊號",
+    "empty_awaiting_signal_desc": "底層感測器或介面暫無新訊號。",
+    "empty_not_wired_title": "介面尚未接入",
+    "empty_not_wired_desc": "後端介面就緒後此視圖將自動生效。"
   },
   "nav": {
     "dashboard": "儀表板",

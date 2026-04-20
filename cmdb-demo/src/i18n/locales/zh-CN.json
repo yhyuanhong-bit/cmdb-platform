@@ -90,7 +90,13 @@
     "coming_soon": "即将推出",
     "saving": "保存中...",
     "deleting": "删除中...",
-    "back_to_dashboard": "返回仪表板"
+    "back_to_dashboard": "返回仪表板",
+    "empty_no_data_title": "暂无数据",
+    "empty_no_data_desc": "采集管道回传记录后，此处将自动显示。",
+    "empty_awaiting_signal_title": "等待遥测信号",
+    "empty_awaiting_signal_desc": "底层传感器或接口暂无新信号。",
+    "empty_not_wired_title": "接口尚未接入",
+    "empty_not_wired_desc": "后端接口就绪后此视图将自动生效。"
   },
   "nav": {
     "dashboard": "仪表盘",

@@ -90,7 +90,13 @@
     "coming_soon": "Coming Soon",
     "saving": "Saving...",
     "deleting": "Deleting...",
-    "back_to_dashboard": "Back to Dashboard"
+    "back_to_dashboard": "Back to Dashboard",
+    "empty_no_data_title": "No data available",
+    "empty_no_data_desc": "Once records stream in from the ingestion pipeline, they will appear here.",
+    "empty_awaiting_signal_title": "Awaiting telemetry",
+    "empty_awaiting_signal_desc": "No recent signal from the underlying sensors or APIs.",
+    "empty_not_wired_title": "Not yet wired",
+    "empty_not_wired_desc": "This view will light up once the backend endpoint is available."
   },
   "nav": {
     "dashboard": "Dashboard",

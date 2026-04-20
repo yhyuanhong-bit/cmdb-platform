@@ -3,62 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import { useLocationContext } from '../contexts/LocationContext';
 import LocationBreadcrumb from '../components/LocationBreadcrumb';
+import EmptyState from '../components/EmptyState';
 import { useDashboardStats, useRackStats, useLifecycleStats } from '../hooks/useDashboard';
 import { useAlerts } from '../hooks/useMonitoring';
 import type { AlertEvent } from '../lib/api/monitoring';
 import { useBIAStats } from '../hooks/useBIA';
-
-/* ──────────────────────────────────────────────
-   Mock data
-   ────────────────────────────────────────────── */
-
-const BIA_SEGMENTS = [
-  { labelKey: "common.critical", pct: 28, color: "#ff6b6b" },
-  { labelKey: "common.important", pct: 24, color: "#ffa94d" },
-  { labelKey: "common.normal", pct: 32, color: "#9ecaff" },
-  { labelKey: "common.minor", pct: 16, color: "#69db7c" },
-];
-
-const HEATMAP_ROWS = 6;
-const HEATMAP_COLS = 12;
-const HEATMAP_SHADES = [
-  "bg-[#0c2d3f]",
-  "bg-[#0f3b52]",
-  "bg-[#134a66]",
-  "bg-[#17597a]",
-  "bg-[#1c6f96]",
-  "bg-[#2196c8]",
-  "bg-[#3bb5e0]",
-  "bg-[#6cd4f0]",
-];
-// Seeded "random" occupancy grid
-const heatmapData: number[][] = Array.from({ length: HEATMAP_ROWS }, (_, r) =>
-  Array.from({ length: HEATMAP_COLS }, (_, c) => {
-    const v = ((r * 7 + c * 13 + r * c * 3) % HEATMAP_SHADES.length);
-    return v;
-  }),
-);
-
-const CRITICAL_EVENTS = [
-  {
-    id: "SRV-CN-0442",
-    message: "Temp Exhaust > 42°C",
-    severity: "CRITICAL",
-    priority: "HIGH",
-  },
-  {
-    id: "NET-SW-B8T",
-    message: "Packet Loss 0.4%",
-    severity: "WARNING",
-    priority: "MEDIUM",
-  },
-  {
-    id: "UPS-BAT-02",
-    message: "Capacity < 15%",
-    severity: "CRITICAL",
-    priority: "MEDIUM-OFF",
-  },
-];
+import { useInventoryTasks, useTaskSummary } from '../hooks/useInventory';
 
 /* ──────────────────────────────────────────────
    Small reusable pieces
@@ -162,7 +112,9 @@ function Section({
 function Dashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { path } = useLocationContext();
+  // path read from context reserved for future location filtering; ensure hook
+  // stays wired so context invalidation triggers refetch of downstream queries.
+  useLocationContext();
 
   // Fetch real dashboard stats from API
   const statsQuery = useDashboardStats();
@@ -182,20 +134,30 @@ function Dashboard() {
   const { data: biaResp } = useBIAStats();
   const biaStats = biaResp?.data;
 
-  // Derive BIA distribution from aggregated /bia/stats endpoint (by_tier counts)
-  // instead of fetching all assets and counting client-side.
+  // Fetch the most recently-scheduled active inventory task for the header card.
+  const { data: inventoryTasksResp } = useInventoryTasks({ status: 'in_progress' });
+  const activeTask = inventoryTasksResp?.data?.[0];
+  const { data: activeTaskSummary } = useTaskSummary(activeTask?.id ?? '');
+  const activeTaskCompletion = activeTaskSummary?.data?.completion_pct ?? 0;
+  const activeTaskScanned = activeTaskSummary?.data?.scanned ?? 0;
+  const activeTaskTotal = activeTaskSummary?.data?.total ?? 0;
+
+  // Derive BIA distribution from aggregated /bia/stats endpoint (by_tier counts).
+  // Returns null when we have no data — UI renders an empty state instead of
+  // fabricated percentages.
   const biaDerived = useMemo(() => {
     const byTier = biaStats?.by_tier;
-    if (!byTier) return BIA_SEGMENTS;
+    if (!byTier) return null;
     const critical = byTier.critical ?? 0;
     const important = byTier.important ?? 0;
     const normal = byTier.normal ?? 0;
     const minor = byTier.minor ?? 0;
-    const total = critical + important + normal + minor || 1;
+    const total = critical + important + normal + minor;
+    if (total === 0) return null;
     const critPct = Math.round((critical / total) * 100);
     const impPct = Math.round((important / total) * 100);
     const normPct = Math.round((normal / total) * 100);
-    const minPct = 100 - critPct - impPct - normPct; // remainder to ensure sum = 100
+    const minPct = 100 - critPct - impPct - normPct;
     return [
       { labelKey: "common.critical", pct: critPct, color: "#ff6b6b" },
       { labelKey: "common.important", pct: impPct, color: "#ffa94d" },
@@ -204,7 +166,8 @@ function Dashboard() {
     ];
   }, [biaStats]);
 
-  // Compute lifecycle financial breakdown from real API data
+  // Compute lifecycle financial breakdown from real API data. Null means
+  // "no data yet" — UI renders an empty state instead of fabricated bars.
   const lifecycleBreakdown = useMemo(() => {
     const byStatus = lifecycleData?.data?.by_status;
     if (!byStatus) return null;
@@ -212,7 +175,8 @@ function Dashboard() {
     const maintenance = byStatus.maintenance ?? 0;
     const retired = byStatus.retired ?? 0;
     const disposed = byStatus.disposed ?? 0;
-    const total = operational + maintenance + retired + disposed || 1;
+    const total = operational + maintenance + retired + disposed;
+    if (total === 0) return null;
     return {
       inUse: Math.round((operational / total) * 100),
       broken: Math.round((maintenance / total) * 100),
@@ -220,7 +184,8 @@ function Dashboard() {
     };
   }, [lifecycleData]);
 
-  // Display data derived from API stats (or fallback zeros while loading)
+  // Display data derived from API stats. While loading, stats are undefined —
+  // the Loading state renders before this is consumed by the cards.
   const displayData = useMemo(() => ({
     assets: stats?.total_assets ?? 0,
     racks: stats?.total_racks ?? 0,
@@ -267,9 +232,13 @@ function Dashboard() {
           <p className="font-headline text-3xl font-bold text-on-surface">
             {displayData.assets.toLocaleString()}
           </p>
-          <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-green-400">
-            <Icon name="trending_up" className="text-sm" />
-            ▲ 12% {t('dashboard.vs_last_month')}
+          {/*
+            TODO(phase-3.10): wire up GET /dashboard/assets-trend when the
+            backend endpoint is available. Removed fabricated "▲ 12% vs last
+            month" delta per audit remediation roadmap §3.10.
+          */}
+          <span className="mt-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wider text-on-surface-variant">
+            {t('common.coming_soon')}
           </span>
         </div>
 
@@ -311,15 +280,28 @@ function Dashboard() {
               {t('dashboard.active_inventory_task')}
             </span>
           </div>
-          <p className="font-headline text-lg font-bold text-on-surface">
-            Mar-24 Audit
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <ProgressBar pct={76} color="bg-[#9ecaff]" />
-            <span className="shrink-0 text-xs font-semibold text-primary">
-              76%
-            </span>
-          </div>
+          {activeTask ? (
+            <>
+              <p className="font-headline text-lg font-bold text-on-surface truncate" title={activeTask.name}>
+                {activeTask.name}
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <ProgressBar pct={activeTaskCompletion} color="bg-[#9ecaff]" />
+                <span className="shrink-0 text-xs font-semibold text-primary">
+                  {Math.round(activeTaskCompletion)}%
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="font-headline text-lg font-semibold text-on-surface-variant">
+                —
+              </p>
+              <p className="mt-2 text-[11px] uppercase tracking-wider text-on-surface-variant">
+                {t('inventory.no_active_task')}
+              </p>
+            </>
+          )}
         </div>
       </div>
 
@@ -331,81 +313,52 @@ function Dashboard() {
           icon="donut_large"
           className="lg:col-span-2"
         >
-          <DonutChart segments={biaDerived} />
-          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2">
-            {biaDerived.map((s) => (
-              <div key={s.labelKey} className="flex items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: s.color }}
-                />
-                <span className="text-xs text-on-surface-variant">
-                  {t(s.labelKey)}
-                </span>
-                <span className="ml-auto text-xs font-semibold text-on-surface">
-                  {s.pct}%
-                </span>
+          {biaDerived ? (
+            <>
+              <DonutChart segments={biaDerived} />
+              <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2">
+                {biaDerived.map((s) => (
+                  <div key={s.labelKey} className="flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: s.color }}
+                    />
+                    <span className="text-xs text-on-surface-variant">
+                      {t(s.labelKey)}
+                    </span>
+                    <span className="ml-auto text-xs font-semibold text-on-surface">
+                      {s.pct}%
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <EmptyState
+              icon="donut_large"
+              title={t('common.empty_no_data_title')}
+              description={t('common.empty_no_data_desc')}
+              tone="info"
+              compact
+            />
+          )}
         </Section>
 
-        {/* Rack Utilization Heatmap */}
+        {/* Rack Utilization Heatmap — Empty state until per-position API exists.
+            TODO(phase-3.10): wire up GET /racks/heatmap (grid of row×column
+            occupancy_pct) when the backend endpoint is available. Previously
+            rendered a seeded decorative grid derived from (row*7+col*13)%N. */}
         <Section
           title={t('dashboard.rack_utilization_heatmap')}
           icon="grid_view"
           className="lg:col-span-3"
         >
-          {/* Legend — top-right */}
-          <div className="mb-3 flex items-center justify-end gap-4 text-[10px] uppercase tracking-wider text-on-surface-variant">
-            <span className="flex items-center gap-1.5">
-              EMPTY
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#0c2d3f]" />
-            </span>
-            <span className="flex items-center gap-1.5">
-              LOW
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#17597a]" />
-            </span>
-            <span className="flex items-center gap-1.5">
-              HIGH
-              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#6cd4f0]" />
-            </span>
-          </div>
-
-          {/* Column labels */}
-          <div className="mb-1 grid gap-1" style={{ gridTemplateColumns: `2rem repeat(${HEATMAP_COLS}, 1fr)` }}>
-            <span />
-            {Array.from({ length: HEATMAP_COLS }, (_, i) => (
-              <span
-                key={i}
-                className="text-center text-[10px] text-on-surface-variant"
-              >
-                {String(i + 1).padStart(2, "0")}
-              </span>
-            ))}
-          </div>
-
-          {/* Grid */}
-          <div className="space-y-1">
-            {heatmapData.map((row, ri) => (
-              <div
-                key={ri}
-                className="grid gap-1"
-                style={{ gridTemplateColumns: `2rem repeat(${HEATMAP_COLS}, 1fr)` }}
-              >
-                <span className="flex items-center text-[10px] text-on-surface-variant">
-                  {String.fromCharCode(65 + ri)}
-                </span>
-                {row.map((shade, ci) => (
-                  <div
-                    key={ci}
-                    className={`aspect-square rounded-sm ${HEATMAP_SHADES[shade]} transition-colors hover:brightness-125`}
-                    title={`${t('dashboard.row')} ${String.fromCharCode(65 + ri)} ${t('dashboard.rack')} ${ci + 1} — ${Math.round((shade / (HEATMAP_SHADES.length - 1)) * 100)}%`}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
+          <EmptyState
+            icon="grid_view"
+            title={t('common.empty_not_wired_title')}
+            description={t('common.empty_not_wired_desc')}
+            tone="info"
+          />
         </Section>
       </div>
 
@@ -442,84 +395,109 @@ function Dashboard() {
         <div className="lg:col-span-2 flex flex-col gap-4">
           {/* Asset Lifecycle (Financial) */}
           <Section title={t('dashboard.asset_lifecycle_financial')} icon="account_balance">
-            <div className="space-y-4">
-              {[
-                { label: t('dashboard.in_use_assets'), pct: lifecycleBreakdown?.inUse ?? 82, color: "bg-[#9ecaff]" },
-                {
-                  label: t('dashboard.broken_pending_repair'),
-                  pct: lifecycleBreakdown?.broken ?? 13,
-                  color: "bg-[#ffa94d]",
-                },
-                { label: t('dashboard.disposed_eol'), pct: lifecycleBreakdown?.disposed ?? 5, color: "bg-[#ff6b6b]" },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-xs text-on-surface-variant">
-                      {item.label}
-                    </span>
-                    <span className="text-xs font-semibold text-on-surface">
-                      {item.pct}%
-                    </span>
+            {lifecycleBreakdown ? (
+              <div className="space-y-4">
+                {[
+                  { label: t('dashboard.in_use_assets'), pct: lifecycleBreakdown.inUse, color: "bg-[#9ecaff]" },
+                  { label: t('dashboard.broken_pending_repair'), pct: lifecycleBreakdown.broken, color: "bg-[#ffa94d]" },
+                  { label: t('dashboard.disposed_eol'), pct: lifecycleBreakdown.disposed, color: "bg-[#ff6b6b]" },
+                ].map((item) => (
+                  <div key={item.label}>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-xs text-on-surface-variant">
+                        {item.label}
+                      </span>
+                      <span className="text-xs font-semibold text-on-surface">
+                        {item.pct}%
+                      </span>
+                    </div>
+                    <ProgressBar pct={item.pct} color={item.color} height="h-3" />
                   </div>
-                  <ProgressBar pct={item.pct} color={item.color} height="h-3" />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon="account_balance"
+                title={t('common.empty_no_data_title')}
+                description={t('common.empty_no_data_desc')}
+                tone="neutral"
+                compact
+              />
+            )}
           </Section>
 
           {/* Current Task Progress */}
           <Section title={t('dashboard.current_task_progress')} icon="task_alt">
-            <div className="flex flex-col items-center">
-              {/* Circular progress */}
-              <div className="relative mb-4 h-36 w-36">
-                <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="52"
-                    fill="none"
-                    stroke="#121d23"
-                    strokeWidth="10"
-                  />
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="52"
-                    fill="none"
-                    stroke="#9ecaff"
-                    strokeWidth="10"
-                    strokeLinecap="round"
-                    strokeDasharray={`${2 * Math.PI * 52}`}
-                    strokeDashoffset={`${2 * Math.PI * 52 * (1 - 0.76)}`}
-                    className="transition-all duration-700"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="font-headline text-2xl font-bold text-on-surface">
-                    76%
-                  </span>
-                  <span className="text-[10px] uppercase tracking-wider text-on-surface-variant">
-                    {t('dashboard.complete')}
-                  </span>
+            {activeTask ? (
+              <div className="flex flex-col items-center">
+                {/* Circular progress */}
+                <div className="relative mb-4 h-36 w-36">
+                  <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="52"
+                      fill="none"
+                      stroke="#121d23"
+                      strokeWidth="10"
+                    />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="52"
+                      fill="none"
+                      stroke="#9ecaff"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 52}`}
+                      strokeDashoffset={`${2 * Math.PI * 52 * (1 - activeTaskCompletion / 100)}`}
+                      className="transition-all duration-700"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="font-headline text-2xl font-bold text-on-surface">
+                      {Math.round(activeTaskCompletion)}%
+                    </span>
+                    <span className="text-[10px] uppercase tracking-wider text-on-surface-variant">
+                      {t('dashboard.complete')}
+                    </span>
+                  </div>
                 </div>
+
+                <p className="mb-1 text-sm font-semibold text-on-surface truncate max-w-full" title={activeTask.name}>
+                  {activeTask.name}
+                </p>
+                <p className="mb-4 text-xs text-on-surface-variant">
+                  {activeTaskScanned.toLocaleString()} / {activeTaskTotal.toLocaleString()} {t('dashboard.assets_verified')}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/inventory')}
+                  className="flex items-center gap-2 rounded-md bg-primary px-5 py-2 text-xs font-bold uppercase tracking-wider text-on-primary-container transition-colors hover:brightness-110"
+                >
+                  <Icon name="sync" className="text-base" />
+                  {t('dashboard.sync_now')}
+                </button>
               </div>
-
-              <p className="mb-1 text-sm font-semibold text-on-surface">
-                Mar-24 Audit
-              </p>
-              <p className="mb-4 text-xs text-on-surface-variant">
-                9,760 / 12,842 {t('dashboard.assets_verified')}
-              </p>
-
-              <button
-                type="button"
-                onClick={() => navigate('/inventory')}
-                className="flex items-center gap-2 rounded-md bg-primary px-5 py-2 text-xs font-bold uppercase tracking-wider text-on-primary-container transition-colors hover:brightness-110"
-              >
-                <Icon name="sync" className="text-base" />
-                {t('dashboard.sync_now')}
-              </button>
-            </div>
+            ) : (
+              <EmptyState
+                icon="task_alt"
+                title={t('inventory.no_active_task')}
+                description={t('common.empty_no_data_desc')}
+                tone="neutral"
+                action={
+                  <button
+                    type="button"
+                    onClick={() => navigate('/inventory')}
+                    className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-on-primary-container transition-colors hover:brightness-110"
+                  >
+                    <Icon name="arrow_forward" className="text-base" />
+                    {t('inventory.title', 'Inventory')}
+                  </button>
+                }
+              />
+            )}
           </Section>
         </div>
 
