@@ -666,12 +666,28 @@ describe('ComponentX', () => {
   4. 顺手修 tenant 过滤
 - **commit**:每张表一个 commit
 
-### 3.9 handler 命名统一
+### 3.9 handler 命名统一 — DONE 2026-04-20
 
 - 决策:全部用 `impl_*.go`(因为 ServerInterface 迁移后都会收敛到 impl)
 - 批量 rename:`sync_endpoints.go` → `impl_sync.go` 等
 - 更新 import、git mv 保留历史
 - **commit**:`refactor(api): unify handler file naming to impl_*.go`
+
+**Outcome (2026-04-20)**: All 20 `*_endpoints.go` / `*_endpoint.go` handler
+files under `internal/api/` now follow the `impl_<domain>.go` convention
+and are discoverable with a single glob. Split across 7 commits on
+master: `92f90ed` (small merges — maintenance comments, rack network,
+import template), `e75ad29` (single-endpoint merges — inventory resolve,
+location stats, fleet metrics), `54ba403` (custom_endpoints.go split
+into impl_rack_stats / impl_asset_lifecycle / impl_alerts), `7457fb7`
+(activity / capacity_planning / energy / notifications / qr renames),
+`611687d` (inventory / location_detect / prediction_upgrades / sensors
+renames), `6bd722f` (sessions / sync / topology renames + their test
+files), `1923f76` (comment-reference cleanup in tenant-isolation and
+`*_test.go` files). Verified with `make build`, `make lint`, and
+`make test` — all green. The `*_service.go` narrow-interface files were
+intentionally left in place (they define DI boundaries, not handler
+routes).
 
 ### 3.10 消除装饰性硬编码数据
 
