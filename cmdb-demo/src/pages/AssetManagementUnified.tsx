@@ -6,9 +6,21 @@ import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
 import CreateAssetModal from '../components/CreateAssetModal'
 import { useAssets } from '../hooks/useAssets'
+import { useUrlState } from '../hooks/useUrlState'
 import type { Asset } from '../lib/api/assets'
 import { useLocationContext } from '../contexts/LocationContext'
 import { useAuthStore } from '../stores/authStore'
+
+// URL-persisted filter + pagination + view-mode state for the Assets list.
+// Shape is captured here so the `useUrlState` generic can infer it and keep
+// string literal unions (viewMode) narrow.
+const assetListDefaults = {
+  viewMode: 'table' as 'table' | 'card',
+  search: '',
+  typeFilter: 'All',
+  statusFilter: 'All Status',
+  page: 1,
+}
 
 const typeIcons: Record<string, string> = {
   server: 'dns',
@@ -112,11 +124,9 @@ export default function AssetManagementUnified() {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  const [viewMode, setViewMode] = useState<'table' | 'card'>('table')
-  const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState('All')
-  const [statusFilter, setStatusFilter] = useState('All Status')
-  const [currentPage, setCurrentPage] = useState(1)
+  const [urlState, setUrlState] = useUrlState('assets', assetListDefaults)
+  const { viewMode, search, typeFilter, statusFilter, page: currentPage } = urlState
+
   const [showCreateAsset, setShowCreateAsset] = useState(false)
   const [importing, setImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -125,7 +135,7 @@ export default function AssetManagementUnified() {
   const locationId = path.idc?.id || path.campus?.id || path.city?.id || path.region?.id || path.territory?.id
 
   // Reset to page 1 when location changes
-  useEffect(() => { setCurrentPage(1) }, [locationId])
+  useEffect(() => { setUrlState({ page: 1 }) }, [locationId, setUrlState])
 
   // Build query params from filter state
   const queryParams = useMemo(() => {
@@ -246,7 +256,7 @@ export default function AssetManagementUnified() {
             type="text"
             placeholder={t('assets.search_placeholder')}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setUrlState({ search: e.target.value, page: 1 })}
             className="w-full bg-surface-container-low py-2.5 pl-10 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 rounded focus:outline-none focus:ring-1 focus:ring-primary/40"
           />
         </div>
@@ -254,7 +264,7 @@ export default function AssetManagementUnified() {
         {/* Type Filter */}
         <select
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
+          onChange={(e) => setUrlState({ typeFilter: e.target.value, page: 1 })}
           className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface rounded appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/40"
         >
           <option value="All">{t('assets.all_types')}</option>
@@ -267,7 +277,7 @@ export default function AssetManagementUnified() {
         {/* Status Filter */}
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => setUrlState({ statusFilter: e.target.value, page: 1 })}
           className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface rounded appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/40"
         >
           <option value="All Status">{t('assets.all_status')}</option>
@@ -279,7 +289,7 @@ export default function AssetManagementUnified() {
         {/* View Toggle */}
         <div className="flex bg-surface-container-low rounded overflow-hidden">
           <button
-            onClick={() => setViewMode('table')}
+            onClick={() => setUrlState({ viewMode: 'table' })}
             className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors ${
               viewMode === 'table'
                 ? 'bg-on-primary-container text-white'
@@ -290,7 +300,7 @@ export default function AssetManagementUnified() {
             {t('assets.view_table') ?? '\u8868\u683c'}
           </button>
           <button
-            onClick={() => setViewMode('card')}
+            onClick={() => setUrlState({ viewMode: 'card' })}
             className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors ${
               viewMode === 'card'
                 ? 'bg-on-primary-container text-white'
@@ -463,7 +473,7 @@ export default function AssetManagementUnified() {
         <div className="flex items-center gap-1">
           <button
             disabled={currentPage <= 1}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            onClick={() => setUrlState({ page: Math.max(1, currentPage - 1) })}
             className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors disabled:opacity-30"
           >
             <Icon name="chevron_left" className="text-[18px]" />
@@ -485,7 +495,7 @@ export default function AssetManagementUnified() {
               ) : (
                 <button
                   key={p}
-                  onClick={() => setCurrentPage(p)}
+                  onClick={() => setUrlState({ page: p })}
                   className={`px-3 py-1.5 rounded text-xs font-semibold min-w-[32px] transition-colors ${
                     p === currentPage
                       ? 'bg-on-primary-container text-white'
@@ -499,7 +509,7 @@ export default function AssetManagementUnified() {
           })()}
           <button
             disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => setUrlState({ page: Math.min(totalPages, currentPage + 1) })}
             className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors disabled:opacity-30"
           >
             <Icon name="chevron_right" className="text-[18px]" />
