@@ -26,6 +26,12 @@ import (
 // in integration_adapters so ops has one number to remember.
 const circuitBreakerThreshold = 3
 
+// Source label for telemetry.ErrorsSuppressedTotal emitted when the
+// BIA-filter path can't parse the event payload. A broken payload
+// used to silently disable the BIA filter and let the dispatcher
+// fire webhooks it should have held back.
+const sourceWebhookBIAFilter = "integration.webhook.bia_filter"
+
 // SignatureVersionHeader advertises the signing scheme to receivers. v1 was
 // HMAC(secret, body). v2 is HMAC(secret, timestamp + "." + body) and is
 // the ONLY scheme this dispatcher emits. Receivers must branch on this
@@ -120,9 +126,18 @@ func (d *WebhookDispatcher) HandleEvent(ctx context.Context, event eventbus.Even
 		// Check if BIA filtering is needed
 		if len(sub.FilterBia) > 0 && sub.FilterBia[0] != "" {
 			go func() {
-				// Extract asset_id from event payload
+				// Extract asset_id from event payload. A malformed
+				// payload here used to be a silent no-op which then
+				// dispatched the webhook without its BIA filter
+				// applied — either over- or under-firing. Warn +
+				// counter, then fall through to the missing-asset_id
+				// branch which returns below.
 				var payload map[string]string
-				json.Unmarshal(event.Payload, &payload)
+				if err := json.Unmarshal(event.Payload, &payload); err != nil {
+					zap.L().Warn("webhook BIA filter: payload parse failed",
+						zap.String("subject", event.Subject), zap.Error(err))
+					telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceWebhookBIAFilter, telemetry.ReasonJSONUnmarshal).Inc()
+				}
 				if assetID, ok := payload["asset_id"]; ok {
 					parsed, err := uuid.Parse(assetID)
 					if err == nil {
