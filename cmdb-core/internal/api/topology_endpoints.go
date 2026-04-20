@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // ListAssetDependencies handles GET /topology/dependencies?asset_id=
@@ -20,43 +22,27 @@ func (s *APIServer) ListAssetDependencies(c *gin.Context, params ListAssetDepend
 		response.BadRequest(c, "asset_id query param required")
 		return
 	}
-	assetID := uuid.UUID(*params.AssetId).String()
+	assetID := uuid.UUID(*params.AssetId)
 
-	rows, err := s.pool.Query(c.Request.Context(), `
-		SELECT
-			ad.id,
-			ad.source_asset_id,
-			sa.name AS source_asset_name,
-			ad.target_asset_id,
-			ta.name AS target_asset_name,
-			ad.dependency_type,
-			COALESCE(ad.description, '') AS description
-		FROM asset_dependencies ad
-		JOIN assets sa ON ad.source_asset_id = sa.id
-		JOIN assets ta ON ad.target_asset_id = ta.id
-		WHERE ad.tenant_id = $1
-		  AND (ad.source_asset_id = $2 OR ad.target_asset_id = $2)
-	`, tenantID, assetID)
+	rows, err := dbgen.New(s.pool).ListAssetDependencies(c.Request.Context(), dbgen.ListAssetDependenciesParams{
+		TenantID:      tenantID,
+		SourceAssetID: assetID,
+	})
 	if err != nil {
 		response.InternalError(c, "failed to query dependencies")
 		return
 	}
-	defer rows.Close()
 
-	deps := []gin.H{}
-	for rows.Next() {
-		var id, sourceID, sourceName, targetID, targetName, depType, desc string
-		if err := rows.Scan(&id, &sourceID, &sourceName, &targetID, &targetName, &depType, &desc); err != nil {
-			continue
-		}
+	deps := make([]gin.H, 0, len(rows))
+	for _, r := range rows {
 		deps = append(deps, gin.H{
-			"id":                id,
-			"source_asset_id":   sourceID,
-			"source_asset_name": sourceName,
-			"target_asset_id":   targetID,
-			"target_asset_name": targetName,
-			"dependency_type":   depType,
-			"description":       desc,
+			"id":                r.ID.String(),
+			"source_asset_id":   r.SourceAssetID.String(),
+			"source_asset_name": r.SourceAssetName,
+			"target_asset_id":   r.TargetAssetID.String(),
+			"target_asset_name": r.TargetAssetName,
+			"dependency_type":   r.DependencyType,
+			"description":       r.Description,
 		})
 	}
 
@@ -86,11 +72,26 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 		body.DependencyType = "depends_on"
 	}
 
-	newID := uuid.New().String()
-	_, err := s.pool.Exec(c.Request.Context(), `
-		INSERT INTO asset_dependencies (id, tenant_id, source_asset_id, target_asset_id, dependency_type, description)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, newID, tenantID, body.SourceAssetID, body.TargetAssetID, body.DependencyType, body.Description)
+	srcUUID, err := uuid.Parse(body.SourceAssetID)
+	if err != nil {
+		response.BadRequest(c, "invalid source_asset_id")
+		return
+	}
+	tgtUUID, err := uuid.Parse(body.TargetAssetID)
+	if err != nil {
+		response.BadRequest(c, "invalid target_asset_id")
+		return
+	}
+
+	newID := uuid.New()
+	err = dbgen.New(s.pool).CreateAssetDependency(c.Request.Context(), dbgen.CreateAssetDependencyParams{
+		ID:             newID,
+		TenantID:       tenantID,
+		SourceAssetID:  srcUUID,
+		TargetAssetID:  tgtUUID,
+		DependencyType: body.DependencyType,
+		Description:    pgtype.Text{String: body.Description, Valid: body.Description != ""},
+	})
 	if err != nil {
 		errStr := err.Error()
 		if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique") {
@@ -101,13 +102,12 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 		return
 	}
 
-	depID, _ := uuid.Parse(newID)
-	s.recordAudit(c, "dependency.created", "topology", "asset_dependency", depID, map[string]any{
+	s.recordAudit(c, "dependency.created", "topology", "asset_dependency", newID, map[string]any{
 		"source_asset_id": body.SourceAssetID,
 		"target_asset_id": body.TargetAssetID,
 		"dependency_type": body.DependencyType,
 	})
-	response.Created(c, gin.H{"id": newID})
+	response.Created(c, gin.H{"id": newID.String()})
 }
 
 // DeleteAssetDependency handles DELETE /topology/dependencies/:id
@@ -116,14 +116,15 @@ func (s *APIServer) DeleteAssetDependency(c *gin.Context, id IdPath) {
 	depID := uuid.UUID(id)
 	tenantID := tenantIDFromContext(c)
 
-	tag, err := s.pool.Exec(c.Request.Context(), `
-		DELETE FROM asset_dependencies WHERE id = $1 AND tenant_id = $2
-	`, depID, tenantID)
+	rowsAffected, err := dbgen.New(s.pool).DeleteAssetDependency(c.Request.Context(), dbgen.DeleteAssetDependencyParams{
+		ID:       depID,
+		TenantID: tenantID,
+	})
 	if err != nil {
 		response.InternalError(c, "failed to delete dependency")
 		return
 	}
-	if tag.RowsAffected() == 0 {
+	if rowsAffected == 0 {
 		response.NotFound(c, "dependency not found")
 		return
 	}
@@ -227,24 +228,23 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context, params GetTopologyGraphPara
 	externalIDs := []string{}
 
 	if len(assetIDs) > 0 {
-		depRows, err := s.pool.Query(c.Request.Context(), `
-			SELECT id, source_asset_id, target_asset_id, dependency_type
-			FROM asset_dependencies
-			WHERE source_asset_id = ANY($1) OR target_asset_id = ANY($1)
-		`, assetIDs)
+		assetUUIDs := make([]uuid.UUID, 0, len(assetIDs))
+		for _, idStr := range assetIDs {
+			if u, perr := uuid.Parse(idStr); perr == nil {
+				assetUUIDs = append(assetUUIDs, u)
+			}
+		}
+		depRows, err := dbgen.New(s.pool).ListAssetDependenciesByAssetIDs(c.Request.Context(), assetUUIDs)
 		if err == nil {
-			defer depRows.Close()
-			for depRows.Next() {
-				var edgeID, src, tgt, depType string
-				if err := depRows.Scan(&edgeID, &src, &tgt, &depType); err != nil {
-					continue
-				}
+			for _, d := range depRows {
+				src := d.SourceAssetID.String()
+				tgt := d.TargetAssetID.String()
 				isFaultPath := alertSet[src] || alertSet[tgt]
 				edges = append(edges, gin.H{
-					"id":              edgeID,
+					"id":              d.ID.String(),
 					"source":          src,
 					"target":          tgt,
-					"dependency_type": depType,
+					"dependency_type": d.DependencyType,
 					"is_fault_path":   isFaultPath,
 				})
 				// Track external asset IDs (not in this location's asset set)
