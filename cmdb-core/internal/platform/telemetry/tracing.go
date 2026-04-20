@@ -58,6 +58,20 @@ func InitTracer(ctx context.Context, endpoint, serviceName, version string) (shu
 
 // TracingMiddleware returns a Gin middleware that creates OpenTelemetry spans
 // for each incoming HTTP request.
+//
+// Sensitive-header handling: otelgin v0.67.0 does NOT record request or
+// response headers as span attributes by default — only the standard
+// semconv HTTP attributes (method, route, status_code, user_agent, etc.).
+// This is verified by TestTracingMiddleware_ScrubsSensitiveRequestHeaders in
+// tracing_test.go, which fails the build if a future contrib upgrade
+// silently starts recording Authorization, Cookie, or similar headers.
+//
+// If you upgrade otelgin and the regression test starts to fail, either:
+//   - pass otelgin.WithFilter to skip sensitive paths entirely, or
+//   - migrate to a custom wrapper that strips SensitiveRequestHeaders from
+//     the span attributes before export.
+//
+// See SensitiveRequestHeaders in scrubber.go for the canonical scrub list.
 func TracingMiddleware(serviceName string) gin.HandlerFunc {
 	return otelgin.Middleware(serviceName)
 }
