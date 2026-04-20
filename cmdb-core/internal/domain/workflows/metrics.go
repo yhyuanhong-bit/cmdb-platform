@@ -29,6 +29,12 @@ const (
 	adapterFailureReasonMaxLen = 500
 )
 
+// Source label for telemetry.ErrorsSuppressedTotal on the metrics
+// INSERT path. A broken `metrics` hypertable used to be invisible
+// because the pool.Exec error was discarded; route it through the
+// shared errors-suppressed counter so dashboards surface it.
+const sourceMetricsInsert = "workflows.metrics.insert"
+
 // computeAdapterBackoff returns the delay to wait before the next pull
 // attempt after n consecutive failures. Schedule: 30s, 2m, 10m, 30m cap.
 //
@@ -195,10 +201,33 @@ func (w *WorkflowSubscriber) pullFromAdapter(ctx context.Context, tenantID uuid.
 				assetID = pgtype.UUID{Bytes: asset.ID, Valid: true}
 			}
 		}
-		labelsJSON, _ := json.Marshal(pt.Labels)
-		w.pool.Exec(ctx,
+		labelsJSON, marshalErr := json.Marshal(pt.Labels)
+		if marshalErr != nil {
+			// A label map that can't be JSON-encoded is a bug in the
+			// adapter, not a transient failure — emit the counter and
+			// skip the row so the rest of the batch still lands.
+			zap.L().Warn("metrics puller: labels marshal failed",
+				zap.String("adapter", name),
+				zap.String("metric", pt.Name),
+				zap.Error(marshalErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceMetricsInsert, telemetry.ReasonJSONUnmarshal).Inc()
+			continue
+		}
+		if _, execErr := w.pool.Exec(ctx,
 			"INSERT INTO metrics (time, asset_id, tenant_id, name, value, labels) VALUES ($1, $2, $3, $4, $5, $6)",
-			pt.Timestamp, assetID, tenantID, pt.Name, pt.Value, labelsJSON)
+			pt.Timestamp, assetID, tenantID, pt.Name, pt.Value, labelsJSON,
+		); execErr != nil {
+			// The caller loops over an in-memory point slice, so a
+			// single failed INSERT must not abort the batch. Emit
+			// Warn + counter and continue advancing — the adapter
+			// failure counter on the outer path catches the pattern
+			// if writes stop succeeding entirely.
+			zap.L().Warn("metrics puller: insert failed",
+				zap.String("adapter", name),
+				zap.String("metric", pt.Name),
+				zap.Error(execErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceMetricsInsert, telemetry.ReasonDBExecFailed).Inc()
+		}
 	}
 
 	zap.L().Debug("metrics puller: stored metrics",
