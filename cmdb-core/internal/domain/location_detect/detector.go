@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
 
@@ -164,10 +166,14 @@ func (s *Service) autoConfirmRelocation(ctx context.Context, tenantID uuid.UUID,
 				// emitting a "completed" audit row would be a lie.
 				continue
 			}
-			if _, logErr := s.pool.Exec(ctx,
-				"INSERT INTO work_order_logs (order_id, action, from_status, to_status) VALUES ($1, 'auto_completed_by_location_detect', $2, 'completed')",
-				woID, "in_progress",
-			); logErr != nil {
+			if _, logErr := dbgen.New(s.pool).CreateWorkOrderLog(ctx, dbgen.CreateWorkOrderLogParams{
+				OrderID:    woID,
+				Action:     "auto_completed_by_location_detect",
+				FromStatus: pgtype.Text{String: "in_progress", Valid: true},
+				ToStatus:   pgtype.Text{String: "completed", Valid: true},
+				OperatorID: pgtype.UUID{},
+				Comment:    pgtype.Text{},
+			}); logErr != nil {
 				zap.L().Warn("auto-close relocation: log insert failed",
 					zap.String("order_id", woID.String()), zap.Error(logErr))
 				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceLocationAutoClose, telemetry.ReasonDBExecFailed).Inc()
