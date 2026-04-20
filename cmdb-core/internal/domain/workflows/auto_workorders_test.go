@@ -346,3 +346,72 @@ func uniqueOctet(id uuid.UUID) int {
 	}
 	return v
 }
+
+// seedBMCAsset inserts a deployed asset with a given bmc_type/firmware
+// so TestCheckFirmwareOutdated_SemverOrdering can drive the firmware
+// scan without any other noise.
+func seedBMCAsset(t *testing.T, pool *pgxpool.Pool, tenantID uuid.UUID, bmcType, firmware string) uuid.UUID {
+	t.Helper()
+	ctx := context.Background()
+	tag := fmt.Sprintf("FW-%s-%s", firmware, uuid.NewString()[:6])
+	var id uuid.UUID
+	err := pool.QueryRow(ctx,
+		`INSERT INTO assets (tenant_id, asset_tag, name, type, status, bmc_type, bmc_firmware)
+		 VALUES ($1, $2, $3, 'server', 'deployed', $4, $5)
+		 RETURNING id`,
+		tenantID, tag, "fw-test-"+tag, bmcType, firmware).Scan(&id)
+	if err != nil {
+		t.Fatalf("seed BMC asset (%s/%s): %v", bmcType, firmware, err)
+	}
+	return id
+}
+
+// TestCheckFirmwareOutdated_SemverOrdering is the regression guard for
+// the Phase 2.9 fix. Before the fix, SQL MAX(bmc_firmware) returned
+// "1.9.0" as "latest" under lexicographic ordering, so the scan created
+// a spurious firmware_upgrade WO against the asset running 1.10.0 —
+// telling ops to "upgrade" to an older version.
+//
+// After the fix, maxFirmwareVersion uses semver, so 1.10.0 IS the
+// latest. The asset on 1.10.0 must get zero WOs; the asset on 1.9.0
+// must get exactly one.
+func TestCheckFirmwareOutdated_SemverOrdering(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	w := newTestSubscriber(t, pool)
+	ctx := context.Background()
+
+	fix := setupTenant(t, pool, "fw-semver")
+
+	// bmcType unique per run so the scan's "latest per bmc_type"
+	// aggregation only sees these two rows, not whatever other test or
+	// dev data might already exist in the table.
+	bmcType := "T" + uuid.NewString()[:7] // VARCHAR(20) cap
+	newer := seedBMCAsset(t, pool, fix.tenantID, bmcType, "1.10.0")
+	older := seedBMCAsset(t, pool, fix.tenantID, bmcType, "1.9.0")
+
+	w.checkFirmwareOutdated(ctx)
+
+	countFirmwareWOs := func(assetID uuid.UUID) int {
+		var n int
+		err := pool.QueryRow(ctx,
+			`SELECT count(*) FROM work_orders
+			 WHERE asset_id = $1 AND type = 'firmware_upgrade' AND deleted_at IS NULL`,
+			assetID).Scan(&n)
+		if err != nil {
+			t.Fatalf("count firmware WOs: %v", err)
+		}
+		return n
+	}
+
+	// Regression: the 1.10.0 asset MUST NOT get a WO. Under the old
+	// lex-compare, SQL MAX() returned "1.9.0" and this asset would be
+	// flagged as "behind" and queued for a downgrade.
+	if got := countFirmwareWOs(newer); got != 0 {
+		t.Errorf("1.10.0 asset: got %d firmware_upgrade WOs, want 0 (it is the latest)", got)
+	}
+	// Positive path: the 1.9.0 asset IS behind, one WO expected.
+	if got := countFirmwareWOs(older); got != 1 {
+		t.Errorf("1.9.0 asset: got %d firmware_upgrade WOs, want 1", got)
+	}
+}
