@@ -1,9 +1,20 @@
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import { useDiscoveredAssets, useDiscoveryStats, useApproveAsset, useIgnoreAsset } from '../hooks/useDiscovery'
+import { useUrlState } from '../hooks/useUrlState'
 import ScanManagementTab from '../components/ScanManagementTab'
+
+// URL-persisted list state for the Auto Discovery / inventory review page:
+// which tab (review vs scan management), and which status/source filters
+// are active on the review table.
+type DiscoveryTab = 'review' | 'scan'
+const discoveryListDefaults = {
+  activeTab: 'review' as DiscoveryTab,
+  statusFilter: 'all',
+  sourceFilter: 'all',
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -93,9 +104,8 @@ export default function AutoDiscovery() {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  const [activeTab, setActiveTab] = useState<'review' | 'scan'>('review')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [sourceFilter, setSourceFilter] = useState<string>('all')
+  const [urlState, setUrlState] = useUrlState('discovery', discoveryListDefaults)
+  const { activeTab, statusFilter, sourceFilter } = urlState
 
   const queryParams: Record<string, string> = {}
   if (statusFilter !== 'all') queryParams.status = statusFilter
@@ -151,7 +161,7 @@ export default function AutoDiscovery() {
       {/* ============================================================ */}
       <div className="px-8 pb-2 flex gap-1">
         {(['review', 'scan'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
+          <button key={tab} onClick={() => setUrlState({ activeTab: tab })}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
               activeTab === tab ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:bg-surface-container-high'
             }`}>
@@ -183,7 +193,7 @@ export default function AutoDiscovery() {
         <div className="relative">
           <select
             value={sourceFilter}
-            onChange={e => setSourceFilter(e.target.value)}
+            onChange={e => setUrlState({ sourceFilter: e.target.value })}
             className="appearance-none bg-surface-container-high text-on-surface text-sm rounded-lg pl-3 pr-8 py-2 outline-none cursor-pointer"
             aria-label="Filter by source"
           >
@@ -200,7 +210,7 @@ export default function AutoDiscovery() {
         <div className="relative">
           <select
             value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
+            onChange={e => setUrlState({ statusFilter: e.target.value })}
             className="appearance-none bg-surface-container-high text-on-surface text-sm rounded-lg pl-3 pr-8 py-2 outline-none cursor-pointer"
             aria-label="Filter by status"
           >
