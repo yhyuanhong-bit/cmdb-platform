@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-// LLMProvider uses an OpenAI-compatible chat-completions API for prediction
-// and root-cause analysis.  Works with OpenAI, Claude (via compatible proxy),
-// and local LLM servers (e.g. vLLM, Ollama with OpenAI compat).
+// LLMProvider uses an OpenAI-compatible chat-completions API for root-cause
+// analysis. Works with OpenAI, Claude (via compatible proxy), and local LLM
+// servers (e.g. vLLM, Ollama with OpenAI compat).
 type LLMProvider struct {
 	name     string
 	provider string // "openai", "claude", "local_llm"
@@ -36,48 +36,6 @@ func NewLLMProvider(name, provider, endpoint, apiKey, model string) *LLMProvider
 
 func (l *LLMProvider) Name() string { return l.name }
 func (l *LLMProvider) Type() string { return "llm" }
-
-// PredictFailure builds a structured prompt and calls the chat-completions API.
-func (l *LLMProvider) PredictFailure(ctx context.Context, req PredictionRequest) (*PredictionResult, error) {
-	metricsJSON, _ := json.Marshal(req.Metrics)
-
-	prompt := fmt.Sprintf(`You are a predictive-maintenance AI for a CMDB platform.
-Analyze the following asset metrics and predict potential failures.
-
-Asset ID: %s
-Asset Type: %s
-Additional Context: %s
-
-Metrics (JSON):
-%s
-
-Respond with JSON:
-{
-  "prediction_type": "hardware_failure|performance_degradation|capacity_exhaustion",
-  "severity": "critical|high|medium|low",
-  "recommended_action": "<actionable recommendation>",
-  "confidence": <0.0-1.0>,
-  "details": "<brief explanation>"
-}`, req.AssetID, req.AssetType, req.Context, string(metricsJSON))
-
-	raw, err := l.chatCompletion(ctx, prompt)
-	if err != nil {
-		return nil, err
-	}
-
-	var result PredictionResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		result = PredictionResult{
-			PredictionType: "llm_raw",
-			Result:         raw,
-			Confidence:     0.5,
-		}
-	}
-	if result.Result == nil {
-		result.Result = raw
-	}
-	return &result, nil
-}
 
 // AnalyzeRootCause builds a prompt with alerts and assets and calls the LLM.
 func (l *LLMProvider) AnalyzeRootCause(ctx context.Context, req RCARequest) (*RCAResult, error) {

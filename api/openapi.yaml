@@ -2608,37 +2608,6 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /prediction/results/ci/{ciId}:
-    get:
-      operationId: listPredictionsByAsset
-      tags: [prediction]
-      summary: List predictions for a specific asset
-      parameters:
-        - name: ciId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Prediction results
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/PredictionResult'
-                  meta:
-                    $ref: '#/components/schemas/Meta'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /prediction/rca:
     post:
       operationId: createRCA
@@ -4933,45 +4902,6 @@ components:
         - provider
         - config
         - enabled
-
-    # ── PredictionResult ──────────────────────────────────────────────────
-    PredictionResult:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        model_id:
-          type: string
-          format: uuid
-        ci_id:
-          type: string
-          format: uuid
-        prediction_type:
-          type: string
-        result:
-          type: object
-          additionalProperties: true
-        severity:
-          type: string
-        recommended_action:
-          type: string
-        expires_at:
-          type: string
-          format: date-time
-        created_at:
-          type: string
-          format: date-time
-      required:
-        - id
-        - model_id
-        - ci_id
-        - prediction_type
-        - result
-        - severity
-        - recommended_action
-        - expires_at
-        - created_at
 
     # ── RCAAnalysis ───────────────────────────────────────────────────────
     RCAAnalysis:

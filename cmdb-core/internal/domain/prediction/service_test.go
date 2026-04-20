@@ -14,6 +14,11 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+// NOTE: The fake provider below satisfies the ai.AIProvider interface with only
+// the methods RCA needs. PredictFailure was removed in Phase 2.12 (YAGNI).
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
 // Fakes
 // -----------------------------------------------------------------------------
 
@@ -38,10 +43,6 @@ func newFakeProvider(name string) *fakeProvider {
 
 func (f *fakeProvider) Name() string { return f.name }
 func (f *fakeProvider) Type() string { return f.typ }
-
-func (f *fakeProvider) PredictFailure(context.Context, ai.PredictionRequest) (*ai.PredictionResult, error) {
-	return nil, errors.New("unused")
-}
 
 func (f *fakeProvider) AnalyzeRootCause(_ context.Context, req ai.RCARequest) (*ai.RCAResult, error) {
 	f.calls++
@@ -82,10 +83,6 @@ func newFakeQueries() *fakeQueries {
 }
 
 func (f *fakeQueries) ListAllModels(context.Context) ([]dbgen.PredictionModel, error) {
-	return nil, nil
-}
-
-func (f *fakeQueries) ListPredictionsByAsset(context.Context, dbgen.ListPredictionsByAssetParams) ([]dbgen.PredictionResult, error) {
 	return nil, nil
 }
 

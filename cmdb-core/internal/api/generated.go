@@ -772,19 +772,6 @@ type PredictionModel struct {
 	Type     string                 `json:"type"`
 }
 
-// PredictionResult defines model for PredictionResult.
-type PredictionResult struct {
-	CiId              openapi_types.UUID     `json:"ci_id"`
-	CreatedAt         time.Time              `json:"created_at"`
-	ExpiresAt         time.Time              `json:"expires_at"`
-	Id                openapi_types.UUID     `json:"id"`
-	ModelId           openapi_types.UUID     `json:"model_id"`
-	PredictionType    string                 `json:"prediction_type"`
-	RecommendedAction string                 `json:"recommended_action"`
-	Result            map[string]interface{} `json:"result"`
-	Severity          string                 `json:"severity"`
-}
-
 // QRAssetPayload defines model for QRAssetPayload.
 type QRAssetPayload struct {
 	Id   openapi_types.UUID `json:"id"`
@@ -2913,9 +2900,6 @@ type ServerInterface interface {
 	// Verify an RCA analysis
 	// (POST /prediction/rca/{id}/verify)
 	VerifyRCA(c *gin.Context, id IdPath)
-	// List predictions for a specific asset
-	// (GET /prediction/results/ci/{ciId})
-	ListPredictionsByAsset(c *gin.Context, ciId openapi_types.UUID)
 	// Get remaining useful life for an asset
 	// (GET /prediction/rul/{id})
 	GetAssetRUL(c *gin.Context, id IdPath)
@@ -6067,32 +6051,6 @@ func (siw *ServerInterfaceWrapper) VerifyRCA(c *gin.Context) {
 	siw.Handler.VerifyRCA(c, id)
 }
 
-// ListPredictionsByAsset operation middleware
-func (siw *ServerInterfaceWrapper) ListPredictionsByAsset(c *gin.Context) {
-
-	var err error
-
-	// ------------- Path parameter "ciId" -------------
-	var ciId openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "ciId", c.Param("ciId"), &ciId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
-	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter ciId: %w", err), http.StatusBadRequest)
-		return
-	}
-
-	c.Set(BearerAuthScopes, []string{})
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
-	}
-
-	siw.Handler.ListPredictionsByAsset(c, ciId)
-}
-
 // GetAssetRUL operation middleware
 func (siw *ServerInterfaceWrapper) GetAssetRUL(c *gin.Context) {
 
@@ -7517,7 +7475,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/prediction/models", wrapper.ListPredictionModels)
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)
-	router.GET(options.BaseURL+"/prediction/results/ci/:ciId", wrapper.ListPredictionsByAsset)
 	router.GET(options.BaseURL+"/prediction/rul/:id", wrapper.GetAssetRUL)
 	router.GET(options.BaseURL+"/quality/dashboard", wrapper.GetQualityDashboard)
 	router.GET(options.BaseURL+"/quality/history/:id", wrapper.GetAssetQualityHistory)

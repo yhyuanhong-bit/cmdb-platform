@@ -18,7 +18,6 @@ import (
 // up a real database.
 type Queries interface {
 	ListAllModels(ctx context.Context) ([]dbgen.PredictionModel, error)
-	ListPredictionsByAsset(ctx context.Context, arg dbgen.ListPredictionsByAssetParams) ([]dbgen.PredictionResult, error)
 	CreateRCA(ctx context.Context, arg dbgen.CreateRCAParams) (dbgen.RcaAnalysis, error)
 	VerifyRCA(ctx context.Context, arg dbgen.VerifyRCAParams) (dbgen.RcaAnalysis, error)
 	ListAlertEventsByIncident(ctx context.Context, arg dbgen.ListAlertEventsByIncidentParams) ([]dbgen.ListAlertEventsByIncidentRow, error)
@@ -43,18 +42,6 @@ func (s *Service) ListModels(ctx context.Context) ([]dbgen.PredictionModel, erro
 		return nil, fmt.Errorf("list models: %w", err)
 	}
 	return models, nil
-}
-
-// ListByAsset returns prediction results for a given asset, up to the limit.
-func (s *Service) ListByAsset(ctx context.Context, assetID uuid.UUID, limit int32) ([]dbgen.PredictionResult, error) {
-	results, err := s.queries.ListPredictionsByAsset(ctx, dbgen.ListPredictionsByAssetParams{
-		AssetID: assetID,
-		Limit:   limit,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list predictions by asset: %w", err)
-	}
-	return results, nil
 }
 
 // CreateRCA performs root-cause analysis via an AI provider and stores the result.

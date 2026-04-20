@@ -8,7 +8,6 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ---------------------------------------------------------------------------
@@ -24,17 +23,6 @@ func (s *APIServer) ListPredictionModels(c *gin.Context) {
 		return
 	}
 	response.OK(c, convertSlice(models, toAPIPredictionModel))
-}
-
-// ListPredictionsByAsset returns prediction results for an asset.
-// (GET /prediction/results/ci/{ciId})
-func (s *APIServer) ListPredictionsByAsset(c *gin.Context, ciId openapi_types.UUID) {
-	results, err := s.predictionSvc.ListByAsset(c.Request.Context(), uuid.UUID(ciId), 50)
-	if err != nil {
-		response.InternalError(c, "failed to list predictions")
-		return
-	}
-	response.OK(c, convertSlice(results, toAPIPredictionResult))
 }
 
 // CreateRCA triggers a root-cause analysis.

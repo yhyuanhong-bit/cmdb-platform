@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// DifyProvider calls a Dify.ai workflow backend for prediction and RCA.
+// DifyProvider calls a Dify.ai workflow backend for RCA.
 type DifyProvider struct {
 	name       string
 	baseURL    string
@@ -32,38 +32,6 @@ func NewDifyProvider(name, baseURL, apiKey, workflowID string) *DifyProvider {
 
 func (d *DifyProvider) Name() string { return d.name }
 func (d *DifyProvider) Type() string { return "workflow" }
-
-// PredictFailure invokes the Dify workflow with asset metrics.
-func (d *DifyProvider) PredictFailure(ctx context.Context, req PredictionRequest) (*PredictionResult, error) {
-	metricsJSON, err := json.Marshal(req.Metrics)
-	if err != nil {
-		return nil, fmt.Errorf("dify: marshal metrics: %w", err)
-	}
-
-	inputs := map[string]any{
-		"task":       "predict_failure",
-		"asset_id":   req.AssetID.String(),
-		"asset_type": req.AssetType,
-		"metrics":    string(metricsJSON),
-		"context":    req.Context,
-	}
-
-	raw, err := d.callWorkflow(ctx, inputs)
-	if err != nil {
-		return nil, err
-	}
-
-	var result PredictionResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		// If the workflow returns a non-structured answer, wrap it.
-		result = PredictionResult{
-			PredictionType: "workflow_raw",
-			Result:         raw,
-			Confidence:     0.5,
-		}
-	}
-	return &result, nil
-}
 
 // AnalyzeRootCause invokes the Dify workflow with incident context.
 func (d *DifyProvider) AnalyzeRootCause(ctx context.Context, req RCARequest) (*RCAResult, error) {

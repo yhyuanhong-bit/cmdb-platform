@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// CustomProvider is a generic HTTP adapter that forwards prediction and RCA
-// requests to a user-managed model service.
+// CustomProvider is a generic HTTP adapter that forwards RCA requests to a
+// user-managed model service.
 type CustomProvider struct {
 	name     string
 	endpoint string
@@ -29,27 +29,6 @@ func NewCustomProvider(name, endpoint string) *CustomProvider {
 
 func (c *CustomProvider) Name() string { return c.name }
 func (c *CustomProvider) Type() string { return "ml_model" }
-
-// PredictFailure POSTs the prediction request to /predict.
-func (c *CustomProvider) PredictFailure(ctx context.Context, req PredictionRequest) (*PredictionResult, error) {
-	raw, err := c.post(ctx, "/predict", req)
-	if err != nil {
-		return nil, err
-	}
-
-	var result PredictionResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		result = PredictionResult{
-			PredictionType: "custom_raw",
-			Result:         raw,
-			Confidence:     0.5,
-		}
-	}
-	if result.Result == nil {
-		result.Result = raw
-	}
-	return &result, nil
-}
 
 // AnalyzeRootCause POSTs the RCA request to /rca.
 func (c *CustomProvider) AnalyzeRootCause(ctx context.Context, req RCARequest) (*RCAResult, error) {

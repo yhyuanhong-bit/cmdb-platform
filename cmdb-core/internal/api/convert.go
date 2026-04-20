@@ -479,25 +479,7 @@ func toAPIPredictionModel(db dbgen.PredictionModel) PredictionModel {
 }
 
 // ---------------------------------------------------------------------------
-// 13. toAPIPredictionResult
-// ---------------------------------------------------------------------------
-
-func toAPIPredictionResult(db dbgen.PredictionResult) PredictionResult {
-	return PredictionResult{
-		Id:                db.ID,
-		CiId:              db.AssetID,
-		ModelId:           db.ModelID,
-		PredictionType:    db.PredictionType,
-		Result:            rawJSONToMapVal(db.Result),
-		Severity:          pgtextToStr(db.Severity),
-		RecommendedAction: pgtextToStr(db.RecommendedAction),
-		ExpiresAt:         pgtsToTime(db.ExpiresAt),
-		CreatedAt:         db.CreatedAt,
-	}
-}
-
-// ---------------------------------------------------------------------------
-// 14. toAPIRCAAnalysis
+// 13. toAPIRCAAnalysis
 // ---------------------------------------------------------------------------
 
 func toAPIRCAAnalysis(db dbgen.RcaAnalysis) RCAAnalysis {

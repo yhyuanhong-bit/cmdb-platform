@@ -9,41 +9,22 @@ import (
 )
 
 // AIProvider defines the interface for all AI/ML prediction backends.
+//
+// PredictFailure was removed in Phase 2.12 (YAGNI): the endpoint was never
+// wired to a scheduler or a real caller, the three provider implementations
+// were stubs against external services that no production code ever invoked,
+// and the prediction_results table was only populated by seed data. If a
+// real predictive-maintenance feature is ever needed, re-introduce a
+// dedicated interface at that time rather than resurrecting this one.
 type AIProvider interface {
 	// Name returns the unique provider instance name.
 	Name() string
 	// Type returns the provider category: "llm", "ml_model", or "workflow".
 	Type() string
-	// PredictFailure runs a failure-prediction inference for the given asset.
-	PredictFailure(ctx context.Context, req PredictionRequest) (*PredictionResult, error)
 	// AnalyzeRootCause performs root-cause analysis on an incident.
 	AnalyzeRootCause(ctx context.Context, req RCARequest) (*RCAResult, error)
 	// HealthCheck verifies the provider backend is reachable.
 	HealthCheck(ctx context.Context) error
-}
-
-// PredictionRequest carries the input for a failure-prediction call.
-type PredictionRequest struct {
-	AssetID   uuid.UUID     `json:"asset_id"`
-	AssetType string        `json:"asset_type"`
-	Metrics   []MetricPoint `json:"metrics"`
-	Context   string        `json:"context,omitempty"`
-}
-
-// MetricPoint is a single time-series observation.
-type MetricPoint struct {
-	Time  time.Time `json:"time"`
-	Name  string    `json:"name"`
-	Value float64   `json:"value"`
-}
-
-// PredictionResult holds the output of a failure-prediction inference.
-type PredictionResult struct {
-	PredictionType    string          `json:"prediction_type"`
-	Result            json.RawMessage `json:"result"`
-	Severity          string          `json:"severity"`
-	RecommendedAction string          `json:"recommended_action"`
-	Confidence        float64         `json:"confidence"`
 }
 
 // RCARequest carries the input for a root-cause analysis call.
@@ -74,7 +55,7 @@ type AssetBrief struct {
 
 // RCAResult holds the output of a root-cause analysis.
 type RCAResult struct {
-	Reasoning       json.RawMessage `json:"reasoning"`
-	ConclusionAssetID *uuid.UUID    `json:"conclusion_asset_id,omitempty"`
-	Confidence      float64         `json:"confidence"`
+	Reasoning         json.RawMessage `json:"reasoning"`
+	ConclusionAssetID *uuid.UUID      `json:"conclusion_asset_id,omitempty"`
+	Confidence        float64         `json:"confidence"`
 }
