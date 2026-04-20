@@ -10,6 +10,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -21,6 +22,31 @@ const (
 	dedupKindShadowIT        = "shadow_it"
 	dedupKindDuplicateSerial = "duplicate_serial"
 )
+
+// Source labels for telemetry.ErrorsSuppressedTotal emitted from the
+// auto-work-order scans. Each scan gets its own label so a broken
+// fixture (e.g. a renamed column) lights up the exact source instead
+// of being aggregated into a single unactionable bucket.
+const (
+	sourceWarrantyCheck         = "workflows.auto_wo.warranty"
+	sourceAssetVerification     = "workflows.auto_wo.asset_verification"
+	sourceDataCorrection        = "workflows.auto_wo.data_correction"
+	sourceEOLCheck              = "workflows.auto_wo.eol"
+	sourceLifespanCheck         = "workflows.auto_wo.lifespan"
+	sourceShadowITCheck         = "workflows.auto_wo.shadow_it"
+	sourceDuplicateSerialCheck  = "workflows.auto_wo.duplicate_serial"
+	sourceMissingLocationCheck  = "workflows.auto_wo.missing_location"
+	sourceFirmwareCheck         = "workflows.auto_wo.firmware"
+	sourceBMCSecurityCheck      = "workflows.auto_wo.bmc_security"
+	sourceScanDiffEventHandler  = "workflows.auto_wo.scan_diff_event"
+	sourceBMCDefaultEventParse  = "workflows.auto_wo.bmc_default_event"
+)
+
+// Reason used when maintenanceSvc.Create fails in an auto-WO scan.
+// These failures were previously Debug-logged, which made a broken
+// maintenance service invisible in production dashboards. Promote to
+// Warn + counter so a spike shows up on the errors_suppressed panel.
+const reasonWOCreateFailed = telemetry.ReasonWOCreationFailed
 
 // --- Auto Work Order 1: Warranty Expiry → Renewal Evaluation ---
 
@@ -67,6 +93,7 @@ func (w *WorkflowSubscriber) checkWarrantyExpiry(ctx context.Context) {
 		   )`)
 	if err != nil {
 		zap.L().Warn("warranty checker: query failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceWarrantyCheck, telemetry.ReasonDBQueryFailed).Inc()
 		return
 	}
 	defer rows.Close()
@@ -76,7 +103,9 @@ func (w *WorkflowSubscriber) checkWarrantyExpiry(ctx context.Context) {
 		var assetTag, name string
 		var warrantyEnd time.Time
 		var warrantyVendor *string
-		if rows.Scan(&assetID, &tenantID, &assetTag, &name, &warrantyEnd, &warrantyVendor) != nil {
+		if scanErr := rows.Scan(&assetID, &tenantID, &assetTag, &name, &warrantyEnd, &warrantyVendor); scanErr != nil {
+			zap.L().Warn("warranty checker: row scan failed", zap.Error(scanErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceWarrantyCheck, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
 
@@ -94,13 +123,14 @@ func (w *WorkflowSubscriber) checkWarrantyExpiry(ctx context.Context) {
 			Description: fmt.Sprintf("Asset '%s' warranty expires in %d days (vendor: %s, expiry: %s). Evaluate: renew warranty, plan replacement, or accept risk.", name, daysLeft, vendor, warrantyEnd.Format("2006-01-02")),
 		})
 		if err != nil {
-			zap.L().Debug("warranty checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+			zap.L().Warn("warranty checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceWarrantyCheck, reasonWOCreateFailed).Inc()
 			continue
 		}
 
 		admins := w.opsAdminUserIDs(ctx, tenantID)
 		for _, adminID := range admins {
-			w.createNotification(ctx, tenantID, adminID,
+			w.warnNotify(ctx, sourceWarrantyCheck, tenantID, adminID,
 				"warranty_expiry",
 				fmt.Sprintf("Warranty expiring: %s", assetTag),
 				fmt.Sprintf("Asset '%s' warranty expires in %d days. Work order created.", name, daysLeft),
@@ -110,6 +140,10 @@ func (w *WorkflowSubscriber) checkWarrantyExpiry(ctx context.Context) {
 		zap.L().Info("warranty checker: created renewal WO",
 			zap.String("asset", assetTag),
 			zap.Int("days_left", daysLeft))
+	}
+	if iterErr := rows.Err(); iterErr != nil {
+		zap.L().Warn("warranty checker: rows iter failed", zap.Error(iterErr))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceWarrantyCheck, telemetry.ReasonRowsIterFailed).Inc()
 	}
 }
 
@@ -162,6 +196,7 @@ func (w *WorkflowSubscriber) checkMissingAssets(ctx context.Context) {
 		   )`)
 	if err != nil {
 		zap.L().Warn("asset verification checker: query failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceAssetVerification, telemetry.ReasonDBQueryFailed).Inc()
 		return
 	}
 	defer rows.Close()
@@ -170,7 +205,9 @@ func (w *WorkflowSubscriber) checkMissingAssets(ctx context.Context) {
 		var assetID, tenantID uuid.UUID
 		var assetTag, name string
 		var ipAddress, bmcIP *string
-		if rows.Scan(&assetID, &tenantID, &assetTag, &name, &ipAddress, &bmcIP) != nil {
+		if scanErr := rows.Scan(&assetID, &tenantID, &assetTag, &name, &ipAddress, &bmcIP); scanErr != nil {
+			zap.L().Warn("asset verification checker: row scan failed", zap.Error(scanErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceAssetVerification, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
 
@@ -189,13 +226,14 @@ func (w *WorkflowSubscriber) checkMissingAssets(ctx context.Context) {
 			Description: fmt.Sprintf("Asset '%s' (IP: %s) has not been detected by any network scan in the last 30 days. Please verify: is the asset still physically present? Has it been relocated? Is it powered off?", name, ip),
 		})
 		if err != nil {
-			zap.L().Debug("asset verification checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+			zap.L().Warn("asset verification checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceAssetVerification, reasonWOCreateFailed).Inc()
 			continue
 		}
 
 		admins := w.opsAdminUserIDs(ctx, tenantID)
 		for _, adminID := range admins {
-			w.createNotification(ctx, tenantID, adminID,
+			w.warnNotify(ctx, sourceAssetVerification, tenantID, adminID,
 				"asset_verification",
 				fmt.Sprintf("Asset not detected: %s", assetTag),
 				fmt.Sprintf("Asset '%s' not seen by scans in 30 days. Work order created for verification.", name),
@@ -204,6 +242,10 @@ func (w *WorkflowSubscriber) checkMissingAssets(ctx context.Context) {
 
 		zap.L().Info("asset verification checker: created WO",
 			zap.String("asset", assetTag))
+	}
+	if iterErr := rows.Err(); iterErr != nil {
+		zap.L().Warn("asset verification checker: rows iter failed", zap.Error(iterErr))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceAssetVerification, telemetry.ReasonRowsIterFailed).Inc()
 	}
 }
 
@@ -223,6 +265,7 @@ func (w *WorkflowSubscriber) onScanDifferencesDetected(ctx context.Context, even
 	var payload scanDifferencesPayload
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
 		zap.L().Warn("workflow: failed to parse scan differences payload", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceScanDiffEventHandler, telemetry.ReasonJSONUnmarshal).Inc()
 		return nil
 	}
 
@@ -244,12 +287,19 @@ func (w *WorkflowSubscriber) checkScanDifferences(ctx context.Context, tenantID,
 	}
 
 	var existingCount int
-	w.pool.QueryRow(ctx,
+	if scanErr := w.pool.QueryRow(ctx,
 		`SELECT count(*) FROM work_orders
 		 WHERE asset_id = $1 AND type = 'data_correction'
 		 AND status NOT IN ('completed','verified','rejected')
 		 AND deleted_at IS NULL`,
-		assetID).Scan(&existingCount)
+		assetID).Scan(&existingCount); scanErr != nil {
+		// If the dedup probe fails we prefer to skip rather than
+		// double-create — a broken probe re-issuing a WO every scan
+		// is strictly worse than a missed cycle.
+		zap.L().Warn("data correction: dedup probe failed", zap.String("asset", assetTag), zap.Error(scanErr))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceDataCorrection, telemetry.ReasonRowScanFailed).Inc()
+		return
+	}
 	if existingCount > 0 {
 		return
 	}
@@ -276,13 +326,14 @@ func (w *WorkflowSubscriber) checkScanDifferences(ctx context.Context, tenantID,
 		Description: description,
 	})
 	if err != nil {
-		zap.L().Debug("data correction: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+		zap.L().Warn("data correction: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceDataCorrection, reasonWOCreateFailed).Inc()
 		return
 	}
 
 	admins := w.opsAdminUserIDs(ctx, tenantID)
 	for _, adminID := range admins {
-		w.createNotification(ctx, tenantID, adminID,
+		w.warnNotify(ctx, sourceDataCorrection, tenantID, adminID,
 			"data_correction",
 			fmt.Sprintf("Data mismatch: %s", assetTag),
 			fmt.Sprintf("%d field(s) differ between scan and CMDB for '%s'.", len(diffs), assetName),
@@ -313,6 +364,7 @@ func (w *WorkflowSubscriber) checkEOLReached(ctx context.Context) {
 		   )`)
 	if err != nil {
 		zap.L().Warn("eol checker: query failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceEOLCheck, telemetry.ReasonDBQueryFailed).Inc()
 		return
 	}
 	defer rows.Close()
@@ -321,7 +373,9 @@ func (w *WorkflowSubscriber) checkEOLReached(ctx context.Context) {
 		var assetID, tenantID uuid.UUID
 		var assetTag, name string
 		var eolDate time.Time
-		if rows.Scan(&assetID, &tenantID, &assetTag, &name, &eolDate) != nil {
+		if scanErr := rows.Scan(&assetID, &tenantID, &assetTag, &name, &eolDate); scanErr != nil {
+			zap.L().Warn("eol checker: row scan failed", zap.Error(scanErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceEOLCheck, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
 
@@ -335,18 +389,23 @@ func (w *WorkflowSubscriber) checkEOLReached(ctx context.Context) {
 			Description: fmt.Sprintf("Asset '%s' reached end-of-life %d days ago (EOL: %s). Action required: data migration, service failover, physical removal, and CMDB status update to 'disposed'.", name, daysPast, eolDate.Format("2006-01-02")),
 		})
 		if err != nil {
-			zap.L().Debug("eol checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+			zap.L().Warn("eol checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceEOLCheck, reasonWOCreateFailed).Inc()
 			continue
 		}
 
 		admins := w.opsAdminUserIDs(ctx, tenantID)
 		for _, adminID := range admins {
-			w.createNotification(ctx, tenantID, adminID, "eol_reached",
+			w.warnNotify(ctx, sourceEOLCheck, tenantID, adminID, "eol_reached",
 				fmt.Sprintf("EOL reached: %s", assetTag),
 				fmt.Sprintf("Asset '%s' has passed its end-of-life date. Decommission work order created.", name),
 				"work_order", order.ID)
 		}
 		zap.L().Info("eol checker: created decommission WO", zap.String("asset", assetTag))
+	}
+	if iterErr := rows.Err(); iterErr != nil {
+		zap.L().Warn("eol checker: rows iter failed", zap.Error(iterErr))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceEOLCheck, telemetry.ReasonRowsIterFailed).Inc()
 	}
 }
 
@@ -369,6 +428,7 @@ func (w *WorkflowSubscriber) checkOverLifespan(ctx context.Context) {
 		   )`)
 	if err != nil {
 		zap.L().Warn("lifespan checker: query failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceLifespanCheck, telemetry.ReasonDBQueryFailed).Inc()
 		return
 	}
 	defer rows.Close()
@@ -378,7 +438,9 @@ func (w *WorkflowSubscriber) checkOverLifespan(ctx context.Context) {
 		var assetTag, name string
 		var lifespanMonths int
 		var createdAt time.Time
-		if rows.Scan(&assetID, &tenantID, &assetTag, &name, &lifespanMonths, &createdAt) != nil {
+		if scanErr := rows.Scan(&assetID, &tenantID, &assetTag, &name, &lifespanMonths, &createdAt); scanErr != nil {
+			zap.L().Warn("lifespan checker: row scan failed", zap.Error(scanErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceLifespanCheck, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
 
@@ -392,18 +454,23 @@ func (w *WorkflowSubscriber) checkOverLifespan(ctx context.Context) {
 			Description: fmt.Sprintf("Asset '%s' has been in service for %d months, exceeding the expected lifespan of %d months. Evaluate: continue operation, plan replacement, or schedule decommission.", name, actualMonths, lifespanMonths),
 		})
 		if err != nil {
-			zap.L().Debug("lifespan checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+			zap.L().Warn("lifespan checker: WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceLifespanCheck, reasonWOCreateFailed).Inc()
 			continue
 		}
 
 		admins := w.opsAdminUserIDs(ctx, tenantID)
 		for _, adminID := range admins {
-			w.createNotification(ctx, tenantID, adminID, "lifespan_exceeded",
+			w.warnNotify(ctx, sourceLifespanCheck, tenantID, adminID, "lifespan_exceeded",
 				fmt.Sprintf("Lifespan exceeded: %s", assetTag),
 				fmt.Sprintf("Asset '%s' exceeded expected %d-month lifespan.", name, lifespanMonths),
 				"work_order", order.ID)
 		}
 		zap.L().Info("lifespan checker: created evaluation WO", zap.String("asset", assetTag))
+	}
+	if iterErr := rows.Err(); iterErr != nil {
+		zap.L().Warn("lifespan checker: rows iter failed", zap.Error(iterErr))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceLifespanCheck, telemetry.ReasonRowsIterFailed).Inc()
 	}
 }
 
@@ -476,8 +543,9 @@ func (w *WorkflowSubscriber) checkShadowITForTenant(ctx context.Context, tenantI
 	for rows.Next() {
 		var c shadowITCandidate
 		if err := rows.Scan(&c.daID, &c.hostname, &c.ipAddress, &c.source, &c.discoveredAt); err != nil {
-			zap.L().Debug("shadow IT checker: row scan failed",
+			zap.L().Warn("shadow IT checker: row scan failed",
 				zap.String("tenant_id", tenantID.String()), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceShadowITCheck, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
 		candidates = append(candidates, c)
@@ -496,9 +564,10 @@ func (w *WorkflowSubscriber) checkShadowITForTenant(ctx context.Context, tenantI
 		daysPending := int(time.Since(c.discoveredAt).Hours() / 24)
 
 		if err := w.createShadowITWorkOrder(ctx, tenantID, c.hostname, c.ipAddress, c.source, daysPending); err != nil {
-			zap.L().Debug("shadow IT checker: WO creation skipped",
+			zap.L().Warn("shadow IT checker: WO creation skipped",
 				zap.String("tenant_id", tenantID.String()),
 				zap.String("ip", c.ipAddress), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceShadowITCheck, reasonWOCreateFailed).Inc()
 			continue
 		}
 		zap.L().Info("shadow IT checker: created registration WO",
@@ -613,8 +682,9 @@ func (w *WorkflowSubscriber) checkDuplicateSerialsForTenant(ctx context.Context,
 	for rows.Next() {
 		var c dupSerialCandidate
 		if err := rows.Scan(&c.serial, &c.assetIDs, &c.assetTags); err != nil {
-			zap.L().Debug("dedup checker: row scan failed",
+			zap.L().Warn("dedup checker: row scan failed",
 				zap.String("tenant_id", tenantID.String()), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceDuplicateSerialCheck, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
 		candidates = append(candidates, c)
@@ -630,9 +700,10 @@ func (w *WorkflowSubscriber) checkDuplicateSerialsForTenant(ctx context.Context,
 
 	for _, c := range candidates {
 		if err := w.createDuplicateSerialWorkOrder(ctx, tenantID, c.serial, c.assetIDs, c.assetTags); err != nil {
-			zap.L().Debug("dedup checker: WO creation skipped",
+			zap.L().Warn("dedup checker: WO creation skipped",
 				zap.String("tenant_id", tenantID.String()),
 				zap.String("serial", c.serial), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceDuplicateSerialCheck, reasonWOCreateFailed).Inc()
 			continue
 		}
 		zap.L().Info("dedup checker: created audit WO",
@@ -741,8 +812,9 @@ func (w *WorkflowSubscriber) checkMissingLocationForTenant(ctx context.Context, 
 		var assetID uuid.UUID
 		var assetTag, name string
 		if err := rows.Scan(&assetID, &assetTag, &name); err != nil {
-			zap.L().Debug("location completion checker: row scan failed",
+			zap.L().Warn("location completion checker: row scan failed",
 				zap.String("tenant_id", tenantID.String()), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceMissingLocationCheck, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
 		count++
@@ -756,9 +828,10 @@ func (w *WorkflowSubscriber) checkMissingLocationForTenant(ctx context.Context, 
 				Description: fmt.Sprintf("Asset '%s' has no location or rack assigned. An asset without a known location cannot be physically managed. Please assign location and rack.", name),
 			})
 			if err != nil {
-				zap.L().Debug("location completion checker: WO creation skipped",
+				zap.L().Warn("location completion checker: WO creation skipped",
 					zap.String("tenant_id", tenantID.String()),
 					zap.String("asset", assetTag), zap.Error(err))
+				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceMissingLocationCheck, reasonWOCreateFailed).Inc()
 			}
 		}
 	}
@@ -774,8 +847,9 @@ func (w *WorkflowSubscriber) checkMissingLocationForTenant(ctx context.Context, 
 			Description: fmt.Sprintf("%d assets have no location or rack assigned. Run a location audit to assign physical positions.", count),
 		})
 		if err != nil {
-			zap.L().Debug("location completion checker: bulk WO creation skipped",
+			zap.L().Warn("location completion checker: bulk WO creation skipped",
 				zap.String("tenant_id", tenantID.String()), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceMissingLocationCheck, reasonWOCreateFailed).Inc()
 		}
 	}
 
@@ -824,6 +898,7 @@ func (w *WorkflowSubscriber) checkFirmwareOutdated(ctx context.Context) {
 		   AND a.status NOT IN ('disposed', 'decommission')`)
 	if err != nil {
 		zap.L().Warn("firmware checker: query failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceFirmwareCheck, telemetry.ReasonDBQueryFailed).Inc()
 		return
 	}
 	defer rows.Close()
@@ -832,7 +907,9 @@ func (w *WorkflowSubscriber) checkFirmwareOutdated(ctx context.Context) {
 	versionsByType := make(map[string][]string)
 	for rows.Next() {
 		var r firmwareAssetRow
-		if err := rows.Scan(&r.assetID, &r.tenantID, &r.assetTag, &r.name, &r.bmcType, &r.firmware, &r.hasOpenWO); err != nil {
+		if scanErr := rows.Scan(&r.assetID, &r.tenantID, &r.assetTag, &r.name, &r.bmcType, &r.firmware, &r.hasOpenWO); scanErr != nil {
+			zap.L().Warn("firmware checker: row scan failed", zap.Error(scanErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceFirmwareCheck, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
 		assets = append(assets, r)
@@ -840,6 +917,7 @@ func (w *WorkflowSubscriber) checkFirmwareOutdated(ctx context.Context) {
 	}
 	if err := rows.Err(); err != nil {
 		zap.L().Warn("firmware checker: row iteration failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceFirmwareCheck, telemetry.ReasonRowsIterFailed).Inc()
 		return
 	}
 
@@ -872,7 +950,8 @@ func (w *WorkflowSubscriber) checkFirmwareOutdated(ctx context.Context) {
 			Description: fmt.Sprintf("Asset '%s' BMC firmware (%s: %s) is behind the latest detected version (%s). Schedule firmware upgrade to maintain security compliance.", a.name, a.bmcType, a.firmware, latestFW),
 		})
 		if err != nil {
-			zap.L().Debug("firmware checker: WO creation skipped", zap.String("asset", a.assetTag), zap.Error(err))
+			zap.L().Warn("firmware checker: WO creation skipped", zap.String("asset", a.assetTag), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceFirmwareCheck, reasonWOCreateFailed).Inc()
 			continue
 		}
 		zap.L().Info("firmware checker: created upgrade WO", zap.String("asset", a.assetTag))
@@ -885,12 +964,18 @@ func (w *WorkflowSubscriber) checkFirmwareOutdated(ctx context.Context) {
 // password is detected. Called from the onBMCDefaultPassword event handler.
 func (w *WorkflowSubscriber) createBMCSecurityWO(ctx context.Context, tenantID, assetID uuid.UUID, assetTag, name, bmcType string) {
 	var existingCount int
-	w.pool.QueryRow(ctx,
+	if scanErr := w.pool.QueryRow(ctx,
 		`SELECT count(*) FROM work_orders
 		 WHERE asset_id = $1 AND type = 'security_hardening'
 		 AND status NOT IN ('completed','verified','rejected')
 		 AND deleted_at IS NULL`,
-		assetID).Scan(&existingCount)
+		assetID).Scan(&existingCount); scanErr != nil {
+		// Prefer skipping over double-WOs — a broken dedup probe
+		// must not flood the critical-security queue with replays.
+		zap.L().Warn("security: BMC dedup probe failed", zap.String("asset", assetTag), zap.Error(scanErr))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceBMCSecurityCheck, telemetry.ReasonRowScanFailed).Inc()
+		return
+	}
 	if existingCount > 0 {
 		return
 	}
@@ -903,13 +988,14 @@ func (w *WorkflowSubscriber) createBMCSecurityWO(ctx context.Context, tenantID, 
 		Description: fmt.Sprintf("CRITICAL: Asset '%s' BMC (%s) is accessible with default credentials. This is a severe security risk. Immediately change the BMC password and verify access controls.", name, bmcType),
 	})
 	if err != nil {
-		zap.L().Debug("security: BMC hardening WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+		zap.L().Warn("security: BMC hardening WO creation skipped", zap.String("asset", assetTag), zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceBMCSecurityCheck, reasonWOCreateFailed).Inc()
 		return
 	}
 
 	admins := w.opsAdminUserIDs(ctx, tenantID)
 	for _, adminID := range admins {
-		w.createNotification(ctx, tenantID, adminID, "security_hardening",
+		w.warnNotify(ctx, sourceBMCSecurityCheck, tenantID, adminID, "security_hardening",
 			fmt.Sprintf("CRITICAL: Default BMC password on %s", assetTag),
 			fmt.Sprintf("Asset '%s' BMC uses default credentials. Immediate action required.", name),
 			"work_order", order.ID)
@@ -926,6 +1012,7 @@ func (w *WorkflowSubscriber) onBMCDefaultPassword(ctx context.Context, event eve
 	}
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
 		zap.L().Warn("workflow: failed to parse bmc_default_password payload", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceBMCDefaultEventParse, telemetry.ReasonJSONUnmarshal).Inc()
 		return nil
 	}
 
