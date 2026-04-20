@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"go.uber.org/zap"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -295,6 +297,62 @@ func (s *Service) TransitionGovernance(ctx context.Context, tenantID, id, operat
 		s.bus.Publish(ctx, eventbus.Event{
 			Subject: eventbus.SubjectOrderAnomaly, TenantID: tenantID.String(), Payload: payload,
 		})
+	}
+
+	return &updated, nil
+}
+
+// TransitionEmergencyAtomic approves-and-starts an emergency work order in a
+// single SQL UPDATE. This replaces the previous two-step flow
+// (Transition(approved) → Transition(in_progress)) which could strand the WO
+// half-approved if the process crashed, timed out, or retried between the two
+// statements. The half-approved state then tripped SLA scans for a row that
+// was never actually in progress.
+//
+// The underlying UPDATE guards on tenant_id, type='emergency',
+// governance_status='submitted', and execution_status='pending', so a second
+// concurrent caller (or a stale retry after a successful transition) finds
+// zero rows and the database returns pgx.ErrNoRows. That is treated as
+// idempotent success — (nil, nil) — because the caller's intent is already
+// satisfied.
+//
+// operatorID may be uuid.Nil to mark a system auto-approval; validateApproval
+// is deliberately NOT invoked here because emergency auto-approval is a
+// system-authoritative action triggered by the alert event pipeline, not a
+// user decision.
+func (s *Service) TransitionEmergencyAtomic(ctx context.Context, tenantID, orderID, approverID uuid.UUID) (*dbgen.WorkOrder, error) {
+	deadline := SLADeadline("critical", time.Now())
+	approverUUID := pgtype.UUID{Bytes: approverID, Valid: true}
+
+	updated, err := s.queries.TransitionEmergencyWorkOrder(ctx, dbgen.TransitionEmergencyWorkOrderParams{
+		ID:          orderID,
+		TenantID:    tenantID,
+		ApprovedBy:  approverUUID,
+		SlaDeadline: pgtype.Timestamptz{Time: deadline, Valid: true},
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Idempotent: already transitioned, wrong type, cross-tenant, or
+			// a concurrent winner beat us. Not an error for the caller.
+			return nil, nil
+		}
+		return nil, fmt.Errorf("atomic emergency transition: %w", err)
+	}
+
+	s.incrementSyncVersion(ctx, "work_orders", orderID)
+
+	// Best-effort audit trail. Failing to write the log should not roll back
+	// a successful state transition — the transition is the source of truth.
+	if _, logErr := s.queries.CreateWorkOrderLog(ctx, dbgen.CreateWorkOrderLogParams{
+		OrderID:    orderID,
+		Action:     "emergency_auto_approve",
+		FromStatus: pgtype.Text{String: StatusSubmitted, Valid: true},
+		ToStatus:   pgtype.Text{String: StatusInProgress, Valid: true},
+		OperatorID: approverUUID,
+		Comment:    pgtype.Text{String: "Auto-approved + started: emergency work order", Valid: true},
+	}); logErr != nil {
+		zap.L().Warn("maintenance: emergency audit log failed",
+			zap.String("order_id", orderID.String()), zap.Error(logErr))
 	}
 
 	return &updated, nil

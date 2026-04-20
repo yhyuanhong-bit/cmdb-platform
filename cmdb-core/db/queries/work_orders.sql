@@ -138,3 +138,34 @@ UPDATE work_orders SET
     updated_at        = now()
 WHERE id = $1 AND tenant_id = $4 AND governance_status = $5 AND deleted_at IS NULL
 RETURNING *;
+
+-- name: TransitionEmergencyWorkOrder :one
+-- Atomically approves-and-starts an emergency work order in a single UPDATE.
+-- Replaces the previous two-step flow (approve, then in_progress) which could
+-- strand a WO half-approved if the process crashed, timed out, or retried
+-- between the two statements.
+--
+-- Guards (all required, all enforced by the WHERE clause):
+--   - tenant_id: defense-in-depth isolation
+--   - type = 'emergency': only emergency orders skip the approval queue
+--   - governance_status = 'submitted': idempotent; a second caller gets 0 rows
+--   - execution_status = 'pending': prevents double-start
+--   - deleted_at IS NULL: don't resurrect tombstoned rows
+--
+-- 0 rows returned = idempotent success (already transitioned, stale retry, or
+-- wrong type/tenant). The caller treats pgx.ErrNoRows as (nil, nil).
+UPDATE work_orders SET
+    governance_status = 'approved',
+    execution_status  = 'working',
+    status            = 'in_progress',
+    approved_at       = now(),
+    approved_by       = $3,
+    sla_deadline      = $4,
+    updated_at        = now()
+WHERE id = $1
+  AND tenant_id = $2
+  AND type = 'emergency'
+  AND governance_status = 'submitted'
+  AND execution_status = 'pending'
+  AND deleted_at IS NULL
+RETURNING *;

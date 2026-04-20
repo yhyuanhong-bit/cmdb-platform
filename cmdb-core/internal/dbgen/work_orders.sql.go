@@ -601,6 +601,87 @@ func (q *Queries) StampWorkOrderApproval(ctx context.Context, arg StampWorkOrder
 	return i, err
 }
 
+const transitionEmergencyWorkOrder = `-- name: TransitionEmergencyWorkOrder :one
+UPDATE work_orders SET
+    governance_status = 'approved',
+    execution_status  = 'working',
+    status            = 'in_progress',
+    approved_at       = now(),
+    approved_by       = $3,
+    sla_deadline      = $4,
+    updated_at        = now()
+WHERE id = $1
+  AND tenant_id = $2
+  AND type = 'emergency'
+  AND governance_status = 'submitted'
+  AND execution_status = 'pending'
+  AND deleted_at IS NULL
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status
+`
+
+type TransitionEmergencyWorkOrderParams struct {
+	ID          uuid.UUID          `json:"id"`
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	ApprovedBy  pgtype.UUID        `json:"approved_by"`
+	SlaDeadline pgtype.Timestamptz `json:"sla_deadline"`
+}
+
+// Atomically approves-and-starts an emergency work order in a single UPDATE.
+// Replaces the previous two-step flow (approve, then in_progress) which could
+// strand a WO half-approved if the process crashed, timed out, or retried
+// between the two statements.
+//
+// Guards (all required, all enforced by the WHERE clause):
+//   - tenant_id: defense-in-depth isolation
+//   - type = 'emergency': only emergency orders skip the approval queue
+//   - governance_status = 'submitted': idempotent; a second caller gets 0 rows
+//   - execution_status = 'pending': prevents double-start
+//   - deleted_at IS NULL: don't resurrect tombstoned rows
+//
+// 0 rows returned = idempotent success (already transitioned, stale retry, or
+// wrong type/tenant). The caller treats pgx.ErrNoRows as (nil, nil).
+func (q *Queries) TransitionEmergencyWorkOrder(ctx context.Context, arg TransitionEmergencyWorkOrderParams) (WorkOrder, error) {
+	row := q.db.QueryRow(ctx, transitionEmergencyWorkOrder,
+		arg.ID,
+		arg.TenantID,
+		arg.ApprovedBy,
+		arg.SlaDeadline,
+	)
+	var i WorkOrder
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Title,
+		&i.Type,
+		&i.Status,
+		&i.Priority,
+		&i.LocationID,
+		&i.AssetID,
+		&i.RequestorID,
+		&i.AssigneeID,
+		&i.Description,
+		&i.Reason,
+		&i.PredictionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.ActualStart,
+		&i.ActualEnd,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+		&i.SlaDeadline,
+		&i.SlaWarningSent,
+		&i.SlaBreached,
+		&i.SyncVersion,
+		&i.ExecutionStatus,
+		&i.GovernanceStatus,
+	)
+	return i, err
+}
+
 const updateExecutionStatus = `-- name: UpdateExecutionStatus :one
 UPDATE work_orders SET
     execution_status = $2,
