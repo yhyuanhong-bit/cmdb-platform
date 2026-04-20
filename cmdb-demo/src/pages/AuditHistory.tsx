@@ -3,6 +3,20 @@ import { memo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuditEvents } from "../hooks/useAudit";
+import { useUrlState } from "../hooks/useUrlState";
+
+// URL-persisted filter state for the Audit History page. activeTab, search,
+// eventType/user filters, and the date range are all URL-shareable so links
+// reproduce exactly what the operator was looking at.
+type AuditTab = 'Real-time' | 'Historical' | 'Archived';
+const auditListDefaults = {
+  activeTab: 'Historical' as AuditTab,
+  search: '',
+  eventTypeFilter: '',
+  userFilter: '',
+  dateFrom: '',
+  dateTo: '',
+};
 
 /* ──────────────────────────────────────────────
    Constants
@@ -92,13 +106,9 @@ function InfoBlock({ icon, title, lines }: { icon: string; title: string; lines:
 function AuditHistory() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<string>("Historical");
+  const [urlState, setUrlState] = useUrlState('audit', auditListDefaults);
+  const { activeTab, search, eventTypeFilter, userFilter, dateFrom, dateTo } = urlState;
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [eventTypeFilter, setEventTypeFilter] = useState('');
-  const [userFilter, setUserFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
 
   const { data: eventsResponse, isLoading, error } = useAuditEvents();
   const auditEvents = eventsResponse?.data ?? [];
@@ -174,7 +184,7 @@ function AuditHistory() {
           <button
             key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => setUrlState({ activeTab: tab.key as AuditTab })}
             className={`rounded-md px-5 py-2 text-xs font-semibold uppercase tracking-wider transition-colors ${
               activeTab === tab.key
                 ? "bg-surface-container-highest text-on-surface"
@@ -244,7 +254,7 @@ function AuditHistory() {
             type="text"
             placeholder={t('audit.search_placeholder')}
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => setUrlState({ search: e.target.value })}
             className="w-full min-w-[120px] bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/60 outline-none"
           />
         </div>
@@ -252,7 +262,7 @@ function AuditHistory() {
         {/* Event type dropdown */}
         <select
           value={eventTypeFilter}
-          onChange={e => setEventTypeFilter(e.target.value)}
+          onChange={e => setUrlState({ eventTypeFilter: e.target.value })}
           className="appearance-none rounded-md bg-surface-container-low px-3 py-2 text-xs font-medium text-on-surface-variant outline-none"
         >
           <option value="">{t('audit.all_events')}</option>
@@ -264,7 +274,7 @@ function AuditHistory() {
         {/* User dropdown */}
         <select
           value={userFilter}
-          onChange={e => setUserFilter(e.target.value)}
+          onChange={e => setUrlState({ userFilter: e.target.value })}
           className="appearance-none rounded-md bg-surface-container-low px-3 py-2 text-xs font-medium text-on-surface-variant outline-none"
         >
           <option value="">{t('audit.all_users')}</option>
@@ -273,9 +283,9 @@ function AuditHistory() {
         {/* Date range */}
         <div className="flex items-center gap-2 rounded-md bg-surface-container-low px-3 py-2">
           <Icon name="calendar_today" className="text-base text-on-surface-variant" />
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="bg-transparent text-xs text-on-surface-variant outline-none" />
+          <input type="date" value={dateFrom} onChange={e => setUrlState({ dateFrom: e.target.value })} className="bg-transparent text-xs text-on-surface-variant outline-none" />
           <span className="text-on-surface-variant">—</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="bg-transparent text-xs text-on-surface-variant outline-none" />
+          <input type="date" value={dateTo} onChange={e => setUrlState({ dateTo: e.target.value })} className="bg-transparent text-xs text-on-surface-variant outline-none" />
         </div>
 
         {/* Advanced */}
