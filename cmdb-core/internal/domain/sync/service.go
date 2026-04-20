@@ -14,6 +14,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// Source label for telemetry.ErrorsSuppressedTotal on sync
+// reconciliation watermark updates. A broken UPDATE on sync_state
+// here means the health view ("last_sync_at" freshness, node
+// status transitions) goes stale — route it through the shared
+// counter so the edge fleet health dashboard lights up.
+const sourceSyncReconcile = "sync.service.reconcile"
+
 // Service handles sync envelope creation and distribution.
 type Service struct {
 	pool   *pgxpool.Pool
@@ -156,10 +163,20 @@ func (s *Service) reconcile(ctx context.Context) {
 
 		gap := currentMaxVersion - version
 		if gap <= 0 {
-			// Node is up to date, reset last_sync_at
-			s.pool.Exec(ctx,
+			// Node is up to date, reset last_sync_at. A failed
+			// UPDATE here means the freshness heartbeat doesn't
+			// advance — the edge still looks stale on the dashboard
+			// even though it's caught up.
+			if _, execErr := s.pool.Exec(ctx,
 				"UPDATE sync_state SET last_sync_at = now() WHERE node_id = $1 AND entity_type = $2",
-				nodeID, entityType)
+				nodeID, entityType,
+			); execErr != nil {
+				zap.L().Warn("sync reconciliation: heartbeat update failed",
+					zap.String("node_id", nodeID),
+					zap.String("entity_type", entityType),
+					zap.Error(execErr))
+				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncReconcile, telemetry.ReasonDBExecFailed).Inc()
+			}
 			continue
 		}
 
@@ -167,9 +184,16 @@ func (s *Service) reconcile(ctx context.Context) {
 
 		if lag > 24*time.Hour {
 			// Critical: mark node as error after 24h
-			s.pool.Exec(ctx,
+			if _, execErr := s.pool.Exec(ctx,
 				"UPDATE sync_state SET status = 'error', error_message = $3 WHERE node_id = $1 AND entity_type = $2",
-				nodeID, entityType, fmt.Sprintf("sync lag %s, %d versions behind", lag.Round(time.Minute), gap))
+				nodeID, entityType, fmt.Sprintf("sync lag %s, %d versions behind", lag.Round(time.Minute), gap),
+			); execErr != nil {
+				zap.L().Warn("sync reconciliation: error-status update failed",
+					zap.String("node_id", nodeID),
+					zap.String("entity_type", entityType),
+					zap.Error(execErr))
+				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncReconcile, telemetry.ReasonDBExecFailed).Inc()
+			}
 			zap.L().Error("sync reconciliation: node marked as error",
 				zap.String("node_id", nodeID),
 				zap.String("entity_type", entityType),

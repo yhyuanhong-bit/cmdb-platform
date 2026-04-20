@@ -36,6 +36,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// Source label for telemetry.ErrorsSuppressedTotal on sync_state
+// writes. A broken sync_state table would have masked an edge node
+// silently falling behind; route each UPSERT failure through the
+// shared counter so the edge-health dashboard lights up.
+const sourceSyncStateUpsert = "sync.agent.sync_state_upsert"
+
 // Agent runs on Edge nodes to handle initial sync and incremental apply.
 type Agent struct {
 	pool            *pgxpool.Pool
@@ -176,12 +182,22 @@ func (a *Agent) handleIncomingEnvelope(ctx context.Context, event eventbus.Event
 
 	telemetry.SyncEnvelopeApplied.WithLabelValues(env.EntityType).Inc()
 
-	// Update sync_state after successful apply
-	_, _ = a.pool.Exec(ctx,
+	// Update sync_state after successful apply. A failed UPSERT here
+	// means the watermark didn't advance and the next pull will
+	// re-fetch envelopes we already applied — idempotent but wasteful,
+	// and a persistent pattern means sync is stuck.
+	if _, err := a.pool.Exec(ctx,
 		`INSERT INTO sync_state (node_id, tenant_id, entity_type, last_sync_version, last_sync_at, status)
 		 VALUES ($1, $2, $3, $4, now(), 'active')
 		 ON CONFLICT (node_id, entity_type) DO UPDATE SET last_sync_version = GREATEST(sync_state.last_sync_version, $4), last_sync_at = now(), status = 'active'`,
-		a.nodeID, env.TenantID, env.EntityType, env.Version)
+		a.nodeID, env.TenantID, env.EntityType, env.Version,
+	); err != nil {
+		zap.L().Warn("sync agent: sync_state upsert failed",
+			zap.String("entity_type", env.EntityType),
+			zap.Int64("version", env.Version),
+			zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonDBExecFailed).Inc()
+	}
 
 	return nil
 }
@@ -385,13 +401,21 @@ func (a *Agent) updateSyncState(ctx context.Context) {
 		err := a.pool.QueryRow(ctx,
 			fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s", table)).Scan(&maxVersion)
 		if err != nil {
+			zap.L().Warn("sync agent: max version probe failed",
+				zap.String("table", table), zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
-		_, _ = a.pool.Exec(ctx,
+		if _, execErr := a.pool.Exec(ctx,
 			`INSERT INTO sync_state (node_id, tenant_id, entity_type, last_sync_version, last_sync_at, status)
 			 VALUES ($1, $2, $3, $4, now(), 'active')
 			 ON CONFLICT (node_id, entity_type) DO UPDATE SET last_sync_version = $4, last_sync_at = now()`,
-			a.nodeID, a.cfg.TenantID, table, maxVersion)
+			a.nodeID, a.cfg.TenantID, table, maxVersion,
+		); execErr != nil {
+			zap.L().Warn("sync agent: sync_state upsert failed",
+				zap.String("table", table), zap.Error(execErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonDBExecFailed).Inc()
+		}
 	}
 
 	// audit_events: no sync_version, use created_at epoch
@@ -399,11 +423,18 @@ func (a *Agent) updateSyncState(ctx context.Context) {
 	err := a.pool.QueryRow(ctx,
 		"SELECT COALESCE(MAX(EXTRACT(EPOCH FROM created_at))::bigint, 0) FROM audit_events WHERE tenant_id = $1",
 		a.cfg.TenantID).Scan(&auditMax)
-	if err == nil {
-		_, _ = a.pool.Exec(ctx,
-			`INSERT INTO sync_state (node_id, tenant_id, entity_type, last_sync_version, last_sync_at, status)
-			 VALUES ($1, $2, 'audit_events', $3, now(), 'active')
-			 ON CONFLICT (node_id, entity_type) DO UPDATE SET last_sync_version = $3, last_sync_at = now()`,
-			a.nodeID, a.cfg.TenantID, auditMax)
+	if err != nil {
+		zap.L().Warn("sync agent: audit max probe failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonRowScanFailed).Inc()
+		return
+	}
+	if _, execErr := a.pool.Exec(ctx,
+		`INSERT INTO sync_state (node_id, tenant_id, entity_type, last_sync_version, last_sync_at, status)
+		 VALUES ($1, $2, 'audit_events', $3, now(), 'active')
+		 ON CONFLICT (node_id, entity_type) DO UPDATE SET last_sync_version = $3, last_sync_at = now()`,
+		a.nodeID, a.cfg.TenantID, auditMax,
+	); execErr != nil {
+		zap.L().Warn("sync agent: audit sync_state upsert failed", zap.Error(execErr))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonDBExecFailed).Inc()
 	}
 }
