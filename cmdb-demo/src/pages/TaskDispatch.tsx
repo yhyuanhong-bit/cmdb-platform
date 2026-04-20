@@ -6,7 +6,7 @@ import { useWorkOrders, useUpdateWorkOrder } from "../hooks/useMaintenance";
 import { useUsers } from "../hooks/useIdentity";
 import type { WorkOrder } from "../lib/api/maintenance";
 import type { User } from "../lib/api/identity";
-import { FALLBACK_ZONES } from '../data/fallbacks/dispatch'
+import EmptyState from '../components/EmptyState'
 
 /* ──────────────────────────────────────────────
    Types & mapping
@@ -102,7 +102,9 @@ interface ZoneData {
 const ZONE_COLORS = ["bg-error", "bg-[#ffa94d]", "bg-[#69db7c]", "bg-primary"];
 
 function buildZoneData(workOrders: WorkOrder[]): ZoneData[] {
-  // Group active work orders by first segment of location_id or fallback labels
+  // Group active work orders by first segment of location_id. Returns empty
+  // array when there are no active orders — the UI then renders an empty
+  // state instead of synthetic zero-percent placeholders.
   const locationCounts: Record<string, number> = {};
   for (const wo of workOrders) {
     if (['completed', 'closed', 'rejected'].includes(wo.status?.toLowerCase())) continue;
@@ -111,9 +113,7 @@ function buildZoneData(workOrders: WorkOrder[]): ZoneData[] {
   }
 
   const entries = Object.entries(locationCounts);
-  if (entries.length === 0) {
-    return FALLBACK_ZONES(ZONE_COLORS);
-  }
+  if (entries.length === 0) return [];
 
   const maxCount = Math.max(...entries.map(([, c]) => c), 1);
   return entries.slice(0, 8).map(([zoneKey, count], i) => ({
@@ -512,32 +512,42 @@ function TaskDispatch() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {ZONE_DATA.map((zone) => (
-            <div key={zone.label} className="rounded-lg bg-surface-container-low p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-semibold text-on-surface">
-                  {zone.label}
-                </span>
-                <span
-                  className={`text-xs font-bold tabular-nums ${
-                    zone.pct >= 80
-                      ? "text-error"
-                      : zone.pct >= 50
-                        ? "text-[#ffa94d]"
-                        : "text-[#69db7c]"
-                  }`}
-                >
-                  {zone.pct}%
-                </span>
+        {ZONE_DATA.length === 0 ? (
+          <EmptyState
+            icon="location_off"
+            title={t('common.empty_no_data_title')}
+            description={t('common.empty_no_data_desc')}
+            tone="neutral"
+            compact
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {ZONE_DATA.map((zone) => (
+              <div key={zone.label} className="rounded-lg bg-surface-container-low p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-on-surface">
+                    {zone.label}
+                  </span>
+                  <span
+                    className={`text-xs font-bold tabular-nums ${
+                      zone.pct >= 80
+                        ? "text-error"
+                        : zone.pct >= 50
+                          ? "text-[#ffa94d]"
+                          : "text-[#69db7c]"
+                    }`}
+                  >
+                    {zone.pct}%
+                  </span>
+                </div>
+                <ProgressBar pct={zone.pct} color={zone.color} height="h-3" />
+                <p className="mt-1.5 text-[10px] uppercase tracking-wider text-on-surface-variant">
+                  {zone.pct >= 80 ? t('task_dispatch.near_capacity') : zone.pct >= 50 ? t('task_dispatch.moderate') : t('common.available').toUpperCase()}
+                </p>
               </div>
-              <ProgressBar pct={zone.pct} color={zone.color} height="h-3" />
-              <p className="mt-1.5 text-[10px] uppercase tracking-wider text-on-surface-variant">
-                {zone.pct >= 80 ? t('task_dispatch.near_capacity') : zone.pct >= 50 ? t('task_dispatch.moderate') : t('common.available').toUpperCase()}
-              </p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
