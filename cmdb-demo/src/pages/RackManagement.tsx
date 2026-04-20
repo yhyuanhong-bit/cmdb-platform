@@ -5,7 +5,14 @@ import { useTranslation } from "react-i18next";
 import { useRacks, useMainTerritoryId, useUpdateRack, useDeleteRack, useRackSlots } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import { useActivityFeed } from "../hooks/useActivityFeed";
+import { useUrlState } from "../hooks/useUrlState";
 import type { Rack, RackSlot } from "../lib/api/topology";
+
+// Shareable URL state for the Rack Management list page. Only the search
+// query is URL-worthy here — the rack edit/menu state is inline modal UX.
+const rackListDefaults = {
+  search: "",
+}
 
 interface RackSlotDisplay {
   id: string;
@@ -53,7 +60,7 @@ function getStatusStyle(status: string) {
 export default function RackManagement() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
+  const [{ search }, setUrlState] = useUrlState('racks', rackListDefaults);
   const { path } = useLocationContext();
   const contextLocationId = path.idc?.id ?? path.campus?.id ?? path.city?.id ?? path.region?.id ?? path.territory?.id ?? "";
 
@@ -177,7 +184,7 @@ export default function RackManagement() {
               type="text"
               placeholder={t('racks.search_placeholder')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => setUrlState({ search: e.target.value })}
               className="w-full bg-surface-container-high text-on-surface placeholder:text-on-surface-variant/50 pl-10 pr-4 py-2.5 rounded text-sm font-body focus:outline-none focus:ring-1 focus:ring-primary/40"
             />
           </div>
