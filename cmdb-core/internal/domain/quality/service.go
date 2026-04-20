@@ -8,11 +8,17 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
+
+// Source label for telemetry.ErrorsSuppressedTotal on the quality
+// rule engine's config parse path. A rule with malformed JSON in
+// rule_config used to score the asset silently; now we see it.
+const sourceQualityRuleConfig = "quality.rule_config_parse"
 
 // Service provides data quality governance operations.
 type Service struct {
@@ -212,7 +218,19 @@ func evaluateAsset(asset dbgen.Asset, rules []dbgen.QualityRule) ScanResult {
 		case "accuracy":
 			if rule.RuleType == "regex" && value != "" {
 				var config map[string]string
-				_ = json.Unmarshal(rule.RuleConfig, &config)
+				// A malformed rule_config JSON used to be a silent
+				// no-op: the asset would score full points on the
+				// accuracy dimension despite the rule being broken.
+				// Warn + counter so a bad rule is visible, then
+				// skip the regex check for this field.
+				if cfgErr := json.Unmarshal(rule.RuleConfig, &config); cfgErr != nil {
+					zap.L().Warn("quality: rule_config parse failed",
+						zap.String("rule_id", rule.ID.String()),
+						zap.String("field", rule.FieldName),
+						zap.Error(cfgErr))
+					telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceQualityRuleConfig, telemetry.ReasonJSONUnmarshal).Inc()
+					continue
+				}
 				if pattern, ok := config["regex"]; ok {
 					if matched, _ := regexp.MatchString(pattern, value); !matched {
 						scores["accuracy"] -= float64(weight)
