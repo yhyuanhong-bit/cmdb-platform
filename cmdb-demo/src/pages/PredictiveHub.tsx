@@ -9,7 +9,7 @@ import { useAssets } from '../hooks/useAssets'
 import { useAlerts } from '../hooks/useMonitoring'
 import { useWorkOrders } from '../hooks/useMaintenance'
 import CreateRCAModal from '../components/CreateRCAModal'
-import { RACK_SLOTS } from '../data/fallbacks/predictive'
+import EmptyStateCard from '../components/EmptyState'
 
 /* ──────────────────────────────────────────────
    Shared helpers
@@ -87,12 +87,6 @@ const BUTTON_STYLES: Record<string, string> = {
   danger: 'bg-error-container text-on-error-container hover:bg-error/30',
   warning: 'bg-[#92400e] text-[#fbbf24] hover:bg-[#92400e]/80',
   default: 'bg-[#064e3b] text-[#34d399] hover:bg-[#064e3b]/80',
-}
-
-const RACK_COLOR: Record<string, string> = {
-  critical: 'bg-error/60',
-  occupied: 'bg-primary/30',
-  empty: 'bg-surface-container-low',
 }
 
 /* ──────────────────────────────────────────────
@@ -1003,29 +997,17 @@ function TimelineTab() {
               {t('predictive_timeline.section_rack_occupancy')}
             </h2>
           </div>
-          <div className="grid grid-cols-6 gap-1.5 mb-4">
-            {RACK_SLOTS.map((slot, i) => (
-              <div
-                key={i}
-                className={`${RACK_COLOR[slot]} rounded h-5 flex items-center justify-center`}
-                title={`U${i + 1}`}
-              >
-                <span className="text-[0.5rem] text-on-surface-variant/50 font-mono">{i + 1}</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-4">
-            {[
-              { label: t('predictive_timeline.legend_occupied'), color: 'bg-primary/30' },
-              { label: t('predictive_timeline.legend_critical'), color: 'bg-error/60' },
-              { label: t('predictive_timeline.legend_empty'), color: 'bg-surface-container-low' },
-            ].map((l) => (
-              <div key={l.label} className="flex items-center gap-1.5">
-                <span className={`w-2.5 h-2.5 rounded-sm ${l.color}`} />
-                <span className="text-[0.5625rem] text-on-surface-variant uppercase tracking-wider">{l.label}</span>
-              </div>
-            ))}
-          </div>
+          {/* TODO(phase-3.10): wire up GET /racks/{id}/occupancy once the
+              backend exposes a per-rack U-slot occupancy endpoint. Previously
+              rendered a fabricated 42-slot grid with hardcoded critical
+              indices. */}
+          <EmptyStateCard
+            icon="grid_view"
+            title={t('common.empty_not_wired_title')}
+            description={t('common.empty_not_wired_desc')}
+            tone="neutral"
+            compact
+          />
         </div>
 
         {/* Environment Context */}
@@ -1036,30 +1018,16 @@ function TimelineTab() {
               {t('predictive_timeline.section_environment_context')}
             </h2>
           </div>
-          <div className="space-y-4">
-            {[
-              { icon: 'device_thermostat', iconColor: 'text-tertiary', label: t('predictive_timeline.env_temperature'), value: '23.4 C', valueColor: 'text-on-surface', barColor: 'bg-tertiary/60', barWidth: '47%', min: '18 C', max: '32 C' },
-              { icon: 'humidity_percentage', iconColor: 'text-primary', label: t('predictive_timeline.env_humidity'), value: '44%', valueColor: 'text-on-surface', barColor: 'bg-primary/60', barWidth: '44%', min: '20%', max: '80%' },
-              { icon: 'bolt', iconColor: 'text-[#34d399]', label: t('predictive_timeline.env_grid_stability'), value: '99.7%', valueColor: 'text-[#34d399]', barColor: 'bg-[#34d399]/60', barWidth: '99.7%', min: '0%', max: '100%' },
-            ].map((env) => (
-              <div key={env.label} className="bg-surface-container-low rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Icon name={env.icon} className={`${env.iconColor} text-[18px]`} />
-                    <span className="text-[0.6875rem] text-on-surface-variant tracking-wider uppercase font-semibold">{env.label}</span>
-                  </div>
-                  <span className={`text-sm font-bold font-headline ${env.valueColor}`}>{env.value}</span>
-                </div>
-                <div className="h-2 bg-surface-container rounded-full overflow-hidden">
-                  <div className={`h-full ${env.barColor} rounded-full`} style={{ width: env.barWidth }} />
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span className="text-[0.5rem] text-on-surface-variant">{env.min}</span>
-                  <span className="text-[0.5rem] text-on-surface-variant">{env.max}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* TODO(phase-3.10): wire up GET /metrics/environmental (temperature,
+              humidity, grid stability) once the telemetry endpoint ships.
+              Previously rendered hardcoded 23.4 C / 44% / 99.7% values. */}
+          <EmptyStateCard
+            icon="thermostat"
+            title={t('common.empty_not_wired_title')}
+            description={t('common.empty_not_wired_desc')}
+            tone="neutral"
+            compact
+          />
         </div>
       </div>
     </div>
