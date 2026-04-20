@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCreateAdapter } from '../hooks/useIntegration'
 import type { CreateAdapterInput } from '../lib/api/integration'
+import { Modal } from './ui/Modal'
 
 interface Props {
   open: boolean
@@ -39,8 +40,6 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
   const { t } = useTranslation()
   const [formData, setFormData] = useState({ ...initial })
   const mutation = useCreateAdapter()
-
-  if (!open) return null
 
   const isPrometheus = formData.type === 'prometheus'
   const isZabbix = formData.type === 'zabbix'
@@ -110,10 +109,9 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
   const labelCls = 'block text-sm text-gray-400 mb-1'
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[#1a1f2e] p-6 rounded-xl w-[28rem] space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-white">{t('adapter_modal.title')}</h3>
-
+    <Modal open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      <Modal.Header title={t('adapter_modal.title')} onClose={onClose} />
+      <Modal.Body>
         <div>
           <label className={labelCls}>{t('adapter_modal.name_label')} *</label>
           <input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
@@ -293,14 +291,14 @@ export default function CreateAdapterModal({ open, onClose }: Props) {
           <label className="text-sm text-gray-400">{t('adapter_modal.enabled_label')}</label>
         </div>
 
-        <div className="flex gap-2 justify-end pt-2">
-          <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('adapter_modal.btn_cancel')}</button>
-          <button onClick={handleCreate} disabled={mutation.isPending || !formData.name}
-            className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
-            {mutation.isPending ? t('adapter_modal.btn_creating') : t('adapter_modal.btn_create')}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('adapter_modal.btn_cancel')}</button>
+        <button onClick={handleCreate} disabled={mutation.isPending || !formData.name}
+          className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
+          {mutation.isPending ? t('adapter_modal.btn_creating') : t('adapter_modal.btn_create')}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
