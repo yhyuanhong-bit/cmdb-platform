@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAssets } from '../hooks/useAssets'
 import type { Asset } from '../lib/api/assets'
 import { useCreateRackSlot } from '../hooks/useTopology'
+import { Modal } from './ui/Modal'
 
 interface Props {
   open: boolean
@@ -24,8 +25,6 @@ export default function AssignAssetToRackModal({ open, onClose, rackId, totalU }
   const { data: assetsResp } = useAssets()
   const assets: Asset[] = (assetsResp as { data?: Asset[] } | undefined)?.data ?? []
   const createRackSlot = useCreateRackSlot()
-
-  if (!open) return null
 
   const set = (key: string, value: string | number) =>
     setFormData(p => ({ ...p, [key]: value }))
@@ -54,18 +53,9 @@ export default function AssignAssetToRackModal({ open, onClose, rackId, totalU }
   const isValid = !!formData.asset_id && formData.start_u >= 1 && formData.end_u >= formData.start_u && formData.end_u <= totalU
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-[#1a1f2e] p-6 rounded-xl w-[28rem] space-y-4 max-h-[90vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-bold text-white">
-          {t('rack_detail.assign_asset_title')}
-        </h3>
-
+    <Modal open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      <Modal.Header title={t('rack_detail.assign_asset_title')} onClose={onClose} />
+      <Modal.Body>
         {/* Asset */}
         <div>
           <label className="block text-sm text-gray-400 mb-1">
@@ -137,22 +127,22 @@ export default function AssignAssetToRackModal({ open, onClose, rackId, totalU }
           </select>
         </div>
 
-        <div className="flex gap-2 justify-end pt-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded bg-gray-700 text-white text-sm"
-          >
-            {t('credential_modal.btn_cancel')}
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isPending || !isValid}
-            className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50"
-          >
-            {isPending ? t('rack_detail.btn_assigning') : t('rack_detail.btn_assign')}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button
+          onClick={onClose}
+          className="px-4 py-2 rounded bg-gray-700 text-white text-sm"
+        >
+          {t('credential_modal.btn_cancel')}
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={isPending || !isValid}
+          className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50"
+        >
+          {isPending ? t('rack_detail.btn_assigning') : t('rack_detail.btn_assign')}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
