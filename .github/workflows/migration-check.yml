@@ -1,0 +1,39 @@
+name: Migration Number Check
+
+on:
+  push:
+    branches: [master, main, 'feat/*']
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'cmdb-core/db/migrations/**'
+      - 'ingestion-engine/db/migrations/**'
+      - 'docs/MIGRATIONS.md'
+      - 'scripts/check-migration-collision.sh'
+      - '.github/workflows/migration-check.yml'
+
+jobs:
+  collision-check:
+    name: Detect migration number collisions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure script is executable
+        run: chmod +x scripts/check-migration-collision.sh
+
+      - name: Scan for collisions and missing down pairs
+        run: ./scripts/check-migration-collision.sh
+
+      - name: Validate registry coverage
+        run: ./scripts/check-migration-collision.sh --strict
+
+      - name: Print migration inventory (debug)
+        if: always()
+        run: |
+          echo "== cmdb-core =="
+          ls -1 cmdb-core/db/migrations | sort
+          echo
+          echo "== ingestion-engine =="
+          ls -1 ingestion-engine/db/migrations | sort
