@@ -21,7 +21,7 @@ import { useAlerts } from "../hooks/useMonitoring";
 import type { AlertEvent } from "../lib/api/monitoring";
 import { useTopologyGraph, useAllLocations } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
-import { FALLBACK_ALERTS } from "../data/fallbacks/alerts";
+import EmptyState from "../components/EmptyState";
 
 /* ──────────────────────────────────────────────
    Types
@@ -434,25 +434,22 @@ function AlertTopologyAnalysis() {
     return { id: n.id, ...d };
   }, [selectedNode, selectedNodeId, nodes]);
 
-  // Alerts
-  const { data: alertsResponse } = useAlerts();
+  // Alerts — sourced directly from /alerts; empty list surfaces an empty state
+  // in the UI (no decorative fallback data).
+  const { data: alertsResponse, isLoading: alertsLoading } = useAlerts();
   const apiAlerts = alertsResponse?.data ?? [];
-  const isUsingFallbackAlerts = apiAlerts.length === 0;
-  const ALERTS: AlertItem[] =
-    apiAlerts.length > 0
-      ? apiAlerts.map((a: AlertEvent) => {
-          const assetId = a.ci_id ?? "";
-          const matchedNode = apiNodes.find((n: ApiTopologyNode) => n.id === assetId);
-          return {
-            id: a.id,
-            severity: (a.severity ?? "").toUpperCase() as "CRITICAL" | "WARNING",
-            assetName: matchedNode?.name ?? assetId.slice(0, 12) ?? "Unknown",
-            description: a.message ?? "",
-            timestamp: a.fired_at ? new Date(a.fired_at).toLocaleString() : "\u2014",
-            nodeId: assetId,
-          };
-        })
-      : FALLBACK_ALERTS;
+  const ALERTS: AlertItem[] = apiAlerts.map((a: AlertEvent) => {
+    const assetId = a.ci_id ?? "";
+    const matchedNode = apiNodes.find((n: ApiTopologyNode) => n.id === assetId);
+    return {
+      id: a.id,
+      severity: (a.severity ?? "").toUpperCase() as "CRITICAL" | "WARNING",
+      assetName: matchedNode?.name ?? assetId.slice(0, 12) ?? "Unknown",
+      description: a.message ?? "",
+      timestamp: a.fired_at ? new Date(a.fired_at).toLocaleString() : "\u2014",
+      nodeId: assetId,
+    };
+  });
 
   return (
     <div className="flex flex-col gap-5 font-body text-on-surface min-h-0">
@@ -519,15 +516,24 @@ function AlertTopologyAnalysis() {
               <Icon name="link" className="text-[18px] text-primary" />
               {t("alert_topology.alert_list_title")}
               <span className="text-on-surface-variant font-normal">({ALERTS.length})</span>
-              {isUsingFallbackAlerts && (
-                <span className="text-[0.6rem] bg-tertiary-container text-tertiary px-1.5 py-0.5 rounded font-bold tracking-wider">DEMO</span>
-              )}
             </h2>
             <span className="text-xs text-on-surface-variant">{t("alert_topology.correlated")}</span>
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5">
-            {ALERTS.map((alert) => (
+            {alertsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent" />
+              </div>
+            ) : ALERTS.length === 0 ? (
+              <EmptyState
+                icon="notifications_off"
+                title={t("common.empty_awaiting_signal_title")}
+                description={t("common.empty_awaiting_signal_desc")}
+                tone="neutral"
+                compact
+              />
+            ) : ALERTS.map((alert) => (
               <button
                 key={alert.id}
                 onClick={() => setSelectedNodeId(alert.nodeId)}
