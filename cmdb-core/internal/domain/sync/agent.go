@@ -26,6 +26,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -103,6 +104,31 @@ func isFromCentral(env SyncEnvelope) bool {
 	return env.Source == "central"
 }
 
+// subjectTenantSegment returns the tenant segment of a sync subject of the
+// form `sync.<tenant>.<entity_type>.<action>`, or "" if the subject does
+// not carry a tenant scope (e.g. `sync.resync_hint`, operational broadcasts).
+//
+// The NATS subject is the publisher-chosen routing key: if it asserts a
+// tenant, that tenant is authoritative. An in-body env.TenantID that
+// disagrees is either a cross-tenant replay attempt or a publisher bug —
+// either way it must be dropped before any apply runs.
+func subjectTenantSegment(subject string) string {
+	const prefix = "sync."
+	if !strings.HasPrefix(subject, prefix) {
+		return ""
+	}
+	rest := subject[len(prefix):]
+	parts := strings.Split(rest, ".")
+	// A fully-qualified sync subject has at least three segments after
+	// the `sync.` prefix: <tenant>.<entity_type>.<action>. Anything with
+	// fewer (e.g. operational broadcasts like `sync.resync_hint`) is not
+	// tenant-scoped and the guard below does not engage.
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[0]
+}
+
 // deriveStatusSQL mirrors the DeriveStatus Go function for use in SQL-context apply.
 func deriveStatusSQL(exec, gov string) string {
 	switch gov {
@@ -139,7 +165,26 @@ func (a *Agent) handleIncomingEnvelope(ctx context.Context, event eventbus.Event
 		return nil
 	}
 
+	// Bug #2 guard: cross-check env.TenantID against the NATS subject.
+	// Publishers set the subject as `sync.<tenant>.<entity>.<action>`; a
+	// mismatch between that tenant segment and the in-body env.TenantID
+	// is either a cross-tenant replay or a publisher bug. Drop + metric
+	// + log, never dispatch. Subjects without a tenant segment (e.g.
+	// `sync.resync_hint`) bypass the guard — there is no tenant to check.
+	if routedTenant := subjectTenantSegment(event.Subject); routedTenant != "" && routedTenant != env.TenantID {
+		telemetry.SyncEnvelopeRejected.WithLabelValues(env.EntityType, "tenant_mismatch").Inc()
+		zap.L().Warn("sync agent: tenant mismatch between subject and envelope, dropping",
+			zap.String("id", env.ID),
+			zap.String("subject", event.Subject),
+			zap.String("subject_tenant", routedTenant),
+			zap.String("envelope_tenant", env.TenantID),
+			zap.String("source", env.Source),
+			zap.String("entity_type", env.EntityType))
+		return nil
+	}
+
 	if !env.VerifyChecksum() {
+		telemetry.SyncEnvelopeRejected.WithLabelValues(env.EntityType, "bad_checksum").Inc()
 		zap.L().Warn("sync agent: checksum mismatch", zap.String("id", env.ID))
 		return nil
 	}

@@ -56,6 +56,24 @@ var (
 		Help: "Failed sync envelope applications.",
 	}, []string{"entity_type"})
 
+	// SyncEnvelopeRejected counts envelopes rejected BEFORE apply for
+	// integrity / authorization reasons. Distinct from SyncEnvelopeFailed,
+	// which covers apply-time DB errors on envelopes we believed were
+	// legitimate. Reasons currently emitted:
+	//
+	//   tenant_mismatch — env.TenantID did not match the tenant segment
+	//                     of the NATS subject it arrived on (cross-tenant
+	//                     replay attempt or publisher bug).
+	//   bad_checksum    — SHA-256 fingerprint mismatch (payload tampered
+	//                     or corrupted in transit).
+	//
+	// Phase 4.3 HMAC signing will add sig_missing / sig_bad_alg /
+	// sig_unknown_kid / bad_signature reasons on top of this counter.
+	SyncEnvelopeRejected = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "cmdb_sync_envelope_rejected_total",
+		Help: "Sync envelopes rejected before apply (tenant_mismatch|bad_checksum|...).",
+	}, []string{"entity_type", "reason"})
+
 	SyncReconciliationRuns = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "cmdb_sync_reconciliation_runs_total",
 		Help: "Total reconciliation job executions.",
