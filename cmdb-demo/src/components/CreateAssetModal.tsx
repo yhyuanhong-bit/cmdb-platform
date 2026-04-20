@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useCreateAsset } from '../hooks/useAssets'
+import { Modal } from './ui/Modal'
 
 interface Props {
   open: boolean
@@ -30,13 +31,10 @@ export default function CreateAssetModal({ open, onClose }: Props) {
   const [formData, setFormData] = useState({ ...initial })
   const mutation = useCreateAsset()
 
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[#1a1f2e] p-6 rounded-xl w-[28rem] space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-white">{t('asset_modal.title')}</h3>
-
+    <Modal open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      <Modal.Header title={t('asset_modal.title')} onClose={onClose} />
+      <Modal.Body>
         <div>
           <label className="block text-sm text-gray-400 mb-1">{t('asset_modal.asset_tag_label')} *</label>
           <input value={formData.asset_tag} onChange={e => setFormData(p => ({ ...p, asset_tag: e.target.value }))}
@@ -163,27 +161,26 @@ export default function CreateAssetModal({ open, onClose }: Props) {
             </div>
           </div>
         </div>
-
-        <div className="flex gap-2 justify-end pt-2">
-          <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('asset_modal.btn_cancel')}</button>
-          <button
-            onClick={() => mutation.mutate(formData, {
-              onSuccess: () => { onClose(); setFormData({ ...initial }) },
-              onError: (err: unknown) => {
-                const code = err !== null && typeof err === 'object' && 'code' in err ? (err as { code: unknown }).code : undefined
-                if (code === 'DUPLICATE') {
-                  toast.error('An asset with this asset tag already exists')
-                } else {
-                  toast.error('Failed to create asset')
-                }
-              },
-            })}
-            disabled={mutation.isPending || !formData.asset_tag || !formData.name}
-            className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
-            {mutation.isPending ? t('asset_modal.btn_creating') : t('asset_modal.btn_create')}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('asset_modal.btn_cancel')}</button>
+        <button
+          onClick={() => mutation.mutate(formData, {
+            onSuccess: () => { onClose(); setFormData({ ...initial }) },
+            onError: (err: unknown) => {
+              const code = err !== null && typeof err === 'object' && 'code' in err ? (err as { code: unknown }).code : undefined
+              if (code === 'DUPLICATE') {
+                toast.error('An asset with this asset tag already exists')
+              } else {
+                toast.error('Failed to create asset')
+              }
+            },
+          })}
+          disabled={mutation.isPending || !formData.asset_tag || !formData.name}
+          className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
+          {mutation.isPending ? t('asset_modal.btn_creating') : t('asset_modal.btn_create')}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
