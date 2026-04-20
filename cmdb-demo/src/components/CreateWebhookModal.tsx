@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCreateWebhook } from '../hooks/useIntegration'
+import { Modal } from './ui/Modal'
 
 interface Props {
   open: boolean
@@ -32,17 +33,14 @@ export default function CreateWebhookModal({ open, onClose }: Props) {
   const [urlTouched, setUrlTouched] = useState(false)
   const mutation = useCreateWebhook()
 
-  if (!open) return null
-
   const urlError = validateUrl(formData.url)
   const showUrlError = urlTouched && urlError === 'invalid'
   const canSubmit = !mutation.isPending && !!formData.name && urlError === null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[#1a1f2e] p-6 rounded-xl w-[28rem] space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-white">{t('webhook_modal.title')}</h3>
-
+    <Modal open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      <Modal.Header title={t('webhook_modal.title')} onClose={onClose} />
+      <Modal.Body>
         <div>
           <label className="block text-sm text-gray-400 mb-1">{t('webhook_modal.name_label')} *</label>
           <input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
@@ -80,24 +78,23 @@ export default function CreateWebhookModal({ open, onClose }: Props) {
             className="rounded border-gray-700" />
           <label className="text-sm text-gray-400">{t('webhook_modal.enabled_label')}</label>
         </div>
-
-        <div className="flex gap-2 justify-end pt-2">
-          <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('webhook_modal.btn_cancel')}</button>
-          <button
-            onClick={() => {
-              setUrlTouched(true)
-              if (!canSubmit) return
-              mutation.mutate(
-                { ...formData, events: formData.events.split(',').map(s => s.trim()).filter(Boolean) },
-                { onSuccess: () => { onClose(); setFormData({ ...initial }); setUrlTouched(false) } }
-              )
-            }}
-            disabled={!canSubmit}
-            className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
-            {mutation.isPending ? t('webhook_modal.btn_creating') : t('webhook_modal.btn_create')}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('webhook_modal.btn_cancel')}</button>
+        <button
+          onClick={() => {
+            setUrlTouched(true)
+            if (!canSubmit) return
+            mutation.mutate(
+              { ...formData, events: formData.events.split(',').map(s => s.trim()).filter(Boolean) },
+              { onSuccess: () => { onClose(); setFormData({ ...initial }); setUrlTouched(false) } }
+            )
+          }}
+          disabled={!canSubmit}
+          className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
+          {mutation.isPending ? t('webhook_modal.btn_creating') : t('webhook_modal.btn_create')}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
