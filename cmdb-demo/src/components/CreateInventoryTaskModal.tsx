@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCreateInventoryTask } from '../hooks/useInventory'
+import { Modal } from './ui/Modal'
 
 interface Props {
   open: boolean
@@ -20,13 +21,10 @@ export default function CreateInventoryTaskModal({ open, onClose }: Props) {
   const [formData, setFormData] = useState({ ...initial })
   const mutation = useCreateInventoryTask()
 
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[#1a1f2e] p-6 rounded-xl w-[28rem] space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-white">{t('inventory_task_modal.title')}</h3>
-
+    <Modal open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      <Modal.Header title={t('inventory_task_modal.title')} onClose={onClose} />
+      <Modal.Body>
         <div>
           <label className="block text-sm text-gray-400 mb-1">{t('inventory_task_modal.name_label')} *</label>
           <input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
@@ -60,17 +58,16 @@ export default function CreateInventoryTaskModal({ open, onClose }: Props) {
           <input value={formData.scope_location_id} onChange={e => setFormData(p => ({ ...p, scope_location_id: e.target.value }))}
             className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm" placeholder={t('inventory_task_modal.scope_location_placeholder')} />
         </div>
-
-        <div className="flex gap-2 justify-end pt-2">
-          <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('inventory_task_modal.btn_cancel')}</button>
-          <button
-            onClick={() => mutation.mutate(formData, { onSuccess: () => { onClose(); setFormData({ ...initial }) } })}
-            disabled={mutation.isPending || !formData.name}
-            className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
-            {mutation.isPending ? t('inventory_task_modal.btn_creating') : t('inventory_task_modal.btn_create')}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('inventory_task_modal.btn_cancel')}</button>
+        <button
+          onClick={() => mutation.mutate(formData, { onSuccess: () => { onClose(); setFormData({ ...initial }) } })}
+          disabled={mutation.isPending || !formData.name}
+          className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
+          {mutation.isPending ? t('inventory_task_modal.btn_creating') : t('inventory_task_modal.btn_create')}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
