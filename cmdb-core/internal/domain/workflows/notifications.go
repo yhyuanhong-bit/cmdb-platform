@@ -8,8 +8,19 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+)
+
+// Source labels for telemetry.ErrorsSuppressedTotal. One const per
+// module-function pair so the label value cannot drift between call
+// sites and operators see a stable series name in Grafana.
+const (
+	sourceNotifyOrderDone = "workflows.notifications.orderTransitioned"
+	sourceNotifyAlert     = "workflows.notifications.alertFired"
+	sourceNotifyCreate    = "workflows.notifications.createNotification"
+	sourceNotifyInventory = "workflows.notifications.inventoryCompleted"
 )
 
 // orderTransitionPayload is the expected event payload for work order transitions.
@@ -45,10 +56,14 @@ func (w *WorkflowSubscriber) onOrderTransitioned(ctx context.Context, event even
 
 	// 1. If order is linked to an asset with active alerts, auto-resolve them
 	if order.AssetID.Valid {
-		_, resolveErr := w.pool.Exec(ctx,
+		if _, resolveErr := w.pool.Exec(ctx,
 			"UPDATE alert_events SET status = 'resolved', resolved_at = now() WHERE asset_id = $1 AND status = 'firing' AND tenant_id = $2",
-			order.AssetID.Bytes, tenantID)
-		if resolveErr == nil {
+			order.AssetID.Bytes, tenantID,
+		); resolveErr != nil {
+			zap.L().Warn("workflow: auto-resolve alerts failed", zap.Error(resolveErr),
+				zap.String("order_id", payload.OrderID))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceNotifyOrderDone, telemetry.ReasonDBExecFailed).Inc()
+		} else {
 			assetUUID := uuid.UUID(order.AssetID.Bytes)
 			zap.L().Info("workflow: auto-resolved alerts for completed work order",
 				zap.String("order_id", payload.OrderID),
@@ -56,21 +71,36 @@ func (w *WorkflowSubscriber) onOrderTransitioned(ctx context.Context, event even
 		}
 	}
 
-	// 2. If order is linked to an asset, update the asset's updated_at
+	// 2. If order is linked to an asset, update the asset's updated_at.
+	// Timestamp bump is best-effort — a failure just means the sync
+	// stream will pick up the real mutation on the next tick. Still
+	// logged + counted so sustained failures show up as an alert.
 	if order.AssetID.Valid {
-		w.pool.Exec(ctx,
+		if _, err := w.pool.Exec(ctx,
 			"UPDATE assets SET updated_at = now() WHERE id = $1 AND tenant_id = $2",
-			order.AssetID.Bytes, tenantID)
+			order.AssetID.Bytes, tenantID,
+		); err != nil {
+			zap.L().Warn("workflow: asset updated_at bump failed", zap.Error(err),
+				zap.String("order_id", payload.OrderID))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceNotifyOrderDone, telemetry.ReasonDBExecFailed).Inc()
+		}
 	}
 
-	// 3. Notify the creator that the work is completed and needs verification
+	// 3. Notify the creator that the work is completed and needs
+	// verification. createNotification now returns an error so
+	// transient INSERT failures surface instead of vanishing silently.
 	if order.RequestorID.Valid {
 		requestorUUID := uuid.UUID(order.RequestorID.Bytes)
-		w.createNotification(ctx, tenantID, requestorUUID,
+		if err := w.createNotification(ctx, tenantID, requestorUUID,
 			"work_completed",
 			fmt.Sprintf("Work order %s completed", order.Code),
 			fmt.Sprintf("Work order \"%s\" has been completed and is ready for verification.", order.Title),
-			"work_order", orderID)
+			"work_order", orderID,
+		); err != nil {
+			zap.L().Warn("workflow: notify requestor failed", zap.Error(err),
+				zap.String("order_id", payload.OrderID))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceNotifyOrderDone, telemetry.ReasonNotificationFailed).Inc()
+		}
 	}
 
 	return nil
@@ -93,7 +123,7 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 	if tenantID != uuid.Nil {
 		for _, uid := range w.opsAdminUserIDs(ctx, tenantID) {
 			alertID, _ := uuid.Parse(payload.AlertID)
-			w.createNotification(ctx, tenantID, uid,
+			w.warnNotify(ctx, sourceNotifyAlert, tenantID, uid,
 				"alert_fired",
 				fmt.Sprintf("Alert: %s", payload.Message),
 				fmt.Sprintf("A %s alert has been triggered: %s", payload.Severity, payload.Message),
@@ -146,7 +176,14 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 		Description: payload.Message,
 	})
 	if createErr != nil {
-		zap.L().Debug("workflow: emergency WO creation skipped", zap.Error(createErr))
+		// Emergency-WO creation failure used to log at Debug,
+		// hiding the failure behind the default log level so
+		// operators only noticed days later when a real incident
+		// escaped through the same path. Promoted to Warn +
+		// counter so sustained failures become a dashboard signal.
+		zap.L().Warn("workflow: emergency WO creation skipped", zap.Error(createErr),
+			zap.String("asset_id", payload.AssetID))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceNotifyAlert, telemetry.ReasonWOCreationFailed).Inc()
 		return nil
 	}
 
@@ -177,24 +214,70 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 	return nil
 }
 
-func (w *WorkflowSubscriber) createNotification(ctx context.Context, tenantID, userID uuid.UUID, notifType, title, body, resourceType string, resourceID uuid.UUID) {
-	w.pool.Exec(ctx,
+// warnNotify is the background-safe wrapper around createNotification:
+// every auto-check / ticker / event subscriber already swallows per-row
+// errors to keep the outer loop alive, so instead of teaching every
+// call site to handle the new error return, we route them through one
+// place that Warn-logs + counters and drops. Use createNotification
+// directly only when the caller needs to propagate the failure to a
+// user-facing request path (none today).
+func (w *WorkflowSubscriber) warnNotify(
+	ctx context.Context,
+	source string,
+	tenantID, userID uuid.UUID,
+	notifType, title, body, resourceType string,
+	resourceID uuid.UUID,
+) {
+	if err := w.createNotification(ctx, tenantID, userID, notifType, title, body, resourceType, resourceID); err != nil {
+		zap.L().Warn("workflow: createNotification failed",
+			zap.String("source", source),
+			zap.String("notif_type", notifType),
+			zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(source, telemetry.ReasonNotificationFailed).Inc()
+	}
+}
+
+// createNotification inserts a notification row and (best-effort)
+// publishes a WebSocket event. Returns the INSERT error so background
+// callers can Warn + counter and carry on. The publish step is still
+// fire-and-forget — a failed WebSocket broadcast must not stop the DB
+// write from being visible, but we log it so a broken bus is still
+// diagnosable.
+func (w *WorkflowSubscriber) createNotification(
+	ctx context.Context,
+	tenantID, userID uuid.UUID,
+	notifType, title, body, resourceType string,
+	resourceID uuid.UUID,
+) error {
+	if _, err := w.pool.Exec(ctx,
 		"INSERT INTO notifications (tenant_id, user_id, type, title, body, resource_type, resource_id) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-		tenantID, userID, notifType, title, body, resourceType, resourceID)
+		tenantID, userID, notifType, title, body, resourceType, resourceID,
+	); err != nil {
+		return fmt.Errorf("insert notification: %w", err)
+	}
 
 	// Publish for WebSocket delivery
 	if w.bus != nil {
-		payload, _ := json.Marshal(map[string]string{
+		payload, err := json.Marshal(map[string]string{
 			"user_id": userID.String(),
 			"type":    notifType,
 			"title":   title,
 		})
-		w.bus.Publish(ctx, eventbus.Event{
+		if err != nil {
+			zap.L().Warn("createNotification: marshal payload failed", zap.Error(err))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceNotifyCreate, telemetry.ReasonJSONUnmarshal).Inc()
+			return nil
+		}
+		if pubErr := w.bus.Publish(ctx, eventbus.Event{
 			Subject:  eventbus.SubjectNotificationCreated,
 			TenantID: tenantID.String(),
 			Payload:  payload,
-		})
+		}); pubErr != nil {
+			zap.L().Warn("createNotification: bus publish failed", zap.Error(pubErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceNotifyCreate, telemetry.ReasonNotificationFailed).Inc()
+		}
 	}
+	return nil
 }
 
 // opsAdminUserIDs returns user IDs with the ops-admin or super-admin role for a tenant.
@@ -235,7 +318,7 @@ func (w *WorkflowSubscriber) onAssetCreatedNotify(ctx context.Context, event eve
 	}
 
 	for _, uid := range w.opsAdminUserIDs(ctx, tenantID) {
-		w.createNotification(ctx, tenantID, uid,
+		w.warnNotify(ctx, "workflows.notifications.assetCreated", tenantID, uid,
 			"asset_created",
 			fmt.Sprintf("New asset: %s", payload.Name),
 			fmt.Sprintf("A new %s asset \"%s\" has been added to the inventory.", payload.Type, payload.Name),
@@ -268,7 +351,7 @@ func (w *WorkflowSubscriber) onInventoryCompletedNotify(ctx context.Context, eve
 		return nil
 	}
 
-	w.createNotification(ctx, tenantID, assignedTo,
+	w.warnNotify(ctx, sourceNotifyInventory, tenantID, assignedTo,
 		"inventory_completed",
 		fmt.Sprintf("Inventory task %s completed", code),
 		fmt.Sprintf("Inventory task \"%s\" has been completed. Please review the results.", code),
@@ -288,7 +371,12 @@ func (w *WorkflowSubscriber) onInventoryCompletedNotify(ctx context.Context, eve
 			Description: fmt.Sprintf("Inventory task %s completed with %d discrepancies requiring investigation.", code, discrepancyCount),
 		})
 		if woErr != nil {
-			zap.L().Debug("workflow: auto work order for inventory skipped", zap.Error(woErr))
+			// maintenanceSvc.Create failures used to log at Debug,
+			// hiding real failures behind the default log level.
+			// Promoted to Warn + counter so repeated failures show
+			// up in Grafana without having to flip to debug mode.
+			zap.L().Warn("workflow: auto work order for inventory skipped", zap.Error(woErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceNotifyInventory, telemetry.ReasonWOCreationFailed).Inc()
 		} else {
 			zap.L().Info("workflow: auto-created work order for inventory discrepancies",
 				zap.String("task_code", code), zap.Int("discrepancies", discrepancyCount))
@@ -315,7 +403,7 @@ func (w *WorkflowSubscriber) onImportCompletedNotify(ctx context.Context, event 
 
 	// Notify all ops-admins about import completion
 	for _, uid := range w.opsAdminUserIDs(ctx, tenantID) {
-		w.createNotification(ctx, tenantID, uid,
+		w.warnNotify(ctx, "workflows.notifications.importCompleted", tenantID, uid,
 			"import_completed",
 			"Asset import completed",
 			fmt.Sprintf("Import finished: %d created, %d updated, %d errors.", payload.Created, payload.Updated, payload.Errors),
