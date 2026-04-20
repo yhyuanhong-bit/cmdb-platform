@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"go.uber.org/zap"
 
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
@@ -419,10 +420,24 @@ func (s *APIServer) SyncResolveConflict(c *gin.Context, id IdPath) {
 		}
 
 		// Increment sync_version separately; tenant-scoped where applicable.
+		// A failed sync_version bump leaves the row's version behind its
+		// actual data, so downstream pullers will repeatedly re-apply the
+		// remote diff — idempotent but wasteful, and a persistent pattern
+		// means conflict resolution is stuck. Warn so it surfaces.
 		if tablesWithoutTenantID[entityType] {
-			s.pool.Exec(ctx, versionQuery, entityID)
+			if _, err := s.pool.Exec(ctx, versionQuery, entityID); err != nil {
+				zap.L().Warn("sync resolve: version bump failed",
+					zap.String("entity_type", entityType),
+					zap.String("entity_id", fmt.Sprint(entityID)),
+					zap.Error(err))
+			}
 		} else {
-			s.pool.Exec(ctx, versionQuery, entityID, tenantID)
+			if _, err := s.pool.Exec(ctx, versionQuery, entityID, tenantID); err != nil {
+				zap.L().Warn("sync resolve: version bump failed",
+					zap.String("entity_type", entityType),
+					zap.String("entity_id", fmt.Sprint(entityID)),
+					zap.Error(err))
+			}
 		}
 	}
 

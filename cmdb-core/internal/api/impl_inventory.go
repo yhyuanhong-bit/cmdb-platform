@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"go.uber.org/zap"
 )
 
 // ---------------------------------------------------------------------------
@@ -201,10 +202,19 @@ func (s *APIServer) ScanInventoryItem(c *gin.Context, id IdPath, itemId openapi_
 	// Auto-activate task if still planned. Tenant-scoped: a cross-tenant
 	// item.id (if one ever leaked here) must not be able to flip another
 	// tenant's task status.
+	//
+	// A failed UPDATE here is non-fatal for the scan response — the
+	// item itself already scanned. But we must not drop the error
+	// silently: a broken inventory_tasks table means every future
+	// scan will keep the task stuck in 'planned'. Log so it shows up.
 	taskID := uuid.UUID(id)
-	s.pool.Exec(ctx,
+	if _, err := s.pool.Exec(ctx,
 		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND tenant_id = $2 AND status = 'planned'",
-		taskID, tenantIDFromContext(c))
+		taskID, tenantIDFromContext(c),
+	); err != nil {
+		zap.L().Warn("inventory: auto-activate task failed",
+			zap.String("task_id", taskID.String()), zap.Error(err))
+	}
 
 	s.recordAudit(c, "item.scanned", "inventory", "inventory_item", uuid.UUID(itemId), map[string]any{
 		"status": req.Status,

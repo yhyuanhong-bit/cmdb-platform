@@ -189,7 +189,16 @@ func (s *APIServer) GetAssetLifecycle(c *gin.Context, id IdPath) {
 		}
 
 		var diffMap map[string]any
-		json.Unmarshal(diffBytes, &diffMap)
+		// The audit diff is opaque JSONB built from trusted internal
+		// code paths, but a broken row would previously have produced
+		// a silent unlabeled timeline entry. Log the parse failure so
+		// a corrupted audit row is visible; leave diffMap nil and let
+		// the switch below fall through to its default "Asset event"
+		// branch so the timeline still renders something.
+		if err := json.Unmarshal(diffBytes, &diffMap); err != nil {
+			zap.L().Warn("lifecycle: audit diff parse failed",
+				zap.String("action", action), zap.Error(err))
+		}
 
 		switch action {
 		case "asset.created":
