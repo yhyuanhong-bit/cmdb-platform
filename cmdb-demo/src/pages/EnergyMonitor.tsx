@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useMetrics } from '../hooks/useMetrics'
 import { useLocationContext } from '../contexts/LocationContext'
 import { apiClient } from '../lib/api/client'
-import { FALLBACK_POWER_TREND, RACK_HEATMAP, POWER_EVENTS, FALLBACK_BOTTOM_STATS, FALLBACK_CARBON_MT, FALLBACK_PEAK_MW, FALLBACK_LOAD_PCT } from '../data/fallbacks/energy'
+import EmptyState from '../components/EmptyState'
 
 /* ------------------------------------------------------------------ */
 /*  Shared helpers                                                     */
@@ -57,12 +57,6 @@ const CATEGORY_ICON: Record<string, string> = {
 /* ------------------------------------------------------------------ */
 /*  Power Load View Data                                               */
 /* ------------------------------------------------------------------ */
-
-const severityConfig: Record<string, { icon: string; color: string }> = {
-  error: { icon: 'error', color: 'text-[#ffb4ab]' },
-  warning: { icon: 'warning', color: 'text-orange-400' },
-  info: { icon: 'info', color: 'text-[#9ecaff]' },
-}
 
 const donutSegments = [
   { label: 'Tier 1 Critical', i18nKey: 'power_load.tier_1_critical', value: 840, color: '#ffb4ab' },
@@ -252,25 +246,26 @@ function FacilityView({
     Monthly: MONTHLY_BARS,
   }
 
-  // Derive facility load — prefer summary API, then fall back to metrics
+  // Derive facility load — prefer summary API, then fall back to metrics. No
+  // fabricated fallback: if neither is available the UI shows an em-dash.
   const totalKw = summaryData?.total_kw ?? breakdownData?.total_kw
   const currentLoad = totalKw != null
     ? totalKw.toLocaleString(undefined, { maximumFractionDigits: 1 })
     : powerData.length > 0
       ? (powerData[powerData.length - 1].value * 1000).toFixed(1)
-      : '1,248.4'
+      : null
   const capacityPct = totalKw != null
     ? Math.round((totalKw / 1680) * 100)
     : powerData.length > 0
       ? Math.round((powerData[powerData.length - 1].value / 1.68) * 100)
-      : FALLBACK_LOAD_PCT
+      : null
 
-  // Summary stats
+  // Summary stats. Null when neither the summary API nor metrics provide data.
   const displayPUE = summaryData?.pue ?? latestPUE
-  const carbonMT = summaryData?.carbon_mt_monthly ?? FALLBACK_CARBON_MT
-  const peakMW = summaryData?.peak_kw != null ? (summaryData.peak_kw / 1000).toFixed(2) : FALLBACK_PEAK_MW
+  const carbonMT = summaryData?.carbon_mt_monthly ?? null
+  const peakMW = summaryData?.peak_kw != null ? (summaryData.peak_kw / 1000).toFixed(2) : null
 
-  // Bottom stats: from API breakdown categories, or fallback defaults
+  // Bottom stats derived strictly from /power/breakdown categories.
   const bottomStats: { label: string; value: string; icon: string; pct: number }[] =
     breakdownData?.categories && breakdownData.categories.length > 0
       ? breakdownData.categories.map((cat) => ({
@@ -279,7 +274,7 @@ function FacilityView({
           icon: CATEGORY_ICON[cat.name] ?? 'electric_bolt',
           pct: cat.pct,
         }))
-      : FALLBACK_BOTTOM_STATS(t)
+      : []
 
   return (
     <>
@@ -294,7 +289,7 @@ function FacilityView({
                 {t('facility_energy.current_facility_load')}
               </span>
               <p className="font-headline text-5xl font-bold text-on-surface mt-1">
-                {isLoading ? '---' : currentLoad} <span className="text-2xl text-on-surface-variant">kW</span>
+                {isLoading ? '---' : (currentLoad ?? '—')} <span className="text-2xl text-on-surface-variant">kW</span>
               </p>
               <div className="mt-5 space-y-3">
                 <div className="flex items-center gap-3">
@@ -311,7 +306,7 @@ function FacilityView({
             </div>
             {/* Donut */}
             <div className="flex flex-col items-center">
-              <CapacityDonut pct={capacityPct} t={t} />
+              <CapacityDonut pct={capacityPct ?? 0} t={t} />
               <span className="mt-2 text-[10px] uppercase tracking-wider text-on-surface-variant">
                 {t('facility_energy.of_rated_capacity')}
               </span>
@@ -339,7 +334,7 @@ function FacilityView({
               </span>
             </div>
             <p className="mt-2 font-headline text-3xl font-bold text-on-surface">
-              {carbonMT} <span className="text-lg text-on-surface-variant">MT</span>
+              {carbonMT ?? '—'} <span className="text-lg text-on-surface-variant">MT</span>
             </p>
             <span className="text-[10px] text-on-surface-variant">{t('facility_energy.monthly_co2_equivalent')}</span>
           </div>
@@ -351,9 +346,11 @@ function FacilityView({
               </span>
             </div>
             <p className="mt-2 font-headline text-3xl font-bold text-on-surface">
-              {peakMW} <span className="text-lg text-on-surface-variant">MW</span>
+              {peakMW ?? '—'} <span className="text-lg text-on-surface-variant">MW</span>
             </p>
-            <span className="text-[10px] text-on-surface-variant">{t('facility_energy.recorded_date', { date: '2026-01-14' })}</span>
+            {/* TODO(phase-3.10): surface the actual peak-recorded date from the
+                /power/summary endpoint once the backend exposes it. */}
+            <span className="text-[10px] text-on-surface-variant">{t('facility_energy.monthly_co2_equivalent')}</span>
           </div>
         </div>
       </div>
@@ -380,26 +377,38 @@ function FacilityView({
       </Section>
 
       {/* Bottom stat cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {bottomStats.map((stat) => (
-          <div key={stat.label} className="rounded-lg bg-surface-container p-5">
-            <div className="mb-1 flex items-center gap-2 text-on-surface-variant">
-              <IconSpan name={stat.icon} className="text-lg" />
-              <span className="text-xs font-medium uppercase tracking-wider">{stat.label}</span>
-            </div>
-            <p className="font-headline text-2xl font-bold text-on-surface">{stat.value}</p>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="h-1.5 flex-1 rounded-full bg-surface-container-low">
-                <div
-                  className="h-1.5 rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${stat.pct}%` }}
-                />
+      {bottomStats.length === 0 ? (
+        <div className="rounded-lg bg-surface-container p-5">
+          <EmptyState
+            icon="electric_bolt"
+            title={t('common.empty_no_data_title')}
+            description={t('common.empty_no_data_desc')}
+            tone="neutral"
+            compact
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {bottomStats.map((stat) => (
+            <div key={stat.label} className="rounded-lg bg-surface-container p-5">
+              <div className="mb-1 flex items-center gap-2 text-on-surface-variant">
+                <IconSpan name={stat.icon} className="text-lg" />
+                <span className="text-xs font-medium uppercase tracking-wider">{stat.label}</span>
               </div>
-              <span className="shrink-0 text-[10px] font-semibold text-on-surface-variant">{stat.pct}%</span>
+              <p className="font-headline text-2xl font-bold text-on-surface">{stat.value}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-1.5 flex-1 rounded-full bg-surface-container-low">
+                  <div
+                    className="h-1.5 rounded-full bg-primary transition-all duration-500"
+                    style={{ width: `${stat.pct}%` }}
+                  />
+                </div>
+                <span className="shrink-0 text-[10px] font-semibold text-on-surface-variant">{stat.pct}%</span>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </>
   )
 }
@@ -433,6 +442,8 @@ function PowerLoadView({
   // Map API trend points to the chart data shape expected by buildAreaPath.
   // The API returns total_kw per hour; we treat it as "process" and derive a
   // lighting estimate (~15% of total) so the dual-series chart remains useful.
+  // Returns empty array when no real trend exists — caller renders an empty
+  // state instead of a 24-point fabricated curve.
   const powerTrendData = useMemo(() => {
     if (trendPoints.length > 0) {
       return trendPoints.map((p) => {
@@ -442,11 +453,18 @@ function PowerLoadView({
         return { time: label, process, lighting }
       })
     }
-    return FALLBACK_POWER_TREND
+    return []
   }, [trendPoints])
 
-  const processPath = buildAreaPath(powerTrendData, 'process', maxY, chartW, chartH, padX, padY)
-  const lightingPath = buildAreaPath(powerTrendData, 'lighting', maxY, chartW, chartH, padX, padY)
+  // Only build SVG paths when there is enough data (buildAreaPath divides by
+  // data.length - 1, so we need at least 2 points).
+  const hasPowerTrend = powerTrendData.length >= 2
+  const processPath = hasPowerTrend
+    ? buildAreaPath(powerTrendData, 'process', maxY, chartW, chartH, padX, padY)
+    : null
+  const lightingPath = hasPowerTrend
+    ? buildAreaPath(powerTrendData, 'lighting', maxY, chartW, chartH, padX, padY)
+    : null
 
   const donutTotal = donutSegments.reduce((s, d) => s + d.value, 0)
   let donutOffset = 0
@@ -460,14 +478,14 @@ function PowerLoadView({
           <p className="mt-2 font-headline text-3xl font-bold text-on-surface">
             {summaryData?.total_kw != null
               ? summaryData.total_kw.toLocaleString(undefined, { maximumFractionDigits: 1 })
-              : '1,248.5'}
+              : '—'}
           </p>
           <p className="mt-1 text-xs text-on-surface-variant">{t('power_load.instant_peak_note')}</p>
         </div>
         <div className="rounded-lg bg-surface-container p-5">
           <p className="text-xs uppercase tracking-wider text-on-surface-variant">{t('power_load.stat_pue_index')}</p>
           <p className="mt-2 font-headline text-3xl font-bold text-[#34d399]">
-            {summaryData?.pue != null ? summaryData.pue.toFixed(2) : '1.24'}
+            {summaryData?.pue != null ? summaryData.pue.toFixed(2) : '—'}
           </p>
           <p className="mt-1 text-xs text-on-surface-variant">{t('power_load.efficient_ratio_note')}</p>
         </div>
@@ -476,14 +494,16 @@ function PowerLoadView({
           <p className="mt-2 font-headline text-3xl font-bold text-on-surface">
             {summaryData?.peak_kw != null
               ? summaryData.peak_kw.toLocaleString(undefined, { maximumFractionDigits: 1 })
-              : '1,412.0'}
+              : '—'}
           </p>
           <p className="mt-1 text-xs text-on-surface-variant">kW</p>
         </div>
         <div className="rounded-lg bg-surface-container p-5">
           <p className="text-xs uppercase tracking-wider text-on-surface-variant">{t('power_load.stat_ups_autonomy')}</p>
-          <p className="mt-2 font-headline text-3xl font-bold text-primary">42</p>
-          <p className="mt-1 text-xs text-on-surface-variant">min</p>
+          {/* TODO(phase-3.10): wire up GET /power/ups-autonomy when the
+              backend endpoint is available. Previously hardcoded "42 min". */}
+          <p className="mt-2 font-headline text-3xl font-bold text-primary">—</p>
+          <p className="mt-1 text-xs text-on-surface-variant">{t('common.coming_soon')}</p>
         </div>
       </div>
 
@@ -502,31 +522,41 @@ function PowerLoadView({
               </span>
             </div>
           </div>
-          <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full">
-            {/* Grid lines */}
-            {[0, 300, 600, 900, 1200, 1500].map((v) => {
-              const y = padY + drawH - (v / maxY) * drawH
-              return (
-                <g key={v}>
-                  <line x1={padX} y1={y} x2={chartW - padX} y2={y} stroke="#202b32" strokeWidth="1" />
-                  <text x={padX - 8} y={y + 4} textAnchor="end" fill="#8e9196" fontSize="9">{v}</text>
-                </g>
-              )
-            })}
-            {/* Time labels */}
-            {powerTrendData.map((d, i) => {
-              const x = padX + (i / (powerTrendData.length - 1)) * drawW
-              return i % 2 === 0 ? (
-                <text key={d.time} x={x} y={chartH - 2} textAnchor="middle" fill="#8e9196" fontSize="9">{d.time}</text>
-              ) : null
-            })}
-            {/* Process area */}
-            <path d={processPath.area} fill="rgba(158,202,255,0.15)" />
-            <path d={processPath.line} fill="none" stroke="#9ecaff" strokeWidth="2" />
-            {/* Lighting area */}
-            <path d={lightingPath.area} fill="rgba(255,181,160,0.15)" />
-            <path d={lightingPath.line} fill="none" stroke="#ffb5a0" strokeWidth="2" />
-          </svg>
+          {hasPowerTrend && processPath && lightingPath ? (
+            <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full">
+              {/* Grid lines */}
+              {[0, 300, 600, 900, 1200, 1500].map((v) => {
+                const y = padY + drawH - (v / maxY) * drawH
+                return (
+                  <g key={v}>
+                    <line x1={padX} y1={y} x2={chartW - padX} y2={y} stroke="#202b32" strokeWidth="1" />
+                    <text x={padX - 8} y={y + 4} textAnchor="end" fill="#8e9196" fontSize="9">{v}</text>
+                  </g>
+                )
+              })}
+              {/* Time labels */}
+              {powerTrendData.map((d, i) => {
+                const x = padX + (i / (powerTrendData.length - 1)) * drawW
+                return i % 2 === 0 ? (
+                  <text key={d.time} x={x} y={chartH - 2} textAnchor="middle" fill="#8e9196" fontSize="9">{d.time}</text>
+                ) : null
+              })}
+              {/* Process area */}
+              <path d={processPath.area} fill="rgba(158,202,255,0.15)" />
+              <path d={processPath.line} fill="none" stroke="#9ecaff" strokeWidth="2" />
+              {/* Lighting area */}
+              <path d={lightingPath.area} fill="rgba(255,181,160,0.15)" />
+              <path d={lightingPath.line} fill="none" stroke="#ffb5a0" strokeWidth="2" />
+            </svg>
+          ) : (
+            <EmptyState
+              icon="timeline"
+              title={t('common.empty_awaiting_signal_title')}
+              description={t('common.empty_awaiting_signal_desc')}
+              tone="info"
+              compact
+            />
+          )}
         </div>
 
         {/* Donut Chart */}
@@ -575,54 +605,30 @@ function PowerLoadView({
       {/* Rack Heatmap */}
       <div className="rounded-lg bg-surface-container p-5">
         <h3 className="mb-3 font-headline text-sm font-bold text-on-surface">{t('power_load.section_rack_heatmap')}</h3>
-        <div className="grid grid-cols-4 gap-2">
-          {RACK_HEATMAP.map(([name, intensity]) => {
-            const r = Math.round(255 * (intensity as number))
-            const g = Math.round(180 * (1 - (intensity as number)) + 75)
-            const b = Math.round(100 * (1 - (intensity as number)) + 50)
-            return (
-              <div
-                key={name}
-                className="flex h-16 items-center justify-center rounded"
-                style={{ backgroundColor: `rgba(${r}, ${g}, ${b}, 0.35)` }}
-              >
-                <div className="text-center">
-                  <p className="text-xs font-semibold text-on-surface">{name}</p>
-                  <p className="text-xs text-on-surface-variant">{((intensity as number) * 1248.5 / RACK_HEATMAP.length).toFixed(0)} kW</p>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        <div className="mt-2 flex items-center gap-2 text-xs text-on-surface-variant">
-          <span>{t('power_load.heatmap_low')}</span>
-          <div className="h-2 flex-1 rounded-full bg-gradient-to-r from-[#9ecaff]/30 via-orange-400/50 to-[#ffb4ab]/80" />
-          <span>{t('power_load.heatmap_high')}</span>
-        </div>
+        {/* TODO(phase-3.10): wire up GET /power/racks/heatmap when the backend
+            endpoint ships. Previously rendered a 12-cell fabricated grid. */}
+        <EmptyState
+          icon="view_module"
+          title={t('common.empty_not_wired_title')}
+          description={t('common.empty_not_wired_desc')}
+          tone="neutral"
+          compact
+        />
       </div>
 
       {/* Power Events Table */}
       <div className="rounded-lg bg-surface-container p-5">
         <h3 className="mb-4 font-headline text-sm font-bold text-on-surface">{t('power_load.section_power_events')}</h3>
-        <div className="space-y-2">
-          {POWER_EVENTS.map((ev, i) => {
-            const sev = severityConfig[ev.severity]
-            return (
-              <div key={i} className="flex items-center justify-between rounded bg-surface-container-low px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className={`material-symbols-outlined text-lg ${sev.color}`}>{sev.icon}</span>
-                  <div>
-                    <p className="text-sm font-medium text-on-surface">{t(ev.titleKey)}</p>
-                    <p className="text-xs text-on-surface-variant">
-                      {ev.location} &mdash; {t(ev.descKey)}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs text-on-surface-variant">{ev.time}</span>
-              </div>
-            )
-          })}
-        </div>
+        {/* TODO(phase-3.10): wire up GET /power/events when the backend event
+            stream endpoint ships. Previously rendered a static list of
+            fabricated severity-tagged rows. */}
+        <EmptyState
+          icon="event_note"
+          title={t('common.empty_not_wired_title')}
+          description={t('common.empty_not_wired_desc')}
+          tone="neutral"
+          compact
+        />
       </div>
     </>
   )
@@ -678,7 +684,6 @@ function EnergyMonitor() {
   const td = trendRaw as Record<string, unknown> | undefined
   const trendPoints: TrendPoint[] = (td?.trend as TrendPoint[] | undefined) ?? []
   const hasError = trendError
-  const isUsingFallback = !breakdownData && !summaryData && trendPoints.length === 0
 
   // locationId used for future location-scoped queries
   void locationId
@@ -717,9 +722,6 @@ function EnergyMonitor() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="font-headline text-2xl font-bold text-on-surface">
           {t('facility_energy.title_zh')} / {t('facility_energy.title_en')}
-          {isUsingFallback && (
-            <span className="ml-3 text-xs bg-tertiary-container text-tertiary px-2 py-0.5 rounded font-bold tracking-wider align-middle">DEMO</span>
-          )}
         </h1>
         <div className="flex bg-surface-container-low rounded overflow-hidden">
           <button
