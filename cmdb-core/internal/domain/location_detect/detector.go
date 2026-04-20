@@ -7,9 +7,16 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
+
+// Source label for telemetry.ErrorsSuppressedTotal on the auto-close
+// relocation path. A failed UPDATE or log INSERT here means the WO
+// status got out of sync with the detected physical move — surface
+// it to the dashboard instead of losing it.
+const sourceLocationAutoClose = "location_detect.auto_close_relocation"
 
 // StartPeriodicDetection runs location detection every 5 minutes.
 func (s *Service) StartPeriodicDetection(ctx context.Context, tenantID uuid.UUID) {
@@ -123,26 +130,50 @@ func (s *Service) autoConfirmRelocation(ctx context.Context, tenantID uuid.UUID,
 		})
 	}
 
-	// Auto-close matching relocation work orders
-	rows, _ := s.pool.Query(ctx,
+	// Auto-close matching relocation work orders. A failure on the
+	// probe query is surfaced via Warn + counter instead of the bare
+	// `_` discard — a broken work_orders table used to be invisible
+	// here, and the auto-close pipeline would silently stop.
+	rows, err := s.pool.Query(ctx,
 		`SELECT id FROM work_orders
 		 WHERE asset_id = $1 AND type = 'relocation'
 		 AND status NOT IN ('completed','verified','rejected')
 		 AND tenant_id = $2 AND deleted_at IS NULL`,
 		d.AssetID, tenantID)
-	if rows != nil {
+	if err != nil {
+		zap.L().Warn("auto-close relocation: query failed",
+			zap.String("asset_id", d.AssetID.String()), zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceLocationAutoClose, telemetry.ReasonDBQueryFailed).Inc()
+	} else {
 		defer rows.Close()
 		for rows.Next() {
 			var woID uuid.UUID
-			if rows.Scan(&woID) == nil {
-				s.pool.Exec(ctx,
-					"UPDATE work_orders SET status = 'completed', actual_end = now(), sync_version = sync_version + 1 WHERE id = $1",
-					woID)
-				s.pool.Exec(ctx,
-					"INSERT INTO work_order_logs (order_id, action, from_status, to_status) VALUES ($1, 'auto_completed_by_location_detect', $2, 'completed')",
-					woID, "in_progress")
-				zap.L().Info("auto-closed relocation work order", zap.String("order_id", woID.String()))
+			if scanErr := rows.Scan(&woID); scanErr != nil {
+				zap.L().Warn("auto-close relocation: row scan failed", zap.Error(scanErr))
+				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceLocationAutoClose, telemetry.ReasonRowScanFailed).Inc()
+				continue
 			}
+			if _, updErr := s.pool.Exec(ctx,
+				"UPDATE work_orders SET status = 'completed', actual_end = now(), sync_version = sync_version + 1 WHERE id = $1",
+				woID,
+			); updErr != nil {
+				zap.L().Warn("auto-close relocation: update failed",
+					zap.String("order_id", woID.String()), zap.Error(updErr))
+				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceLocationAutoClose, telemetry.ReasonDBExecFailed).Inc()
+				// Skip the log INSERT — if the state didn't flip,
+				// emitting a "completed" audit row would be a lie.
+				continue
+			}
+			if _, logErr := s.pool.Exec(ctx,
+				"INSERT INTO work_order_logs (order_id, action, from_status, to_status) VALUES ($1, 'auto_completed_by_location_detect', $2, 'completed')",
+				woID, "in_progress",
+			); logErr != nil {
+				zap.L().Warn("auto-close relocation: log insert failed",
+					zap.String("order_id", woID.String()), zap.Error(logErr))
+				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceLocationAutoClose, telemetry.ReasonDBExecFailed).Inc()
+				// The state change above still landed; carry on.
+			}
+			zap.L().Info("auto-closed relocation work order", zap.String("order_id", woID.String()))
 		}
 	}
 
