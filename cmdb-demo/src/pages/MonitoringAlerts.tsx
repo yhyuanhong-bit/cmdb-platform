@@ -1,12 +1,20 @@
 import { toast } from 'sonner'
-import { memo, useState } from "react";
+import { memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import Icon from "../components/Icon";
 import StatusBadge from "../components/StatusBadge";
 import { useAlerts, useAcknowledgeAlert, useResolveAlert } from "../hooks/useMonitoring";
+import { useUrlState } from "../hooks/useUrlState";
 import { apiClient } from "../lib/api/client";
+
+// URL-persisted list state for Monitoring Alerts: search, severity filter, page.
+const alertsListDefaults = {
+  search: "",
+  severity: "all",
+  page: 1,
+}
 
 const SEVERITY_COLORS: Record<string, string> = {
   CRITICAL: "bg-red-900/50 text-error",
@@ -59,9 +67,8 @@ function SummaryCard({
 function MonitoringAlerts() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [severity, setSeverity] = useState("all");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [urlState, setUrlState] = useUrlState('alerts', alertsListDefaults);
+  const { search, severity, page: currentPage } = urlState;
 
   const filterParams: Record<string, string> = {};
   if (severity !== "all") filterParams.severity = severity;
@@ -130,14 +137,14 @@ function MonitoringAlerts() {
             type="text"
             placeholder={t('monitoring.search_placeholder')}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setUrlState({ search: e.target.value, page: 1 })}
             className="w-full rounded-lg bg-surface-container py-2.5 pl-10 pr-4 text-sm text-on-surface placeholder-on-surface-variant/50 outline-none focus:ring-1 focus:ring-primary/40"
           />
         </div>
 
         <select
           value={severity}
-          onChange={(e) => setSeverity(e.target.value)}
+          onChange={(e) => setUrlState({ severity: e.target.value, page: 1 })}
           className="rounded-lg bg-surface-container px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary/40"
         >
           <option value="all">{t('monitoring.all_severities')}</option>
@@ -305,7 +312,7 @@ function MonitoringAlerts() {
               <button
                 type="button"
                 disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                onClick={() => setUrlState({ page: Math.max(1, currentPage - 1) })}
                 className="rounded p-1.5 transition-colors hover:bg-surface-container-high disabled:opacity-30"
               >
                 <Icon name="chevron_left" className="text-lg" />
@@ -314,7 +321,7 @@ function MonitoringAlerts() {
                 <button
                   key={p}
                   type="button"
-                  onClick={() => setCurrentPage(p)}
+                  onClick={() => setUrlState({ page: p })}
                   className={`h-8 w-8 rounded text-sm font-semibold transition-colors ${
                     currentPage === p
                       ? "bg-primary text-on-primary-container"
@@ -327,7 +334,7 @@ function MonitoringAlerts() {
               <button
                 type="button"
                 disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => setUrlState({ page: Math.min(totalPages, currentPage + 1) })}
                 className="rounded p-1.5 transition-colors hover:bg-surface-container-high disabled:opacity-30"
               >
                 <Icon name="chevron_right" className="text-lg" />
