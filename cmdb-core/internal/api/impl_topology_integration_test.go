@@ -17,7 +17,7 @@ import (
 )
 
 // Post-sqlc migration coverage for the asset_dependencies handlers on
-// topology_endpoints.go. The asset_dependencies table has a first-class
+// impl_topology.go. The asset_dependencies table has a first-class
 // tenant_id column; these tests verify that:
 //
 //  1. ListAssetDependencies never returns rows belonging to another

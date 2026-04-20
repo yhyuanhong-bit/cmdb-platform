@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Tests here cover the pre-DB validation paths in sync_endpoints.go.
+// Tests here cover the pre-DB validation paths in impl_sync.go.
 // These are the security-critical guards: the allowlist protecting
 // dynamic SQL from injection, and input sanitization for conflict
 // resolution. DB-path tests are out of scope (require integration env).

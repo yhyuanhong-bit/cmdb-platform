@@ -323,7 +323,7 @@ func TestGetCurrentUser_ServiceError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// ChangePassword (session_endpoints.go)
+// ChangePassword (impl_sessions.go)
 // ---------------------------------------------------------------------------
 
 func TestChangePassword_Success(t *testing.T) {

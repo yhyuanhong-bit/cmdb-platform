@@ -24,7 +24,7 @@ import (
 //   - POST /inventory/tasks/:id/complete          (impl_inventory.go CompleteInventoryTask)
 //   - POST /inventory/tasks/:id/items/:itemId/scan     (impl_inventory.go:199 auto-activate)
 //   - POST /inventory/tasks/:id/import                 (impl_inventory.go:311 auto-activate, inside tx)
-//   - POST /inventory/tasks/:id/items/:itemId/resolve  (inventory_resolve_endpoint.go:74 auto-activate)
+//   - POST /inventory/tasks/:id/items/:itemId/resolve  (impl_inventory.go:434 auto-activate)
 //
 // The common vulnerability shape was `UPDATE inventory_tasks SET status=...
 // WHERE id = $1 [AND status = 'planned']` — missing `AND tenant_id = $2`,
@@ -310,7 +310,7 @@ func TestInventoryTenantIsolation_ImportInventoryItems_AutoActivate(t *testing.T
 }
 
 // ---------------------------------------------------------------------------
-// ResolveInventoryDiscrepancy auto-activate — inventory_resolve_endpoint.go:74
+// ResolveInventoryDiscrepancy auto-activate — impl_inventory.go:434
 // ---------------------------------------------------------------------------
 
 func TestInventoryTenantIsolation_ResolveInventoryDiscrepancy_AutoActivate(t *testing.T) {

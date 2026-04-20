@@ -15,7 +15,7 @@ import (
 )
 
 // These tests are regressions for four cross-tenant IDOR vulnerabilities
-// discovered in prediction_endpoints.go and topology_endpoints.go where
+// discovered in impl_prediction_upgrades.go and impl_topology.go where
 // the WHERE clause matched on id without also filtering by tenant_id.
 //
 // Run with:
@@ -83,7 +83,7 @@ func newCtxAsTenant(t *testing.T, method, target string, tenantID uuid.UUID) (*g
 }
 
 // ---------------------------------------------------------------------------
-// GetAssetRUL — prediction_endpoints.go:51
+// GetAssetRUL — impl_prediction_upgrades.go:39
 // ---------------------------------------------------------------------------
 
 func TestTenantIsolation_GetAssetRUL_BlocksCrossTenant(t *testing.T) {
@@ -104,7 +104,7 @@ func TestTenantIsolation_GetAssetRUL_BlocksCrossTenant(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// UpdateUpgradeRule — prediction_endpoints.go:687
+// UpdateUpgradeRule — impl_prediction_upgrades.go:668
 // ---------------------------------------------------------------------------
 
 func TestTenantIsolation_UpdateUpgradeRule_BlocksCrossTenant(t *testing.T) {
@@ -155,7 +155,7 @@ func TestTenantIsolation_UpdateUpgradeRule_BlocksCrossTenant(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// DeleteUpgradeRule — prediction_endpoints.go:700
+// DeleteUpgradeRule — impl_prediction_upgrades.go:704
 // ---------------------------------------------------------------------------
 
 func TestTenantIsolation_DeleteUpgradeRule_BlocksCrossTenant(t *testing.T) {
@@ -196,7 +196,7 @@ func TestTenantIsolation_DeleteUpgradeRule_BlocksCrossTenant(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// DeleteAssetDependency — topology_endpoints.go:119
+// DeleteAssetDependency — impl_topology.go:115
 // ---------------------------------------------------------------------------
 
 func TestTenantIsolation_DeleteAssetDependency_BlocksCrossTenant(t *testing.T) {
