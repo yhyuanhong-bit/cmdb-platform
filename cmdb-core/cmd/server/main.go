@@ -486,11 +486,6 @@ func main() {
 	// Register all API routes via generated handler
 	api.RegisterHandlers(v1, apiServer)
 
-	// POST /auth/logout — registered manually because the OpenAPI spec has
-	// not been regenerated yet for this endpoint. Goes through the same
-	// auth chain as every other v1 route (auth -> RBAC -> handler).
-	v1.POST("/auth/logout", apiServer.Logout)
-
 	// One-time data migration: draft/pending → submitted (admin-only, not in spec).
 	// Discarding the UPDATE error used to let a broken work_orders
 	// table report a fake 200 — the caller would think the one-time
