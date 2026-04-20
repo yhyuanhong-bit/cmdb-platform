@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	location_detect "github.com/cmdb-platform/cmdb-core/internal/domain/location_detect"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
@@ -54,9 +55,10 @@ func (s *APIServer) LocationDetectGetSummary(c *gin.Context) {
 		"SELECT count(*) FROM mac_address_cache WHERE tenant_id = $1 AND asset_id IS NOT NULL", tenantID).Scan(&consistentCount); err != nil {
 		zap.L().Error("location detect: failed to count tracked devices", zap.Error(err))
 	}
-	if err := s.pool.QueryRow(c.Request.Context(),
-		"SELECT count(*) FROM asset_location_history WHERE tenant_id = $1 AND detected_at > now() - interval '24 hours'", tenantID).Scan(&relocatedCount); err != nil {
+	if n, err := dbgen.New(s.pool).CountRelocationsSince24h(c.Request.Context(), tenantID); err != nil {
 		zap.L().Error("location detect: failed to count relocations", zap.Error(err))
+	} else {
+		relocatedCount = n
 	}
 	if err := s.pool.QueryRow(c.Request.Context(),
 		"SELECT count(*) FROM mac_address_cache WHERE tenant_id = $1 AND asset_id IS NULL", tenantID).Scan(&newDeviceCount); err != nil {
@@ -109,16 +111,23 @@ func (s *APIServer) LocationDetectGetReport(c *gin.Context, params LocationDetec
 		zap.L().Error("location analytics: failed to count tracked assets", zap.Error(err))
 	}
 
+	q := dbgen.New(s.pool)
 	var totalRelocations, authorizedRelocations, unauthorizedRelocations int64
-	if err := s.pool.QueryRow(ctx,
-		"SELECT count(*) FROM asset_location_history WHERE tenant_id = $1 AND detected_at > now() - $2::interval",
-		tenantID, interval).Scan(&totalRelocations); err != nil {
+	if n, err := q.CountRelocationsSince(ctx, dbgen.CountRelocationsSinceParams{
+		TenantID: tenantID,
+		Column2:  int32(days),
+	}); err != nil {
 		zap.L().Error("location analytics: failed to count relocations", zap.Error(err))
+	} else {
+		totalRelocations = n
 	}
-	if err := s.pool.QueryRow(ctx,
-		"SELECT count(*) FROM asset_location_history WHERE tenant_id = $1 AND detected_at > now() - $2::interval AND work_order_id IS NOT NULL",
-		tenantID, interval).Scan(&authorizedRelocations); err != nil {
+	if n, err := q.CountAuthorizedRelocationsSince(ctx, dbgen.CountAuthorizedRelocationsSinceParams{
+		TenantID: tenantID,
+		Column2:  int32(days),
+	}); err != nil {
 		zap.L().Error("location analytics: failed to count authorized relocations", zap.Error(err))
+	} else {
+		authorizedRelocations = n
 	}
 	unauthorizedRelocations = totalRelocations - authorizedRelocations
 

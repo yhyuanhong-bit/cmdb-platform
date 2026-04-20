@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -195,44 +197,62 @@ func (s *Service) UpdateMACCache(ctx context.Context, tenantID uuid.UUID, entrie
 	return nil
 }
 
+// nullableUUID wraps a *uuid.UUID as a pgtype.UUID suitable for sqlc params.
+func nullableUUID(u *uuid.UUID) pgtype.UUID {
+	if u == nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: *u, Valid: true}
+}
+
 // RecordLocationChange records a location change in history.
 func (s *Service) RecordLocationChange(ctx context.Context, tenantID, assetID uuid.UUID, fromRackID, toRackID *uuid.UUID, detectedBy string, workOrderID *uuid.UUID) {
-	if _, err := s.pool.Exec(ctx, `
-		INSERT INTO asset_location_history (tenant_id, asset_id, from_rack_id, to_rack_id, detected_by, work_order_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, tenantID, assetID, fromRackID, toRackID, detectedBy, workOrderID); err != nil {
+	if err := dbgen.New(s.pool).RecordLocationChange(ctx, dbgen.RecordLocationChangeParams{
+		TenantID:    tenantID,
+		AssetID:     assetID,
+		FromRackID:  nullableUUID(fromRackID),
+		ToRackID:    nullableUUID(toRackID),
+		DetectedBy:  detectedBy,
+		WorkOrderID: nullableUUID(workOrderID),
+	}); err != nil {
 		zap.L().Error("location detect: failed to record location change", zap.Error(err))
 	}
 }
 
 // GetLocationHistory returns location change history for an asset.
 func (s *Service) GetLocationHistory(ctx context.Context, assetID uuid.UUID, limit int) ([]LocationChange, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT h.id, h.from_rack_id, fr.name, h.to_rack_id, tr.name, h.detected_by, h.work_order_id, h.detected_at
-		FROM asset_location_history h
-		LEFT JOIN racks fr ON h.from_rack_id = fr.id
-		LEFT JOIN racks tr ON h.to_rack_id = tr.id
-		WHERE h.asset_id = $1
-		ORDER BY h.detected_at DESC
-		LIMIT $2
-	`, assetID, limit)
+	rows, err := dbgen.New(s.pool).GetLocationHistory(ctx, dbgen.GetLocationHistoryParams{
+		AssetID: assetID,
+		Limit:   int32(limit),
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var changes []LocationChange
-	for rows.Next() {
-		var c LocationChange
-		var fromName, toName *string
-		if err := rows.Scan(&c.ID, &c.FromRackID, &fromName, &c.ToRackID, &toName, &c.DetectedBy, &c.WorkOrderID, &c.DetectedAt); err != nil {
-			continue
+	changes := make([]LocationChange, 0, len(rows))
+	for _, r := range rows {
+		c := LocationChange{
+			ID:         r.ID,
+			DetectedBy: r.DetectedBy,
+			DetectedAt: r.DetectedAt.Time,
 		}
-		if fromName != nil {
-			c.FromRackName = *fromName
+		if r.FromRackID.Valid {
+			id := uuid.UUID(r.FromRackID.Bytes)
+			c.FromRackID = &id
 		}
-		if toName != nil {
-			c.ToRackName = *toName
+		if r.ToRackID.Valid {
+			id := uuid.UUID(r.ToRackID.Bytes)
+			c.ToRackID = &id
+		}
+		if r.WorkOrderID.Valid {
+			id := uuid.UUID(r.WorkOrderID.Bytes)
+			c.WorkOrderID = &id
+		}
+		if r.FromRackName.Valid {
+			c.FromRackName = r.FromRackName.String
+		}
+		if r.ToRackName.Valid {
+			c.ToRackName = r.ToRackName.String
 		}
 		changes = append(changes, c)
 	}
