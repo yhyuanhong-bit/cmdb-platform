@@ -288,10 +288,15 @@ func (a *Agent) applyAlertEvent(ctx context.Context, env SyncEnvelope) error {
 	return err
 }
 
-// applyAlertRule applies an alert-rule envelope using last-write-wins.
-// Any incoming row fully replaces the local row via ON CONFLICT DO UPDATE
-// with no version guard — the newest envelope delivered always wins. No
-// sync_conflicts insertion; see package doc and docs/SYNC_CONFLICT.md.
+// applyAlertRule applies an alert-rule envelope using last-write-wins,
+// gated on sync_version. The ON CONFLICT clause includes a strict
+// `alert_rules.sync_version < EXCLUDED.sync_version` guard so a stale
+// envelope (e.g. redelivered from JetStream after a newer one has already
+// been applied) becomes a no-op UPDATE rather than silently resurrecting
+// an old rule definition — which previously allowed an attacker or a
+// replayed message to downgrade/disable a live alert rule.
+//
+// No automatic conflict detection; see package doc and docs/SYNC_CONFLICT.md.
 func (a *Agent) applyAlertRule(ctx context.Context, env SyncEnvelope) error {
 	var payload map[string]interface{}
 	if err := json.Unmarshal(env.Diff, &payload); err != nil {
@@ -309,7 +314,8 @@ func (a *Agent) applyAlertRule(ctx context.Context, env SyncEnvelope) error {
 		   condition = EXCLUDED.condition,
 		   severity = EXCLUDED.severity,
 		   enabled = EXCLUDED.enabled,
-		   sync_version = EXCLUDED.sync_version`,
+		   sync_version = EXCLUDED.sync_version
+		 WHERE alert_rules.sync_version < EXCLUDED.sync_version`,
 		payload["id"], payload["tenant_id"], payload["name"], payload["metric_name"],
 		conditionJSON, payload["severity"], payload["enabled"], env.Version)
 	return err
