@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/config"
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -134,25 +136,30 @@ func (s *Service) StartReconciliation(ctx context.Context) {
 
 func (s *Service) reconcile(ctx context.Context) {
 	telemetry.SyncReconciliationRuns.Inc()
-	// Find stale sync entries (>1 hour behind)
-	rows, err := s.pool.Query(ctx,
-		`SELECT node_id, entity_type, last_sync_version, last_sync_at
-		 FROM sync_state
-		 WHERE status = 'active' AND last_sync_at < now() - interval '1 hour'`)
+	q := dbgen.New(s.pool)
+	// Find stale sync entries (>1 hour behind). Cross-tenant on purpose —
+	// the reconciler operates across every tenant's edge fleet.
+	staleRows, err := q.ListStaleSyncStates(ctx)
 	if err != nil {
 		return
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var nodeID, entityType string
+	for _, row := range staleRows {
+		nodeID := row.NodeID
+		entityType := row.EntityType
 		var version int64
+		if row.LastSyncVersion.Valid {
+			version = row.LastSyncVersion.Int64
+		}
 		var lastSync time.Time
-		if rows.Scan(&nodeID, &entityType, &version, &lastSync) != nil {
-			continue
+		if row.LastSyncAt.Valid {
+			lastSync = row.LastSyncAt.Time
 		}
 
-		// Calculate how far behind this node is
+		// Calculate how far behind this node is. The entity_type name is
+		// not user-controlled — it comes from sync_state rows that were
+		// inserted by the agent's table allowlist. Using Sprintf here is
+		// consistent with the pre-sqlc implementation.
 		var currentMaxVersion int64
 		verr := s.pool.QueryRow(ctx,
 			fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s", entityType),
@@ -167,14 +174,14 @@ func (s *Service) reconcile(ctx context.Context) {
 			// UPDATE here means the freshness heartbeat doesn't
 			// advance — the edge still looks stale on the dashboard
 			// even though it's caught up.
-			if _, execErr := s.pool.Exec(ctx,
-				"UPDATE sync_state SET last_sync_at = now() WHERE node_id = $1 AND entity_type = $2",
-				nodeID, entityType,
-			); execErr != nil {
+			if err := q.UpdateSyncStateHeartbeat(ctx, dbgen.UpdateSyncStateHeartbeatParams{
+				NodeID:     nodeID,
+				EntityType: entityType,
+			}); err != nil {
 				zap.L().Warn("sync reconciliation: heartbeat update failed",
 					zap.String("node_id", nodeID),
 					zap.String("entity_type", entityType),
-					zap.Error(execErr))
+					zap.Error(err))
 				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncReconcile, telemetry.ReasonDBExecFailed).Inc()
 			}
 			continue
@@ -184,14 +191,15 @@ func (s *Service) reconcile(ctx context.Context) {
 
 		if lag > 24*time.Hour {
 			// Critical: mark node as error after 24h
-			if _, execErr := s.pool.Exec(ctx,
-				"UPDATE sync_state SET status = 'error', error_message = $3 WHERE node_id = $1 AND entity_type = $2",
-				nodeID, entityType, fmt.Sprintf("sync lag %s, %d versions behind", lag.Round(time.Minute), gap),
-			); execErr != nil {
+			if err := q.MarkSyncStateError(ctx, dbgen.MarkSyncStateErrorParams{
+				NodeID:       nodeID,
+				EntityType:   entityType,
+				ErrorMessage: pgtype.Text{String: fmt.Sprintf("sync lag %s, %d versions behind", lag.Round(time.Minute), gap), Valid: true},
+			}); err != nil {
 				zap.L().Warn("sync reconciliation: error-status update failed",
 					zap.String("node_id", nodeID),
 					zap.String("entity_type", entityType),
-					zap.Error(execErr))
+					zap.Error(err))
 				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncReconcile, telemetry.ReasonDBExecFailed).Inc()
 			}
 			zap.L().Error("sync reconciliation: node marked as error",

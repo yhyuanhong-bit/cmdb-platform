@@ -30,8 +30,11 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/config"
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -58,9 +61,9 @@ func NewAgent(pool *pgxpool.Pool, bus eventbus.Bus, cfg *config.Config) *Agent {
 
 // Start runs the sync agent lifecycle.
 func (a *Agent) Start(ctx context.Context) {
-	// Check if initial sync is needed
-	var count int
-	err := a.pool.QueryRow(ctx, "SELECT count(*) FROM sync_state WHERE node_id = $1", a.nodeID).Scan(&count)
+	// Check if initial sync is needed. The node_id namespace is operator-
+	// scoped rather than tenant-scoped — cross-tenant by design.
+	count, err := dbgen.New(a.pool).CountSyncStateByNode(ctx, a.nodeID)
 	if err != nil || count == 0 {
 		zap.L().Info("sync agent: no sync state found, initial sync needed",
 			zap.String("node_id", a.nodeID))
@@ -186,12 +189,20 @@ func (a *Agent) handleIncomingEnvelope(ctx context.Context, event eventbus.Event
 	// means the watermark didn't advance and the next pull will
 	// re-fetch envelopes we already applied — idempotent but wasteful,
 	// and a persistent pattern means sync is stuck.
-	if _, err := a.pool.Exec(ctx,
-		`INSERT INTO sync_state (node_id, tenant_id, entity_type, last_sync_version, last_sync_at, status)
-		 VALUES ($1, $2, $3, $4, now(), 'active')
-		 ON CONFLICT (node_id, entity_type) DO UPDATE SET last_sync_version = GREATEST(sync_state.last_sync_version, $4), last_sync_at = now(), status = 'active'`,
-		a.nodeID, env.TenantID, env.EntityType, env.Version,
-	); err != nil {
+	tenantUUID, tenantParseErr := uuid.Parse(env.TenantID)
+	if tenantParseErr != nil {
+		zap.L().Warn("sync agent: invalid tenant_id in envelope",
+			zap.String("tenant_id", env.TenantID),
+			zap.Error(tenantParseErr))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonDBExecFailed).Inc()
+		return nil
+	}
+	if err := dbgen.New(a.pool).UpsertSyncState(ctx, dbgen.UpsertSyncStateParams{
+		NodeID:          a.nodeID,
+		TenantID:        tenantUUID,
+		EntityType:      env.EntityType,
+		LastSyncVersion: pgtype.Int8{Int64: env.Version, Valid: true},
+	}); err != nil {
 		zap.L().Warn("sync agent: sync_state upsert failed",
 			zap.String("entity_type", env.EntityType),
 			zap.Int64("version", env.Version),
@@ -394,24 +405,34 @@ func (a *Agent) applyGeneric(ctx context.Context, env SyncEnvelope) error {
 }
 
 func (a *Agent) updateSyncState(ctx context.Context) {
-	// For each syncable table, record current max sync_version
+	q := dbgen.New(a.pool)
+	tenantUUID, err := uuid.Parse(a.cfg.TenantID)
+	if err != nil {
+		zap.L().Warn("sync agent: invalid configured tenant_id",
+			zap.String("tenant_id", a.cfg.TenantID),
+			zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonDBExecFailed).Inc()
+		return
+	}
+	// For each syncable table, record current max sync_version.
+	// The table name is compile-time controlled (see allowlist above).
 	tables := []string{"assets", "locations", "racks", "work_orders", "alert_events", "inventory_tasks", "inventory_items"}
 	for _, table := range tables {
 		var maxVersion int64
-		err := a.pool.QueryRow(ctx,
+		probeErr := a.pool.QueryRow(ctx,
 			fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s", table)).Scan(&maxVersion)
-		if err != nil {
+		if probeErr != nil {
 			zap.L().Warn("sync agent: max version probe failed",
-				zap.String("table", table), zap.Error(err))
+				zap.String("table", table), zap.Error(probeErr))
 			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
-		if _, execErr := a.pool.Exec(ctx,
-			`INSERT INTO sync_state (node_id, tenant_id, entity_type, last_sync_version, last_sync_at, status)
-			 VALUES ($1, $2, $3, $4, now(), 'active')
-			 ON CONFLICT (node_id, entity_type) DO UPDATE SET last_sync_version = $4, last_sync_at = now()`,
-			a.nodeID, a.cfg.TenantID, table, maxVersion,
-		); execErr != nil {
+		if execErr := q.UpsertSyncStateAbsolute(ctx, dbgen.UpsertSyncStateAbsoluteParams{
+			NodeID:          a.nodeID,
+			TenantID:        tenantUUID,
+			EntityType:      table,
+			LastSyncVersion: pgtype.Int8{Int64: maxVersion, Valid: true},
+		}); execErr != nil {
 			zap.L().Warn("sync agent: sync_state upsert failed",
 				zap.String("table", table), zap.Error(execErr))
 			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonDBExecFailed).Inc()
@@ -420,20 +441,20 @@ func (a *Agent) updateSyncState(ctx context.Context) {
 
 	// audit_events: no sync_version, use created_at epoch
 	var auditMax int64
-	err := a.pool.QueryRow(ctx,
+	probeErr := a.pool.QueryRow(ctx,
 		"SELECT COALESCE(MAX(EXTRACT(EPOCH FROM created_at))::bigint, 0) FROM audit_events WHERE tenant_id = $1",
 		a.cfg.TenantID).Scan(&auditMax)
-	if err != nil {
-		zap.L().Warn("sync agent: audit max probe failed", zap.Error(err))
+	if probeErr != nil {
+		zap.L().Warn("sync agent: audit max probe failed", zap.Error(probeErr))
 		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonRowScanFailed).Inc()
 		return
 	}
-	if _, execErr := a.pool.Exec(ctx,
-		`INSERT INTO sync_state (node_id, tenant_id, entity_type, last_sync_version, last_sync_at, status)
-		 VALUES ($1, $2, 'audit_events', $3, now(), 'active')
-		 ON CONFLICT (node_id, entity_type) DO UPDATE SET last_sync_version = $3, last_sync_at = now()`,
-		a.nodeID, a.cfg.TenantID, auditMax,
-	); execErr != nil {
+	if execErr := q.UpsertSyncStateAbsolute(ctx, dbgen.UpsertSyncStateAbsoluteParams{
+		NodeID:          a.nodeID,
+		TenantID:        tenantUUID,
+		EntityType:      "audit_events",
+		LastSyncVersion: pgtype.Int8{Int64: auditMax, Valid: true},
+	}); execErr != nil {
 		zap.L().Warn("sync agent: audit sync_state upsert failed", zap.Error(execErr))
 		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSyncStateUpsert, telemetry.ReasonDBExecFailed).Inc()
 	}

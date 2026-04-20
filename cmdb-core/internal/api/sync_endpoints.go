@@ -9,8 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -238,32 +240,52 @@ func (s *APIServer) SyncGetChanges(c *gin.Context, params SyncGetChangesParams) 
 // GET /api/v1/sync/state
 func (s *APIServer) SyncGetState(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
-	rows, err := s.pool.Query(c.Request.Context(),
-		"SELECT node_id, entity_type, last_sync_version, last_sync_at, status, error_message FROM sync_state WHERE tenant_id = $1 ORDER BY node_id, entity_type",
-		tenantID)
+	rows, err := dbgen.New(s.pool).ListSyncStatesByTenant(c.Request.Context(), tenantID)
 	if err != nil {
 		response.InternalError(c, "failed to query sync state")
 		return
 	}
-	defer rows.Close()
 
-	var items []gin.H
-	for rows.Next() {
-		var nodeID, entityType, status string
-		var version int64
-		var lastSync, errMsg interface{}
-		if rows.Scan(&nodeID, &entityType, &version, &lastSync, &status, &errMsg) == nil {
-			items = append(items, gin.H{
-				"node_id": nodeID, "entity_type": entityType,
-				"last_sync_version": version, "last_sync_at": lastSync,
-				"status": status, "error_message": errMsg,
-			})
-		}
-	}
-	if items == nil {
-		items = []gin.H{}
+	items := make([]gin.H, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, gin.H{
+			"node_id":           r.NodeID,
+			"entity_type":       r.EntityType,
+			"last_sync_version": nullableInt8(r.LastSyncVersion),
+			"last_sync_at":      nullableTimestamp(r.LastSyncAt),
+			"status":            nullableText(r.Status),
+			"error_message":     nullableText(r.ErrorMessage),
+		})
 	}
 	response.OK(c, items)
+}
+
+// nullableInt8 converts a pgtype.Int8 to a *int64 for JSON encoding.
+// Callers that previously scanned into plain int64 got 0 on NULL; we preserve
+// that shape by returning 0 when invalid.
+func nullableInt8(v pgtype.Int8) int64 {
+	if !v.Valid {
+		return 0
+	}
+	return v.Int64
+}
+
+// nullableTimestamp converts a pgtype.Timestamptz to a JSON-friendly value.
+// Returns nil when NULL so the JSON emits `null` (matching prior behavior,
+// where the interface{} scan held a nil).
+func nullableTimestamp(v pgtype.Timestamptz) interface{} {
+	if !v.Valid {
+		return nil
+	}
+	return v.Time
+}
+
+// nullableText converts a pgtype.Text to a string or nil.
+func nullableText(v pgtype.Text) interface{} {
+	if !v.Valid {
+		return nil
+	}
+	return v.String
 }
 
 // SyncGetConflicts returns pending sync conflicts.
@@ -492,28 +514,23 @@ func (s *APIServer) SyncStats(c *gin.Context) {
 			continue
 		}
 
-		rows, err := s.pool.Query(ctx,
-			"SELECT node_id, last_sync_version FROM sync_state WHERE tenant_id = $1 AND entity_type = $2",
-			tenantID, table)
+		stateRows, err := dbgen.New(s.pool).ListSyncStatesByTenantEntity(ctx, dbgen.ListSyncStatesByTenantEntityParams{
+			TenantID:   tenantID,
+			EntityType: table,
+		})
 		if err != nil {
 			results = append(results, entityStats{EntityType: table, MaxVersion: maxVersion, Nodes: []nodeGap{}})
 			continue
 		}
 
-		var nodes []nodeGap
-		for rows.Next() {
-			var ng nodeGap
-			if rows.Scan(&ng.NodeID, &ng.LastSyncVersion) == nil {
-				ng.Gap = maxVersion - ng.LastSyncVersion
-				if ng.Gap < 0 {
-					ng.Gap = 0
-				}
-				nodes = append(nodes, ng)
+		nodes := make([]nodeGap, 0, len(stateRows))
+		for _, sr := range stateRows {
+			last := nullableInt8(sr.LastSyncVersion)
+			gap := maxVersion - last
+			if gap < 0 {
+				gap = 0
 			}
-		}
-		rows.Close()
-		if nodes == nil {
-			nodes = []nodeGap{}
+			nodes = append(nodes, nodeGap{NodeID: sr.NodeID, LastSyncVersion: last, Gap: gap})
 		}
 
 		results = append(results, entityStats{EntityType: table, MaxVersion: maxVersion, Nodes: nodes})

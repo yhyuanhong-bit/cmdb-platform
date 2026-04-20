@@ -205,3 +205,66 @@ func TestSyncResolveConflict_RejectsBadColumn_EndToEnd(t *testing.T) {
 		t.Errorf("response body %q missing INVALID_FIELD code", rec.Body.String())
 	}
 }
+
+// TestSyncGetState_TenantScoped confirms that SyncGetState only returns
+// sync_state rows owned by the caller's tenant — the table has two rows,
+// one per tenant, and the response must contain exactly the caller's row.
+func TestSyncGetState_TenantScoped(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	tenantA := uuid.New()
+	tenantB := uuid.New()
+	suffix := tenantA.String()[:8]
+
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3), ($4, $5, $6)`,
+		tenantA, "syncstate-A-"+suffix, "syncstate-a-"+suffix,
+		tenantB, "syncstate-B-"+suffix, "syncstate-b-"+suffix); err != nil {
+		t.Fatalf("insert tenants: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO sync_state (node_id, tenant_id, entity_type, last_sync_version, last_sync_at, status)
+		 VALUES ($1, $2, 'assets', 42, now(), 'active'), ($3, $4, 'assets', 100, now(), 'active')`,
+		"node-a-"+suffix, tenantA, "node-b-"+suffix, tenantB); err != nil {
+		t.Fatalf("insert sync_state: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM sync_state WHERE tenant_id IN ($1, $2)`, tenantA, tenantB)
+		_, _ = pool.Exec(ctx, `DELETE FROM tenants WHERE id IN ($1, $2)`, tenantA, tenantB)
+	})
+
+	s := &APIServer{pool: pool}
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Set("tenant_id", tenantA.String())
+	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	c.Request = req
+
+	s.SyncGetState(c)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("SyncGetState returned %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Data []struct {
+			NodeID          string `json:"node_id"`
+			EntityType      string `json:"entity_type"`
+			LastSyncVersion int64  `json:"last_sync_version"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v; body=%s", err, rec.Body.String())
+	}
+	if len(resp.Data) != 1 {
+		t.Fatalf("got %d rows, want 1 (tenant-scoped); body=%s", len(resp.Data), rec.Body.String())
+	}
+	if resp.Data[0].NodeID != "node-a-"+suffix {
+		t.Errorf("got node_id = %q, want node-a-%s", resp.Data[0].NodeID, suffix)
+	}
+	if resp.Data[0].LastSyncVersion != 42 {
+		t.Errorf("got last_sync_version = %d, want 42", resp.Data[0].LastSyncVersion)
+	}
+}
