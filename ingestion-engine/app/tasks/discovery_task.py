@@ -7,6 +7,7 @@ from uuid import UUID
 
 import asyncpg
 import httpx
+import nats.errors
 
 from app.collectors.base import registry
 from app.config import settings
@@ -52,7 +53,30 @@ def determine_routing(mode: str, raw: RawAssetData, existing_asset_id) -> str:
     return "staging"
 
 
-@celery_app.task(bind=True, name="ingestion.process_discovery")
+# Retryable infrastructure errors for process_discovery_task.
+#
+# Discovery hits three external systems: Postgres (asyncpg), cmdb-core HTTP
+# endpoint for staging (httpx), and NATS for event publication. Each has a
+# specific transient-failure class that should retry with backoff. OSError
+# catches low-level socket issues under any of them (DNS, connection refused,
+# network unreachable). Deterministic errors like ValueError (unknown collector)
+# and asyncio.CancelledError are left to fail fast.
+_DISCOVERY_RETRYABLE_EXCEPTIONS = (
+    httpx.HTTPError,
+    asyncpg.PostgresError,
+    nats.errors.Error,
+    OSError,
+)
+
+
+@celery_app.task(
+    bind=True,
+    name="ingestion.process_discovery",
+    autoretry_for=_DISCOVERY_RETRYABLE_EXCEPTIONS,
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=5,
+)
 def process_discovery_task(
     self,
     task_id: str,

@@ -25,7 +25,25 @@ def _run_async(coro):
         loop.close()
 
 
-@celery_app.task(bind=True, name="ingestion.process_import")
+# Retryable infrastructure errors for process_import_task.
+#
+# The task only hits asyncpg (Postgres) and reads a local file. asyncpg.PostgresError
+# covers transient DB failures (connection resets, lock timeouts, temporary
+# unavailability). OSError covers network-level socket issues that surface below
+# asyncpg (DNS, ECONNREFUSED, ETIMEDOUT) and transient filesystem glitches on the
+# uploaded file. We deliberately do NOT retry on ValueError / validation errors —
+# those are deterministic and would just burn retry budget.
+_IMPORT_RETRYABLE_EXCEPTIONS = (asyncpg.PostgresError, OSError)
+
+
+@celery_app.task(
+    bind=True,
+    name="ingestion.process_import",
+    autoretry_for=_IMPORT_RETRYABLE_EXCEPTIONS,
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=5,
+)
 def process_import_task(self, import_job_id: str, tenant_id: str, file_path: str, file_type: str):
     """Celery task that processes an import file through the pipeline."""
     return _run_async(_process_import(self, import_job_id, tenant_id, file_path, file_type))
