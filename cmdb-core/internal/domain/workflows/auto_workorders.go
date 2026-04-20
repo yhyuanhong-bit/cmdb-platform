@@ -7,10 +7,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+)
+
+// Dedup kinds written to the work_order_dedup table by the auto-WO
+// scans (Phase 2.15). Keep these in sync with the backfill in
+// 000049_work_order_dedup.up.sql — a typo here silently defeats dedup.
+const (
+	dedupKindShadowIT        = "shadow_it"
+	dedupKindDuplicateSerial = "duplicate_serial"
 )
 
 // --- Auto Work Order 1: Warranty Expiry → Renewal Evaluation ---
@@ -421,14 +430,15 @@ func (w *WorkflowSubscriber) checkShadowIT(ctx context.Context) {
 }
 
 // checkShadowITForTenant runs the shadow-IT scan for a single tenant.
-// Both the discovered_assets source and the work_orders dedup predicate
-// are scoped to tenantID, so a WO seeded under tenant A cannot suppress
-// a WO needed under tenant B.
+// Both the discovered_assets source and the dedup predicate are scoped
+// to tenantID, so a WO seeded under tenant A cannot suppress a WO
+// needed under tenant B.
 //
-// NOTE on LIKE dedup: the dedup-by-description-LIKE is a known
-// pre-existing workaround tracked in Phase 2.15 of the remediation
-// roadmap ("replace LIKE dedup with explicit dedup table"). Intentionally
-// preserved here; this function only narrows it to per-tenant scope.
+// Dedup is enforced via the `work_order_dedup` table (Phase 2.15): the
+// prior `wo.description LIKE '%IP:xxx%'` probe was replaced with an
+// indexed (tenant_id, dedup_kind, dedup_key) lookup, and the WO insert
+// + dedup insert now share one transaction so a crash between them can
+// never produce an orphan WO or a ghost dedup entry.
 func (w *WorkflowSubscriber) checkShadowITForTenant(ctx context.Context, tenantID uuid.UUID) error {
 	// Drive-by correctness: the previous SQL referenced `da.created_at`,
 	// which does not exist on discovered_assets — the real column is
@@ -446,50 +456,100 @@ func (w *WorkflowSubscriber) checkShadowITForTenant(ctx context.Context, tenantI
 		   AND da.matched_asset_id IS NULL
 		   AND da.discovered_at < now() - interval '7 days'
 		   AND NOT EXISTS (
-		     SELECT 1 FROM work_orders wo
-		     WHERE wo.tenant_id = $1
-		     AND wo.type = 'shadow_it_registration'
-		     AND wo.description LIKE '%' || da.ip_address || '%'
-		     AND wo.status NOT IN ('completed','verified','rejected')
-		     AND wo.deleted_at IS NULL
+		     SELECT 1 FROM work_order_dedup wod
+		     WHERE wod.tenant_id  = $1
+		       AND wod.dedup_kind = 'shadow_it'
+		       AND wod.dedup_key  = da.ip_address
 		   )`, tenantID)
 	if err != nil {
 		return fmt.Errorf("query discovered_assets: %w", err)
 	}
-	defer rows.Close()
 
+	type shadowITCandidate struct {
+		daID         uuid.UUID
+		hostname     string
+		ipAddress    string
+		source       string
+		discoveredAt time.Time
+	}
+	var candidates []shadowITCandidate
 	for rows.Next() {
-		var daID uuid.UUID
-		var hostname, ipAddress, source string
-		var discoveredAt time.Time
-		if err := rows.Scan(&daID, &hostname, &ipAddress, &source, &discoveredAt); err != nil {
+		var c shadowITCandidate
+		if err := rows.Scan(&c.daID, &c.hostname, &c.ipAddress, &c.source, &c.discoveredAt); err != nil {
 			zap.L().Debug("shadow IT checker: row scan failed",
 				zap.String("tenant_id", tenantID.String()), zap.Error(err))
 			continue
 		}
+		candidates = append(candidates, c)
+	}
+	iterErr := rows.Err()
+	// Close the read cursor BEFORE starting per-candidate write txs so
+	// pgxpool can reuse the same connection — otherwise each iteration
+	// would hold two connections (cursor + tx) and a busy scan could
+	// starve the pool.
+	rows.Close()
+	if iterErr != nil {
+		return fmt.Errorf("iterate discovered_assets: %w", iterErr)
+	}
 
-		daysPending := int(time.Since(discoveredAt).Hours() / 24)
+	for _, c := range candidates {
+		daysPending := int(time.Since(c.discoveredAt).Hours() / 24)
 
-		_, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
-			Title:       fmt.Sprintf("Shadow IT: Unregistered device %s (%s)", hostname, ipAddress),
-			Type:        "shadow_it_registration",
-			Priority:    "medium",
-			Description: fmt.Sprintf("Network scan (%s) discovered device '%s' (IP: %s) %d days ago but it has no matching CMDB record. This is potential shadow IT. Action: register as new asset, or mark as ignored in discovery.", source, hostname, ipAddress, daysPending),
-		})
-		if err != nil {
+		if err := w.createShadowITWorkOrder(ctx, tenantID, c.hostname, c.ipAddress, c.source, daysPending); err != nil {
 			zap.L().Debug("shadow IT checker: WO creation skipped",
 				zap.String("tenant_id", tenantID.String()),
-				zap.String("ip", ipAddress), zap.Error(err))
+				zap.String("ip", c.ipAddress), zap.Error(err))
 			continue
 		}
 		zap.L().Info("shadow IT checker: created registration WO",
 			zap.String("tenant_id", tenantID.String()),
-			zap.String("ip", ipAddress),
-			zap.String("hostname", hostname))
+			zap.String("ip", c.ipAddress),
+			zap.String("hostname", c.hostname))
 	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate discovered_assets: %w", err)
+	return nil
+}
+
+// createShadowITWorkOrder atomically creates a shadow-IT WO and its
+// matching work_order_dedup row. If another scan raced us to the same
+// (tenant, shadow_it, ip) key, the dedup INSERT ... ON CONFLICT DO
+// NOTHING reports 0 rows and we roll the tx back so no orphan WO lands.
+func (w *WorkflowSubscriber) createShadowITWorkOrder(ctx context.Context, tenantID uuid.UUID, hostname, ipAddress, source string, daysPending int) error {
+	tx, err := w.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
 	}
+	defer func() { _ = tx.Rollback(ctx) }() // safe no-op after Commit.
+
+	order, err := w.maintenanceSvc.CreateTx(ctx, tx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		Title:       fmt.Sprintf("Shadow IT: Unregistered device %s (%s)", hostname, ipAddress),
+		Type:        "shadow_it_registration",
+		Priority:    "medium",
+		Description: fmt.Sprintf("Network scan (%s) discovered device '%s' (IP: %s) %d days ago but it has no matching CMDB record. This is potential shadow IT. Action: register as new asset, or mark as ignored in discovery.", source, hostname, ipAddress, daysPending),
+	})
+	if err != nil {
+		return fmt.Errorf("create shadow IT WO: %w", err)
+	}
+
+	n, err := w.queries.WithTx(tx).InsertWorkOrderDedup(ctx, dbgen.InsertWorkOrderDedupParams{
+		TenantID:    tenantID,
+		WorkOrderID: order.ID,
+		DedupKind:   dedupKindShadowIT,
+		DedupKey:    ipAddress,
+	})
+	if err != nil {
+		return fmt.Errorf("insert dedup: %w", err)
+	}
+	if n == 0 {
+		// A concurrent scan inserted the same (tenant, shadow_it, ip)
+		// between our NOT EXISTS probe and this insert. Rolling back
+		// via the deferred Rollback keeps the WO out of the table.
+		return fmt.Errorf("dedup race: shadow_it key %s already exists", ipAddress)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	w.maintenanceSvc.BumpSyncVersionAfterCreate(ctx, order.ID)
 	return nil
 }
 
@@ -518,10 +578,12 @@ func (w *WorkflowSubscriber) checkDuplicateSerials(ctx context.Context) {
 // single tenant. The GROUP BY drops `tenant_id` since the outer WHERE
 // already pins a single tenant.
 //
-// NOTE on LIKE dedup: the existing-WO probe still uses `description LIKE`.
-// That pattern is scheduled for replacement in Phase 2.15 of the roadmap
-// ("replace LIKE dedup with explicit dedup table"); intentionally
-// preserved here, but now narrowed to tenantID.
+// Dedup is enforced via the `work_order_dedup` table (Phase 2.15): the
+// prior `description LIKE '%serial%'` probe was replaced with an
+// indexed (tenant_id, dedup_kind, dedup_key) lookup, and the WO insert
+// + dedup insert now share one transaction. The HAVING filter drops
+// serials already recorded in work_order_dedup so we don't even scan
+// them.
 func (w *WorkflowSubscriber) checkDuplicateSerialsForTenant(ctx context.Context, tenantID uuid.UUID) error {
 	rows, err := w.pool.Query(ctx,
 		`SELECT serial_number, array_agg(id) AS asset_ids, array_agg(asset_tag) AS asset_tags
@@ -531,60 +593,94 @@ func (w *WorkflowSubscriber) checkDuplicateSerialsForTenant(ctx context.Context,
 		   AND serial_number != ''
 		   AND deleted_at IS NULL
 		 GROUP BY serial_number
-		 HAVING count(*) > 1`, tenantID)
+		 HAVING count(*) > 1
+		    AND NOT EXISTS (
+		      SELECT 1 FROM work_order_dedup wod
+		      WHERE wod.tenant_id  = $1
+		        AND wod.dedup_kind = 'duplicate_serial'
+		        AND wod.dedup_key  = serial_number
+		    )`, tenantID)
 	if err != nil {
 		return fmt.Errorf("query assets: %w", err)
 	}
-	defer rows.Close()
 
+	type dupSerialCandidate struct {
+		serial    string
+		assetIDs  []uuid.UUID
+		assetTags []string
+	}
+	var candidates []dupSerialCandidate
 	for rows.Next() {
-		var serial string
-		var assetIDs []uuid.UUID
-		var assetTags []string
-		if err := rows.Scan(&serial, &assetIDs, &assetTags); err != nil {
+		var c dupSerialCandidate
+		if err := rows.Scan(&c.serial, &c.assetIDs, &c.assetTags); err != nil {
 			zap.L().Debug("dedup checker: row scan failed",
 				zap.String("tenant_id", tenantID.String()), zap.Error(err))
 			continue
 		}
+		candidates = append(candidates, c)
+	}
+	iterErr := rows.Err()
+	// Close the read cursor BEFORE starting per-candidate write txs so
+	// pgxpool can reuse the same connection — see the same pattern in
+	// checkShadowITForTenant above.
+	rows.Close()
+	if iterErr != nil {
+		return fmt.Errorf("iterate assets: %w", iterErr)
+	}
 
-		var existingCount int
-		if err := w.pool.QueryRow(ctx,
-			`SELECT count(*) FROM work_orders
-			 WHERE type = 'dedup_audit' AND description LIKE '%' || $1 || '%'
-			 AND status NOT IN ('completed','verified','rejected')
-			 AND deleted_at IS NULL AND tenant_id = $2`,
-			serial, tenantID).Scan(&existingCount); err != nil {
-			zap.L().Debug("dedup checker: existing-WO probe failed",
-				zap.String("tenant_id", tenantID.String()),
-				zap.String("serial", serial), zap.Error(err))
-			continue
-		}
-		if existingCount > 0 {
-			continue
-		}
-
-		tagList := strings.Join(assetTags, ", ")
-
-		_, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
-			Title:       fmt.Sprintf("Dedup Audit: Serial %s duplicated", serial),
-			Type:        "dedup_audit",
-			Priority:    "high",
-			Description: fmt.Sprintf("Serial number '%s' appears on %d assets: [%s]. This violates data uniqueness. Action: identify the correct asset, merge or delete duplicates, investigate how the duplication occurred.", serial, len(assetIDs), tagList),
-		})
-		if err != nil {
+	for _, c := range candidates {
+		if err := w.createDuplicateSerialWorkOrder(ctx, tenantID, c.serial, c.assetIDs, c.assetTags); err != nil {
 			zap.L().Debug("dedup checker: WO creation skipped",
 				zap.String("tenant_id", tenantID.String()),
-				zap.String("serial", serial), zap.Error(err))
+				zap.String("serial", c.serial), zap.Error(err))
 			continue
 		}
 		zap.L().Info("dedup checker: created audit WO",
 			zap.String("tenant_id", tenantID.String()),
-			zap.String("serial", serial),
-			zap.Int("count", len(assetIDs)))
+			zap.String("serial", c.serial),
+			zap.Int("count", len(c.assetIDs)))
 	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate assets: %w", err)
+	return nil
+}
+
+// createDuplicateSerialWorkOrder atomically creates a dedup-audit WO
+// and its matching work_order_dedup row. See createShadowITWorkOrder
+// for the race-safety contract (identical shape, different dedup kind).
+func (w *WorkflowSubscriber) createDuplicateSerialWorkOrder(ctx context.Context, tenantID uuid.UUID, serial string, assetIDs []uuid.UUID, assetTags []string) error {
+	tx, err := w.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
 	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	tagList := strings.Join(assetTags, ", ")
+	order, err := w.maintenanceSvc.CreateTx(ctx, tx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		Title:       fmt.Sprintf("Dedup Audit: Serial %s duplicated", serial),
+		Type:        "dedup_audit",
+		Priority:    "high",
+		Description: fmt.Sprintf("Serial number '%s' appears on %d assets: [%s]. This violates data uniqueness. Action: identify the correct asset, merge or delete duplicates, investigate how the duplication occurred.", serial, len(assetIDs), tagList),
+	})
+	if err != nil {
+		return fmt.Errorf("create dedup WO: %w", err)
+	}
+
+	n, err := w.queries.WithTx(tx).InsertWorkOrderDedup(ctx, dbgen.InsertWorkOrderDedupParams{
+		TenantID:    tenantID,
+		WorkOrderID: order.ID,
+		DedupKind:   dedupKindDuplicateSerial,
+		DedupKey:    serial,
+	})
+	if err != nil {
+		return fmt.Errorf("insert dedup: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("dedup race: duplicate_serial key %s already exists", serial)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	w.maintenanceSvc.BumpSyncVersionAfterCreate(ctx, order.ID)
 	return nil
 }
 

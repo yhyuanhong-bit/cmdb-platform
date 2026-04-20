@@ -665,6 +665,14 @@ type WorkOrderComment struct {
 	CreatedAt time.Time   `json:"created_at"`
 }
 
+type WorkOrderDedup struct {
+	TenantID    uuid.UUID `json:"tenant_id"`
+	WorkOrderID uuid.UUID `json:"work_order_id"`
+	DedupKind   string    `json:"dedup_kind"`
+	DedupKey    string    `json:"dedup_key"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 type WorkOrderLog struct {
 	ID         uuid.UUID   `json:"id"`
 	OrderID    uuid.UUID   `json:"order_id"`

@@ -12,11 +12,11 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
-	"go.uber.org/zap"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 // Service provides work order domain operations.
@@ -87,6 +87,46 @@ func generateCode() string {
 
 // Create creates a new work order in submitted status.
 func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, req CreateOrderRequest) (*dbgen.WorkOrder, error) {
+	return s.createWith(ctx, s.queries, tenantID, requestorID, req, true)
+}
+
+// CreateTx is the same as Create but runs inside the caller's transaction.
+// Used by the auto-workorder scans (Phase 2.15) so the WO insert and the
+// work_order_dedup insert commit or roll back atomically — otherwise a
+// crash between the two leaves either an orphan WO or a ghost dedup row.
+//
+// The caller owns the tx lifecycle (Begin / Commit / Rollback). This
+// helper only runs the two inserts using qtx := queries.WithTx(tx).
+//
+// incrementSyncVersion is deliberately SKIPPED in the tx path: it uses
+// s.pool.Exec which would run outside the tx (and deadlock against the
+// uncommitted work_orders row). The sync_version bump is done by the
+// caller AFTER the tx commits, via BumpSyncVersionAfterCreate below.
+func (s *Service) CreateTx(ctx context.Context, tx pgx.Tx, tenantID, requestorID uuid.UUID, req CreateOrderRequest) (*dbgen.WorkOrder, error) {
+	qtx := s.queries.WithTx(tx)
+	return s.createWith(ctx, qtx, tenantID, requestorID, req, false)
+}
+
+// BumpSyncVersionAfterCreate runs the post-commit sync_version bump that
+// CreateTx intentionally skipped. Callers that use CreateTx should invoke
+// this once their tx commits successfully. A failure here is non-fatal —
+// sync_version only drives edge-to-central replication and is reconciled
+// by the next real update.
+func (s *Service) BumpSyncVersionAfterCreate(ctx context.Context, orderID uuid.UUID) {
+	s.incrementSyncVersion(ctx, "work_orders", orderID)
+}
+
+// createWith holds the shared insert+log logic for Create / CreateTx.
+// `bumpSyncVersion` is true for the pool-backed Create (which can run
+// the separate UPDATE immediately) and false for CreateTx (where the
+// UPDATE must wait for the caller's commit — see BumpSyncVersionAfterCreate).
+func (s *Service) createWith(
+	ctx context.Context,
+	q *dbgen.Queries,
+	tenantID, requestorID uuid.UUID,
+	req CreateOrderRequest,
+	bumpSyncVersion bool,
+) (*dbgen.WorkOrder, error) {
 	priority := req.Priority
 	if priority == "" {
 		priority = "medium"
@@ -130,14 +170,16 @@ func (s *Service) Create(ctx context.Context, tenantID, requestorID uuid.UUID, r
 		params.ScheduledEnd = pgtype.Timestamptz{Time: *req.ScheduledEnd, Valid: true}
 	}
 
-	order, err := s.queries.CreateWorkOrder(ctx, params)
+	order, err := q.CreateWorkOrder(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("create work order: %w", err)
 	}
-	s.incrementSyncVersion(ctx, "work_orders", order.ID)
+	if bumpSyncVersion {
+		s.incrementSyncVersion(ctx, "work_orders", order.ID)
+	}
 
 	// Create initial log entry
-	_, _ = s.queries.CreateWorkOrderLog(ctx, dbgen.CreateWorkOrderLogParams{
+	_, _ = q.CreateWorkOrderLog(ctx, dbgen.CreateWorkOrderLogParams{
 		OrderID:    order.ID,
 		Action:     "created",
 		ToStatus:   pgtype.Text{String: StatusSubmitted, Valid: true},
