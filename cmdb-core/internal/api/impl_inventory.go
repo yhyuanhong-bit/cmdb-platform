@@ -357,3 +357,95 @@ func (s *APIServer) GetInventorySummary(c *gin.Context, id IdPath) {
 		"discrepancy": summary.Discrepancy,
 	})
 }
+
+// ResolveInventoryDiscrepancy handles POST /inventory/tasks/:id/items/:itemId/resolve
+// Resolves a discrepancy on an inventory item by applying the given action.
+func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context, id IdPath, itemId openapi_types.UUID) {
+	taskID := uuid.UUID(id)
+	itemID := uuid.UUID(itemId)
+
+	var req struct {
+		Action string `json:"action" binding:"required"`
+		Note   string `json:"note"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	var newStatus string
+	switch req.Action {
+	case "verify", "clear":
+		newStatus = "scanned"
+	case "add_findings":
+		newStatus = "discrepancy"
+	case "register":
+		newStatus = "scanned"
+	default:
+		response.BadRequest(c, "invalid action: must be verify, add_findings, register, or clear")
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Update item status
+	tag, err := s.pool.Exec(ctx,
+		"UPDATE inventory_items SET status = $1, scanned_at = now() WHERE id = $2",
+		newStatus, itemID)
+	if err != nil {
+		response.InternalError(c, "failed to resolve discrepancy")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		response.NotFound(c, "inventory item not found")
+		return
+	}
+
+	userID := userIDFromContext(c)
+
+	// Create a note for the resolution. A failed INSERT here is
+	// non-fatal for the caller — the item status already flipped —
+	// but a broken inventory_notes table would silently drop the
+	// audit paper trail. Log it.
+	noteText := req.Note
+	if noteText == "" {
+		noteText = "Resolved via action: " + req.Action
+	}
+	noteID := uuid.New()
+	if _, err := s.pool.Exec(ctx,
+		"INSERT INTO inventory_notes (id, item_id, author_id, severity, text, created_at) VALUES ($1, $2, $3, 'info', $4, now())",
+		noteID, itemID, userID, noteText,
+	); err != nil {
+		zap.L().Warn("inventory resolve: note insert failed",
+			zap.String("item_id", itemID.String()), zap.Error(err))
+	}
+
+	// Create scan history record. Same non-fatal logging contract as
+	// the note INSERT above.
+	scanID := uuid.New()
+	if _, err := s.pool.Exec(ctx,
+		"INSERT INTO inventory_scan_history (id, item_id, scanned_by, method, result, note, scanned_at) VALUES ($1, $2, $3, 'manual', $4, $5, now())",
+		scanID, itemID, userID, req.Action, req.Note,
+	); err != nil {
+		zap.L().Warn("inventory resolve: scan history insert failed",
+			zap.String("item_id", itemID.String()), zap.Error(err))
+	}
+
+	// Auto-activate task if still planned. Tenant-scoped so a cross-tenant
+	// task UUID (or one leaked via an item-ID resolve) cannot flip another
+	// tenant's task state.
+	if _, err := s.pool.Exec(ctx,
+		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND tenant_id = $2 AND status = 'planned'",
+		taskID, tenantIDFromContext(c),
+	); err != nil {
+		zap.L().Warn("inventory resolve: auto-activate task failed",
+			zap.String("task_id", taskID.String()), zap.Error(err))
+	}
+
+	s.recordAudit(c, "item.discrepancy_resolved", "inventory", "inventory_item", itemID, map[string]any{
+		"task_id": taskID.String(),
+		"action":  req.Action,
+		"status":  newStatus,
+	})
+	response.OK(c, gin.H{"status": newStatus, "action": req.Action})
+}
