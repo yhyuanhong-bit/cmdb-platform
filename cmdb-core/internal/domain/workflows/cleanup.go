@@ -17,6 +17,14 @@ const (
 	WebhookDLQRetentionDays        int32 = 90
 )
 
+// Source labels for telemetry.ErrorsSuppressedTotal. Kept as consts so
+// the label-value spelling cannot drift between call sites.
+const (
+	sourceCleanupSessions    = "workflows.cleanup.sessions"
+	sourceCleanupConflicts   = "workflows.cleanup.conflicts"
+	sourceCleanupDiscoveries = "workflows.cleanup.discoveries"
+)
+
 func (w *WorkflowSubscriber) StartSessionCleanup(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Hour)
 	go func() {
@@ -34,26 +42,47 @@ func (w *WorkflowSubscriber) StartSessionCleanup(ctx context.Context) {
 }
 
 func (w *WorkflowSubscriber) cleanupSessions(ctx context.Context) {
+	// Each UPDATE/DELETE below is best-effort: a transient DB error
+	// must not kill the hourly ticker. We therefore propagate a Warn
+	// + suppressed-error counter increment and zero-out the
+	// unavailable RowsAffected() so the info summary at the bottom
+	// still reports the successful stages.
+	var expired, deleted, trimmed int64
+
 	// 1. Mark sessions inactive for 7+ days as expired
-	res1, _ := w.pool.Exec(ctx,
-		"UPDATE user_sessions SET expired_at = now() WHERE expired_at IS NULL AND last_active_at < now() - interval '7 days'")
+	if res, err := w.pool.Exec(ctx,
+		"UPDATE user_sessions SET expired_at = now() WHERE expired_at IS NULL AND last_active_at < now() - interval '7 days'",
+	); err != nil {
+		zap.L().Warn("session cleanup: expire stage failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupSessions, telemetry.ReasonDBExecFailed).Inc()
+	} else {
+		expired = res.RowsAffected()
+	}
 
 	// 2. Delete sessions older than 30 days
-	res2, _ := w.pool.Exec(ctx,
-		"DELETE FROM user_sessions WHERE created_at < now() - interval '30 days'")
+	if res, err := w.pool.Exec(ctx,
+		"DELETE FROM user_sessions WHERE created_at < now() - interval '30 days'",
+	); err != nil {
+		zap.L().Warn("session cleanup: delete-old stage failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupSessions, telemetry.ReasonDBExecFailed).Inc()
+	} else {
+		deleted = res.RowsAffected()
+	}
 
 	// 3. Keep only latest 20 sessions per user (delete excess)
-	res3, _ := w.pool.Exec(ctx,
+	if res, err := w.pool.Exec(ctx,
 		`DELETE FROM user_sessions WHERE id IN (
 			SELECT id FROM (
 				SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS rn
 				FROM user_sessions
 			) ranked WHERE rn > 20
-		)`)
-
-	expired := res1.RowsAffected()
-	deleted := res2.RowsAffected()
-	trimmed := res3.RowsAffected()
+		)`,
+	); err != nil {
+		zap.L().Warn("session cleanup: trim-per-user stage failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupSessions, telemetry.ReasonDBExecFailed).Inc()
+	} else {
+		trimmed = res.RowsAffected()
+	}
 
 	if expired+deleted+trimmed > 0 {
 		zap.L().Info("session cleanup completed",
@@ -82,19 +111,30 @@ func (w *WorkflowSubscriber) StartConflictAndDiscoveryCleanup(ctx context.Contex
 }
 
 // autoResolveStaleConflicts resolves import conflicts older than 7 days
-// by accepting the higher-priority source value.
+// by accepting the higher-priority source value. Every DB failure below
+// is logged at Warn and counted via telemetry.ErrorsSuppressedTotal so
+// the hourly loop keeps making forward progress even when one stage
+// transiently fails.
 func (w *WorkflowSubscriber) autoResolveStaleConflicts(ctx context.Context) {
 	// Notify ops-admins about conflicts approaching 3-day SLA warning
-	rows, _ := w.pool.Query(ctx,
+	rows, err := w.pool.Query(ctx,
 		`SELECT tenant_id, count(*) FROM sync_conflicts
 		 WHERE resolution = 'pending' AND created_at < now() - interval '3 days' AND created_at >= now() - interval '4 days'
 		 GROUP BY tenant_id`)
-	if rows != nil {
-		defer rows.Close()
-		for rows.Next() {
-			var tid uuid.UUID
-			var cnt int
-			if rows.Scan(&tid, &cnt) == nil {
+	if err != nil {
+		zap.L().Warn("autoResolveStaleConflicts: SLA-warning query failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupConflicts, telemetry.ReasonDBQueryFailed).Inc()
+	} else {
+		func() {
+			defer rows.Close()
+			for rows.Next() {
+				var tid uuid.UUID
+				var cnt int
+				if scanErr := rows.Scan(&tid, &cnt); scanErr != nil {
+					zap.L().Warn("autoResolveStaleConflicts: scan failed", zap.Error(scanErr))
+					telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupConflicts, telemetry.ReasonRowScanFailed).Inc()
+					continue
+				}
 				for _, uid := range w.opsAdminUserIDs(ctx, tid) {
 					w.createNotification(ctx, tid, uid,
 						"conflict_sla_warning",
@@ -103,21 +143,37 @@ func (w *WorkflowSubscriber) autoResolveStaleConflicts(ctx context.Context) {
 						"sync_conflict", uuid.Nil)
 				}
 			}
-		}
+			if iterErr := rows.Err(); iterErr != nil {
+				zap.L().Warn("autoResolveStaleConflicts: rows iter failed", zap.Error(iterErr))
+				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupConflicts, telemetry.ReasonRowsIterFailed).Inc()
+			}
+		}()
 	}
 
+	var expired1, expired2 int64
+
 	// Auto-resolve sync_conflicts older than 7 days
-	res1, _ := w.pool.Exec(ctx,
+	if res, err := w.pool.Exec(ctx,
 		`UPDATE sync_conflicts SET resolution = 'auto_expired', resolved_at = now()
-		 WHERE resolution = 'pending' AND created_at < now() - interval '7 days'`)
+		 WHERE resolution = 'pending' AND created_at < now() - interval '7 days'`,
+	); err != nil {
+		zap.L().Warn("autoResolveStaleConflicts: sync_conflicts expire failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupConflicts, telemetry.ReasonDBExecFailed).Inc()
+	} else {
+		expired1 = res.RowsAffected()
+	}
 
 	// Also handle import_conflicts if the table exists (created by ingestion-engine)
-	res2, _ := w.pool.Exec(ctx,
+	if res, err := w.pool.Exec(ctx,
 		`UPDATE import_conflicts SET status = 'auto_resolved', resolved_at = now()
-		 WHERE status = 'pending' AND created_at < now() - interval '7 days'`)
+		 WHERE status = 'pending' AND created_at < now() - interval '7 days'`,
+	); err != nil {
+		zap.L().Warn("autoResolveStaleConflicts: import_conflicts expire failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupConflicts, telemetry.ReasonDBExecFailed).Inc()
+	} else {
+		expired2 = res.RowsAffected()
+	}
 
-	expired1 := res1.RowsAffected()
-	expired2 := res2.RowsAffected()
 	if expired1+expired2 > 0 {
 		zap.L().Info("auto-resolved stale conflicts",
 			zap.Int64("sync_conflicts", expired1),
@@ -125,11 +181,18 @@ func (w *WorkflowSubscriber) autoResolveStaleConflicts(ctx context.Context) {
 	}
 }
 
-// expireStaleDiscoveries marks discovered assets pending for >14 days as expired.
+// expireStaleDiscoveries marks discovered assets pending for >14 days
+// as expired. A transient DB failure emits a Warn + counter and the
+// loop tries again on the next tick.
 func (w *WorkflowSubscriber) expireStaleDiscoveries(ctx context.Context) {
-	res, _ := w.pool.Exec(ctx,
+	res, err := w.pool.Exec(ctx,
 		`UPDATE discovered_assets SET status = 'expired'
 		 WHERE status = 'pending' AND discovered_at < now() - interval '14 days'`)
+	if err != nil {
+		zap.L().Warn("expireStaleDiscoveries: exec failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupDiscoveries, telemetry.ReasonDBExecFailed).Inc()
+		return
+	}
 
 	expired := res.RowsAffected()
 	if expired > 0 {
