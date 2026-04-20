@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCreateScanTarget, useUpdateScanTarget } from '../hooks/useScanTargets'
 import { useCredentials } from '../hooks/useCredentials'
+import { Modal } from './ui/Modal'
 
 interface Credential {
   id: string
@@ -66,8 +67,6 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
     }
   }, [editing, open])
 
-  if (!open) return null
-
   const compatibleTypes = CREDENTIAL_TYPE_MAP[formData.collector_type] ?? []
   const filteredCreds = credentials.filter(c => c.cred_type !== undefined && compatibleTypes.includes(c.cred_type))
 
@@ -105,15 +104,16 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div
-        className="bg-[#1a1f2e] p-6 rounded-xl w-[30rem] space-y-4 max-h-[90vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-bold text-white">
-          {isEditing ? t('scan_target_modal.title_edit') : t('scan_target_modal.title_create')}
-        </h3>
-
+    <Modal
+      open={open}
+      onOpenChange={(next) => { if (!next) onClose() }}
+      size="lg"
+    >
+      <Modal.Header
+        title={isEditing ? t('scan_target_modal.title_edit') : t('scan_target_modal.title_create')}
+        onClose={onClose}
+      />
+      <Modal.Body>
         {/* Name */}
         <div>
           <label className="block text-sm text-gray-400 mb-1">{t('scan_target_modal.label_name')} *</label>
@@ -187,25 +187,24 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
           </select>
         </div>
 
-        {/* Buttons */}
-        <div className="flex gap-2 justify-end pt-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded bg-gray-700 text-white text-sm hover:bg-gray-600 transition-colors"
-          >
-            {t('scan_target_modal.btn_cancel')}
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isPending || !formData.name}
-            className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50 hover:bg-blue-500 transition-colors"
-          >
-            {isPending
-              ? (isEditing ? t('scan_target_modal.btn_saving') : t('scan_target_modal.btn_creating'))
-              : (isEditing ? t('scan_target_modal.btn_update') : t('scan_target_modal.btn_create'))}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button
+          onClick={onClose}
+          className="px-4 py-2 rounded bg-gray-700 text-white text-sm hover:bg-gray-600 transition-colors"
+        >
+          {t('scan_target_modal.btn_cancel')}
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={isPending || !formData.name}
+          className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50 hover:bg-blue-500 transition-colors"
+        >
+          {isPending
+            ? (isEditing ? t('scan_target_modal.btn_saving') : t('scan_target_modal.btn_creating'))
+            : (isEditing ? t('scan_target_modal.btn_update') : t('scan_target_modal.btn_create'))}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
