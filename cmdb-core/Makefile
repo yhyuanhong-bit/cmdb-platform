@@ -1,4 +1,4 @@
-.PHONY: infra infra-down migrate migrate-down sqlc wire dev test test-integration build seed generate-api check-api-routes
+.PHONY: infra infra-down migrate migrate-down sqlc wire dev test test-integration build seed generate-api check-api-routes lint errcheck tenantlint
 
 infra:
 	docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example up -d
@@ -70,3 +70,34 @@ check-api-routes:
 	SERVER_MAIN=./cmd/server/main.go \
 	GENERATED_GO=./internal/api/generated.go \
 	go run ./cmd/check-api-routes
+
+# Lint targets — wired into CI so a regression that swallows an error
+# blocks the merge.
+#
+# The custom analyzers build into bin/ on demand and run via go vet's
+# -vettool protocol:
+#  - errcheck (Phase 3.1): flags discarded pool.Exec/Query/Scan and
+#    json.Unmarshal errors. See tools/errcheck/README.md for the
+#    allow-list convention (//errcheck:allow per-line directive).
+#  - tenantlint: flags direct pool access outside the database.TenantScoped
+#    helper. Called out separately from `lint` because it still has a
+#    known backlog of pre-existing sites in cmd/server and a few api/
+#    handlers; wire it in once that backlog has been burned down.
+
+bin/errcheck: tools/errcheck/*.go tools/errcheck/cmd/errcheck/*.go
+	go build -o bin/errcheck ./tools/errcheck/cmd/errcheck
+
+errcheck: bin/errcheck
+	go vet -vettool=$(PWD)/bin/errcheck ./...
+
+bin/tenantlint: tools/tenantlint/*.go tools/tenantlint/cmd/tenantlint/*.go
+	go build -o bin/tenantlint ./tools/tenantlint/cmd/tenantlint
+
+tenantlint: bin/tenantlint
+	go vet -vettool=$(PWD)/bin/tenantlint ./...
+
+# `lint` is the single CI-facing target. It currently runs errcheck +
+# the stdlib vet. tenantlint is opt-in via `make tenantlint` until its
+# pre-existing backlog is resolved.
+lint: errcheck
+	go vet ./...
