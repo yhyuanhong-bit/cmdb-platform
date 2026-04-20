@@ -6,64 +6,49 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
 // ListRackNetworkConnections handles GET /racks/{id}/network-connections
 // Returns all network connections for a given rack.
 func (s *APIServer) ListRackNetworkConnections(c *gin.Context, id IdPath) {
-	rackID := uuid.UUID(id).String()
+	rackID := uuid.UUID(id)
 	tenantID := tenantIDFromContext(c)
 
-	// Fix #11: verify tenant ownership via JOIN with racks table
-	rows, err := s.pool.Query(c.Request.Context(), `
-		SELECT
-			rnc.id,
-			rnc.source_port,
-			COALESCE(a.name, rnc.external_device, '') AS device,
-			rnc.connected_asset_id,
-			COALESCE(rnc.external_device, '')          AS external_device,
-			COALESCE(rnc.speed, '')                    AS speed,
-			COALESCE(rnc.status, '')                   AS status,
-			COALESCE(rnc.vlans, '{}')                  AS vlans,
-			COALESCE(rnc.connection_type, '')          AS connection_type
-		FROM rack_network_connections rnc
-		JOIN racks r ON rnc.rack_id = r.id AND r.tenant_id = $2 AND r.deleted_at IS NULL
-		LEFT JOIN assets a ON rnc.connected_asset_id = a.id
-		WHERE rnc.rack_id = $1
-		ORDER BY rnc.source_port
-	`, rackID, tenantID)
+	rows, err := dbgen.New(s.pool).ListRackNetworkConnections(c.Request.Context(), dbgen.ListRackNetworkConnectionsParams{
+		RackID:   rackID,
+		TenantID: tenantID,
+	})
 	if err != nil {
 		response.InternalError(c, "failed to query network connections")
 		return
 	}
-	defer rows.Close()
 
-	connections := []gin.H{}
-	for rows.Next() {
-		var id, port, device, externalDevice, speed, status, connType string
+	connections := make([]gin.H, 0, len(rows))
+	for _, r := range rows {
 		var connectedAssetID *string
-		var vlans []int32
-
-		if err := rows.Scan(&id, &port, &device, &connectedAssetID, &externalDevice, &speed, &status, &vlans, &connType); err != nil {
-			continue
+		if r.ConnectedAssetID.Valid {
+			s := uuid.UUID(r.ConnectedAssetID.Bytes).String()
+			connectedAssetID = &s
 		}
+		vlans := r.Vlans
 		if vlans == nil {
 			vlans = []int32{}
 		}
-
 		connections = append(connections, gin.H{
-			"id":                 id,
-			"port":               port,
-			"device":             device,
+			"id":                 r.ID.String(),
+			"port":               r.SourcePort,
+			"device":             r.Device,
 			"connected_asset_id": connectedAssetID,
-			"external_device":    externalDevice,
-			"speed":              speed,
-			"status":             status,
+			"external_device":    r.ExternalDevice,
+			"speed":              r.Speed,
+			"status":             r.Status,
 			"vlan":               formatVlans(vlans),
-			"connection_type":    connType,
+			"connection_type":    r.ConnectionType,
 		})
 	}
 
@@ -73,17 +58,17 @@ func (s *APIServer) ListRackNetworkConnections(c *gin.Context, id IdPath) {
 // CreateRackNetworkConnection handles POST /racks/{id}/network-connections
 // Adds a new network connection record for the rack.
 func (s *APIServer) CreateRackNetworkConnection(c *gin.Context, id IdPath) {
-	rackID := uuid.UUID(id).String()
+	rackID := uuid.UUID(id)
 	tenantID := tenantIDFromContext(c)
 
 	var body struct {
-		SourcePort       string   `json:"source_port"`
-		ConnectedAssetID *string  `json:"connected_asset_id"`
-		ExternalDevice   *string  `json:"external_device"`
-		Speed            *string  `json:"speed"`
-		Status           *string  `json:"status"`
-		Vlans            []int32  `json:"vlans"`
-		ConnectionType   *string  `json:"connection_type"`
+		SourcePort       string  `json:"source_port"`
+		ConnectedAssetID *string `json:"connected_asset_id"`
+		ExternalDevice   *string `json:"external_device"`
+		Speed            *string `json:"speed"`
+		Status           *string `json:"status"`
+		Vlans            []int32 `json:"vlans"`
+		ConnectionType   *string `json:"connection_type"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, "invalid request body")
@@ -99,14 +84,29 @@ func (s *APIServer) CreateRackNetworkConnection(c *gin.Context, id IdPath) {
 		return
 	}
 
-	newID := uuid.New().String()
-	_, err := s.pool.Exec(c.Request.Context(), `
-		INSERT INTO rack_network_connections
-			(id, rack_id, tenant_id, source_port, connected_asset_id, external_device, speed, status, vlans, connection_type)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	`, newID, rackID, tenantID, body.SourcePort,
-		body.ConnectedAssetID, body.ExternalDevice,
-		body.Speed, body.Status, body.Vlans, body.ConnectionType)
+	connectedAssetID := pgtype.UUID{}
+	if body.ConnectedAssetID != nil && *body.ConnectedAssetID != "" {
+		parsed, err := uuid.Parse(*body.ConnectedAssetID)
+		if err != nil {
+			response.BadRequest(c, "invalid connected_asset_id")
+			return
+		}
+		connectedAssetID = pgtype.UUID{Bytes: parsed, Valid: true}
+	}
+
+	newID := uuid.New()
+	err := dbgen.New(s.pool).CreateRackNetworkConnection(c.Request.Context(), dbgen.CreateRackNetworkConnectionParams{
+		ID:               newID,
+		RackID:           rackID,
+		TenantID:         tenantID,
+		SourcePort:       body.SourcePort,
+		ConnectedAssetID: connectedAssetID,
+		ExternalDevice:   nullableTextPtr(body.ExternalDevice),
+		Speed:            nullableTextPtr(body.Speed),
+		Status:           nullableTextPtr(body.Status),
+		Vlans:            body.Vlans,
+		ConnectionType:   nullableTextPtr(body.ConnectionType),
+	})
 	if err != nil {
 		errStr := err.Error()
 		if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique") {
@@ -117,37 +117,44 @@ func (s *APIServer) CreateRackNetworkConnection(c *gin.Context, id IdPath) {
 		return
 	}
 
-	connID, _ := uuid.Parse(newID)
-	s.recordAudit(c, "network_connection.created", "topology", "rack_network_connection", connID, map[string]any{
-		"rack_id":     rackID,
+	s.recordAudit(c, "network_connection.created", "topology", "rack_network_connection", newID, map[string]any{
+		"rack_id":     rackID.String(),
 		"source_port": body.SourcePort,
 	})
-	response.Created(c, gin.H{"id": newID})
+	response.Created(c, gin.H{"id": newID.String()})
 }
 
 // DeleteRackNetworkConnection handles DELETE /racks/{id}/network-connections/{connectionId}
 // Removes a specific network connection by its ID.
 func (s *APIServer) DeleteRackNetworkConnection(c *gin.Context, id IdPath, connectionId openapi_types.UUID) {
-	rackID := uuid.UUID(id).String()
+	rackID := uuid.UUID(id)
 	connID := uuid.UUID(connectionId)
 	tenantID := tenantIDFromContext(c)
 
-	// Fix #10: verify the connection belongs to the specified rack and tenant
-	tag, err := s.pool.Exec(c.Request.Context(), `
-		DELETE FROM rack_network_connections
-		WHERE id = $1
-		  AND rack_id = $2
-		  AND rack_id IN (SELECT r.id FROM racks r WHERE r.tenant_id = $3 AND r.deleted_at IS NULL)
-	`, connID, rackID, tenantID)
+	rowsAffected, err := dbgen.New(s.pool).DeleteRackNetworkConnection(c.Request.Context(), dbgen.DeleteRackNetworkConnectionParams{
+		ID:       connID,
+		RackID:   rackID,
+		TenantID: tenantID,
+	})
 	if err != nil {
 		response.InternalError(c, "failed to delete network connection")
 		return
 	}
-	if tag.RowsAffected() == 0 {
+	if rowsAffected == 0 {
 		response.NotFound(c, "connection not found")
 		return
 	}
 
 	s.recordAudit(c, "network_connection.deleted", "topology", "rack_network_connection", connID, nil)
 	c.Status(http.StatusNoContent)
+}
+
+// nullableTextPtr converts a *string into a pgtype.Text, collapsing
+// both nil and "" to a NULL. Shared helper keeps the conversion
+// consistent across the rack handlers.
+func nullableTextPtr(s *string) pgtype.Text {
+	if s == nil || *s == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: *s, Valid: true}
 }
