@@ -51,38 +51,27 @@ func (w *WorkflowSubscriber) cleanupSessions(ctx context.Context) {
 	var expired, deleted, trimmed int64
 
 	// 1. Mark sessions inactive for 7+ days as expired
-	if res, err := w.pool.Exec(ctx,
-		"UPDATE user_sessions SET expired_at = now() WHERE expired_at IS NULL AND last_active_at < now() - interval '7 days'",
-	); err != nil {
+	if n, err := w.queries.ExpireIdleUserSessions(ctx); err != nil {
 		zap.L().Warn("session cleanup: expire stage failed", zap.Error(err))
 		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupSessions, telemetry.ReasonDBExecFailed).Inc()
 	} else {
-		expired = res.RowsAffected()
+		expired = n
 	}
 
 	// 2. Delete sessions older than 30 days
-	if res, err := w.pool.Exec(ctx,
-		"DELETE FROM user_sessions WHERE created_at < now() - interval '30 days'",
-	); err != nil {
+	if n, err := w.queries.DeleteOldUserSessions(ctx); err != nil {
 		zap.L().Warn("session cleanup: delete-old stage failed", zap.Error(err))
 		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupSessions, telemetry.ReasonDBExecFailed).Inc()
 	} else {
-		deleted = res.RowsAffected()
+		deleted = n
 	}
 
 	// 3. Keep only latest 20 sessions per user (delete excess)
-	if res, err := w.pool.Exec(ctx,
-		`DELETE FROM user_sessions WHERE id IN (
-			SELECT id FROM (
-				SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS rn
-				FROM user_sessions
-			) ranked WHERE rn > 20
-		)`,
-	); err != nil {
+	if n, err := w.queries.TrimUserSessionsPerUser(ctx); err != nil {
 		zap.L().Warn("session cleanup: trim-per-user stage failed", zap.Error(err))
 		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupSessions, telemetry.ReasonDBExecFailed).Inc()
 	} else {
-		trimmed = res.RowsAffected()
+		trimmed = n
 	}
 
 	if expired+deleted+trimmed > 0 {

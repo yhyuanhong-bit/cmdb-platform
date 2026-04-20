@@ -14,6 +14,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/middleware"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -183,10 +184,17 @@ func (s *AuthService) recordSession(ctx context.Context, userID uuid.UUID, clien
 		return
 	}
 	deviceType, browser := parseUserAgent(userAgent)
-	if _, err := s.pool.Exec(ctx, `UPDATE user_sessions SET is_current = false WHERE user_id = $1`, userID); err != nil {
+	q := dbgen.New(s.pool)
+	if err := q.ClearCurrentUserSessions(ctx, userID); err != nil {
 		zap.L().Warn("recordSession: failed to clear current sessions", zap.Error(err))
 	}
-	if _, err := s.pool.Exec(ctx, `INSERT INTO user_sessions (user_id, ip_address, user_agent, device_type, browser, is_current) VALUES ($1, $2, $3, $4, $5, true)`, userID, clientIP, userAgent, deviceType, browser); err != nil {
+	if err := q.InsertUserSession(ctx, dbgen.InsertUserSessionParams{
+		UserID:     userID,
+		IpAddress:  pgtype.Text{String: clientIP, Valid: clientIP != ""},
+		UserAgent:  pgtype.Text{String: userAgent, Valid: userAgent != ""},
+		DeviceType: pgtype.Text{String: deviceType, Valid: deviceType != ""},
+		Browser:    pgtype.Text{String: browser, Valid: browser != ""},
+	}); err != nil {
 		zap.L().Warn("recordSession: failed to insert session", zap.Error(err))
 	}
 	if _, err := s.pool.Exec(ctx, `UPDATE users SET last_login_at = now(), last_login_ip = $1 WHERE id = $2`, clientIP, userID); err != nil {

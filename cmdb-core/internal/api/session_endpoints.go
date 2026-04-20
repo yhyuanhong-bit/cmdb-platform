@@ -3,6 +3,7 @@ package api
 import (
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -69,42 +70,38 @@ func (s *APIServer) ListUserSessions(c *gin.Context, id IdPath) {
 		return
 	}
 
-	rows, err := s.pool.Query(c.Request.Context(), `
-		SELECT id, ip_address, device_type, browser, created_at, last_active_at, is_current
-		FROM user_sessions
-		WHERE user_id = $1
-		ORDER BY created_at DESC
-		LIMIT 20
-	`, userID)
+	rows, err := dbgen.New(s.pool).ListUserSessions(c.Request.Context(), userID)
 	if err != nil {
 		response.InternalError(c, "failed to query user sessions")
 		return
 	}
-	defer rows.Close()
 
-	sessions := []userSession{}
-	for rows.Next() {
-		var (
-			id           string
-			ipAddress    string
-			deviceType   string
-			browser      string
-			createdAt    time.Time
-			lastActiveAt time.Time
-			isCurrent    bool
-		)
-		if err := rows.Scan(&id, &ipAddress, &deviceType, &browser, &createdAt, &lastActiveAt, &isCurrent); err != nil {
-			continue
+	sessions := make([]userSession, 0, len(rows))
+	for _, r := range rows {
+		// ip_address, device_type, browser are nullable in the schema
+		// so we collapse NULLs to "" to preserve the pre-migration JSON
+		// shape (always a string, never null).
+		deviceType := ""
+		if r.DeviceType.Valid {
+			deviceType = r.DeviceType.String
+		}
+		ip := ""
+		if r.IpAddress.Valid {
+			ip = r.IpAddress.String
+		}
+		browser := ""
+		if r.Browser.Valid {
+			browser = r.Browser.String
 		}
 		sessions = append(sessions, userSession{
-			ID:         id,
-			IPAddress:  ipAddress,
+			ID:         r.ID.String(),
+			IPAddress:  ip,
 			Device:     deviceType,
 			Browser:    browser,
 			Icon:       deviceIcon(deviceType),
-			Time:       createdAt.Format(time.RFC3339),
-			LastActive: lastActiveAt.Format(time.RFC3339),
-			Current:    isCurrent,
+			Time:       r.CreatedAt.Format(time.RFC3339),
+			LastActive: r.LastActiveAt.Format(time.RFC3339),
+			Current:    r.IsCurrent,
 		})
 	}
 

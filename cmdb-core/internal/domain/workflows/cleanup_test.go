@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/testutil"
@@ -73,7 +74,10 @@ func TestCleanupSessions_PropagatesWarnAndCounter(t *testing.T) {
 
 	pool := newFailingPool(t)
 	defer pool.Close()
-	w := &WorkflowSubscriber{pool: pool}
+	// queries is required now that cleanupSessions goes through the
+	// sqlc-generated surface; the nil pool under it will still return
+	// a dial error, so the telemetry/log assertions below stay valid.
+	w := &WorkflowSubscriber{pool: pool, queries: dbgen.New(pool)}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
