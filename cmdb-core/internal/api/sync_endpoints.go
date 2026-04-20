@@ -296,32 +296,24 @@ func nullableText(v pgtype.Text) interface{} {
 // docs/SYNC_CONFLICT.md for the full policy.
 func (s *APIServer) SyncGetConflicts(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
-	rows, err := s.pool.Query(c.Request.Context(),
-		"SELECT id, entity_type, entity_id, local_version, remote_version, local_diff, remote_diff, created_at FROM sync_conflicts WHERE tenant_id = $1 AND resolution = 'pending' ORDER BY created_at",
-		tenantID)
+	rows, err := dbgen.New(s.pool).ListPendingSyncConflicts(c.Request.Context(), tenantID)
 	if err != nil {
 		response.InternalError(c, "failed to query conflicts")
 		return
 	}
-	defer rows.Close()
 
-	var items []gin.H
-	for rows.Next() {
-		var id, entityID uuid.UUID
-		var entityType string
-		var localV, remoteV int64
-		var localDiff, remoteDiff, createdAt interface{}
-		if rows.Scan(&id, &entityType, &entityID, &localV, &remoteV, &localDiff, &remoteDiff, &createdAt) == nil {
-			items = append(items, gin.H{
-				"id": id, "entity_type": entityType, "entity_id": entityID,
-				"local_version": localV, "remote_version": remoteV,
-				"local_diff": localDiff, "remote_diff": remoteDiff,
-				"created_at": createdAt,
-			})
-		}
-	}
-	if items == nil {
-		items = []gin.H{}
+	items := make([]gin.H, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, gin.H{
+			"id":             r.ID,
+			"entity_type":    r.EntityType,
+			"entity_id":      r.EntityID,
+			"local_version":  r.LocalVersion,
+			"remote_version": r.RemoteVersion,
+			"local_diff":     r.LocalDiff,
+			"remote_diff":    r.RemoteDiff,
+			"created_at":     nullableTimestamp(r.CreatedAt),
+		})
 	}
 	response.OK(c, items)
 }
@@ -369,18 +361,21 @@ func (s *APIServer) SyncResolveConflict(c *gin.Context, id IdPath) {
 	}
 
 	ctx := c.Request.Context()
+	q := dbgen.New(s.pool)
 
 	// 1. Read the conflict to get entity info. Scoped by tenant_id — a
 	//    conflict owned by another tenant must surface as a 404.
-	var entityType, entityID string
-	var remoteDiff json.RawMessage
-	err := s.pool.QueryRow(ctx,
-		"SELECT entity_type, entity_id, remote_diff FROM sync_conflicts WHERE id = $1 AND tenant_id = $2 AND resolution = 'pending'",
-		conflictID, tenantID).Scan(&entityType, &entityID, &remoteDiff)
+	conflict, err := q.GetPendingSyncConflict(ctx, dbgen.GetPendingSyncConflictParams{
+		ID:       conflictID,
+		TenantID: tenantID,
+	})
 	if err != nil {
 		response.NotFound(c, "conflict not found or already resolved")
 		return
 	}
+	entityType := conflict.EntityType
+	entityID := conflict.EntityID.String()
+	remoteDiff := conflict.RemoteDiff
 
 	// 2. If remote_wins, validate the diff keys BEFORE marking the
 	//    conflict resolved. If validation fails, the conflict stays
@@ -399,10 +394,12 @@ func (s *APIServer) SyncResolveConflict(c *gin.Context, id IdPath) {
 	}
 
 	// 3. Mark conflict as resolved. Scoped by tenant_id as a second guard.
-	_, err = s.pool.Exec(ctx,
-		"UPDATE sync_conflicts SET resolution = $1, resolved_by = $2, resolved_at = now() WHERE id = $3 AND tenant_id = $4",
-		req.Resolution, userID, conflictID, tenantID)
-	if err != nil {
+	if err := q.ResolveSyncConflict(ctx, dbgen.ResolveSyncConflictParams{
+		Resolution: pgtype.Text{String: req.Resolution, Valid: true},
+		ResolvedBy: pgtype.UUID{Bytes: userID, Valid: true},
+		ID:         conflictID,
+		TenantID:   tenantID,
+	}); err != nil {
 		response.InternalError(c, "failed to resolve conflict")
 		return
 	}

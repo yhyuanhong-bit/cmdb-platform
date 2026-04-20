@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -116,51 +117,35 @@ func (w *WorkflowSubscriber) StartConflictAndDiscoveryCleanup(ctx context.Contex
 // the hourly loop keeps making forward progress even when one stage
 // transiently fails.
 func (w *WorkflowSubscriber) autoResolveStaleConflicts(ctx context.Context) {
-	// Notify ops-admins about conflicts approaching 3-day SLA warning
-	rows, err := w.pool.Query(ctx,
-		`SELECT tenant_id, count(*) FROM sync_conflicts
-		 WHERE resolution = 'pending' AND created_at < now() - interval '3 days' AND created_at >= now() - interval '4 days'
-		 GROUP BY tenant_id`)
+	q := dbgen.New(w.pool)
+
+	// Notify ops-admins about conflicts approaching 3-day SLA warning.
+	// Cross-tenant sweep by design — the caller then fans out per-tenant
+	// notifications through opsAdminUserIDs + createNotification.
+	slaRows, err := q.CountPendingConflictsByTenantNearSLA(ctx)
 	if err != nil {
 		zap.L().Warn("autoResolveStaleConflicts: SLA-warning query failed", zap.Error(err))
 		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupConflicts, telemetry.ReasonDBQueryFailed).Inc()
 	} else {
-		func() {
-			defer rows.Close()
-			for rows.Next() {
-				var tid uuid.UUID
-				var cnt int
-				if scanErr := rows.Scan(&tid, &cnt); scanErr != nil {
-					zap.L().Warn("autoResolveStaleConflicts: scan failed", zap.Error(scanErr))
-					telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupConflicts, telemetry.ReasonRowScanFailed).Inc()
-					continue
-				}
-				for _, uid := range w.opsAdminUserIDs(ctx, tid) {
-					w.createNotification(ctx, tid, uid,
-						"conflict_sla_warning",
-						fmt.Sprintf("%d sync conflicts approaching SLA deadline", cnt),
-						"These conflicts will be auto-resolved in 4 days if not manually addressed.",
-						"sync_conflict", uuid.Nil)
-				}
+		for _, row := range slaRows {
+			for _, uid := range w.opsAdminUserIDs(ctx, row.TenantID) {
+				w.createNotification(ctx, row.TenantID, uid,
+					"conflict_sla_warning",
+					fmt.Sprintf("%d sync conflicts approaching SLA deadline", row.Count),
+					"These conflicts will be auto-resolved in 4 days if not manually addressed.",
+					"sync_conflict", uuid.Nil)
 			}
-			if iterErr := rows.Err(); iterErr != nil {
-				zap.L().Warn("autoResolveStaleConflicts: rows iter failed", zap.Error(iterErr))
-				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupConflicts, telemetry.ReasonRowsIterFailed).Inc()
-			}
-		}()
+		}
 	}
 
 	var expired1, expired2 int64
 
 	// Auto-resolve sync_conflicts older than 7 days
-	if res, err := w.pool.Exec(ctx,
-		`UPDATE sync_conflicts SET resolution = 'auto_expired', resolved_at = now()
-		 WHERE resolution = 'pending' AND created_at < now() - interval '7 days'`,
-	); err != nil {
+	if rowsAffected, err := q.AutoExpireStaleSyncConflicts(ctx); err != nil {
 		zap.L().Warn("autoResolveStaleConflicts: sync_conflicts expire failed", zap.Error(err))
 		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceCleanupConflicts, telemetry.ReasonDBExecFailed).Inc()
 	} else {
-		expired1 = res.RowsAffected()
+		expired1 = rowsAffected
 	}
 
 	// Also handle import_conflicts if the table exists (created by ingestion-engine)
