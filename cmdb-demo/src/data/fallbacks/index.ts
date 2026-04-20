@@ -4,5 +4,4 @@
 
 export * from './predictive'
 export * from './energy'
-export * from './inventory'
 export * from './lifecycle'

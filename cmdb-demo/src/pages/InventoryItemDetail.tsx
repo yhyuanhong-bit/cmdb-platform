@@ -23,9 +23,6 @@ interface ItemNote {
   timestamp?: string
   author?: string
 }
-import { FALLBACK_ASSET } from '../data/fallbacks/inventory'
-
-
 /* ──────────────────────────────────────────────
    Small reusable pieces
    ────────────────────────────────────────────── */
@@ -79,23 +76,29 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
   const createNote = useCreateItemNote()
   const [noteText, setNoteText] = useState('')
 
-  // Build ASSET from API data or fall back to static
-  const ASSET = task ? {
-    name: task.name || FALLBACK_ASSET.name,
-    tag: task.code || FALLBACK_ASSET.tag,
-    serialNumber: firstItem?.asset_id ?? FALLBACK_ASSET.serialNumber,
-    model: FALLBACK_ASSET.model,
-    manufacturer: FALLBACK_ASSET.manufacturer,
-    location: FALLBACK_ASSET.location,
-    status: firstItem?.status ?? FALLBACK_ASSET.status,
-    expectedStatus: FALLBACK_ASSET.expectedStatus,
-    owner: FALLBACK_ASSET.owner,
-    purchaseDate: FALLBACK_ASSET.purchaseDate,
-    warrantyExpiry: FALLBACK_ASSET.warrantyExpiry,
-    lastMaintenance: FALLBACK_ASSET.lastMaintenance,
-    ipAddress: FALLBACK_ASSET.ipAddress,
-    macAddress: FALLBACK_ASSET.macAddress,
-  } : FALLBACK_ASSET;
+  // Build ASSET from API task + inventory item. Fields that the API does not
+  // yet expose (model, manufacturer, owner, purchase/warranty/maintenance
+  // dates, IP/MAC) show "—" rather than decorative fake values.
+  // TODO(phase-3.10): wire up GET /assets/{id} once the inventory item is
+  // linked to the full asset record — today the task endpoint only exposes
+  // task + item fields, not the underlying asset's financial/network attrs.
+  const EMPTY = '—';
+  const ASSET = {
+    name: task?.name ?? EMPTY,
+    tag: task?.code ?? EMPTY,
+    serialNumber: firstItem?.asset_id ?? EMPTY,
+    model: EMPTY,
+    manufacturer: EMPTY,
+    location: EMPTY,
+    status: firstItem?.status ?? EMPTY,
+    expectedStatus: EMPTY,
+    owner: EMPTY,
+    purchaseDate: EMPTY,
+    warrantyExpiry: EMPTY,
+    lastMaintenance: EMPTY,
+    ipAddress: EMPTY,
+    macAddress: EMPTY,
+  };
 
   if (taskLoading) {
     return (
@@ -209,22 +212,24 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
             </div>
           </div>
 
-          {/* Status mismatch alert */}
-          <div className="mt-4 bg-error-container/30 rounded-xl p-4 flex items-start gap-3">
-            <Icon name="warning" className="text-error text-xl shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-headline font-bold text-error mb-1">
-                {t('inventory_detail.status_discrepancy_detected')}
-              </p>
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                CMDB record indicates this asset should be{" "}
-                <span className="text-[#69db7c] font-bold">Active</span>, but
-                physical scan confirms the device is{" "}
-                <span className="text-error font-bold">Powered Off</span>.
-                Last network activity detected on 2026-03-26 03:14 UTC.
-              </p>
+          {/* Status mismatch alert — only render when a real discrepancy is
+              present on the inventory item. TODO(phase-3.10): surface the
+              actual mismatch details from the /inventory/tasks/{id}/items
+              API (expected vs actual) once status_change context is exposed.
+          */}
+          {firstItem?.discrepancy && (
+            <div className="mt-4 bg-error-container/30 rounded-xl p-4 flex items-start gap-3">
+              <Icon name="warning" className="text-error text-xl shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-headline font-bold text-error mb-1">
+                  {t('inventory_detail.status_discrepancy_detected')}
+                </p>
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  {firstItem.discrepancy}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* QR / Barcode panel */}
