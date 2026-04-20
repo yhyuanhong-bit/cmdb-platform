@@ -1,12 +1,26 @@
 import { toast } from 'sonner'
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
 import { useWorkOrders } from '../hooks/useMaintenance'
 import { useLocationContext } from '../contexts/LocationContext'
+import { useUrlState } from '../hooks/useUrlState'
 import type { WorkOrder } from '../lib/api/maintenance'
+
+// URL-persisted state for the Maintenance list page: pagination, view toggle
+// (schedule vs records), search, date range, and type/status filters.
+type MaintenanceViewMode = 'schedule' | 'records'
+const maintenanceListDefaults = {
+  viewMode: 'schedule' as MaintenanceViewMode,
+  page: 1,
+  search: '',
+  dateFrom: '2026-03-01',
+  dateTo: '2026-03-28',
+  typeFilter: 'All Types',
+  statusFilter: 'All Status',
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types (local view models)                                          */
@@ -373,7 +387,8 @@ export default function MaintenanceHub() {
   const navigate = useNavigate()
   const { path } = useLocationContext()
   const locationId = path.idc?.id || path.campus?.id || path.city?.id || path.region?.id || path.territory?.id
-  const [currentPage, setCurrentPage] = useState(1)
+  const [urlState, setUrlState] = useUrlState('maint', maintenanceListDefaults)
+  const { viewMode, page: currentPage, search, dateFrom, dateTo, typeFilter, statusFilter } = urlState
   const { data: woResponse, isLoading, error } = useWorkOrders(
     locationId ? { location_id: locationId, page: String(currentPage), page_size: '20' }
                : { page: String(currentPage), page_size: '20' }
@@ -390,12 +405,7 @@ export default function MaintenanceHub() {
     [workOrders],
   )
 
-  const [viewMode, setViewMode] = useState<'schedule' | 'records'>('schedule')
-  const [search, setSearch] = useState('')
-  const [dateFrom, setDateFrom] = useState('2026-03-01')
-  const [dateTo, setDateTo] = useState('2026-03-28')
-  const [typeFilter, setTypeFilter] = useState('All Types')
-  const [statusFilter, setStatusFilter] = useState('All Status')
+  // (viewMode, search, dateFrom, dateTo, typeFilter, statusFilter destructured above from urlState)
 
   if (isLoading) {
     return (
@@ -487,7 +497,7 @@ export default function MaintenanceHub() {
         {/* View Toggle */}
         <div className="flex bg-surface-container-low rounded overflow-hidden">
           <button
-            onClick={() => setViewMode('schedule')}
+            onClick={() => setUrlState({ viewMode: 'schedule' })}
             className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors ${
               viewMode === 'schedule'
                 ? 'bg-on-primary-container text-white'
@@ -498,7 +508,7 @@ export default function MaintenanceHub() {
             {t('maintenance_schedule.view_schedule')}
           </button>
           <button
-            onClick={() => setViewMode('records')}
+            onClick={() => setUrlState({ viewMode: 'records' })}
             className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors ${
               viewMode === 'records'
                 ? 'bg-on-primary-container text-white'
@@ -520,7 +530,7 @@ export default function MaintenanceHub() {
             type="text"
             placeholder={t('maintenance_schedule.search_placeholder')}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setUrlState({ search: e.target.value, page: 1 })}
             className="w-full bg-surface-container-low py-2.5 pl-10 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/50 rounded focus:outline-none focus:ring-1 focus:ring-primary/40"
           />
         </div>
@@ -531,7 +541,7 @@ export default function MaintenanceHub() {
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            onChange={(e) => setUrlState({ dateFrom: e.target.value, page: 1 })}
             className="bg-surface-container-low py-2 px-3 text-sm text-on-surface rounded focus:outline-none focus:ring-1 focus:ring-primary/40"
           />
         </div>
@@ -540,7 +550,7 @@ export default function MaintenanceHub() {
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
+            onChange={(e) => setUrlState({ dateTo: e.target.value, page: 1 })}
             className="bg-surface-container-low py-2 px-3 text-sm text-on-surface rounded focus:outline-none focus:ring-1 focus:ring-primary/40"
           />
         </div>
@@ -548,7 +558,7 @@ export default function MaintenanceHub() {
         {/* Type Filter */}
         <select
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
+          onChange={(e) => setUrlState({ typeFilter: e.target.value, page: 1 })}
           className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface rounded appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/40"
         >
           <option value="All Types">{t('maintenance_records.all_types')}</option>
@@ -561,7 +571,7 @@ export default function MaintenanceHub() {
         {/* Status Filter */}
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => setUrlState({ statusFilter: e.target.value, page: 1 })}
           className="bg-surface-container-low py-2.5 px-3 text-sm text-on-surface rounded appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/40"
         >
           <option value="All Status">{t('assets.all_status')}</option>
@@ -597,7 +607,7 @@ export default function MaintenanceHub() {
         </span>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            onClick={() => setUrlState({ page: Math.max(1, currentPage - 1) })}
             disabled={currentPage === 1}
             className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors disabled:opacity-40"
           >
@@ -606,7 +616,7 @@ export default function MaintenanceHub() {
           {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((page) => (
             <button
               key={page}
-              onClick={() => setCurrentPage(page)}
+              onClick={() => setUrlState({ page })}
               className={`px-3 py-1.5 rounded text-xs font-semibold min-w-[32px] transition-colors ${
                 page === currentPage
                   ? 'bg-on-primary-container text-white'
@@ -620,7 +630,7 @@ export default function MaintenanceHub() {
             <>
               <span className="px-2 text-on-surface-variant">...</span>
               <button
-                onClick={() => setCurrentPage(totalPages)}
+                onClick={() => setUrlState({ page: totalPages })}
                 className={`px-3 py-1.5 rounded text-xs font-semibold min-w-[32px] transition-colors ${
                   currentPage === totalPages
                     ? 'bg-on-primary-container text-white'
@@ -632,7 +642,7 @@ export default function MaintenanceHub() {
             </>
           )}
           <button
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => setUrlState({ page: Math.min(totalPages, currentPage + 1) })}
             disabled={currentPage === totalPages}
             className="px-3 py-1.5 rounded bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest transition-colors disabled:opacity-40"
           >
