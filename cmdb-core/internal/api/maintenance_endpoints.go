@@ -3,9 +3,11 @@ package api
 import (
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // ListWorkOrderComments handles GET /maintenance/orders/{id}/comments
@@ -13,41 +15,29 @@ import (
 func (s *APIServer) ListWorkOrderComments(c *gin.Context, id IdPath) {
 	orderID := uuid.UUID(id)
 
-	rows, err := s.pool.Query(c.Request.Context(), `
-		SELECT wc.id, u.display_name, wc.text, wc.created_at
-		FROM work_order_comments wc
-		LEFT JOIN users u ON wc.author_id = u.id
-		WHERE wc.order_id = $1
-		ORDER BY wc.created_at ASC
-	`, orderID)
+	rows, err := dbgen.New(s.pool).ListWorkOrderComments(c.Request.Context(), orderID)
 	if err != nil {
 		response.InternalError(c, "failed to query comments")
 		return
 	}
-	defer rows.Close()
 
-	comments := []gin.H{}
-	for rows.Next() {
-		var (
-			id         uuid.UUID
-			authorName *string
-			text       string
-			createdAt  time.Time
-		)
-		if err := rows.Scan(&id, &authorName, &text, &createdAt); err != nil {
-			response.InternalError(c, "failed to scan row")
-			return
+	comments := make([]gin.H, 0, len(rows))
+	for _, r := range rows {
+		// author_name may be NULL if the user has been deleted
+		// (author_id FK is ON DELETE SET NULL). The pre-migration
+		// handler used a *string; preserve the JSON shape by
+		// marshalling nil when not valid.
+		var authorName *string
+		if r.AuthorName.Valid {
+			name := r.AuthorName.String
+			authorName = &name
 		}
 		comments = append(comments, gin.H{
-			"id":          id.String(),
+			"id":          r.ID.String(),
 			"author_name": authorName,
-			"text":        text,
-			"created_at":  createdAt.UTC().Format(time.RFC3339),
+			"text":        r.Text,
+			"created_at":  r.CreatedAt.UTC().Format(time.RFC3339),
 		})
-	}
-	if err := rows.Err(); err != nil {
-		response.InternalError(c, "error reading comment rows")
-		return
 	}
 
 	response.OK(c, gin.H{"comments": comments})
@@ -72,11 +62,12 @@ func (s *APIServer) CreateWorkOrderComment(c *gin.Context, id IdPath) {
 	}
 
 	newID := uuid.New()
-	_, err := s.pool.Exec(c.Request.Context(), `
-		INSERT INTO work_order_comments (id, order_id, author_id, text, created_at)
-		VALUES ($1, $2, $3, $4, now())
-	`, newID, orderID, userID, body.Text)
-	if err != nil {
+	if err := dbgen.New(s.pool).CreateWorkOrderComment(c.Request.Context(), dbgen.CreateWorkOrderCommentParams{
+		ID:       newID,
+		OrderID:  orderID,
+		AuthorID: pgtype.UUID{Bytes: userID, Valid: userID != uuid.Nil},
+		Text:     body.Text,
+	}); err != nil {
 		response.InternalError(c, "failed to create comment")
 		return
 	}
