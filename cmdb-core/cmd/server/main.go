@@ -163,7 +163,7 @@ func main() {
 
 	// 4b. Verify database migration version matches code expectations
 	{
-		const expectedMigration = 47 // bump this when adding new migrations
+		const expectedMigration = 50 // bump this when adding new migrations
 		var dbVersion int
 		err := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&dbVersion)
 		if err != nil {

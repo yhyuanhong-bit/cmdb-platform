@@ -2,7 +2,24 @@
 SELECT * FROM users WHERE id = $1;
 
 -- name: GetUserByUsername :one
+--
+-- Legacy global-unique lookup. Phase 1.3 scoped username uniqueness to
+-- (tenant_id, username); prefer GetUserByTenantAndUsername when a tenant
+-- context is known. This query now returns multiple rows when two tenants
+-- reuse the same username — callers must treat "more than one match" as
+-- ambiguous and fail closed.
 SELECT * FROM users WHERE username = $1;
+
+-- name: GetUserByTenantAndUsername :one
+SELECT * FROM users WHERE tenant_id = $1 AND username = $2;
+
+-- name: ListUsersByUsername :many
+--
+-- Disambiguation helper for the legacy login path: fetch every user that
+-- matches a given username across all tenants. A result of length 1 means
+-- the username is globally unique and the login can proceed; length > 1
+-- means the caller must require a tenant_slug.
+SELECT * FROM users WHERE username = $1 AND deleted_at IS NULL;
 
 -- name: ListUsers :many
 SELECT * FROM users

@@ -67,11 +67,27 @@ func (s *AuthService) WithBlacklist(b Blacklist) *AuthService {
 	return s
 }
 
-// Login authenticates a user by username and password and returns tokens.
+// Login authenticates a user and returns tokens.
+//
+// The lookup path depends on LoginRequest.TenantSlug:
+//
+//   - When a non-empty slug is supplied, the tenant is resolved by slug and
+//     the user is looked up via the (tenant_id, username) unique index. An
+//     unknown slug, a missing user, a wrong password, or an inactive account
+//     all fail with the same generic message to avoid leaking which tenants
+//     and usernames exist.
+//
+//   - When the slug is empty, the legacy global-username path is used. That
+//     path is deprecated (a warning is logged on every use) and fails closed
+//     if the username is not globally unique — the caller must retry with a
+//     tenant_slug.
+//
+// See Phase 1.3 of the remediation roadmap for the full rationale and the
+// users_tenant_username_unique index that backs this behaviour.
 func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*TokenResponse, error) {
-	user, err := s.queries.GetUserByUsername(ctx, req.Username)
+	user, err := s.resolveLoginUser(ctx, req)
 	if err != nil {
-		return nil, errors.New("invalid username or password")
+		return nil, err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
@@ -88,6 +104,51 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*TokenRespon
 	}
 	s.recordSession(ctx, user.ID, req.ClientIP, req.UserAgent)
 	return tokens, nil
+}
+
+// resolveLoginUser picks the user to authenticate given a LoginRequest.
+// Returns a generic "invalid username or password" error on every failure
+// mode — slug missing, user missing, and ambiguous username all look the
+// same to the caller to avoid information leaks.
+func (s *AuthService) resolveLoginUser(ctx context.Context, req LoginRequest) (dbgen.User, error) {
+	genericErr := errors.New("invalid username or password")
+
+	if req.TenantSlug != "" {
+		tenant, err := s.queries.GetTenantBySlug(ctx, req.TenantSlug)
+		if err != nil {
+			return dbgen.User{}, genericErr
+		}
+		user, err := s.queries.GetUserByTenantAndUsername(ctx, dbgen.GetUserByTenantAndUsernameParams{
+			TenantID: tenant.ID,
+			Username: req.Username,
+		})
+		if err != nil {
+			return dbgen.User{}, genericErr
+		}
+		return user, nil
+	}
+
+	// Legacy fallback: no tenant_slug supplied. Phase 1.3 deprecates this
+	// path because (tenant_id, username) is the new uniqueness contract.
+	// Keep working only when the username happens to be globally unique
+	// so existing single-tenant deployments don't break; fail closed as
+	// soon as the column is genuinely ambiguous.
+	candidates, err := s.queries.ListUsersByUsername(ctx, req.Username)
+	if err != nil {
+		return dbgen.User{}, genericErr
+	}
+	if len(candidates) == 0 {
+		return dbgen.User{}, genericErr
+	}
+	if len(candidates) > 1 {
+		zap.L().Warn("login: ambiguous username without tenant_slug",
+			zap.String("username", req.Username),
+			zap.Int("matches", len(candidates)))
+		return dbgen.User{}, genericErr
+	}
+	zap.L().Warn("login: tenant_slug missing; relying on deprecated global-username fallback",
+		zap.String("username", req.Username))
+	return candidates[0], nil
 }
 
 // parseUserAgent extracts device type and browser from a User-Agent string.

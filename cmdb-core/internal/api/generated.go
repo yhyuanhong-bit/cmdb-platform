@@ -725,9 +725,15 @@ type LocationStats struct {
 }
 
 // LoginRequest defines model for LoginRequest.
+//
+// TenantSlug was added in Phase 1.3 of the remediation roadmap to
+// disambiguate cross-tenant duplicate usernames. It is optional for
+// backwards compatibility; the server logs a deprecation warning when it
+// is omitted and the caller relies on the legacy global-username lookup.
 type LoginRequest struct {
-	Password string `json:"password"`
-	Username string `json:"username"`
+	Password   string `json:"password"`
+	TenantSlug string `json:"tenant_slug,omitempty"`
+	Username   string `json:"username"`
 }
 
 // Meta defines model for Meta.

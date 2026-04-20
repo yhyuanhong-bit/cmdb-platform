@@ -149,6 +149,80 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 	return i, err
 }
 
+const getUserByTenantAndUsername = `-- name: GetUserByTenantAndUsername :one
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE tenant_id = $1 AND username = $2
+`
+
+type GetUserByTenantAndUsernameParams struct {
+	TenantID uuid.UUID
+	Username string
+}
+
+func (q *Queries) GetUserByTenantAndUsername(ctx context.Context, arg GetUserByTenantAndUsernameParams) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByTenantAndUsername, arg.TenantID, arg.Username)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.DeptID,
+		&i.Username,
+		&i.DisplayName,
+		&i.Email,
+		&i.Phone,
+		&i.PasswordHash,
+		&i.Status,
+		&i.Source,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastLoginAt,
+		&i.LastLoginIp,
+		&i.DeletedAt,
+		&i.PasswordChangedAt,
+	)
+	return i, err
+}
+
+const listUsersByUsername = `-- name: ListUsersByUsername :many
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE username = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) ListUsersByUsername(ctx context.Context, username string) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersByUsername, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.DeptID,
+			&i.Username,
+			&i.DisplayName,
+			&i.Email,
+			&i.Phone,
+			&i.PasswordHash,
+			&i.Status,
+			&i.Source,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LastLoginAt,
+			&i.LastLoginIp,
+			&i.DeletedAt,
+			&i.PasswordChangedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsers = `-- name: ListUsers :many
 SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users
 WHERE tenant_id = $1

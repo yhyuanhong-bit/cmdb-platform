@@ -151,6 +151,30 @@ func TestLogin_ServiceError(t *testing.T) {
 	}
 }
 
+// TestLogin_PropagatesTenantSlug guards the HTTP→domain hand-off for
+// Phase 1.3. The handler must forward tenant_slug from the request body
+// into identity.LoginRequest, otherwise the disambiguation feature is
+// invisible to clients.
+func TestLogin_PropagatesTenantSlug(t *testing.T) {
+	var captured identity.LoginRequest
+	svc := &mockAuthService{
+		loginFn: func(_ context.Context, req identity.LoginRequest) (*identity.TokenResponse, error) {
+			captured = req
+			return &identity.TokenResponse{AccessToken: "t", RefreshToken: "r", ExpiresIn: 1}, nil
+		},
+	}
+	s := newTestServer(svc)
+	rec := performJSON(t, s.Login, http.MethodPost, "/auth/login",
+		LoginRequest{TenantSlug: "acme-corp", Username: "admin", Password: "pw"}, nil)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200. body=%s", rec.Code, rec.Body.String())
+	}
+	if captured.TenantSlug != "acme-corp" {
+		t.Errorf("TenantSlug = %q, want acme-corp", captured.TenantSlug)
+	}
+}
+
 func TestLogin_PropagatesClientIPAndUserAgent(t *testing.T) {
 	var captured identity.LoginRequest
 	svc := &mockAuthService{
