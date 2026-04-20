@@ -121,41 +121,13 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 	return i, err
 }
 
-const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE username = $1
-`
-
-func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByUsername, username)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.TenantID,
-		&i.DeptID,
-		&i.Username,
-		&i.DisplayName,
-		&i.Email,
-		&i.Phone,
-		&i.PasswordHash,
-		&i.Status,
-		&i.Source,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.LastLoginAt,
-		&i.LastLoginIp,
-		&i.DeletedAt,
-		&i.PasswordChangedAt,
-	)
-	return i, err
-}
-
 const getUserByTenantAndUsername = `-- name: GetUserByTenantAndUsername :one
 SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE tenant_id = $1 AND username = $2
 `
 
 type GetUserByTenantAndUsernameParams struct {
-	TenantID uuid.UUID
-	Username string
+	TenantID uuid.UUID `json:"tenant_id"`
+	Username string    `json:"username"`
 }
 
 func (q *Queries) GetUserByTenantAndUsername(ctx context.Context, arg GetUserByTenantAndUsernameParams) (User, error) {
@@ -182,17 +154,59 @@ func (q *Queries) GetUserByTenantAndUsername(ctx context.Context, arg GetUserByT
 	return i, err
 }
 
-const listUsersByUsername = `-- name: ListUsersByUsername :many
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE username = $1 AND deleted_at IS NULL
+const getUserByUsername = `-- name: GetUserByUsername :one
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE username = $1
 `
 
-func (q *Queries) ListUsersByUsername(ctx context.Context, username string) ([]User, error) {
-	rows, err := q.db.Query(ctx, listUsersByUsername, username)
+// Legacy global-unique lookup. Phase 1.3 scoped username uniqueness to
+// (tenant_id, username); prefer GetUserByTenantAndUsername when a tenant
+// context is known. This query now returns multiple rows when two tenants
+// reuse the same username — callers must treat "more than one match" as
+// ambiguous and fail closed.
+func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByUsername, username)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.DeptID,
+		&i.Username,
+		&i.DisplayName,
+		&i.Email,
+		&i.Phone,
+		&i.PasswordHash,
+		&i.Status,
+		&i.Source,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastLoginAt,
+		&i.LastLoginIp,
+		&i.DeletedAt,
+		&i.PasswordChangedAt,
+	)
+	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users
+WHERE tenant_id = $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListUsersParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Limit    int32     `json:"limit"`
+	Offset   int32     `json:"offset"`
+}
+
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.TenantID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	items := []User{}
 	for rows.Next() {
 		var i User
 		if err := rows.Scan(
@@ -223,21 +237,16 @@ func (q *Queries) ListUsersByUsername(ctx context.Context, username string) ([]U
 	return items, nil
 }
 
-const listUsers = `-- name: ListUsers :many
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users
-WHERE tenant_id = $1
-ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
+const listUsersByUsername = `-- name: ListUsersByUsername :many
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE username = $1 AND deleted_at IS NULL
 `
 
-type ListUsersParams struct {
-	TenantID uuid.UUID `json:"tenant_id"`
-	Limit    int32     `json:"limit"`
-	Offset   int32     `json:"offset"`
-}
-
-func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
-	rows, err := q.db.Query(ctx, listUsers, arg.TenantID, arg.Limit, arg.Offset)
+// Disambiguation helper for the legacy login path: fetch every user that
+// matches a given username across all tenants. A result of length 1 means
+// the username is globally unique and the login can proceed; length > 1
+// means the caller must require a tenant_slug.
+func (q *Queries) ListUsersByUsername(ctx context.Context, username string) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersByUsername, username)
 	if err != nil {
 		return nil, err
 	}
