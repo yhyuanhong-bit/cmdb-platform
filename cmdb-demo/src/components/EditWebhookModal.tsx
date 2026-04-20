@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUpdateWebhook } from '../hooks/useIntegration'
 import type { UpdateWebhookInput, WebhookSubscription } from '../lib/api/integration'
+import { Modal } from './ui/Modal'
 
 interface Props {
   webhook: WebhookSubscription | null
@@ -42,13 +43,12 @@ export default function EditWebhookModal({ webhook, onClose }: Props) {
     }
   }, [webhook])
 
-  if (!webhook) return null
-
   const urlError = validateUrl(url)
   const showUrlError = urlTouched && urlError === 'invalid'
   const canSubmit = !mutation.isPending && !!name && urlError === null
 
   const handleSave = () => {
+    if (!webhook) return
     setUrlTouched(true)
     if (!canSubmit) return
     const patch: UpdateWebhookInput = {}
@@ -69,10 +69,12 @@ export default function EditWebhookModal({ webhook, onClose }: Props) {
   const labelCls = 'block text-sm text-gray-400 mb-1'
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[#1a1f2e] p-6 rounded-xl w-[28rem] space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-white">{t('edit_webhook_modal.title')}</h3>
-
+    <Modal
+      open={webhook !== null}
+      onOpenChange={(next) => { if (!next) onClose() }}
+    >
+      <Modal.Header title={t('edit_webhook_modal.title')} onClose={onClose} />
+      <Modal.Body>
         <div>
           <label className={labelCls}>{t('webhook_modal.name_label')} *</label>
           <input value={name} onChange={e => setName(e.target.value)} className={inputCls} />
@@ -114,15 +116,14 @@ export default function EditWebhookModal({ webhook, onClose }: Props) {
           <input id="edit-webhook-enabled" type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} className="rounded border-gray-700" />
           <label htmlFor="edit-webhook-enabled" className="text-sm text-gray-400">{t('webhook_modal.enabled_label')}</label>
         </div>
-
-        <div className="flex gap-2 justify-end pt-2">
-          <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('webhook_modal.btn_cancel')}</button>
-          <button onClick={handleSave} disabled={!canSubmit}
-            className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
-            {mutation.isPending ? t('edit_webhook_modal.btn_saving') : t('edit_webhook_modal.btn_save')}
-          </button>
-        </div>
-      </div>
-    </div>
+      </Modal.Body>
+      <Modal.Footer>
+        <button onClick={onClose} className="px-4 py-2 rounded bg-gray-700 text-white text-sm">{t('webhook_modal.btn_cancel')}</button>
+        <button onClick={handleSave} disabled={!canSubmit}
+          className="px-4 py-2 rounded bg-blue-600 text-white text-sm disabled:opacity-50">
+          {mutation.isPending ? t('edit_webhook_modal.btn_saving') : t('edit_webhook_modal.btn_save')}
+        </button>
+      </Modal.Footer>
+    </Modal>
   )
 }
