@@ -72,6 +72,17 @@ func (s *Service) GetAssetHistory(ctx context.Context, assetID uuid.UUID) ([]dbg
 	return s.queries.GetAssetQualityHistory(ctx, assetID)
 }
 
+// ScanTenant runs the full per-tenant quality scan and is the entry
+// point used by the scheduled scanner (Phase 2.11). It is a thin wrapper
+// around ScanAllAssets that discards the scanned-count (the scheduler
+// only cares about success/failure so the Prometheus outcome label is
+// well-defined) and returns any error unchanged so the caller can log
+// it alongside the tenant ID.
+func (s *Service) ScanTenant(ctx context.Context, tenantID uuid.UUID) error {
+	_, err := s.ScanAllAssets(ctx, tenantID)
+	return err
+}
+
 // ScanAllAssets evaluates every asset for the tenant and persists quality scores.
 func (s *Service) ScanAllAssets(ctx context.Context, tenantID uuid.UUID) (int, error) {
 	assets, err := s.queries.ListAssets(ctx, dbgen.ListAssetsParams{

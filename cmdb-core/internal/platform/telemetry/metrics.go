@@ -150,6 +150,19 @@ var (
 		Name: "webhook_dlq_rows_total",
 		Help: "Total webhook payloads parked in the DLQ after a circuit breaker trip.",
 	})
+
+	// QualityScannerRunsTotal counts full-tenant quality scan executions
+	// by outcome. One increment per tenant scanned by the scheduled
+	// quality.Service.ScanTenant call (Phase 2.11). The daily loop
+	// iterates ListActiveTenants and emits one observation per tenant so
+	// operators can see at a glance whether a single tenant is
+	// consistently failing the scan while the rest succeed.
+	//
+	// outcome: ok | error
+	QualityScannerRunsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "quality_scanner_runs_total",
+		Help: "Total scheduled per-tenant quality scan executions by outcome (ok|error).",
+	}, []string{"outcome"})
 )
 
 // Label values for the integration_* metrics. Exported so callers don't
