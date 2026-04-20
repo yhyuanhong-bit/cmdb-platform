@@ -155,7 +155,14 @@ func main() {
 					zap.L().Error("migration: failed to apply", zap.String("file", entry.Name()), zap.Error(err))
 					continue
 				}
-				pool.Exec(ctx, "INSERT INTO schema_migrations (version, dirty) VALUES ($1, false) ON CONFLICT DO NOTHING", version)
+				// A failed schema_migrations row means the migration
+				// applied but the tracker didn't advance — on next boot
+				// we'd try to apply it again. That's the kind of silent
+				// divergence that leaves ops chasing phantom failures.
+				if _, err := pool.Exec(ctx, "INSERT INTO schema_migrations (version, dirty) VALUES ($1, false) ON CONFLICT DO NOTHING", version); err != nil {
+					zap.L().Error("migration: failed to record applied version — tracker is out of sync",
+						zap.String("file", entry.Name()), zap.Int("version", version), zap.Error(err))
+				}
 				zap.L().Info("migration: applied", zap.String("file", entry.Name()), zap.Int("version", version))
 			}
 		}
@@ -188,7 +195,14 @@ func main() {
 	// 5a. Auto-seed: create default tenant, admin user, and roles if DB is empty
 	{
 		var userCount int
-		pool.QueryRow(ctx, "SELECT count(*) FROM users").Scan(&userCount)
+		// If the user-count probe fails, we can't safely decide whether
+		// to seed — re-seeding into a populated DB would stomp an
+		// existing admin. Fatal is the correct response: stop startup so
+		// ops can diagnose instead of racing into a half-initialized
+		// state.
+		if err := pool.QueryRow(ctx, "SELECT count(*) FROM users").Scan(&userCount); err != nil {
+			zap.L().Fatal("seed: failed to probe users count — cannot safely decide whether to seed", zap.Error(err))
+		}
 		if userCount == 0 {
 			zap.L().Info("database is empty — running initial seed")
 			seedDir := os.Getenv("SEED_DIR")
@@ -214,10 +228,26 @@ func main() {
 				if err != nil {
 					zap.L().Fatal("seed: failed to hash admin password", zap.Error(err))
 				}
-				pool.Exec(ctx, `INSERT INTO tenants (id, name, slug) VALUES ('a0000000-0000-0000-0000-000000000001', 'Default', 'default') ON CONFLICT DO NOTHING`)
-				pool.Exec(ctx, `INSERT INTO users (id, tenant_id, username, display_name, email, password_hash, status, source) VALUES ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'admin', 'System Admin', 'admin@example.com', $1, 'active', 'local') ON CONFLICT DO NOTHING`, string(hash))
-				pool.Exec(ctx, `INSERT INTO roles (id, tenant_id, name, description, permissions, is_system) VALUES ('c0000000-0000-0000-0000-000000000001', NULL, 'super-admin', 'Full system access', '{"*": ["*"]}', true) ON CONFLICT DO NOTHING`)
-				pool.Exec(ctx, `INSERT INTO user_roles (user_id, role_id) VALUES ('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001') ON CONFLICT DO NOTHING`)
+				// Each INSERT failure here means the minimal-admin seed
+				// never completed. We refuse to continue startup in that
+				// case: the operator would otherwise be looking at a
+				// half-seeded database with no usable login.
+				seedStmts := []struct {
+					label string
+					sql   string
+					args  []any
+				}{
+					{"tenant", `INSERT INTO tenants (id, name, slug) VALUES ('a0000000-0000-0000-0000-000000000001', 'Default', 'default') ON CONFLICT DO NOTHING`, nil},
+					{"user", `INSERT INTO users (id, tenant_id, username, display_name, email, password_hash, status, source) VALUES ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'admin', 'System Admin', 'admin@example.com', $1, 'active', 'local') ON CONFLICT DO NOTHING`, []any{string(hash)}},
+					{"role", `INSERT INTO roles (id, tenant_id, name, description, permissions, is_system) VALUES ('c0000000-0000-0000-0000-000000000001', NULL, 'super-admin', 'Full system access', '{"*": ["*"]}', true) ON CONFLICT DO NOTHING`, nil},
+					{"user_role", `INSERT INTO user_roles (user_id, role_id) VALUES ('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001') ON CONFLICT DO NOTHING`, nil},
+				}
+				for _, stmt := range seedStmts {
+					if _, err := pool.Exec(ctx, stmt.sql, stmt.args...); err != nil {
+						zap.L().Fatal("seed: minimal-admin insert failed — aborting startup",
+							zap.String("step", stmt.label), zap.Error(err))
+					}
+				}
 				// SECURITY: do NOT log the plaintext password — log aggregators
 				// would archive the admin credential. Persist it to a 0600 file
 				// and only log the path + username.
@@ -461,10 +491,23 @@ func main() {
 	// auth chain as every other v1 route (auth -> RBAC -> handler).
 	v1.POST("/auth/logout", apiServer.Logout)
 
-	// One-time data migration: draft/pending → submitted (admin-only, not in spec)
+	// One-time data migration: draft/pending → submitted (admin-only, not in spec).
+	// Discarding the UPDATE error used to let a broken work_orders
+	// table report a fake 200 — the caller would think the one-time
+	// migration succeeded while no rows actually moved.
 	v1.POST("/admin/migrate-statuses", func(c *gin.Context) {
-		res1, _ := pool.Exec(c.Request.Context(), "UPDATE work_orders SET status = 'submitted' WHERE status IN ('draft', 'pending')")
-		res2, _ := pool.Exec(c.Request.Context(), "UPDATE work_orders SET status = 'verified' WHERE status = 'closed'")
+		res1, err1 := pool.Exec(c.Request.Context(), "UPDATE work_orders SET status = 'submitted' WHERE status IN ('draft', 'pending')")
+		if err1 != nil {
+			zap.L().Error("admin migrate-statuses: submitted update failed", zap.Error(err1))
+			c.JSON(500, gin.H{"error": "submitted migration failed", "detail": err1.Error()})
+			return
+		}
+		res2, err2 := pool.Exec(c.Request.Context(), "UPDATE work_orders SET status = 'verified' WHERE status = 'closed'")
+		if err2 != nil {
+			zap.L().Error("admin migrate-statuses: verified update failed", zap.Error(err2))
+			c.JSON(500, gin.H{"error": "verified migration failed", "detail": err2.Error()})
+			return
+		}
 		c.JSON(200, gin.H{"migrated_to_submitted": res1.RowsAffected(), "migrated_to_verified": res2.RowsAffected()})
 	})
 
