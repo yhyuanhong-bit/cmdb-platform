@@ -5,9 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
+)
+
+// Source labels for telemetry.ErrorsSuppressedTotal.
+const (
+	sourceSLABreach  = "workflows.sla.checkSLABreaches"
+	sourceSLAWarning = "workflows.sla.checkSLAWarnings"
 )
 
 func (w *WorkflowSubscriber) StartSLAChecker(ctx context.Context) {
@@ -96,7 +103,7 @@ func (w *WorkflowSubscriber) checkSLABreaches(ctx context.Context) {
 
 	for _, r := range breached {
 		if r.assigneeID.Valid {
-			w.createNotification(ctx, r.tenantID, uuid.UUID(r.assigneeID.Bytes),
+			w.warnNotify(ctx, sourceSLABreach, r.tenantID, uuid.UUID(r.assigneeID.Bytes),
 				"sla_breach",
 				fmt.Sprintf("SLA Breached: %s", r.code),
 				fmt.Sprintf("Work order %s has exceeded its SLA deadline.", r.code),
@@ -112,6 +119,8 @@ func (w *WorkflowSubscriber) checkSLAWarnings(ctx context.Context) {
 	rows, err := w.pool.Query(ctx,
 		"SELECT id, tenant_id, code, assignee_id FROM work_orders WHERE status IN ('approved','in_progress') AND sla_deadline IS NOT NULL AND sla_warning_sent = false AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now() AND approved_at IS NOT NULL AND deleted_at IS NULL")
 	if err != nil {
+		zap.L().Warn("checkSLAWarnings: query failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSLAWarning, telemetry.ReasonDBQueryFailed).Inc()
 		return
 	}
 	defer rows.Close()
@@ -120,16 +129,33 @@ func (w *WorkflowSubscriber) checkSLAWarnings(ctx context.Context) {
 		var id, tenantID uuid.UUID
 		var code string
 		var assigneeID pgtype.UUID
-		if rows.Scan(&id, &tenantID, &code, &assigneeID) != nil {
+		if scanErr := rows.Scan(&id, &tenantID, &code, &assigneeID); scanErr != nil {
+			zap.L().Warn("checkSLAWarnings: scan failed", zap.Error(scanErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSLAWarning, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
-		w.pool.Exec(ctx, "UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2", id, tenantID)
+		if _, execErr := w.pool.Exec(ctx,
+			"UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2",
+			id, tenantID,
+		); execErr != nil {
+			// The warning-sent flag failing to flip means we'll
+			// re-notify the same assignee next tick — annoying,
+			// not catastrophic, so keep advancing through the
+			// result set.
+			zap.L().Warn("checkSLAWarnings: warning-sent flag update failed",
+				zap.String("order_id", id.String()), zap.Error(execErr))
+			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSLAWarning, telemetry.ReasonDBExecFailed).Inc()
+		}
 		if assigneeID.Valid {
-			w.createNotification(ctx, tenantID, uuid.UUID(assigneeID.Bytes),
+			w.warnNotify(ctx, sourceSLAWarning, tenantID, uuid.UUID(assigneeID.Bytes),
 				"sla_warning",
 				fmt.Sprintf("SLA Warning: %s", code),
 				fmt.Sprintf("Work order %s is approaching its SLA deadline.", code),
 				"work_order", id)
 		}
+	}
+	if iterErr := rows.Err(); iterErr != nil {
+		zap.L().Warn("checkSLAWarnings: rows iter failed", zap.Error(iterErr))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSLAWarning, telemetry.ReasonRowsIterFailed).Inc()
 	}
 }
