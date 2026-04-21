@@ -21,6 +21,7 @@ require (
 	golang.org/x/mod v0.35.0
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.44.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
