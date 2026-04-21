@@ -1,0 +1,70 @@
+# RBAC routing configuration.
+#
+# Single source of truth for:
+#   1. Which URL paths skip RBAC entirely (publicPaths).
+#   2. How URL segments under /api/v1/<segment>/... map to RBAC resource
+#      names that are checked against roles.permissions.
+#
+# Every value in resourceMap MUST exist in the knownResources whitelist
+# declared in rbac_config.go. The loader fails closed at startup if any
+# validation rule fails (see RBACConfig.Validate).
+#
+# This file ships inside the cmdb-core binary repository and is loaded
+# from its on-disk location at startup. In Kubernetes the file is mounted
+# from a ConfigMap; override the path with env var CMDB_RBAC_CONFIG_PATH.
+#
+# Changes require a cmdb-core rolling restart (or a ConfigMap checksum
+# annotation bump in the Deployment). Hot reload is intentionally not
+# wired in phase 4.9 — see docs/reports/phase4/4.9-rbac-config-externalization.md.
+
+version: 1
+
+# Paths that bypass RBAC entirely.
+#
+# Routes that either require no authentication at all (login, refresh,
+# ws, healthz, metrics) or are authenticated-but-self-service so every
+# signed-in user must reach them regardless of RBAC grants (logout).
+publicPaths:
+  - /api/v1/auth/login
+  - /api/v1/auth/refresh
+  - /api/v1/auth/logout
+  - /api/v1/ws
+  - /healthz
+  - /metrics
+
+# Maps the first path segment after /api/v1/ to a resource name checked
+# against roles.permissions JSONB. Keys are URL segments, values must be
+# members of knownResources (see rbac_config.go).
+#
+# NOTE: the four entries flagged below are known to be semantically
+# miscategorised ("bia"/"quality"/"discovery"/"upgrade-rules"). They are
+# preserved byte-for-byte from the pre-4.9 hardcoded map to isolate
+# "config extraction" from "config fixes". See audit report
+# docs/reports/audit-2026-04-19/05-infra.md for the fix plan.
+resourceMap:
+  assets: assets
+  locations: topology
+  racks: topology
+  maintenance: maintenance
+  monitoring: monitoring
+  inventory: inventory
+  audit: audit
+  dashboard: dashboard
+  users: identity
+  roles: identity
+  auth: identity
+  prediction: prediction
+  integration: integration
+  system: system
+  energy: monitoring
+  sensors: monitoring
+  topology: topology
+  activity-feed: audit
+  quality: system        # TODO(security-review): should be "quality"
+  bia: system            # TODO(security-review): should be "bia"
+  discovery: assets      # TODO(security-review): should be "assets" or "discovery"
+  upgrade-rules: assets  # TODO(security-review): semantic review needed
+  sync: sync
+  notifications: system
+  capacity-planning: assets
+  fleet-metrics: monitoring
