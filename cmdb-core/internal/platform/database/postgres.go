@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -78,12 +78,22 @@ func NewPool(ctx context.Context, databaseURL string, opts ...PoolOption) (*pgxp
 	cfg.MaxConns = 50
 	cfg.MinConns = 5
 
-	if !pc.disableSlowQueryTracer {
-		// ConnConfig.Tracer is pgx's QueryTracer slot. Setting it is
-		// the supported way to intercept every Query/QueryRow/Exec
-		// without touching call sites.
-		var tracer pgx.QueryTracer = NewSlowQueryTracer(pc.slowQueryThreshold, pc.logger)
-		cfg.ConnConfig.Tracer = tracer
+	// Tracer wiring: always install otelpgx so trace context from the
+	// upstream HTTP/NATS handler flows through every Query/Exec as a
+	// child span. Compose with SlowQueryTracer unless explicitly
+	// disabled, so both observability layers share one ConnConfig.Tracer
+	// slot.
+	otelTracer := otelpgx.NewTracer(
+		otelpgx.WithTrimSQLInSpanName(),
+		otelpgx.WithIncludeQueryParameters(),
+	)
+	if pc.disableSlowQueryTracer {
+		cfg.ConnConfig.Tracer = otelTracer
+	} else {
+		cfg.ConnConfig.Tracer = NewCompositeTracer(
+			otelTracer,
+			NewSlowQueryTracer(pc.slowQueryThreshold, pc.logger),
+		)
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
