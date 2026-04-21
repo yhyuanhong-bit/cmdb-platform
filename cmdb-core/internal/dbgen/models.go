@@ -5,12 +5,59 @@
 package dbgen
 
 import (
+	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type AuditOperatorType string
+
+const (
+	AuditOperatorTypeUser        AuditOperatorType = "user"
+	AuditOperatorTypeSystem      AuditOperatorType = "system"
+	AuditOperatorTypeIntegration AuditOperatorType = "integration"
+	AuditOperatorTypeSync        AuditOperatorType = "sync"
+	AuditOperatorTypeAnonymous   AuditOperatorType = "anonymous"
+)
+
+func (e *AuditOperatorType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AuditOperatorType(s)
+	case string:
+		*e = AuditOperatorType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AuditOperatorType: %T", src)
+	}
+	return nil
+}
+
+type NullAuditOperatorType struct {
+	AuditOperatorType AuditOperatorType `json:"audit_operator_type"`
+	Valid             bool              `json:"valid"` // Valid is true if AuditOperatorType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAuditOperatorType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AuditOperatorType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AuditOperatorType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAuditOperatorType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AuditOperatorType), nil
+}
 
 type AlertEvent struct {
 	ID           uuid.UUID          `json:"id"`
@@ -99,16 +146,17 @@ type AssetLocationHistory struct {
 }
 
 type AuditEvent struct {
-	ID         uuid.UUID   `json:"id"`
-	TenantID   uuid.UUID   `json:"tenant_id"`
-	Action     string      `json:"action"`
-	Module     pgtype.Text `json:"module"`
-	TargetType pgtype.Text `json:"target_type"`
-	TargetID   pgtype.UUID `json:"target_id"`
-	OperatorID pgtype.UUID `json:"operator_id"`
-	Diff       []byte      `json:"diff"`
-	Source     string      `json:"source"`
-	CreatedAt  time.Time   `json:"created_at"`
+	ID           uuid.UUID         `json:"id"`
+	TenantID     uuid.UUID         `json:"tenant_id"`
+	Action       string            `json:"action"`
+	Module       pgtype.Text       `json:"module"`
+	TargetType   pgtype.Text       `json:"target_type"`
+	TargetID     pgtype.UUID       `json:"target_id"`
+	OperatorID   pgtype.UUID       `json:"operator_id"`
+	Diff         []byte            `json:"diff"`
+	Source       string            `json:"source"`
+	CreatedAt    time.Time         `json:"created_at"`
+	OperatorType AuditOperatorType `json:"operator_type"`
 }
 
 type BiaAssessment struct {

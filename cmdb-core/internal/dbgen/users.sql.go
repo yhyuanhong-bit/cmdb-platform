@@ -13,7 +13,9 @@ import (
 )
 
 const countUsers = `-- name: CountUsers :one
-SELECT count(*) FROM users WHERE tenant_id = $1
+SELECT count(*) FROM users
+WHERE tenant_id = $1
+  AND source <> 'system'
 `
 
 func (q *Queries) CountUsers(ctx context.Context, tenantID uuid.UUID) (int64, error) {
@@ -190,6 +192,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 const listUsers = `-- name: ListUsers :many
 SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users
 WHERE tenant_id = $1
+  AND source <> 'system'
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
 `
@@ -200,6 +203,9 @@ type ListUsersParams struct {
 	Offset   int32     `json:"offset"`
 }
 
+// The per-tenant source='system' user (seeded by migration 000052) is
+// filtered out here so UI pickers and user lists don't expose it. It's a
+// FK-safe sentinel, not a human identity.
 func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
 	rows, err := q.db.Query(ctx, listUsers, arg.TenantID, arg.Limit, arg.Offset)
 	if err != nil {

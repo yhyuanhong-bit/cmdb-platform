@@ -42,22 +42,23 @@ func (q *Queries) CountAuditEvents(ctx context.Context, arg CountAuditEventsPara
 const createAuditEvent = `-- name: CreateAuditEvent :one
 INSERT INTO audit_events (
     tenant_id, action, module, target_type,
-    target_id, operator_id, diff, source
+    target_id, operator_type, operator_id, diff, source
 ) VALUES (
     $1, $2, $3, $4,
-    $5, $6, $7, $8
-) RETURNING id, tenant_id, action, module, target_type, target_id, operator_id, diff, source, created_at
+    $5, $6, $7, $8, $9
+) RETURNING id, tenant_id, action, module, target_type, target_id, operator_id, diff, source, created_at, operator_type
 `
 
 type CreateAuditEventParams struct {
-	TenantID   uuid.UUID   `json:"tenant_id"`
-	Action     string      `json:"action"`
-	Module     pgtype.Text `json:"module"`
-	TargetType pgtype.Text `json:"target_type"`
-	TargetID   pgtype.UUID `json:"target_id"`
-	OperatorID pgtype.UUID `json:"operator_id"`
-	Diff       []byte      `json:"diff"`
-	Source     string      `json:"source"`
+	TenantID     uuid.UUID         `json:"tenant_id"`
+	Action       string            `json:"action"`
+	Module       pgtype.Text       `json:"module"`
+	TargetType   pgtype.Text       `json:"target_type"`
+	TargetID     pgtype.UUID       `json:"target_id"`
+	OperatorType AuditOperatorType `json:"operator_type"`
+	OperatorID   pgtype.UUID       `json:"operator_id"`
+	Diff         []byte            `json:"diff"`
+	Source       string            `json:"source"`
 }
 
 func (q *Queries) CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) (AuditEvent, error) {
@@ -67,6 +68,7 @@ func (q *Queries) CreateAuditEvent(ctx context.Context, arg CreateAuditEventPara
 		arg.Module,
 		arg.TargetType,
 		arg.TargetID,
+		arg.OperatorType,
 		arg.OperatorID,
 		arg.Diff,
 		arg.Source,
@@ -83,12 +85,13 @@ func (q *Queries) CreateAuditEvent(ctx context.Context, arg CreateAuditEventPara
 		&i.Diff,
 		&i.Source,
 		&i.CreatedAt,
+		&i.OperatorType,
 	)
 	return i, err
 }
 
 const queryAuditEvents = `-- name: QueryAuditEvents :many
-SELECT id, tenant_id, action, module, target_type, target_id, operator_id, diff, source, created_at FROM audit_events
+SELECT id, tenant_id, action, module, target_type, target_id, operator_id, diff, source, created_at, operator_type FROM audit_events
 WHERE tenant_id = $1
   AND ($4::varchar IS NULL OR module = $4)
   AND ($5::varchar IS NULL OR target_type = $5)
@@ -133,6 +136,7 @@ func (q *Queries) QueryAuditEvents(ctx context.Context, arg QueryAuditEventsPara
 			&i.Diff,
 			&i.Source,
 			&i.CreatedAt,
+			&i.OperatorType,
 		); err != nil {
 			return nil, err
 		}

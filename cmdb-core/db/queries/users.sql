@@ -22,13 +22,20 @@ SELECT * FROM users WHERE tenant_id = $1 AND username = $2;
 SELECT * FROM users WHERE username = $1 AND deleted_at IS NULL;
 
 -- name: ListUsers :many
+--
+-- The per-tenant source='system' user (seeded by migration 000052) is
+-- filtered out here so UI pickers and user lists don't expose it. It's a
+-- FK-safe sentinel, not a human identity.
 SELECT * FROM users
 WHERE tenant_id = $1
+  AND source <> 'system'
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CountUsers :one
-SELECT count(*) FROM users WHERE tenant_id = $1;
+SELECT count(*) FROM users
+WHERE tenant_id = $1
+  AND source <> 'system';
 
 -- name: CreateUser :one
 INSERT INTO users (

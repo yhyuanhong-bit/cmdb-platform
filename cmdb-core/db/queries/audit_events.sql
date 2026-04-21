@@ -17,8 +17,8 @@ WHERE tenant_id = $1
 -- name: CreateAuditEvent :one
 INSERT INTO audit_events (
     tenant_id, action, module, target_type,
-    target_id, operator_id, diff, source
+    target_id, operator_type, operator_id, diff, source
 ) VALUES (
     $1, $2, $3, $4,
-    $5, $6, $7, $8
+    $5, $6, $7, $8, $9
 ) RETURNING *;
