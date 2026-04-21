@@ -83,16 +83,22 @@ func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*Stats, err
 		return nil, fmt.Errorf("count work orders: %w", err)
 	}
 
+	pendingWorkOrders, err := s.queries.CountPendingWorkOrders(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("count pending work orders: %w", err)
+	}
+
 	var totalRacks int64
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM racks WHERE tenant_id = $1 AND deleted_at IS NULL`, tenantID).Scan(&totalRacks); err != nil {
 		return nil, fmt.Errorf("count racks: %w", err)
 	}
 
 	stats := &Stats{
-		TotalAssets:    totalAssets,
-		TotalRacks:     totalRacks,
-		CriticalAlerts: criticalAlerts,
-		ActiveOrders:   activeOrders,
+		TotalAssets:       totalAssets,
+		TotalRacks:        totalRacks,
+		CriticalAlerts:    criticalAlerts,
+		ActiveOrders:      activeOrders,
+		PendingWorkOrders: pendingWorkOrders,
 	}
 
 	// Write-through cache (best-effort).

@@ -16,6 +16,15 @@ WHERE tenant_id = $1
   AND (sqlc.narg('asset_id')::uuid IS NULL OR asset_id = sqlc.narg('asset_id'))
   AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'));
 
+-- name: CountPendingWorkOrders :one
+-- Counts work orders in the approval-gated states (submitted or approved)
+-- that have not yet moved to in_progress. Used by the dashboard "pending
+-- work orders" tile so operators can see the backlog waiting on action.
+SELECT count(*) FROM work_orders
+WHERE tenant_id = $1
+  AND deleted_at IS NULL
+  AND status IN ('submitted', 'approved');
+
 -- name: GetWorkOrder :one
 SELECT * FROM work_orders WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
 
