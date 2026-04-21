@@ -621,6 +621,14 @@ func main() {
 			WithQualityScanner(qualitySvc)
 		wfSub.Register()
 		wfSub.StartAll(ctx)
+
+		// Dashboard cache invalidator. Subscribes to asset/rack/alert/
+		// order events so the next GetStats call sees fresh numbers
+		// instead of waiting out the 60-second Redis TTL.
+		dashInval := dashboard.NewInvalidationSubscriber(dashboardSvc, bus, nil)
+		if err := dashInval.Start(); err != nil {
+			zap.L().Warn("dashboard invalidation subscribe failed", zap.Error(err))
+		}
 	}
 
 	// Alert evaluator goroutine. Uses the same server context as every

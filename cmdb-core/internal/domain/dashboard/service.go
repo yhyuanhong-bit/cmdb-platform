@@ -146,6 +146,24 @@ func (s *Service) rackUtilizationPct(parent context.Context, tenantID uuid.UUID)
 	return v
 }
 
+// Invalidate drops the cached stats for a tenant so the next GetStats
+// call recomputes. Called from the InvalidationSubscriber when domain
+// events change the underlying counts (assets, racks, alerts, orders).
+// Safe to call when caching is disabled (redis nil) — returns nil.
+//
+// Returns an error only on real Redis failures, not on a cache miss:
+// DEL against a missing key is a normal no-op.
+func (s *Service) Invalidate(ctx context.Context, tenantID uuid.UUID) error {
+	if s.redis == nil {
+		return nil
+	}
+	cacheKey := fmt.Sprintf("dashboard:stats:%s", tenantID.String())
+	if err := s.redis.Del(ctx, cacheKey).Err(); err != nil {
+		return fmt.Errorf("dashboard invalidate: %w", err)
+	}
+	return nil
+}
+
 // energyCurrentKW sums each asset's most-recent power.current_w
 // reading (within the last 10 minutes) and returns the total in kW.
 // Zero on error or timeout — this tile hits the TimescaleDB
