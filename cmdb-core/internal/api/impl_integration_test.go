@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -120,7 +121,7 @@ type auditRecord struct {
 	Diff       map[string]any
 }
 
-func (m *mockAuditService) Record(_ context.Context, _ uuid.UUID, action, module, targetType string, targetID, _ uuid.UUID, diff map[string]any, _ string) error {
+func (m *mockAuditService) Record(_ context.Context, _ uuid.UUID, action, module, targetType string, targetID uuid.UUID, _ audit.OperatorType, _ *uuid.UUID, diff map[string]any, _ string) error {
 	m.records = append(m.records, auditRecord{
 		Action:     action,
 		Module:     module,

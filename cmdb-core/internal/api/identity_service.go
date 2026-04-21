@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
 	"github.com/google/uuid"
 )
 
@@ -27,6 +28,15 @@ type identityService interface {
 
 // auditService is the narrow interface for audit event read/write from handlers.
 type auditService interface {
-	Record(ctx context.Context, tenantID uuid.UUID, action, module, targetType string, targetID, operatorID uuid.UUID, diff map[string]any, source string) error
+	Record(
+		ctx context.Context,
+		tenantID uuid.UUID,
+		action, module, targetType string,
+		targetID uuid.UUID,
+		operatorType audit.OperatorType,
+		operatorID *uuid.UUID,
+		diff map[string]any,
+		source string,
+	) error
 	Query(ctx context.Context, tenantID uuid.UUID, module, targetType *string, targetID *uuid.UUID, limit, offset int32) ([]dbgen.AuditEvent, int64, error)
 }

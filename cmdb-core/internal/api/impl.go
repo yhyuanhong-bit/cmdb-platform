@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/config"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/bia"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
@@ -194,13 +195,23 @@ func uuidPtrFromPGUUID(pg pgtype.UUID) *uuid.UUID {
 }
 
 // recordAudit logs an audit event. Errors are logged but don't fail the request.
+// A zero user_id in the gin context means the request reached this handler via
+// an unauthenticated path (health probes, discovery ingest), so we classify
+// the operator as OperatorTypeAnonymous with nil operator_id to satisfy the
+// CHECK constraint on audit_events.operator_type/operator_id.
 func (s *APIServer) recordAudit(c *gin.Context, action, module, targetType string, targetID uuid.UUID, diff map[string]any) {
 	tenantID := tenantIDFromContext(c)
 	operatorID := userIDFromContext(c)
 	if s.auditSvc == nil {
 		return
 	}
-	if err := s.auditSvc.Record(c.Request.Context(), tenantID, action, module, targetType, targetID, operatorID, diff, "api"); err != nil {
+	opType := audit.OperatorTypeUser
+	var opIDPtr *uuid.UUID = &operatorID
+	if operatorID == uuid.Nil {
+		opType = audit.OperatorTypeAnonymous
+		opIDPtr = nil
+	}
+	if err := s.auditSvc.Record(c.Request.Context(), tenantID, action, module, targetType, targetID, opType, opIDPtr, diff, "api"); err != nil {
 		// Log but don't fail the request
 		zap.L().Error("audit record error", zap.Error(err))
 	}

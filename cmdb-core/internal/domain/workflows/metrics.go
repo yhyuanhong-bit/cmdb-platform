@@ -293,12 +293,13 @@ func (w *WorkflowSubscriber) emitAdapterDisabledAudit(
 	diffJSON, _ := json.Marshal(diff)
 
 	_, err := w.queries.CreateAuditEvent(ctx, dbgen.CreateAuditEventParams{
-		TenantID:   tenantID,
-		Action:     "adapter_auto_disabled",
-		Module:     pgtype.Text{String: "integration", Valid: true},
-		TargetType: pgtype.Text{String: "integration_adapter", Valid: true},
-		TargetID:   pgtype.UUID{Bytes: adapterID, Valid: true},
-		// operator_id left invalid: system action, not a user.
+		TenantID:     tenantID,
+		Action:       "adapter_auto_disabled",
+		Module:       pgtype.Text{String: "integration", Valid: true},
+		TargetType:   pgtype.Text{String: "integration_adapter", Valid: true},
+		TargetID:     pgtype.UUID{Bytes: adapterID, Valid: true},
+		OperatorType: dbgen.AuditOperatorTypeIntegration,
+		// operator_id must stay NULL for non-user operator types (CHECK constraint 000051).
 		OperatorID: pgtype.UUID{Valid: false},
 		Diff:       diffJSON,
 		Source:     "workflow",

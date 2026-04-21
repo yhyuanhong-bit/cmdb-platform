@@ -242,14 +242,15 @@ func (s *Service) ApproveAndCreateAsset(
 	}
 	diffJSON, _ := json.Marshal(diff)
 	if _, err := qtx.CreateAuditEvent(ctx, dbgen.CreateAuditEventParams{
-		TenantID:   tenantID,
-		Action:     "discovery.approved",
-		Module:     pgtype.Text{String: "discovery", Valid: true},
-		TargetType: pgtype.Text{String: "discovered_asset", Valid: true},
-		TargetID:   pgtype.UUID{Bytes: discoveredID, Valid: true},
-		OperatorID: pgtype.UUID{Bytes: reviewerID, Valid: true},
-		Diff:       diffJSON,
-		Source:     "api",
+		TenantID:     tenantID,
+		Action:       "discovery.approved",
+		Module:       pgtype.Text{String: "discovery", Valid: true},
+		TargetType:   pgtype.Text{String: "discovered_asset", Valid: true},
+		TargetID:     pgtype.UUID{Bytes: discoveredID, Valid: true},
+		OperatorType: dbgen.AuditOperatorTypeUser,
+		OperatorID:   pgtype.UUID{Bytes: reviewerID, Valid: true},
+		Diff:         diffJSON,
+		Source:       "api",
 	}); err != nil {
 		return nil, fmt.Errorf("audit: %w", err)
 	}
