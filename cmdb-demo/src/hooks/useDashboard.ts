@@ -9,6 +9,10 @@ interface DashboardStats {
   total_racks: number
   critical_alerts: number
   active_orders: number
+  pending_work_orders: number
+  energy_current_kw: number
+  rack_utilization_pct: number
+  avg_quality_score: number
 }
 
 export function useDashboardStats(params?: Record<string, string>) {

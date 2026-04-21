@@ -192,6 +192,14 @@ function Dashboard() {
     criticalAlerts: stats?.critical_alerts ?? 0,
     activeOrders: stats?.active_orders ?? 0,
     occupancy: rackStatsData?.occupancy_pct ?? 0,
+    // Phase 4.7 fields. Each of these degrades to zero on a backend
+    // timeout (per field 500ms budget), so a zero value does not
+    // necessarily mean "empty" — it may also mean "query was slow this
+    // refresh". Operators see the real state on the next refresh.
+    pendingWorkOrders: stats?.pending_work_orders ?? 0,
+    energyKW: stats?.energy_current_kw ?? 0,
+    rackUtilization: stats?.rack_utilization_pct ?? 0,
+    avgQuality: stats?.avg_quality_score ?? 0,
   }), [stats, rackStatsData]);
 
   return (
@@ -302,6 +310,76 @@ function Dashboard() {
               </p>
             </>
           )}
+        </div>
+      </div>
+
+      {/* ── Phase 4.7 ops metrics row ── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {/* Pending Work Orders (submitted + approved — waiting on action) */}
+        <div onClick={() => navigate('/workorders')} className="rounded-lg bg-surface-container p-5 cursor-pointer hover:bg-surface-container-high transition-colors">
+          <div className="mb-1 flex items-center gap-2 text-on-surface-variant">
+            <Icon name="pending_actions" className="text-lg" />
+            <span className="text-xs font-medium uppercase tracking-wider">
+              {t('dashboard.pending_work_orders', 'Pending Work Orders')}
+            </span>
+          </div>
+          <p className="font-headline text-3xl font-bold text-on-surface">
+            {displayData.pendingWorkOrders.toLocaleString()}
+          </p>
+          <span className="mt-1 inline-block text-[11px] uppercase tracking-wider text-on-surface-variant">
+            {t('dashboard.awaiting_approval', 'Awaiting Action')}
+          </span>
+        </div>
+
+        {/* Energy (sum of latest power.current_w readings, kW) */}
+        <div className="rounded-lg bg-surface-container p-5">
+          <div className="mb-1 flex items-center gap-2 text-on-surface-variant">
+            <Icon name="bolt" className="text-lg" />
+            <span className="text-xs font-medium uppercase tracking-wider">
+              {t('dashboard.energy_current', 'Current Draw')}
+            </span>
+          </div>
+          <p className="font-headline text-3xl font-bold text-on-surface">
+            {displayData.energyKW.toFixed(1)}<span className="text-lg text-on-surface-variant"> kW</span>
+          </p>
+          <span className="mt-1 inline-block text-[11px] uppercase tracking-wider text-on-surface-variant">
+            {t('dashboard.live_telemetry', 'Live Telemetry')}
+          </span>
+        </div>
+
+        {/* Rack utilization (tenant-wide slot-U / total-U) */}
+        <div onClick={() => navigate('/racks')} className="rounded-lg bg-surface-container p-5 cursor-pointer hover:bg-surface-container-high transition-colors">
+          <div className="mb-1 flex items-center gap-2 text-on-surface-variant">
+            <Icon name="view_module" className="text-lg" />
+            <span className="text-xs font-medium uppercase tracking-wider">
+              {t('dashboard.rack_utilization', 'Rack Utilization')}
+            </span>
+          </div>
+          <p className="font-headline text-3xl font-bold text-on-surface">
+            {displayData.rackUtilization.toFixed(1)}%
+          </p>
+          <div className="mt-2">
+            <ProgressBar pct={Math.min(100, displayData.rackUtilization)} />
+          </div>
+        </div>
+
+        {/* Average quality score (mean of each asset's newest total_score) */}
+        <div onClick={() => navigate('/quality')} className="rounded-lg bg-surface-container p-5 cursor-pointer hover:bg-surface-container-high transition-colors">
+          <div className="mb-1 flex items-center gap-2 text-on-surface-variant">
+            <Icon name="verified" className="text-lg" />
+            <span className="text-xs font-medium uppercase tracking-wider">
+              {t('dashboard.avg_quality', 'Avg Quality Score')}
+            </span>
+          </div>
+          <p className="font-headline text-3xl font-bold text-on-surface">
+            {displayData.avgQuality.toFixed(1)}
+          </p>
+          <div className="mt-2">
+            <ProgressBar
+              pct={Math.min(100, displayData.avgQuality)}
+              color={displayData.avgQuality >= 80 ? 'bg-[#34d399]' : displayData.avgQuality >= 60 ? 'bg-[#ffa94d]' : 'bg-[#ff6b6b]'}
+            />
+          </div>
         </div>
       </div>
 
