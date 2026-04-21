@@ -9,7 +9,13 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
 )
+
+const natsTracerName = "github.com/cmdb-platform/cmdb-core/internal/eventbus"
 
 // NATSBus implements Bus using NATS JetStream.
 type NATSBus struct {
@@ -89,28 +95,63 @@ func NewNATSBus(url string) (*NATSBus, error) {
 }
 
 // Publish sends an event to the NATS JetStream stream. If the event has a
-// non-empty TenantID, it is appended to the subject as a suffix.
+// non-empty TenantID, it is appended to the subject as a suffix. A producer
+// span is opened around the publish, and the current trace context is
+// injected into message headers via the configured OTel propagator so the
+// subscriber can continue the span as a child.
 func (b *NATSBus) Publish(ctx context.Context, event Event) error {
 	subject := event.Subject
 	if event.TenantID != "" {
 		subject = subject + "." + event.TenantID
 	}
-	_, err := b.js.Publish(ctx, subject, event.Payload)
+
+	tracer := otel.Tracer(natsTracerName)
+	ctx, span := tracer.Start(ctx, "nats.publish "+subject,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			semconv.MessagingSystemKey.String("nats"),
+			semconv.MessagingDestinationName(subject),
+			attribute.String("messaging.nats.stream", "CMDB"),
+		),
+	)
+	defer span.End()
+
+	msg := &nats.Msg{Subject: subject, Data: event.Payload, Header: nats.Header{}}
+	otel.GetTextMapPropagator().Inject(ctx, natsHeaderCarrier(msg.Header))
+
+	_, err := b.js.PublishMsg(ctx, msg)
 	if err != nil {
+		span.RecordError(err)
 		return fmt.Errorf("publish %s: %w", subject, err)
 	}
 	return nil
 }
 
 // Subscribe registers a handler for the given subject pattern using a plain
-// NATS subscription (not a JetStream consumer) for simplicity.
+// NATS subscription (not a JetStream consumer) for simplicity. Any inbound
+// W3C trace context on the message header is extracted and used as the
+// parent of the consumer span, so end-to-end traces stitch across the bus.
 func (b *NATSBus) Subscribe(subject string, handler Handler) error {
 	sub, err := b.nc.Subscribe(subject, func(msg *nats.Msg) {
+		parent := otel.GetTextMapPropagator().Extract(context.Background(),
+			natsHeaderCarrier(msg.Header))
+
+		tracer := otel.Tracer(natsTracerName)
+		ctx, span := tracer.Start(parent, "nats.receive "+msg.Subject,
+			trace.WithSpanKind(trace.SpanKindConsumer),
+			trace.WithAttributes(
+				semconv.MessagingSystemKey.String("nats"),
+				semconv.MessagingDestinationName(msg.Subject),
+			),
+		)
+		defer span.End()
+
 		evt := Event{
 			Subject: msg.Subject,
 			Payload: msg.Data,
 		}
-		if err := handler(context.Background(), evt); err != nil {
+		if err := handler(ctx, evt); err != nil {
+			span.RecordError(err)
 			log.Printf("event handler error [%s]: %v", msg.Subject, err)
 		}
 	})
