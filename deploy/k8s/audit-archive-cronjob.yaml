@@ -1,0 +1,118 @@
+# audit-archive: monthly batch that creates the next partition and
+# archives the 13-month-old one to S3 cold storage.
+#
+# Schedule: every month on the 1st at 02:00 UTC — outside primary
+# business hours in all supported regions. The inner script is idempotent
+# (CREATE TABLE IF NOT EXISTS + audit-archive refusing partitions
+# inside the retention window), so a botched run can be re-triggered
+# with `kubectl create job --from=cronjob/audit-archive audit-archive-manual`.
+#
+# Prereqs (must exist before apply):
+#   - namespace/cmdb
+#   - secret/cmdb-db with key "url" (DATABASE_URL dsn)
+#   - serviceaccount/audit-archive bound to the IAM role
+#     `arn:aws:iam::<acct>:role/audit-archive` via IRSA or equivalent;
+#     policy must scope to s3://cmdb-audit-archive/* and allow
+#     PutObject, PutObjectRetention, HeadObject only
+#   - image ghcr.io/cmdb/audit-archive:<tag> built from
+#     cmdb-core/cmd/audit-archive (see deploy/docker/audit-archive.Dockerfile)
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: audit-archive
+  namespace: cmdb
+  annotations:
+    # Wired by the cluster admin; placeholder kept explicit so a
+    # missed IAM-role override fails closed rather than silently
+    # using the node role.
+    eks.amazonaws.com/role-arn: arn:aws:iam::REPLACE_ME:role/audit-archive
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: audit-archive
+  namespace: cmdb
+  labels:
+    app.kubernetes.io/name: audit-archive
+    app.kubernetes.io/part-of: cmdb-platform
+spec:
+  schedule: "0 2 1 * *"
+  timeZone: Etc/UTC
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 7200
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: audit-archive
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: audit-archive
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: archive
+              image: ghcr.io/cmdb/audit-archive:latest
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: cmdb-db
+                      key: url
+                - name: AWS_REGION
+                  value: us-west-2
+                - name: AUDIT_BUCKET
+                  value: cmdb-audit-archive
+                - name: RETENTION_MONTHS
+                  value: "12"
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+
+                  # 1. Create next-month partition if missing. date's
+                  #    "next month" semantics are broken when the current
+                  #    day > 28; --date='+1 month' on the 31st lands in
+                  #    month+2. Anchor to the 1st first, then add.
+                  FIRST=$(date -u +%Y-%m-01)
+                  NEXT_MONTH_START=$(date -u -d "$FIRST +1 month" +%Y-%m-01)
+                  NEXT_MONTH_END=$(date -u -d "$FIRST +2 month" +%Y-%m-01)
+                  NEXT_NAME=$(date -u -d "$FIRST +1 month" +%Y_%m)
+                  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<SQL
+                    CREATE TABLE IF NOT EXISTS audit_events_${NEXT_NAME}
+                      PARTITION OF audit_events
+                      FOR VALUES FROM ('${NEXT_MONTH_START}') TO ('${NEXT_MONTH_END}');
+                  SQL
+
+                  # 2. Archive the 13-month-old partition. Retention is
+                  #    enforced again inside the binary as defence in
+                  #    depth, so a misconfigured schedule cannot drop
+                  #    hot data.
+                  OLD_MONTH=$(date -u -d "$FIRST -13 month" +%Y-%m)
+                  exec /usr/local/bin/audit-archive \
+                    --month  "$OLD_MONTH" \
+                    --bucket "$AUDIT_BUCKET" \
+                    --retention-months "$RETENTION_MONTHS"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi
