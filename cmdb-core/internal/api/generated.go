@@ -87,6 +87,24 @@ func (e CreateUpgradeRuleRequestPriority) Valid() bool {
 	}
 }
 
+// Defines values for ImpactEdgeDirection.
+const (
+	ImpactEdgeDirectionDownstream ImpactEdgeDirection = "downstream"
+	ImpactEdgeDirectionUpstream   ImpactEdgeDirection = "upstream"
+)
+
+// Valid indicates whether the value is a known member of the ImpactEdgeDirection enum.
+func (e ImpactEdgeDirection) Valid() bool {
+	switch e {
+	case ImpactEdgeDirectionDownstream:
+		return true
+	case ImpactEdgeDirectionUpstream:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LocationAnomalySeverity.
 const (
 	LocationAnomalySeverityCritical LocationAnomalySeverity = "critical"
@@ -153,6 +171,27 @@ func (e SyncResolveRequestResolution) Valid() bool {
 	case LocalWins:
 		return true
 	case RemoteWins:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TopologyImpactResponseDirection.
+const (
+	TopologyImpactResponseDirectionBoth       TopologyImpactResponseDirection = "both"
+	TopologyImpactResponseDirectionDownstream TopologyImpactResponseDirection = "downstream"
+	TopologyImpactResponseDirectionUpstream   TopologyImpactResponseDirection = "upstream"
+)
+
+// Valid indicates whether the value is a known member of the TopologyImpactResponseDirection enum.
+func (e TopologyImpactResponseDirection) Valid() bool {
+	switch e {
+	case TopologyImpactResponseDirectionBoth:
+		return true
+	case TopologyImpactResponseDirectionDownstream:
+		return true
+	case TopologyImpactResponseDirectionUpstream:
 		return true
 	default:
 		return false
@@ -318,6 +357,27 @@ func (e SyncSnapshotParamsEntityType) Valid() bool {
 	case SyncSnapshotParamsEntityTypeRacks:
 		return true
 	case SyncSnapshotParamsEntityTypeWorkOrders:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetTopologyImpactParamsDirection.
+const (
+	Both       GetTopologyImpactParamsDirection = "both"
+	Downstream GetTopologyImpactParamsDirection = "downstream"
+	Upstream   GetTopologyImpactParamsDirection = "upstream"
+)
+
+// Valid indicates whether the value is a known member of the GetTopologyImpactParamsDirection enum.
+func (e GetTopologyImpactParamsDirection) Valid() bool {
+	switch e {
+	case Both:
+		return true
+	case Downstream:
+		return true
+	case Upstream:
 		return true
 	default:
 		return false
@@ -598,6 +658,26 @@ type FleetMetrics struct {
 	TotalAssets          *int                   `json:"total_assets,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
+
+// ImpactEdge A single edge in the transitive impact graph. `path` records the
+// full chain of asset IDs visited from root to this edge's far node,
+// so clients can render paths without re-querying.
+type ImpactEdge struct {
+	DependencyType string `json:"dependency_type"`
+
+	// Depth 1 = direct edge from root, 2 = one hop away, etc.
+	Depth           int                  `json:"depth"`
+	Direction       ImpactEdgeDirection  `json:"direction"`
+	Id              openapi_types.UUID   `json:"id"`
+	Path            []openapi_types.UUID `json:"path"`
+	SourceAssetId   openapi_types.UUID   `json:"source_asset_id"`
+	SourceAssetName string               `json:"source_asset_name"`
+	TargetAssetId   openapi_types.UUID   `json:"target_asset_id"`
+	TargetAssetName string               `json:"target_asset_name"`
+}
+
+// ImpactEdgeDirection defines model for ImpactEdge.Direction.
+type ImpactEdgeDirection string
 
 // Incident defines model for Incident.
 type Incident struct {
@@ -972,6 +1052,17 @@ type TokenPair struct {
 	ExpiresIn    int    `json:"expires_in"`
 	RefreshToken string `json:"refresh_token"`
 }
+
+// TopologyImpactResponse defines model for TopologyImpactResponse.
+type TopologyImpactResponse struct {
+	Direction   TopologyImpactResponseDirection `json:"direction"`
+	Edges       []ImpactEdge                    `json:"edges"`
+	MaxDepth    int                             `json:"max_depth"`
+	RootAssetId openapi_types.UUID              `json:"root_asset_id"`
+}
+
+// TopologyImpactResponseDirection defines model for TopologyImpactResponse.Direction.
+type TopologyImpactResponseDirection string
 
 // UpdateUpgradeRuleRequest defines model for UpdateUpgradeRuleRequest.
 type UpdateUpgradeRuleRequest struct {
@@ -1565,6 +1656,23 @@ type CreateAssetDependencyJSONBody = map[string]interface{}
 type GetTopologyGraphParams struct {
 	LocationId *openapi_types.UUID `form:"location_id,omitempty" json:"location_id,omitempty"`
 }
+
+// GetTopologyImpactParams defines parameters for GetTopologyImpact.
+type GetTopologyImpactParams struct {
+	// RootAssetId Root asset to analyze impact for.
+	RootAssetId openapi_types.UUID `form:"root_asset_id" json:"root_asset_id"`
+
+	// MaxDepth Maximum traversal depth. Hard-capped at 10.
+	MaxDepth *int `form:"max_depth,omitempty" json:"max_depth,omitempty"`
+
+	// Direction downstream = what does root depend on (follow source→target);
+	// upstream   = what depends on root (follow target→source);
+	// both       = union of both traversals.
+	Direction *GetTopologyImpactParamsDirection `form:"direction,omitempty" json:"direction,omitempty"`
+}
+
+// GetTopologyImpactParamsDirection defines parameters for GetTopologyImpact.
+type GetTopologyImpactParamsDirection string
 
 // ListUsersParams defines parameters for ListUsers.
 type ListUsersParams struct {
@@ -3039,6 +3147,9 @@ type ServerInterface interface {
 	// Get topology graph for a location
 	// (GET /topology/graph)
 	GetTopologyGraph(c *gin.Context, params GetTopologyGraphParams)
+	// Multi-hop impact analysis for an asset
+	// (GET /topology/impact)
+	GetTopologyImpact(c *gin.Context, params GetTopologyImpactParams)
 	// List upgrade rules for the current tenant
 	// (GET /upgrade-rules)
 	GetUpgradeRules(c *gin.Context)
@@ -7026,6 +7137,57 @@ func (siw *ServerInterfaceWrapper) GetTopologyGraph(c *gin.Context) {
 	siw.Handler.GetTopologyGraph(c, params)
 }
 
+// GetTopologyImpact operation middleware
+func (siw *ServerInterfaceWrapper) GetTopologyImpact(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTopologyImpactParams
+
+	// ------------- Required query parameter "root_asset_id" -------------
+
+	if paramValue := c.Query("root_asset_id"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument root_asset_id is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "root_asset_id", c.Request.URL.Query(), &params.RootAssetId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter root_asset_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "max_depth" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "max_depth", c.Request.URL.Query(), &params.MaxDepth, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter max_depth: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "direction" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "direction", c.Request.URL.Query(), &params.Direction, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter direction: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTopologyImpact(c, params)
+}
+
 // GetUpgradeRules operation middleware
 func (siw *ServerInterfaceWrapper) GetUpgradeRules(c *gin.Context) {
 
@@ -7532,6 +7694,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/topology/dependencies", wrapper.CreateAssetDependency)
 	router.DELETE(options.BaseURL+"/topology/dependencies/:id", wrapper.DeleteAssetDependency)
 	router.GET(options.BaseURL+"/topology/graph", wrapper.GetTopologyGraph)
+	router.GET(options.BaseURL+"/topology/impact", wrapper.GetTopologyImpact)
 	router.GET(options.BaseURL+"/upgrade-rules", wrapper.GetUpgradeRules)
 	router.POST(options.BaseURL+"/upgrade-rules", wrapper.CreateUpgradeRule)
 	router.DELETE(options.BaseURL+"/upgrade-rules/:id", wrapper.DeleteUpgradeRule)

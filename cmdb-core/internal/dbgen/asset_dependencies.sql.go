@@ -60,6 +60,195 @@ func (q *Queries) DeleteAssetDependency(ctx context.Context, arg DeleteAssetDepe
 	return result.RowsAffected(), nil
 }
 
+const getDownstreamDependencies = `-- name: GetDownstreamDependencies :many
+WITH RECURSIVE tree AS (
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        1::int AS depth,
+        ARRAY[ad.source_asset_id, ad.target_asset_id]::uuid[] AS path
+    FROM asset_dependencies ad
+    WHERE ad.tenant_id = $1
+      AND ad.source_asset_id = $2
+
+    UNION ALL
+
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        t.depth + 1,
+        t.path || ad.target_asset_id
+    FROM asset_dependencies ad
+    JOIN tree t ON ad.source_asset_id = t.target_asset_id
+    WHERE ad.tenant_id = $1
+      AND t.depth < $3::int
+      AND NOT (ad.target_asset_id = ANY(t.path))
+)
+SELECT
+    t.id,
+    t.source_asset_id,
+    sa.name AS source_asset_name,
+    t.target_asset_id,
+    ta.name AS target_asset_name,
+    t.dependency_type,
+    t.depth,
+    t.path
+FROM tree t
+JOIN assets sa ON t.source_asset_id = sa.id
+JOIN assets ta ON t.target_asset_id = ta.id
+ORDER BY t.depth, sa.name, ta.name
+`
+
+type GetDownstreamDependenciesParams struct {
+	TenantID    uuid.UUID `json:"tenant_id"`
+	RootAssetID uuid.UUID `json:"root_asset_id"`
+	MaxDepth    int32     `json:"max_depth"`
+}
+
+type GetDownstreamDependenciesRow struct {
+	ID              uuid.UUID   `json:"id"`
+	SourceAssetID   uuid.UUID   `json:"source_asset_id"`
+	SourceAssetName string      `json:"source_asset_name"`
+	TargetAssetID   uuid.UUID   `json:"target_asset_id"`
+	TargetAssetName string      `json:"target_asset_name"`
+	DependencyType  string      `json:"dependency_type"`
+	Depth           int32       `json:"depth"`
+	Path            []uuid.UUID `json:"path"`
+}
+
+// Recursive CTE: starting from @root_asset_id, follow source→target edges
+// up to @max_depth hops. Returns every reachable dependency edge with its
+// depth (1 = direct) and the full path of asset IDs visited from root.
+// Cycle-safe via the path accumulator: the recursive step rejects an edge
+// whose next node (the target) is already in path, so A→B→A terminates.
+// tenant_id is enforced at every hop; cross-tenant edges cannot leak in
+// even if an asset row somehow referenced a foreign tenant.
+func (q *Queries) GetDownstreamDependencies(ctx context.Context, arg GetDownstreamDependenciesParams) ([]GetDownstreamDependenciesRow, error) {
+	rows, err := q.db.Query(ctx, getDownstreamDependencies, arg.TenantID, arg.RootAssetID, arg.MaxDepth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetDownstreamDependenciesRow{}
+	for rows.Next() {
+		var i GetDownstreamDependenciesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceAssetID,
+			&i.SourceAssetName,
+			&i.TargetAssetID,
+			&i.TargetAssetName,
+			&i.DependencyType,
+			&i.Depth,
+			&i.Path,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUpstreamDependents = `-- name: GetUpstreamDependents :many
+WITH RECURSIVE tree AS (
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        1::int AS depth,
+        ARRAY[ad.target_asset_id, ad.source_asset_id]::uuid[] AS path
+    FROM asset_dependencies ad
+    WHERE ad.tenant_id = $1
+      AND ad.target_asset_id = $2
+
+    UNION ALL
+
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        t.depth + 1,
+        t.path || ad.source_asset_id
+    FROM asset_dependencies ad
+    JOIN tree t ON ad.target_asset_id = t.source_asset_id
+    WHERE ad.tenant_id = $1
+      AND t.depth < $3::int
+      AND NOT (ad.source_asset_id = ANY(t.path))
+)
+SELECT
+    t.id,
+    t.source_asset_id,
+    sa.name AS source_asset_name,
+    t.target_asset_id,
+    ta.name AS target_asset_name,
+    t.dependency_type,
+    t.depth,
+    t.path
+FROM tree t
+JOIN assets sa ON t.source_asset_id = sa.id
+JOIN assets ta ON t.target_asset_id = ta.id
+ORDER BY t.depth, sa.name, ta.name
+`
+
+type GetUpstreamDependentsParams struct {
+	TenantID    uuid.UUID `json:"tenant_id"`
+	RootAssetID uuid.UUID `json:"root_asset_id"`
+	MaxDepth    int32     `json:"max_depth"`
+}
+
+type GetUpstreamDependentsRow struct {
+	ID              uuid.UUID   `json:"id"`
+	SourceAssetID   uuid.UUID   `json:"source_asset_id"`
+	SourceAssetName string      `json:"source_asset_name"`
+	TargetAssetID   uuid.UUID   `json:"target_asset_id"`
+	TargetAssetName string      `json:"target_asset_name"`
+	DependencyType  string      `json:"dependency_type"`
+	Depth           int32       `json:"depth"`
+	Path            []uuid.UUID `json:"path"`
+}
+
+// Mirror of GetDownstreamDependencies traversing target→source edges: given
+// @root_asset_id, return every asset that (transitively) depends on it. Used
+// for impact analysis ("if I take this asset down, what else breaks?").
+// Same cycle-safety and tenant_id enforcement as the downstream variant.
+func (q *Queries) GetUpstreamDependents(ctx context.Context, arg GetUpstreamDependentsParams) ([]GetUpstreamDependentsRow, error) {
+	rows, err := q.db.Query(ctx, getUpstreamDependents, arg.TenantID, arg.RootAssetID, arg.MaxDepth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUpstreamDependentsRow{}
+	for rows.Next() {
+		var i GetUpstreamDependentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceAssetID,
+			&i.SourceAssetName,
+			&i.TargetAssetID,
+			&i.TargetAssetName,
+			&i.DependencyType,
+			&i.Depth,
+			&i.Path,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAssetDependencies = `-- name: ListAssetDependencies :many
 
 SELECT

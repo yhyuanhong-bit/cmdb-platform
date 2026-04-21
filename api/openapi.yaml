@@ -792,6 +792,52 @@ paths:
         '200':
           description: Topology graph data
 
+  /topology/impact:
+    get:
+      operationId: getTopologyImpact
+      tags: [topology]
+      summary: Multi-hop impact analysis for an asset
+      description: |
+        Returns the transitive dependency graph reachable from a root asset,
+        up to max_depth hops. Cycle-safe via server-side path accumulator:
+        edges whose next node is already on the current path are skipped,
+        so A→B→A terminates. tenant_id is enforced at every hop.
+      parameters:
+        - name: root_asset_id
+          in: query
+          required: true
+          description: Root asset to analyze impact for.
+          schema:
+            type: string
+            format: uuid
+        - name: max_depth
+          in: query
+          description: Maximum traversal depth. Hard-capped at 10.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 5
+        - name: direction
+          in: query
+          description: |
+            downstream = what does root depend on (follow source→target);
+            upstream   = what depends on root (follow target→source);
+            both       = union of both traversals.
+          schema:
+            type: string
+            enum: [downstream, upstream, both]
+            default: downstream
+      responses:
+        '200':
+          description: Impact graph
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopologyImpactResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
   # ── Assets ──────────────────────────────────────────────────────────────
   /assets:
     get:
@@ -4277,6 +4323,67 @@ components:
         message:
           type: string
       required: [code, message]
+
+    ImpactEdge:
+      type: object
+      description: |
+        A single edge in the transitive impact graph. `path` records the
+        full chain of asset IDs visited from root to this edge's far node,
+        so clients can render paths without re-querying.
+      properties:
+        id:
+          type: string
+          format: uuid
+        source_asset_id:
+          type: string
+          format: uuid
+        source_asset_name:
+          type: string
+        target_asset_id:
+          type: string
+          format: uuid
+        target_asset_name:
+          type: string
+        dependency_type:
+          type: string
+        depth:
+          type: integer
+          description: 1 = direct edge from root, 2 = one hop away, etc.
+        path:
+          type: array
+          items:
+            type: string
+            format: uuid
+        direction:
+          type: string
+          enum: [downstream, upstream]
+      required:
+        - id
+        - source_asset_id
+        - source_asset_name
+        - target_asset_id
+        - target_asset_name
+        - dependency_type
+        - depth
+        - path
+        - direction
+
+    TopologyImpactResponse:
+      type: object
+      properties:
+        root_asset_id:
+          type: string
+          format: uuid
+        direction:
+          type: string
+          enum: [downstream, upstream, both]
+        max_depth:
+          type: integer
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImpactEdge'
+      required: [root_asset_id, direction, max_depth, edges]
 
     ErrorResponse:
       type: object

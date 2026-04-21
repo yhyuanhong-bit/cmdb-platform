@@ -44,3 +44,98 @@ WHERE id = $1 AND tenant_id = $2;
 SELECT id, source_asset_id, target_asset_id, dependency_type
 FROM asset_dependencies
 WHERE source_asset_id = ANY($1::uuid[]) OR target_asset_id = ANY($1::uuid[]);
+
+-- name: GetDownstreamDependencies :many
+-- Recursive CTE: starting from @root_asset_id, follow source→target edges
+-- up to @max_depth hops. Returns every reachable dependency edge with its
+-- depth (1 = direct) and the full path of asset IDs visited from root.
+-- Cycle-safe via the path accumulator: the recursive step rejects an edge
+-- whose next node (the target) is already in path, so A→B→A terminates.
+-- tenant_id is enforced at every hop; cross-tenant edges cannot leak in
+-- even if an asset row somehow referenced a foreign tenant.
+WITH RECURSIVE tree AS (
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        1::int AS depth,
+        ARRAY[ad.source_asset_id, ad.target_asset_id]::uuid[] AS path
+    FROM asset_dependencies ad
+    WHERE ad.tenant_id = sqlc.arg('tenant_id')
+      AND ad.source_asset_id = sqlc.arg('root_asset_id')
+
+    UNION ALL
+
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        t.depth + 1,
+        t.path || ad.target_asset_id
+    FROM asset_dependencies ad
+    JOIN tree t ON ad.source_asset_id = t.target_asset_id
+    WHERE ad.tenant_id = sqlc.arg('tenant_id')
+      AND t.depth < sqlc.arg('max_depth')::int
+      AND NOT (ad.target_asset_id = ANY(t.path))
+)
+SELECT
+    t.id,
+    t.source_asset_id,
+    sa.name AS source_asset_name,
+    t.target_asset_id,
+    ta.name AS target_asset_name,
+    t.dependency_type,
+    t.depth,
+    t.path
+FROM tree t
+JOIN assets sa ON t.source_asset_id = sa.id
+JOIN assets ta ON t.target_asset_id = ta.id
+ORDER BY t.depth, sa.name, ta.name;
+
+-- name: GetUpstreamDependents :many
+-- Mirror of GetDownstreamDependencies traversing target→source edges: given
+-- @root_asset_id, return every asset that (transitively) depends on it. Used
+-- for impact analysis ("if I take this asset down, what else breaks?").
+-- Same cycle-safety and tenant_id enforcement as the downstream variant.
+WITH RECURSIVE tree AS (
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        1::int AS depth,
+        ARRAY[ad.target_asset_id, ad.source_asset_id]::uuid[] AS path
+    FROM asset_dependencies ad
+    WHERE ad.tenant_id = sqlc.arg('tenant_id')
+      AND ad.target_asset_id = sqlc.arg('root_asset_id')
+
+    UNION ALL
+
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        t.depth + 1,
+        t.path || ad.source_asset_id
+    FROM asset_dependencies ad
+    JOIN tree t ON ad.target_asset_id = t.source_asset_id
+    WHERE ad.tenant_id = sqlc.arg('tenant_id')
+      AND t.depth < sqlc.arg('max_depth')::int
+      AND NOT (ad.source_asset_id = ANY(t.path))
+)
+SELECT
+    t.id,
+    t.source_asset_id,
+    sa.name AS source_asset_name,
+    t.target_asset_id,
+    ta.name AS target_asset_name,
+    t.dependency_type,
+    t.depth,
+    t.path
+FROM tree t
+JOIN assets sa ON t.source_asset_id = sa.id
+JOIN assets ta ON t.target_asset_id = ta.id
+ORDER BY t.depth, sa.name, ta.name;

@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -274,5 +276,321 @@ func TestIntegration_CreateAssetDependency_Unique(t *testing.T) {
 	s.CreateAssetDependency(c)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("duplicate insert status = %d, want 409 — body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// GetTopologyImpact (recursive CTE) tests
+//
+// Fixture graph (tenantA):
+//
+//   chA ──► chB ──► chC ──► chD          (a 3-hop chain)
+//   cycA ──► cycB ──► cycA               (a 2-node cycle)
+//
+// Plus one asset in tenantB (foreign) to verify tenant scoping.
+//
+// Covered cases:
+//   1. Chain depth=5 downstream from chA → 3 edges (depths 1,2,3)
+//   2. Chain depth=1 from chA → only the direct edge
+//   3. Cycle from cycA → finite result (cycle guard, no stack overflow)
+//   4. Upstream from chD → walks C←B←A
+//   5. Cross-tenant: tenantB asking about tenantA's chA → empty
+//   6. Validation: max_depth=99 → 400
+// ──────────────────────────────────────────────────────────────────────
+
+type impactFixture struct {
+	tenantA, tenantB   uuid.UUID
+	userA, userB       uuid.UUID
+	chA, chB, chC, chD uuid.UUID
+	cycA, cycB         uuid.UUID
+}
+
+func setupImpactFixture(t *testing.T, pool *pgxpool.Pool) impactFixture {
+	t.Helper()
+	ctx := context.Background()
+	fix := impactFixture{
+		tenantA: uuid.New(),
+		tenantB: uuid.New(),
+		userA:   uuid.New(),
+		userB:   uuid.New(),
+		chA:     uuid.New(),
+		chB:     uuid.New(),
+		chC:     uuid.New(),
+		chD:     uuid.New(),
+		cycA:    uuid.New(),
+		cycB:    uuid.New(),
+	}
+	suffA := fix.tenantA.String()[:8]
+	suffB := fix.tenantB.String()[:8]
+
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3), ($4, $5, $6)`,
+		fix.tenantA, "imp-a-"+suffA, "imp-a-"+suffA,
+		fix.tenantB, "imp-b-"+suffB, "imp-b-"+suffB,
+	); err != nil {
+		t.Fatalf("insert tenants: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO users (id, tenant_id, username, display_name, email, password_hash)
+		 VALUES ($1, $2, $3, $4, $5, 'x'), ($6, $7, $8, $9, $10, 'x')`,
+		fix.userA, fix.tenantA, "imp-ua-"+suffA, "Imp UA", "imp-ua-"+suffA+"@t.local",
+		fix.userB, fix.tenantB, "imp-ub-"+suffB, "Imp UB", "imp-ub-"+suffB+"@t.local",
+	); err != nil {
+		t.Fatalf("insert users: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO assets (id, tenant_id, asset_tag, name, type) VALUES
+		 ($1, $2, $3, 'chA', 'server'),
+		 ($4, $2, $5, 'chB', 'server'),
+		 ($6, $2, $7, 'chC', 'server'),
+		 ($8, $2, $9, 'chD', 'server'),
+		 ($10, $2, $11, 'cycA', 'server'),
+		 ($12, $2, $13, 'cycB', 'server')`,
+		fix.chA, fix.tenantA, "IMP-CHA-"+suffA,
+		fix.chB, "IMP-CHB-"+suffA,
+		fix.chC, "IMP-CHC-"+suffA,
+		fix.chD, "IMP-CHD-"+suffA,
+		fix.cycA, "IMP-CYCA-"+suffA,
+		fix.cycB, "IMP-CYCB-"+suffA,
+	); err != nil {
+		t.Fatalf("insert assets: %v", err)
+	}
+	// Chain: A→B→C→D. Cycle: cycA→cycB→cycA.
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO asset_dependencies (id, tenant_id, source_asset_id, target_asset_id, dependency_type)
+		 VALUES ($1, $2, $3, $4, 'depends_on'),
+		        ($5, $2, $6, $7, 'depends_on'),
+		        ($8, $2, $9, $10, 'depends_on'),
+		        ($11, $2, $12, $13, 'depends_on'),
+		        ($14, $2, $15, $16, 'depends_on')`,
+		uuid.New(), fix.tenantA, fix.chA, fix.chB,
+		uuid.New(), fix.chB, fix.chC,
+		uuid.New(), fix.chC, fix.chD,
+		uuid.New(), fix.cycA, fix.cycB,
+		uuid.New(), fix.cycB, fix.cycA,
+	); err != nil {
+		t.Fatalf("insert edges: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM asset_dependencies WHERE tenant_id IN ($1, $2)`, fix.tenantA, fix.tenantB)
+		_, _ = pool.Exec(ctx, `DELETE FROM assets WHERE tenant_id IN ($1, $2)`, fix.tenantA, fix.tenantB)
+		_, _ = pool.Exec(ctx, `DELETE FROM users WHERE tenant_id IN ($1, $2)`, fix.tenantA, fix.tenantB)
+		_, _ = pool.Exec(ctx, `DELETE FROM tenants WHERE id IN ($1, $2)`, fix.tenantA, fix.tenantB)
+	})
+	return fix
+}
+
+func newImpactServer(pool *pgxpool.Pool) *APIServer {
+	return &APIServer{
+		pool:        pool,
+		topologySvc: topology.NewService(dbgen.New(pool), pool),
+	}
+}
+
+type impactRespBody struct {
+	Data struct {
+		RootAssetId string `json:"root_asset_id"`
+		Direction   string `json:"direction"`
+		MaxDepth    int    `json:"max_depth"`
+		Edges       []struct {
+			Id              string   `json:"id"`
+			SourceAssetId   string   `json:"source_asset_id"`
+			SourceAssetName string   `json:"source_asset_name"`
+			TargetAssetId   string   `json:"target_asset_id"`
+			TargetAssetName string   `json:"target_asset_name"`
+			DependencyType  string   `json:"dependency_type"`
+			Depth           int      `json:"depth"`
+			Path            []string `json:"path"`
+			Direction       string   `json:"direction"`
+		} `json:"edges"`
+	} `json:"data"`
+}
+
+// TestIntegration_GetTopologyImpact_ChainDownstream covers the happy
+// path: A→B→C→D with max_depth=5 returns three edges with depths 1,2,3.
+func TestIntegration_GetTopologyImpact_ChainDownstream(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	rootID := openapi_types.UUID(fix.chA)
+	depth := 5
+	dir := GetTopologyImpactParamsDirection("downstream")
+	c, rec := newDepCtx(t, http.MethodGet,
+		"/topology/impact?root_asset_id="+fix.chA.String(),
+		fix.tenantA, fix.userA, nil)
+	s.GetTopologyImpact(c, GetTopologyImpactParams{
+		RootAssetId: rootID,
+		MaxDepth:    &depth,
+		Direction:   &dir,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body=%s", rec.Code, rec.Body.String())
+	}
+	var body impactRespBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v — %s", err, rec.Body.String())
+	}
+	if got := len(body.Data.Edges); got != 3 {
+		t.Fatalf("edges = %d, want 3 (A→B, B→C, C→D) — %s", got, rec.Body.String())
+	}
+	depthCount := map[int]int{}
+	for _, e := range body.Data.Edges {
+		depthCount[e.Depth]++
+		if e.Direction != "downstream" {
+			t.Errorf("edge %s direction = %q, want downstream", e.Id, e.Direction)
+		}
+	}
+	for _, d := range []int{1, 2, 3} {
+		if depthCount[d] != 1 {
+			t.Errorf("depth %d edge count = %d, want 1 — %+v", d, depthCount[d], body.Data.Edges)
+		}
+	}
+}
+
+// TestIntegration_GetTopologyImpact_DepthCutoff verifies max_depth is
+// enforced inside the recursive CTE, not just as a post-filter.
+func TestIntegration_GetTopologyImpact_DepthCutoff(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	rootID := openapi_types.UUID(fix.chA)
+	depth := 1
+	c, rec := newDepCtx(t, http.MethodGet,
+		"/topology/impact?root_asset_id="+fix.chA.String()+"&max_depth=1",
+		fix.tenantA, fix.userA, nil)
+	s.GetTopologyImpact(c, GetTopologyImpactParams{
+		RootAssetId: rootID,
+		MaxDepth:    &depth,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body=%s", rec.Code, rec.Body.String())
+	}
+	var body impactRespBody
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if len(body.Data.Edges) != 1 || body.Data.Edges[0].Depth != 1 {
+		t.Fatalf("depth=1 returned %d edges, want exactly 1 at depth=1 — %+v", len(body.Data.Edges), body.Data.Edges)
+	}
+	if body.Data.Edges[0].TargetAssetName != "chB" {
+		t.Errorf("depth=1 target = %q, want chB", body.Data.Edges[0].TargetAssetName)
+	}
+}
+
+// TestIntegration_GetTopologyImpact_CycleSafe verifies the recursive
+// CTE terminates on a 2-node cycle (cycA→cycB→cycA). Without the path
+// accumulator this would recurse to max_depth and explode rowcount.
+func TestIntegration_GetTopologyImpact_CycleSafe(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	rootID := openapi_types.UUID(fix.cycA)
+	depth := 10
+	c, rec := newDepCtx(t, http.MethodGet,
+		"/topology/impact?root_asset_id="+fix.cycA.String()+"&max_depth=10",
+		fix.tenantA, fix.userA, nil)
+	s.GetTopologyImpact(c, GetTopologyImpactParams{
+		RootAssetId: rootID,
+		MaxDepth:    &depth,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body=%s", rec.Code, rec.Body.String())
+	}
+	var body impactRespBody
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	// Path accumulator starts at [cycA, cycB] (anchor emits cycA→cycB).
+	// On the recursive step the candidate back-edge cycB→cycA is
+	// rejected because cycA ∈ path. Exactly 1 edge total.
+	if got := len(body.Data.Edges); got != 1 {
+		t.Fatalf("cycle traversal returned %d edges, want 1 (cycle guard broken) — %+v", got, body.Data.Edges)
+	}
+}
+
+// TestIntegration_GetTopologyImpact_Upstream verifies direction=upstream
+// walks target→source. Starting at chD should yield C→D (depth 1),
+// B→C (depth 2), A→B (depth 3).
+func TestIntegration_GetTopologyImpact_Upstream(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	rootID := openapi_types.UUID(fix.chD)
+	depth := 5
+	dir := GetTopologyImpactParamsDirection("upstream")
+	c, rec := newDepCtx(t, http.MethodGet,
+		"/topology/impact?root_asset_id="+fix.chD.String()+"&direction=upstream",
+		fix.tenantA, fix.userA, nil)
+	s.GetTopologyImpact(c, GetTopologyImpactParams{
+		RootAssetId: rootID,
+		MaxDepth:    &depth,
+		Direction:   &dir,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body=%s", rec.Code, rec.Body.String())
+	}
+	var body impactRespBody
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if got := len(body.Data.Edges); got != 3 {
+		t.Fatalf("upstream edges = %d, want 3 — %+v", got, body.Data.Edges)
+	}
+	for _, e := range body.Data.Edges {
+		if e.Direction != "upstream" {
+			t.Errorf("edge %s direction = %q, want upstream", e.Id, e.Direction)
+		}
+	}
+}
+
+// TestIntegration_GetTopologyImpact_TenantIsolation verifies the
+// recursive CTE enforces tenant_id at every hop: tenantB asking about
+// tenantA's chA must get zero edges, never leaked rows.
+func TestIntegration_GetTopologyImpact_TenantIsolation(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	rootID := openapi_types.UUID(fix.chA)
+	depth := 5
+	c, rec := newDepCtx(t, http.MethodGet,
+		"/topology/impact?root_asset_id="+fix.chA.String(),
+		fix.tenantB, fix.userB, nil)
+	s.GetTopologyImpact(c, GetTopologyImpactParams{
+		RootAssetId: rootID,
+		MaxDepth:    &depth,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — body=%s", rec.Code, rec.Body.String())
+	}
+	var body impactRespBody
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if got := len(body.Data.Edges); got != 0 {
+		t.Fatalf("tenantB saw %d edges from tenantA's chain — tenant scope leak! body=%s", got, rec.Body.String())
+	}
+}
+
+// TestIntegration_GetTopologyImpact_DepthValidation verifies the
+// service rejects max_depth outside [1, 10].
+func TestIntegration_GetTopologyImpact_DepthValidation(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	rootID := openapi_types.UUID(fix.chA)
+	depth := 99
+	c, rec := newDepCtx(t, http.MethodGet,
+		"/topology/impact?root_asset_id="+fix.chA.String()+"&max_depth=99",
+		fix.tenantA, fix.userA, nil)
+	s.GetTopologyImpact(c, GetTopologyImpactParams{
+		RootAssetId: rootID,
+		MaxDepth:    &depth,
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for max_depth=99 — body=%s", rec.Code, rec.Body.String())
 	}
 }

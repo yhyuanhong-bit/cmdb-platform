@@ -6,10 +6,12 @@ import (
 	"strings"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // ListAssetDependencies handles GET /topology/dependencies?asset_id=
@@ -357,4 +359,70 @@ func formatVlans(vlans []int32) string {
 		parts[i] = fmt.Sprintf("%d", v)
 	}
 	return strings.Join(parts, ",")
+}
+
+// defaultImpactMaxDepth matches api/openapi.yaml. Duplicated here so the
+// handler's default does not silently drift from the schema's default.
+const defaultImpactMaxDepth = 5
+
+// GetTopologyImpact handles GET /topology/impact?root_asset_id=...&max_depth=...&direction=...
+//
+// Multi-hop transitive impact analysis. Cycle-safe via the recursive
+// CTE's path accumulator (see db/queries/asset_dependencies.sql).
+// tenant_id is enforced at every hop inside the CTE, not just here,
+// so a caller who forges a root_asset_id from another tenant gets an
+// empty result rather than leaked edges.
+func (s *APIServer) GetTopologyImpact(c *gin.Context, params GetTopologyImpactParams) {
+	tenantID := tenantIDFromContext(c)
+	rootID := uuid.UUID(params.RootAssetId)
+
+	maxDepth := defaultImpactMaxDepth
+	if params.MaxDepth != nil {
+		maxDepth = *params.MaxDepth
+	}
+
+	direction := topology.ImpactDirectionDownstream
+	if params.Direction != nil {
+		direction = topology.ImpactDirection(*params.Direction)
+	}
+
+	edges, err := s.topologySvc.GetImpactPath(c.Request.Context(), tenantID, rootID, maxDepth, direction)
+	if err != nil {
+		// Validation errors from the service surface as 400; anything
+		// else is treated as an internal failure. The validation layer
+		// returns messages safe to echo to clients.
+		if strings.HasPrefix(err.Error(), "max_depth must be") ||
+			strings.HasPrefix(err.Error(), "direction must be") {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		response.InternalError(c, "failed to compute impact graph")
+		return
+	}
+
+	apiEdges := make([]ImpactEdge, 0, len(edges))
+	for _, e := range edges {
+		path := make([]openapi_types.UUID, len(e.Path))
+		for i, p := range e.Path {
+			path[i] = openapi_types.UUID(p)
+		}
+		apiEdges = append(apiEdges, ImpactEdge{
+			Id:              openapi_types.UUID(e.ID),
+			SourceAssetId:   openapi_types.UUID(e.SourceAssetID),
+			SourceAssetName: e.SourceAssetName,
+			TargetAssetId:   openapi_types.UUID(e.TargetAssetID),
+			TargetAssetName: e.TargetAssetName,
+			DependencyType:  e.DependencyType,
+			Depth:           e.Depth,
+			Path:            path,
+			Direction:       ImpactEdgeDirection(e.Direction),
+		})
+	}
+
+	response.OK(c, TopologyImpactResponse{
+		RootAssetId: openapi_types.UUID(rootID),
+		Direction:   TopologyImpactResponseDirection(direction),
+		MaxDepth:    maxDepth,
+		Edges:       apiEdges,
+	})
 }

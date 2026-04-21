@@ -354,3 +354,106 @@ func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uui
 		zap.L().Error("topology: failed to increment sync_version", zap.String("table", table), zap.Error(err))
 	}
 }
+
+// ImpactDirection is the traversal direction for GetImpactPath.
+type ImpactDirection string
+
+const (
+	ImpactDirectionDownstream ImpactDirection = "downstream"
+	ImpactDirectionUpstream   ImpactDirection = "upstream"
+	ImpactDirectionBoth       ImpactDirection = "both"
+)
+
+// ImpactMaxDepthCap mirrors the hard cap declared in api/openapi.yaml.
+// Kept as a constant so the service layer refuses to issue a recursive
+// query that the schema would have rejected upstream.
+const ImpactMaxDepthCap = 10
+
+// ImpactEdge is a single directed edge in a transitive impact graph.
+// Path is the chain of asset IDs visited from root to the far node of
+// this edge (inclusive on both ends), so the client can render full
+// chains without re-querying.
+type ImpactEdge struct {
+	ID              uuid.UUID
+	SourceAssetID   uuid.UUID
+	SourceAssetName string
+	TargetAssetID   uuid.UUID
+	TargetAssetName string
+	DependencyType  string
+	Depth           int
+	Path            []uuid.UUID
+	Direction       ImpactDirection
+}
+
+// GetImpactPath returns the transitive dependency graph reachable from
+// rootAssetID up to maxDepth hops. For direction=both the downstream
+// and upstream subgraphs are concatenated; duplicates between them are
+// possible (e.g. when a cycle bridges the root) and intentional — each
+// edge retains its traversal direction so clients can render them.
+func (s *Service) GetImpactPath(
+	ctx context.Context,
+	tenantID, rootAssetID uuid.UUID,
+	maxDepth int,
+	direction ImpactDirection,
+) ([]ImpactEdge, error) {
+	if maxDepth < 1 || maxDepth > ImpactMaxDepthCap {
+		return nil, fmt.Errorf("max_depth must be between 1 and %d", ImpactMaxDepthCap)
+	}
+	switch direction {
+	case ImpactDirectionDownstream, ImpactDirectionUpstream, ImpactDirectionBoth:
+	default:
+		return nil, fmt.Errorf("direction must be downstream, upstream, or both")
+	}
+
+	edges := make([]ImpactEdge, 0)
+
+	if direction == ImpactDirectionDownstream || direction == ImpactDirectionBoth {
+		rows, err := s.queries.GetDownstreamDependencies(ctx, dbgen.GetDownstreamDependenciesParams{
+			TenantID:    tenantID,
+			RootAssetID: rootAssetID,
+			MaxDepth:    int32(maxDepth),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("downstream query: %w", err)
+		}
+		for _, r := range rows {
+			edges = append(edges, ImpactEdge{
+				ID:              r.ID,
+				SourceAssetID:   r.SourceAssetID,
+				SourceAssetName: r.SourceAssetName,
+				TargetAssetID:   r.TargetAssetID,
+				TargetAssetName: r.TargetAssetName,
+				DependencyType:  r.DependencyType,
+				Depth:           int(r.Depth),
+				Path:            r.Path,
+				Direction:       ImpactDirectionDownstream,
+			})
+		}
+	}
+
+	if direction == ImpactDirectionUpstream || direction == ImpactDirectionBoth {
+		rows, err := s.queries.GetUpstreamDependents(ctx, dbgen.GetUpstreamDependentsParams{
+			TenantID:    tenantID,
+			RootAssetID: rootAssetID,
+			MaxDepth:    int32(maxDepth),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("upstream query: %w", err)
+		}
+		for _, r := range rows {
+			edges = append(edges, ImpactEdge{
+				ID:              r.ID,
+				SourceAssetID:   r.SourceAssetID,
+				SourceAssetName: r.SourceAssetName,
+				TargetAssetID:   r.TargetAssetID,
+				TargetAssetName: r.TargetAssetName,
+				DependencyType:  r.DependencyType,
+				Depth:           int(r.Depth),
+				Path:            r.Path,
+				Direction:       ImpactDirectionUpstream,
+			})
+		}
+	}
+
+	return edges, nil
+}
