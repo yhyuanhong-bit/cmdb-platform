@@ -121,7 +121,11 @@ func (w *WorkflowSubscriber) checkWarrantyExpiry(ctx context.Context) {
 			vendor = *warrantyVendor
 		}
 
-		order, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceWarrantyCheck)
+		if !ok {
+			continue
+		}
+		order, err := w.maintenanceSvc.Create(ctx, tenantID, sysUID, maintenance.CreateOrderRequest{
 			Title:       fmt.Sprintf("Warranty Renewal: %s (%s)", name, assetTag),
 			Type:        "warranty_renewal",
 			Priority:    "medium",
@@ -226,7 +230,11 @@ func (w *WorkflowSubscriber) checkMissingAssets(ctx context.Context) {
 			ip = *bmcIP
 		}
 
-		order, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceAssetVerification)
+		if !ok {
+			continue
+		}
+		order, err := w.maintenanceSvc.Create(ctx, tenantID, sysUID, maintenance.CreateOrderRequest{
 			Title:       fmt.Sprintf("Asset Verification: %s (%s)", name, assetTag),
 			Type:        "asset_verification",
 			Priority:    "low",
@@ -326,7 +334,11 @@ func (w *WorkflowSubscriber) checkScanDifferences(ctx context.Context, tenantID,
 		"Network scan detected data inconsistencies for asset '%s' (%s):\n\n%s\n\nPlease verify and update CMDB records.",
 		assetName, assetTag, strings.Join(diffLines, "\n"))
 
-	order, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+	sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceDataCorrection)
+	if !ok {
+		return
+	}
+	order, err := w.maintenanceSvc.Create(ctx, tenantID, sysUID, maintenance.CreateOrderRequest{
 		Title:       fmt.Sprintf("Data Correction: %s (%s)", assetName, assetTag),
 		Type:        "data_correction",
 		Priority:    "low",
@@ -389,7 +401,11 @@ func (w *WorkflowSubscriber) checkEOLReached(ctx context.Context) {
 
 		daysPast := int(time.Since(eolDate).Hours() / 24)
 
-		order, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceEOLCheck)
+		if !ok {
+			continue
+		}
+		order, err := w.maintenanceSvc.Create(ctx, tenantID, sysUID, maintenance.CreateOrderRequest{
 			Title:       fmt.Sprintf("Decommission: %s (%s)", name, assetTag),
 			Type:        "decommission",
 			Priority:    "high",
@@ -454,7 +470,11 @@ func (w *WorkflowSubscriber) checkOverLifespan(ctx context.Context) {
 
 		actualMonths := int(time.Since(createdAt).Hours() / 24 / 30)
 
-		order, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceLifespanCheck)
+		if !ok {
+			continue
+		}
+		order, err := w.maintenanceSvc.Create(ctx, tenantID, sysUID, maintenance.CreateOrderRequest{
 			Title:       fmt.Sprintf("Lifespan Evaluation: %s (%s)", name, assetTag),
 			Type:        "lifespan_evaluation",
 			Priority:    "medium",
@@ -597,7 +617,11 @@ func (w *WorkflowSubscriber) createShadowITWorkOrder(ctx context.Context, tenant
 	}
 	defer func() { _ = tx.Rollback(ctx) }() // safe no-op after Commit.
 
-	order, err := w.maintenanceSvc.CreateTx(ctx, tx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+	sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceShadowITCheck)
+	if !ok {
+		return fmt.Errorf("resolve system user: skipped")
+	}
+	order, err := w.maintenanceSvc.CreateTx(ctx, tx, tenantID, sysUID, maintenance.CreateOrderRequest{
 		Title:       fmt.Sprintf("Shadow IT: Unregistered device %s (%s)", hostname, ipAddress),
 		Type:        "shadow_it_registration",
 		Priority:    "medium",
@@ -732,8 +756,12 @@ func (w *WorkflowSubscriber) createDuplicateSerialWorkOrder(ctx context.Context,
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceDuplicateSerialCheck)
+	if !ok {
+		return fmt.Errorf("resolve system user: skipped")
+	}
 	tagList := strings.Join(assetTags, ", ")
-	order, err := w.maintenanceSvc.CreateTx(ctx, tx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+	order, err := w.maintenanceSvc.CreateTx(ctx, tx, tenantID, sysUID, maintenance.CreateOrderRequest{
 		Title:       fmt.Sprintf("Dedup Audit: Serial %s duplicated", serial),
 		Type:        "dedup_audit",
 		Priority:    "high",
@@ -828,7 +856,11 @@ func (w *WorkflowSubscriber) checkMissingLocationForTenant(ctx context.Context, 
 		count++
 
 		if count <= 10 {
-			_, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+			sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceMissingLocationCheck)
+			if !ok {
+				continue
+			}
+			_, err := w.maintenanceSvc.Create(ctx, tenantID, sysUID, maintenance.CreateOrderRequest{
 				Title:       fmt.Sprintf("Location Missing: %s (%s)", name, assetTag),
 				Type:        "location_completion",
 				Priority:    "low",
@@ -848,7 +880,11 @@ func (w *WorkflowSubscriber) checkMissingLocationForTenant(ctx context.Context, 
 	}
 
 	if count > 10 {
-		_, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceMissingLocationCheck)
+		if !ok {
+			return nil
+		}
+		_, err := w.maintenanceSvc.Create(ctx, tenantID, sysUID, maintenance.CreateOrderRequest{
 			Title:       fmt.Sprintf("Bulk Location Completion: %d assets missing location", count),
 			Type:        "location_completion",
 			Priority:    "medium",
@@ -950,7 +986,11 @@ func (w *WorkflowSubscriber) checkFirmwareOutdated(ctx context.Context) {
 			continue
 		}
 
-		_, err := w.maintenanceSvc.Create(ctx, a.tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		sysUID, ok := w.resolveSystemUser(ctx, a.tenantID, sourceFirmwareCheck)
+		if !ok {
+			continue
+		}
+		_, err := w.maintenanceSvc.Create(ctx, a.tenantID, sysUID, maintenance.CreateOrderRequest{
 			Title:       fmt.Sprintf("Firmware Upgrade: %s (%s)", a.name, a.assetTag),
 			Type:        "firmware_upgrade",
 			Priority:    "low",
@@ -988,7 +1028,11 @@ func (w *WorkflowSubscriber) createBMCSecurityWO(ctx context.Context, tenantID, 
 		return
 	}
 
-	order, err := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+	sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceBMCSecurityCheck)
+	if !ok {
+		return
+	}
+	order, err := w.maintenanceSvc.Create(ctx, tenantID, sysUID, maintenance.CreateOrderRequest{
 		Title:       fmt.Sprintf("Security: Default BMC Password — %s (%s)", name, assetTag),
 		Type:        "security_hardening",
 		Priority:    "critical",

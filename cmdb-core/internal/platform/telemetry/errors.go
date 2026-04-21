@@ -33,13 +33,14 @@ var ErrorsSuppressedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 // Well-known reason tags. Exported so callers share one spelling —
 // drift here defeats operator dashboards that match on exact strings.
 const (
-	ReasonDBExecFailed       = "db_exec_failed"
-	ReasonDBQueryFailed      = "db_query_failed"
-	ReasonDBTxFailed         = "db_tx_failed"
-	ReasonRowScanFailed      = "row_scan_failed"
-	ReasonRowsIterFailed     = "rows_iter_failed"
-	ReasonJSONUnmarshal      = "json_unmarshal_failed"
-	ReasonNotificationFailed = "notification_insert_failed"
-	ReasonWOCreationFailed   = "wo_creation_failed"
-	ReasonAdapterConfig      = "adapter_config_invalid"
+	ReasonDBExecFailed         = "db_exec_failed"
+	ReasonDBQueryFailed        = "db_query_failed"
+	ReasonDBTxFailed           = "db_tx_failed"
+	ReasonRowScanFailed        = "row_scan_failed"
+	ReasonRowsIterFailed       = "rows_iter_failed"
+	ReasonJSONUnmarshal        = "json_unmarshal_failed"
+	ReasonNotificationFailed   = "notification_insert_failed"
+	ReasonWOCreationFailed     = "wo_creation_failed"
+	ReasonAdapterConfig        = "adapter_config_invalid"
+	ReasonSystemUserUnresolved = "system_user_unresolved"
 )

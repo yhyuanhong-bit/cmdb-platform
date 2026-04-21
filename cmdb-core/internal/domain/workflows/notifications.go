@@ -167,8 +167,15 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 		return nil // already has an open emergency work order for this asset
 	}
 
-	// Create emergency work order via service layer
-	order, createErr := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+	// Create emergency work order via service layer. Resolver returns the
+	// per-tenant system user UUID so both work_orders.requestor_id and the
+	// downstream work_order_logs.operator_id FKs resolve — uuid.Nil would
+	// violate both (migration 000052).
+	sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceNotifyAlert)
+	if !ok {
+		return nil
+	}
+	order, createErr := w.maintenanceSvc.Create(ctx, tenantID, sysUID, maintenance.CreateOrderRequest{
 		Title:       fmt.Sprintf("Emergency: %s", payload.Message),
 		Type:        "emergency",
 		Priority:    "critical",
@@ -198,8 +205,10 @@ func (w *WorkflowSubscriber) onAlertFired(ctx context.Context, event eventbus.Ev
 	// caller's intent ("ensure this emergency WO is approved+in_progress") is
 	// already satisfied.
 	//
-	// uuid.Nil as approverID marks this as a system auto-approval in the audit log.
-	if _, err := w.maintenanceSvc.TransitionEmergencyAtomic(ctx, tenantID, order.ID, uuid.Nil); err != nil {
+	// sysUID (the per-tenant 'system' user) stands in as the auto-approver.
+	// work_order_logs.operator_id has a FK to users(id), so uuid.Nil here
+	// would trip the same FK violation we just fixed on .requestor_id.
+	if _, err := w.maintenanceSvc.TransitionEmergencyAtomic(ctx, tenantID, order.ID, sysUID); err != nil {
 		zap.L().Error("workflow: failed to atomic-approve emergency WO",
 			zap.String("order_id", order.ID.String()), zap.Error(err))
 		// No compensation path: the atomic UPDATE either fully succeeded, fully
@@ -364,7 +373,11 @@ func (w *WorkflowSubscriber) onInventoryCompletedNotify(ctx context.Context, eve
 		taskID).Scan(&discrepancyCount)
 
 	if err2 == nil && discrepancyCount > 5 {
-		_, woErr := w.maintenanceSvc.Create(ctx, tenantID, uuid.Nil, maintenance.CreateOrderRequest{
+		sysUID, ok := w.resolveSystemUser(ctx, tenantID, sourceNotifyInventory)
+		if !ok {
+			return nil
+		}
+		_, woErr := w.maintenanceSvc.Create(ctx, tenantID, sysUID, maintenance.CreateOrderRequest{
 			Title:       fmt.Sprintf("Inventory discrepancies: %s (%d items)", code, discrepancyCount),
 			Type:        "inspection",
 			Priority:    "high",

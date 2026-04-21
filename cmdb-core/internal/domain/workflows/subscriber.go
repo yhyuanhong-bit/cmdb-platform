@@ -7,10 +7,33 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/identity"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
+
+// resolveSystemUser returns the per-tenant system user UUID or (uuid.Nil, false)
+// on failure. Callers in workflow loops should check the bool and `continue`
+// on false rather than falling back to uuid.Nil, which would reinstate the
+// FK-violation the whole 000052 migration exists to prevent. The source tag
+// routes the suppressed-error counter to the originating workflow module.
+func (w *WorkflowSubscriber) resolveSystemUser(ctx context.Context, tenantID uuid.UUID, source string) (uuid.UUID, bool) {
+	if w.systemUsers == nil {
+		return uuid.Nil, false
+	}
+	id, err := w.systemUsers.SystemUserID(ctx, tenantID)
+	if err != nil {
+		zap.L().Warn("system user resolve failed; skipping workflow write",
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("source", source),
+			zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(source, telemetry.ReasonSystemUserUnresolved).Inc()
+		return uuid.Nil, false
+	}
+	return id, true
+}
 
 // qualityScanner is the subset of quality.Service used by the scheduled
 // per-tenant quality scanner (Phase 2.11). Declared at the use site so
@@ -28,6 +51,10 @@ type WorkflowSubscriber struct {
 	maintenanceSvc *maintenance.Service
 	cipher         crypto.Cipher
 	qualitySvc     qualityScanner
+	// systemUsers resolves the per-tenant FK-safe 'system' user UUID
+	// for workflow-triggered writes that have no real requestor. See
+	// migration 000052 and docs/reports/phase4/4.8-operator-id-fk-design-spike.md.
+	systemUsers *identity.SystemUserResolver
 	// qualityTenantListerOverride is a test seam: when non-nil it
 	// replaces w.queries as the source of ListActiveTenants for the
 	// scheduled quality scanner. Production paths never set it, so the
@@ -37,7 +64,10 @@ type WorkflowSubscriber struct {
 	qualityTenantListerOverride qualityTenantLister
 }
 
-// New creates a WorkflowSubscriber.
+// New creates a WorkflowSubscriber. The SystemUserResolver is built from
+// the same *dbgen.Queries handle so callers don't need to wire it through
+// main.go explicitly — auto_workorders and notifications both rely on it
+// to satisfy the FK on work_orders.requestor_id.
 func New(pool *pgxpool.Pool, queries *dbgen.Queries, bus eventbus.Bus, maintenanceSvc *maintenance.Service, cipher crypto.Cipher) *WorkflowSubscriber {
 	return &WorkflowSubscriber{
 		pool:           pool,
@@ -45,6 +75,7 @@ func New(pool *pgxpool.Pool, queries *dbgen.Queries, bus eventbus.Bus, maintenan
 		bus:            bus,
 		maintenanceSvc: maintenanceSvc,
 		cipher:         cipher,
+		systemUsers:    identity.NewSystemUserResolver(queries, 0),
 	}
 }
 
