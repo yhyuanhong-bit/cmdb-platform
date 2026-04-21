@@ -13,6 +13,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const avgLatestQualityScore = `-- name: AvgLatestQualityScore :one
+SELECT coalesce(avg(total_score), 0)::float8
+FROM (
+    SELECT DISTINCT ON (asset_id) total_score
+    FROM quality_scores
+    WHERE tenant_id = $1
+    ORDER BY asset_id, scan_date DESC
+) latest
+`
+
+// Average of each asset's most-recent total_score. DISTINCT ON picks the
+// newest row per asset_id; averaging over that avoids skew from assets
+// that were scanned many times vs. a single historical run pulling the
+// mean down. Returns 0 when a tenant has no scores yet (coalesce wraps
+// the outer avg).
+func (q *Queries) AvgLatestQualityScore(ctx context.Context, tenantID uuid.UUID) (float64, error) {
+	row := q.db.QueryRow(ctx, avgLatestQualityScore, tenantID)
+	var column_1 float64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createQualityRule = `-- name: CreateQualityRule :one
 INSERT INTO quality_rules (tenant_id, ci_type, dimension, field_name, rule_type, rule_config, weight, enabled)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

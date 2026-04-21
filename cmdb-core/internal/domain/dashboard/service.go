@@ -33,6 +33,12 @@ type Stats struct {
 // statsCacheTTL is the duration dashboard stats are cached in Redis.
 const statsCacheTTL = 60 * time.Second
 
+// fieldTimeout bounds each partial-tolerant field query. A single slow
+// query (e.g. a cold metrics chunk forcing a seq-scan across millions
+// of rows) must not block the whole dashboard response; the field
+// degrades to zero and the UI still renders the other tiles.
+const fieldTimeout = 500 * time.Millisecond
+
 // Service provides dashboard aggregation operations.
 type Service struct {
 	queries *dbgen.Queries
@@ -99,6 +105,7 @@ func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*Stats, err
 		CriticalAlerts:    criticalAlerts,
 		ActiveOrders:      activeOrders,
 		PendingWorkOrders: pendingWorkOrders,
+		AvgQualityScore:   s.avgQualityScore(ctx, tenantID),
 	}
 
 	// Write-through cache (best-effort).
@@ -109,4 +116,17 @@ func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*Stats, err
 	}
 
 	return stats, nil
+}
+
+// avgQualityScore returns the mean of each asset's most recent
+// total_score. Zero on any error or timeout — the caller treats this
+// as a best-effort tile and cannot fail the whole response.
+func (s *Service) avgQualityScore(parent context.Context, tenantID uuid.UUID) float64 {
+	ctx, cancel := context.WithTimeout(parent, fieldTimeout)
+	defer cancel()
+	v, err := s.queries.AvgLatestQualityScore(ctx, tenantID)
+	if err != nil {
+		return 0
+	}
+	return v
 }

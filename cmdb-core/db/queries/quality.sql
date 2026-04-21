@@ -38,3 +38,17 @@ SELECT * FROM quality_scores
 WHERE asset_id = $1
 ORDER BY scan_date DESC
 LIMIT 30;
+
+-- name: AvgLatestQualityScore :one
+-- Average of each asset's most-recent total_score. DISTINCT ON picks the
+-- newest row per asset_id; averaging over that avoids skew from assets
+-- that were scanned many times vs. a single historical run pulling the
+-- mean down. Returns 0 when a tenant has no scores yet (coalesce wraps
+-- the outer avg).
+SELECT coalesce(avg(total_score), 0)::float8
+FROM (
+    SELECT DISTINCT ON (asset_id) total_score
+    FROM quality_scores
+    WHERE tenant_id = $1
+    ORDER BY asset_id, scan_date DESC
+) latest;
