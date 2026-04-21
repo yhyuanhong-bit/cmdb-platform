@@ -612,27 +612,15 @@ func main() {
 		zap.L().Info("NATS -> WebSocket bridge active")
 	}
 
-	// Workflow subscribers (cross-module reactions)
+	// Workflow subscribers (cross-module reactions). Register() wires the
+	// event-bus handlers; StartAll spawns every background loop. Phase 4.1
+	// consolidated the 8 individual Start* calls behind StartAll — see
+	// workflows/start.go for the full list and rationale.
 	if bus != nil {
 		wfSub := workflows.New(pool, queries, bus, maintenanceSvc, cipher).
 			WithQualityScanner(qualitySvc)
 		wfSub.Register()
-		wfSub.StartSLAChecker(ctx)
-		wfSub.StartSessionCleanup(ctx)
-		wfSub.StartConflictAndDiscoveryCleanup(ctx)
-		wfSub.StartMetricsPuller(ctx)
-		wfSub.StartWarrantyChecker(ctx)
-		wfSub.StartAssetVerificationChecker(ctx)
-		// Gated behind CMDB_INTEGRATION_DIVERGENCE_CHECK=1; default off.
-		wfSub.StartDivergenceChecker(ctx)
-		// Daily sweep for webhook_deliveries (30d) and webhook_deliveries_dlq (90d).
-		// Emits webhook_retention_deletes_total so a dead cron is observable.
-		wfSub.StartWebhookRetention(ctx)
-		// Phase 2.11: daily full-tenant quality scan. First tick runs
-		// ~30s after startup so deploys produce an observable scan,
-		// then every 24h. Per-tenant cron config is explicitly
-		// deferred (roadmap-optional).
-		wfSub.StartQualityScanner(ctx)
+		wfSub.StartAll(ctx)
 	}
 
 	// Alert evaluator goroutine. Uses the same server context as every
