@@ -64,3 +64,24 @@ JOIN locations l ON r.location_id = l.id
 WHERE r.tenant_id = $1
   AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
   AND r.deleted_at IS NULL;
+
+-- name: TenantRackUtilizationPct :one
+-- Percentage of rack U capacity currently occupied across a tenant's
+-- non-deleted racks: sum(slot_u) / sum(rack.total_u) * 100. Two separate
+-- aggregates, because a naive JOIN + SUM double-counts total_u once per
+-- slot. Returns 0 when the tenant has no racks (NULLIF guards division
+-- by zero). rack_slots.asset_id is NOT NULL so every slot row is a real
+-- occupancy; no asset-state filter needed.
+SELECT COALESCE(
+    (SELECT SUM(rs.end_u - rs.start_u + 1)::float8
+       FROM rack_slots rs
+       JOIN racks r2 ON r2.id = rs.rack_id
+      WHERE r2.tenant_id = $1 AND r2.deleted_at IS NULL)
+    / NULLIF(
+        (SELECT SUM(r.total_u)::float8
+           FROM racks r
+          WHERE r.tenant_id = $1 AND r.deleted_at IS NULL),
+        0)
+    * 100,
+    0
+)::float8;

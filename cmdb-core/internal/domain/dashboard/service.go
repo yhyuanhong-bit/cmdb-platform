@@ -104,8 +104,9 @@ func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*Stats, err
 		TotalRacks:        totalRacks,
 		CriticalAlerts:    criticalAlerts,
 		ActiveOrders:      activeOrders,
-		PendingWorkOrders: pendingWorkOrders,
-		AvgQualityScore:   s.avgQualityScore(ctx, tenantID),
+		PendingWorkOrders:  pendingWorkOrders,
+		AvgQualityScore:    s.avgQualityScore(ctx, tenantID),
+		RackUtilizationPct: s.rackUtilizationPct(ctx, tenantID),
 	}
 
 	// Write-through cache (best-effort).
@@ -125,6 +126,19 @@ func (s *Service) avgQualityScore(parent context.Context, tenantID uuid.UUID) fl
 	ctx, cancel := context.WithTimeout(parent, fieldTimeout)
 	defer cancel()
 	v, err := s.queries.AvgLatestQualityScore(ctx, tenantID)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// rackUtilizationPct returns the fraction of rack U capacity in use
+// across the tenant's non-deleted racks, expressed as 0-100. Zero on
+// any error or timeout (partial-tolerant — see avgQualityScore).
+func (s *Service) rackUtilizationPct(parent context.Context, tenantID uuid.UUID) float64 {
+	ctx, cancel := context.WithTimeout(parent, fieldTimeout)
+	defer cancel()
+	v, err := s.queries.TenantRackUtilizationPct(ctx, tenantID)
 	if err != nil {
 		return 0
 	}

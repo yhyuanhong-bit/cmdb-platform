@@ -298,6 +298,35 @@ func (q *Queries) ListRacksByLocation(ctx context.Context, arg ListRacksByLocati
 	return items, nil
 }
 
+const tenantRackUtilizationPct = `-- name: TenantRackUtilizationPct :one
+SELECT COALESCE(
+    (SELECT SUM(rs.end_u - rs.start_u + 1)::float8
+       FROM rack_slots rs
+       JOIN racks r2 ON r2.id = rs.rack_id
+      WHERE r2.tenant_id = $1 AND r2.deleted_at IS NULL)
+    / NULLIF(
+        (SELECT SUM(r.total_u)::float8
+           FROM racks r
+          WHERE r.tenant_id = $1 AND r.deleted_at IS NULL),
+        0)
+    * 100,
+    0
+)::float8
+`
+
+// Percentage of rack U capacity currently occupied across a tenant's
+// non-deleted racks: sum(slot_u) / sum(rack.total_u) * 100. Two separate
+// aggregates, because a naive JOIN + SUM double-counts total_u once per
+// slot. Returns 0 when the tenant has no racks (NULLIF guards division
+// by zero). rack_slots.asset_id is NOT NULL so every slot row is a real
+// occupancy; no asset-state filter needed.
+func (q *Queries) TenantRackUtilizationPct(ctx context.Context, tenantID uuid.UUID) (float64, error) {
+	row := q.db.QueryRow(ctx, tenantRackUtilizationPct, tenantID)
+	var column_1 float64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const updateRack = `-- name: UpdateRack :one
 UPDATE racks SET
     name              = COALESCE($1, name),
