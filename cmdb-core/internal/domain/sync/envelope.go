@@ -51,6 +51,18 @@ type SyncEnvelope struct {
 	// legacy Checksum left uncovered. Omitted on-wire when empty so a
 	// v1-only receiver parsing a v2 envelope sees a familiar shape.
 	ChecksumV2 string `json:"checksum_v2,omitempty"`
+
+	// Signature carries the HMAC-SHA256 tag computed by KeyRing.Sign over
+	// the canonical signing-input string (see signing.go). Unsigned
+	// traffic during the rollout window leaves this empty; once every
+	// node has CMDB_SYNC_HMAC_KEY configured, receivers drop any envelope
+	// whose signature does not validate against the keyring.
+	Signature string `json:"signature,omitempty"`
+
+	// SigKID names the key that produced Signature so the receiver can
+	// pick the right key during rotation windows. 8-hex-char prefix of
+	// SHA-256(key material); non-reversible and safe to log.
+	SigKID string `json:"sig_kid,omitempty"`
 }
 
 // NewEnvelope creates a SyncEnvelope with both checksum fingerprints

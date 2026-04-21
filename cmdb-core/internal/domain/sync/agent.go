@@ -191,6 +191,22 @@ func (a *Agent) handleIncomingEnvelope(ctx context.Context, event eventbus.Event
 		return nil
 	}
 
+	// HMAC verification against the configured keyring. When no keyring
+	// is configured (rollout grace window) this returns VerifyOK and the
+	// envelope flows through under checksum protection only. Once every
+	// node has CMDB_SYNC_HMAC_KEY set, unsigned/forged traffic stops at
+	// this guard with the reason label propagated to the counter.
+	if verdict := ActiveKeyRing().Verify(&env); verdict != VerifyOK {
+		telemetry.SyncEnvelopeRejected.WithLabelValues(env.EntityType, verdict.String()).Inc()
+		zap.L().Warn("sync agent: signature rejected",
+			zap.String("id", env.ID),
+			zap.String("source", env.Source),
+			zap.String("entity_type", env.EntityType),
+			zap.String("sig_kid", env.SigKID),
+			zap.String("reason", verdict.String()))
+		return nil
+	}
+
 	layer := LayerOf(env.EntityType)
 	if layer < 0 {
 		zap.L().Warn("sync agent: unknown entity type", zap.String("type", env.EntityType))

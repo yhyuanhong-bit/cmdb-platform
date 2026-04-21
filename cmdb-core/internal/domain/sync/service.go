@@ -107,6 +107,10 @@ func (s *Service) onDomainEvent(ctx context.Context, event eventbus.Event, entit
 
 	env := NewEnvelope(s.nodeID, event.TenantID, entityType, entityID, action, version, event.Payload)
 
+	// HMAC sign every outbound envelope when a keyring is configured.
+	// No-op when unset (rollout grace window — see signing.go policy).
+	ActiveKeyRing().Sign(&env)
+
 	// Publish to sync stream
 	syncSubject := fmt.Sprintf("sync.%s.%s.%s", event.TenantID, entityType, action)
 	data, _ := json.Marshal(env)

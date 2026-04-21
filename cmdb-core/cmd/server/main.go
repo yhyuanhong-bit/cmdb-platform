@@ -390,6 +390,23 @@ func main() {
 	initialSyncDone.Store(true) // default: don't block (Central mode)
 
 	if cfg.SyncEnabled && bus != nil {
+		// Install the HMAC keyring BEFORE RegisterSubscribers / NewAgent
+		// so the first envelope published / received is already covered
+		// by the signing path. Unset env = no-op (rollout grace); a
+		// misconfigured env (too-short key) is fatal at startup.
+		keyRing, keyRingErr := sync.LoadKeyRingFromEnv()
+		if keyRingErr != nil {
+			zap.L().Fatal("sync HMAC keyring load failed", zap.Error(keyRingErr))
+		}
+		sync.ConfigureKeyRing(keyRing)
+		if keyRing == nil {
+			zap.L().Warn("sync HMAC signing disabled — CMDB_SYNC_HMAC_KEY not set; envelopes flow under checksum protection only")
+		} else {
+			zap.L().Info("sync HMAC signing enabled",
+				zap.String("primary_kid", keyRing.PrimaryKID()),
+				zap.Strings("previous_kids", keyRing.PreviousKIDs()))
+		}
+
 		syncSvc = sync.NewService(pool, bus, cfg)
 		syncSvc.RegisterSubscribers()
 		syncSvc.StartReconciliation(ctx)
