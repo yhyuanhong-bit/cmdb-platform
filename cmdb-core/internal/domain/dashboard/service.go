@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -54,6 +55,11 @@ func NewService(queries *dbgen.Queries, pool *pgxpool.Pool, rc *redis.Client) *S
 // GetStats aggregates key metrics for the dashboard.
 // Results are cached in Redis for statsCacheTTL to avoid repeated count queries.
 func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*Stats, error) {
+	start := time.Now()
+	defer func() {
+		telemetry.DashboardGetStatsDuration.Observe(time.Since(start).Seconds())
+	}()
+
 	cacheKey := fmt.Sprintf("dashboard:stats:%s", tenantID.String())
 
 	// Try cache first (best-effort — skip on any error).
@@ -61,9 +67,11 @@ func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*Stats, err
 		if val, err := s.redis.Get(ctx, cacheKey).Result(); err == nil {
 			var cached Stats
 			if json.Unmarshal([]byte(val), &cached) == nil {
+				telemetry.DashboardCacheHitsTotal.Inc()
 				return &cached, nil
 			}
 		}
+		telemetry.DashboardCacheMissesTotal.Inc()
 	}
 
 	totalAssets, err := s.queries.CountAssets(ctx, dbgen.CountAssetsParams{
@@ -128,6 +136,7 @@ func (s *Service) avgQualityScore(parent context.Context, tenantID uuid.UUID) fl
 	defer cancel()
 	v, err := s.queries.AvgLatestQualityScore(ctx, tenantID)
 	if err != nil {
+		telemetry.DashboardFieldTimeoutsTotal.WithLabelValues(telemetry.DashboardFieldAvgQualityScore).Inc()
 		return 0
 	}
 	return v
@@ -141,6 +150,7 @@ func (s *Service) rackUtilizationPct(parent context.Context, tenantID uuid.UUID)
 	defer cancel()
 	v, err := s.queries.TenantRackUtilizationPct(ctx, tenantID)
 	if err != nil {
+		telemetry.DashboardFieldTimeoutsTotal.WithLabelValues(telemetry.DashboardFieldRackUtilizationPct).Inc()
 		return 0
 	}
 	return v
@@ -159,8 +169,10 @@ func (s *Service) Invalidate(ctx context.Context, tenantID uuid.UUID) error {
 	}
 	cacheKey := fmt.Sprintf("dashboard:stats:%s", tenantID.String())
 	if err := s.redis.Del(ctx, cacheKey).Err(); err != nil {
+		telemetry.DashboardInvalidateErrorsTotal.Inc()
 		return fmt.Errorf("dashboard invalidate: %w", err)
 	}
+	telemetry.DashboardInvalidateOkTotal.Inc()
 	return nil
 }
 
@@ -174,6 +186,7 @@ func (s *Service) energyCurrentKW(parent context.Context, tenantID uuid.UUID) fl
 	defer cancel()
 	v, err := s.queries.SumLatestPowerKW(ctx, tenantID)
 	if err != nil {
+		telemetry.DashboardFieldTimeoutsTotal.WithLabelValues(telemetry.DashboardFieldEnergyCurrentKW).Inc()
 		return 0
 	}
 	return v

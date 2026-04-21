@@ -229,6 +229,71 @@ const (
 	AuditArchiveStageDrop     = "drop"
 )
 
+var (
+	// DashboardCacheHitsTotal counts GetStats calls served from the
+	// Redis cache (no DB round-trips). Paired with the misses counter
+	// below to compute hit rate. Below ~90% usually means cache TTL
+	// or invalidation is too aggressive.
+	DashboardCacheHitsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "cmdb_dashboard_cache_hits_total",
+		Help: "GetStats calls served from Redis without hitting the database.",
+	})
+
+	// DashboardCacheMissesTotal counts GetStats calls that had to
+	// recompute from the database (cache empty, expired, or
+	// invalidated).
+	DashboardCacheMissesTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "cmdb_dashboard_cache_misses_total",
+		Help: "GetStats calls that recomputed from the database.",
+	})
+
+	// DashboardFieldTimeoutsTotal counts per-field partial-tolerance
+	// degradations, labelled by field. Non-zero is normal under load
+	// (that's the point of the budget) but a sustained rate points at
+	// a query that needs an index or a partitioning change.
+	//
+	// field: energy_current_kw | rack_utilization_pct | avg_quality_score
+	DashboardFieldTimeoutsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "cmdb_dashboard_field_timeouts_total",
+		Help: "Per-field dashboard query timeouts that degraded to zero.",
+	}, []string{"field"})
+
+	// DashboardInvalidateOkTotal counts successful cache DELs from
+	// the InvalidationSubscriber. A flatlined counter with an
+	// active bus means subscriptions aren't actually firing.
+	DashboardInvalidateOkTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "cmdb_dashboard_invalidate_ok_total",
+		Help: "Successful dashboard cache invalidations triggered by domain events.",
+	})
+
+	// DashboardInvalidateErrorsTotal counts Redis failures when
+	// DELing a cache key. These don't fail event processing (see
+	// InvalidationSubscriber) but they do mean users may see stale
+	// dashboards until the 60-second TTL catches up.
+	DashboardInvalidateErrorsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "cmdb_dashboard_invalidate_errors_total",
+		Help: "Failed dashboard cache invalidations (Redis errors).",
+	})
+
+	// DashboardGetStatsDuration measures end-to-end GetStats latency.
+	// Buckets target sub-second dashboard loads: p50 ~ cached (few ms),
+	// p99 under 1s on a cache miss, p99.9 never exceeding the sum of
+	// per-field timeouts (4×500ms + ~few-ms core queries ≈ 2.1s).
+	DashboardGetStatsDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "cmdb_dashboard_get_stats_duration_seconds",
+		Help:    "End-to-end GetStats latency in seconds.",
+		Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5},
+	})
+)
+
+// DashboardField label values for DashboardFieldTimeoutsTotal. Exported
+// so the service can't drift on the spelling.
+const (
+	DashboardFieldEnergyCurrentKW    = "energy_current_kw"
+	DashboardFieldRackUtilizationPct = "rack_utilization_pct"
+	DashboardFieldAvgQualityScore    = "avg_quality_score"
+)
+
 // Label values for the integration_* metrics. Exported so callers don't
 // drift on the spelling.
 const (
