@@ -10,11 +10,13 @@ interface AuthState {
   user: CurrentUser | null
   isAuthenticated: boolean
 
-  login: (username: string, password: string) => Promise<boolean>
+  login: (username: string, password: string, tenantSlug?: string) => Promise<boolean>
   logout: () => void
   refreshTokens: () => Promise<boolean>
   fetchCurrentUser: () => Promise<void>
 }
+
+const DEFAULT_TENANT_SLUG = import.meta.env.VITE_DEFAULT_TENANT_SLUG || 'tw'
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -24,12 +26,13 @@ export const useAuthStore = create<AuthState>()(
   user: null,
   isAuthenticated: false,
 
-  login: async (username, password) => {
+  login: async (username, password, tenantSlug) => {
     try {
+      const slug = tenantSlug?.trim() || DEFAULT_TENANT_SLUG
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ tenant_slug: slug, username, password }),
       })
       const json = await res.json()
       if (!res.ok) {
