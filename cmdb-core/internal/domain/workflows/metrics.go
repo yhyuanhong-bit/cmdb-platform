@@ -72,7 +72,9 @@ func (w *WorkflowSubscriber) StartMetricsPuller(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				w.pullMetricsFromAdapters(ctx)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.metrics_pull")
+				w.pullMetricsFromAdapters(tickCtx)
+				end()
 			}
 		}
 	}()

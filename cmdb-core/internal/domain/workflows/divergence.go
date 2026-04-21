@@ -58,14 +58,20 @@ func (w *WorkflowSubscriber) StartDivergenceChecker(ctx context.Context) {
 	go func() {
 		// Run once immediately so the first signal arrives without
 		// waiting 15 minutes post-boot.
-		w.runDivergenceCheck(ctx)
+		func() {
+			tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.divergence_check")
+			defer end()
+			w.runDivergenceCheck(tickCtx)
+		}()
 		for {
 			select {
 			case <-ctx.Done():
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				w.runDivergenceCheck(ctx)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.divergence_check")
+				w.runDivergenceCheck(tickCtx)
+				end()
 			}
 		}
 	}()

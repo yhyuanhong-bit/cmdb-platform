@@ -127,7 +127,9 @@ func (s *Service) StartReconciliation(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				s.reconcile(ctx)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "sync.tick.reconcile")
+				s.reconcile(tickCtx)
+				end()
 			}
 		}
 	}()

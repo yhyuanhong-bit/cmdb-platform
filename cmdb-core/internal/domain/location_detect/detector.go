@@ -30,7 +30,9 @@ func (s *Service) StartPeriodicDetection(ctx context.Context, tenantID uuid.UUID
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				s.RunDetection(ctx, tenantID)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.location_detect")
+				s.RunDetection(tickCtx, tenantID)
+				end()
 			}
 		}
 	}()

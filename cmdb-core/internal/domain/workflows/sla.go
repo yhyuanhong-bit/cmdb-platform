@@ -26,8 +26,10 @@ func (w *WorkflowSubscriber) StartSLAChecker(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				w.checkSLABreaches(ctx)
-				w.checkSLAWarnings(ctx)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.sla")
+				w.checkSLABreaches(tickCtx)
+				w.checkSLAWarnings(tickCtx)
+				end()
 			}
 		}
 	}()

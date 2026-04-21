@@ -93,7 +93,9 @@ func (a *Agent) Start(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				a.updateSyncState(ctx)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "sync.tick.agent_state")
+				a.updateSyncState(tickCtx)
+				end()
 			}
 		}
 	}()

@@ -91,9 +91,13 @@ func (w *WorkflowSubscriber) qualityScanLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-initial.C:
-			w.runQualityScan(ctx)
+			tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.quality_scan")
+			w.runQualityScan(tickCtx)
+			end()
 		case <-ticker.C:
-			w.runQualityScan(ctx)
+			tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.quality_scan")
+			w.runQualityScan(tickCtx)
+			end()
 		}
 	}
 }

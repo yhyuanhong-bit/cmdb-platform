@@ -54,14 +54,20 @@ const reasonWOCreateFailed = telemetry.ReasonWOCreationFailed
 func (w *WorkflowSubscriber) StartWarrantyChecker(ctx context.Context) {
 	ticker := time.NewTicker(24 * time.Hour)
 	go func() {
-		w.runDailyChecks(ctx)
+		func() {
+			tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.warranty_daily")
+			defer end()
+			w.runDailyChecks(tickCtx)
+		}()
 		for {
 			select {
 			case <-ctx.Done():
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				w.runDailyChecks(ctx)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.warranty_daily")
+				w.runDailyChecks(tickCtx)
+				end()
 			}
 		}
 	}()
@@ -159,7 +165,9 @@ func (w *WorkflowSubscriber) StartAssetVerificationChecker(ctx context.Context) 
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				w.runWeeklyChecks(ctx)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.asset_verification_weekly")
+				w.runWeeklyChecks(tickCtx)
+				end()
 			}
 		}
 	}()

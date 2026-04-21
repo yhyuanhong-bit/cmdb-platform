@@ -35,7 +35,9 @@ func (w *WorkflowSubscriber) StartSessionCleanup(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				w.cleanupSessions(ctx)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.session_cleanup")
+				w.cleanupSessions(tickCtx)
+				end()
 			}
 		}
 	}()
@@ -92,8 +94,10 @@ func (w *WorkflowSubscriber) StartConflictAndDiscoveryCleanup(ctx context.Contex
 				ticker.Stop()
 				return
 			case <-ticker.C:
-				w.autoResolveStaleConflicts(ctx)
-				w.expireStaleDiscoveries(ctx)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.conflict_discovery_cleanup")
+				w.autoResolveStaleConflicts(tickCtx)
+				w.expireStaleDiscoveries(tickCtx)
+				end()
 			}
 		}
 	}()
@@ -197,7 +201,11 @@ func (w *WorkflowSubscriber) StartWebhookRetention(ctx context.Context) {
 		case <-timer.C:
 		}
 
-		w.runWebhookRetention(ctx)
+		func() {
+			tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.webhook_retention")
+			defer end()
+			w.runWebhookRetention(tickCtx)
+		}()
 
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
@@ -206,7 +214,9 @@ func (w *WorkflowSubscriber) StartWebhookRetention(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				w.runWebhookRetention(ctx)
+				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.webhook_retention")
+				w.runWebhookRetention(tickCtx)
+				end()
 			}
 		}
 	}()
