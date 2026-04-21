@@ -412,6 +412,20 @@ func main() {
 		cipher, netGuard,
 	)
 
+	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)
+	// BEFORE wiring any middleware. Fail-closed: invalid config is a hard
+	// startup failure, never a runtime 403 storm. See
+	// docs/reports/phase4/4.9-rbac-config-externalization.md.
+	rbacCfg, err := middleware.LoadRBACConfig("")
+	if err != nil {
+		zap.L().Fatal("failed to load rbac config", zap.Error(err))
+	}
+	middleware.ConfigureRBAC(rbacCfg)
+	zap.L().Info("rbac config loaded",
+		zap.Int("public_paths", len(rbacCfg.PublicPaths)),
+		zap.Int("resource_map_entries", len(rbacCfg.ResourceMap)),
+	)
+
 	// 10. Set up Gin router
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -439,9 +453,14 @@ func main() {
 		middleware.WithBlacklist(blacklist),
 		middleware.WithPasswordChangeChecker(authSvc),
 	)
+	// Derive the auth-bypass set from the same RBAC config that drives
+	// publicPaths. Pre-4.9 this list was a second hardcoded string triple
+	// ("login"/"refresh"/"ws") that drifted from rbac.go's publicPaths.
+	// AuthBypassPaths returns every RBAC-public path except /auth/logout,
+	// which requires a valid access token to revoke its jti.
+	authBypass := middleware.AuthBypassPaths()
 	v1.Use(func(c *gin.Context) {
-		path := c.Request.URL.Path
-		if path == "/api/v1/auth/login" || path == "/api/v1/auth/refresh" || path == "/api/v1/ws" {
+		if _, ok := authBypass[c.Request.URL.Path]; ok {
 			c.Next()
 			return
 		}
