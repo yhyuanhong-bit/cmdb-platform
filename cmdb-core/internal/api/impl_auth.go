@@ -21,8 +21,12 @@ func (s *APIServer) Login(c *gin.Context) {
 		response.BadRequest(c, "invalid request body")
 		return
 	}
+	var tenantSlug string
+	if req.TenantSlug != nil {
+		tenantSlug = *req.TenantSlug
+	}
 	tokens, err := s.authSvc.Login(c.Request.Context(), identity.LoginRequest{
-		TenantSlug: req.TenantSlug,
+		TenantSlug: tenantSlug,
 		Username:   req.Username,
 		Password:   req.Password,
 		ClientIP:   c.ClientIP(),

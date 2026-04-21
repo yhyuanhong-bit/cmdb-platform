@@ -14,11 +14,20 @@ import (
 )
 
 // Stats holds the aggregated dashboard statistics.
+//
+// Fields after ActiveOrders are populated by independent best-effort
+// queries: each has its own 500ms budget and degrades to zero on
+// timeout or query error, so one slow metric cannot fail the whole
+// response. See GetStats for the partial-tolerance contract.
 type Stats struct {
-	TotalAssets    int64 `json:"total_assets"`
-	TotalRacks     int64 `json:"total_racks"`
-	CriticalAlerts int64 `json:"critical_alerts"`
-	ActiveOrders   int64 `json:"active_orders"`
+	TotalAssets       int64   `json:"total_assets"`
+	TotalRacks        int64   `json:"total_racks"`
+	CriticalAlerts    int64   `json:"critical_alerts"`
+	ActiveOrders      int64   `json:"active_orders"`
+	PendingWorkOrders int64   `json:"pending_work_orders"`
+	EnergyCurrentKW   float64 `json:"energy_current_kw"`
+	RackUtilizationPct float64 `json:"rack_utilization_pct"`
+	AvgQualityScore   float64 `json:"avg_quality_score"`
 }
 
 // statsCacheTTL is the duration dashboard stats are cached in Redis.

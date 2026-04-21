@@ -534,10 +534,22 @@ type CurrentUser struct {
 
 // DashboardStats defines model for DashboardStats.
 type DashboardStats struct {
-	ActiveOrders   int `json:"active_orders"`
-	CriticalAlerts int `json:"critical_alerts"`
-	TotalAssets    int `json:"total_assets"`
-	TotalRacks     int `json:"total_racks"`
+	ActiveOrders int `json:"active_orders"`
+
+	// AvgQualityScore Mean of each asset's most recent total_score in quality_scores (0-100).
+	AvgQualityScore float64 `json:"avg_quality_score"`
+	CriticalAlerts  int     `json:"critical_alerts"`
+
+	// EnergyCurrentKw Latest sum of power.current_w across assets (kW). Zero on timeout.
+	EnergyCurrentKw float64 `json:"energy_current_kw"`
+
+	// PendingWorkOrders Count of work orders in submitted or approved state.
+	PendingWorkOrders int `json:"pending_work_orders"`
+
+	// RackUtilizationPct Rack slot occupancy over total rack U capacity, as a percentage (0-100).
+	RackUtilizationPct float64 `json:"rack_utilization_pct"`
+	TotalAssets        int     `json:"total_assets"`
+	TotalRacks         int     `json:"total_racks"`
 }
 
 // DiscoveredAsset defines model for DiscoveredAsset.
@@ -724,16 +736,14 @@ type LocationStats struct {
 	TotalRacks     int     `json:"total_racks"`
 }
 
-// LoginRequest defines model for LoginRequest.
-//
-// TenantSlug was added in Phase 1.3 of the remediation roadmap to
+// LoginRequest TenantSlug was added in Phase 1.3 of the remediation roadmap to
 // disambiguate cross-tenant duplicate usernames. It is optional for
 // backwards compatibility; the server logs a deprecation warning when it
 // is omitted and the caller relies on the legacy global-username lookup.
 type LoginRequest struct {
-	Password   string `json:"password"`
-	TenantSlug string `json:"tenant_slug,omitempty"`
-	Username   string `json:"username"`
+	Password   string  `json:"password"`
+	TenantSlug *string `json:"tenant_slug,omitempty"`
+	Username   string  `json:"username"`
 }
 
 // Meta defines model for Meta.

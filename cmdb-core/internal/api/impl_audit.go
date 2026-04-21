@@ -45,9 +45,13 @@ func (s *APIServer) GetDashboardStats(c *gin.Context, params GetDashboardStatsPa
 		return
 	}
 	response.OK(c, DashboardStats{
-		TotalAssets:    int(stats.TotalAssets),
-		TotalRacks:     int(stats.TotalRacks),
-		CriticalAlerts: int(stats.CriticalAlerts),
-		ActiveOrders:   int(stats.ActiveOrders),
+		TotalAssets:        int(stats.TotalAssets),
+		TotalRacks:         int(stats.TotalRacks),
+		CriticalAlerts:     int(stats.CriticalAlerts),
+		ActiveOrders:       int(stats.ActiveOrders),
+		PendingWorkOrders:  int(stats.PendingWorkOrders),
+		EnergyCurrentKw:    stats.EnergyCurrentKW,
+		RackUtilizationPct: stats.RackUtilizationPct,
+		AvgQualityScore:    stats.AvgQualityScore,
 	})
 }

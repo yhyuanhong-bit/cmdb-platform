@@ -164,8 +164,9 @@ func TestLogin_PropagatesTenantSlug(t *testing.T) {
 		},
 	}
 	s := newTestServer(svc)
+	slug := "acme-corp"
 	rec := performJSON(t, s.Login, http.MethodPost, "/auth/login",
-		LoginRequest{TenantSlug: "acme-corp", Username: "admin", Password: "pw"}, nil)
+		LoginRequest{TenantSlug: &slug, Username: "admin", Password: "pw"}, nil)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200. body=%s", rec.Code, rec.Body.String())
