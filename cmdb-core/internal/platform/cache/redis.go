@@ -2,8 +2,10 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -13,6 +15,11 @@ func NewRedisClient(redisURL string) (*redis.Client, error) {
 		return nil, err
 	}
 	client := redis.NewClient(opts)
+	// Attach the OTel tracing hook before Ping so even the initial
+	// handshake round-trip produces a span under the parent request.
+	if err := redisotel.InstrumentTracing(client); err != nil {
+		return nil, fmt.Errorf("redis otel: %w", err)
+	}
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		return nil, err
 	}
