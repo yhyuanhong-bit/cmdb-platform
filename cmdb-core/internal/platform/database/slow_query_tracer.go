@@ -313,7 +313,9 @@ func shortenPath(p string) string {
 	}
 	prev := strings.LastIndex(p[:idx], "/")
 	if prev < 0 {
-		return p[idx+1:]
+		// Exactly one "/" in the input (e.g. "pkg/a.go") — the whole
+		// string is already the two-segment form we want.
+		return p
 	}
 	return p[prev+1:]
 }
