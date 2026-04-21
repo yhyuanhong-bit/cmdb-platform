@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // CustomRESTAdapter implements MetricsAdapter for any REST API with configurable JSON path.
@@ -78,10 +80,17 @@ func (a *CustomRESTAdapter) Fetch(ctx context.Context, endpoint string, config j
 	}
 
 	// Guarded transport re-checks the resolved IP at dial time (defeats
-	// DNS rebinding between ValidateURL and Do()).
+	// DNS rebinding between ValidateURL and Do()). otelhttp wraps the
+	// guarded transport so each outbound call produces a client span
+	// stitched under the puller's parent context.
 	client := http.Client{
-		Transport: guard.SafeTransport(nil),
-		Timeout:   15 * time.Second,
+		Transport: otelhttp.NewTransport(
+			guard.SafeTransport(nil),
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return "adapter.fetch " + r.Method
+			}),
+		),
+		Timeout: 15 * time.Second,
 	}
 	resp, err := client.Do(req)
 	if err != nil {

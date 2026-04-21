@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 type promResult struct {
@@ -33,7 +35,15 @@ type promQueryResponse struct {
 }
 
 func fetchPromMetrics(ctx context.Context, endpoint, query string) ([]promResult, error) {
-	client := http.Client{Timeout: 10 * time.Second}
+	client := http.Client{
+		Transport: otelhttp.NewTransport(
+			http.DefaultTransport,
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return "prometheus.query " + r.Method
+			}),
+		),
+		Timeout: 10 * time.Second,
+	}
 	u := fmt.Sprintf("%s/query?query=%s", strings.TrimRight(endpoint, "/"), url.QueryEscape(query))
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {

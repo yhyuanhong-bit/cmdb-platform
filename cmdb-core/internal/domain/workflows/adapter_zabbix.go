@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // ZabbixAdapter implements MetricsAdapter for Zabbix.
@@ -110,7 +112,15 @@ func zabbixRPC(ctx context.Context, endpoint string, method string, params inter
 	}
 	req.Header.Set("Content-Type", "application/json-rpc")
 
-	client := http.Client{Timeout: 15 * time.Second}
+	client := http.Client{
+		Transport: otelhttp.NewTransport(
+			http.DefaultTransport,
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return "zabbix.rpc " + r.Method
+			}),
+		),
+		Timeout: 15 * time.Second,
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

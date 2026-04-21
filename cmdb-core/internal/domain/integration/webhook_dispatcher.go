@@ -18,6 +18,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 )
 
@@ -71,8 +72,18 @@ func NewWebhookDispatcher(queries *dbgen.Queries, cipher crypto.Cipher, guard *n
 		cipher:  cipher,
 		guard:   guard,
 		client: &http.Client{
-			Transport: guard.SafeTransport(nil),
-			Timeout:   10 * time.Second,
+			// otelhttp.NewTransport wraps SafeTransport so every outbound
+			// POST produces a client span stitched under the dispatcher's
+			// parent context. otelhttp does not record request headers by
+			// default, so Authorization / X-Webhook-Signature never land
+			// in span attributes (see telemetry.SensitiveRequestHeaders).
+			Transport: otelhttp.NewTransport(
+				guard.SafeTransport(nil),
+				otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+					return "webhook.deliver " + r.Method
+				}),
+			),
+			Timeout: 10 * time.Second,
 		},
 		now: time.Now,
 	}
