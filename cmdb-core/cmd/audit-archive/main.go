@@ -42,11 +42,13 @@ import (
 
 func main() {
 	var (
-		month     = flag.String("month", "", "YYYY-MM partition to archive (required)")
-		bucket    = flag.String("bucket", "", "S3 bucket receiving the parquet export (required)")
-		retention = flag.Int("retention-months", 12, "refuse to archive partitions newer than N months")
-		dryRun    = flag.Bool("dry-run", false, "plan only; do not detach, upload, or drop")
-		kmsKey    = flag.String("kms-key-id", "", "KMS key ARN/alias for SSE-KMS (empty = bucket default)")
+		month       = flag.String("month", "", "YYYY-MM partition to archive (required)")
+		bucket      = flag.String("bucket", "", "S3 bucket receiving the parquet export (required)")
+		retention   = flag.Int("retention-months", 12, "refuse to archive partitions newer than N months")
+		dryRun      = flag.Bool("dry-run", false, "plan only; do not detach, upload, or drop")
+		kmsKey      = flag.String("kms-key-id", "", "KMS key ARN/alias for SSE-KMS (empty = bucket default)")
+		metricsPath = flag.String("metrics-path", "",
+			"optional path to write Prometheus textfile metrics (node_exporter textfile collector)")
 	)
 	flag.Parse()
 
@@ -98,9 +100,23 @@ func main() {
 		kmsKeyID:        *kmsKey,
 		now:             time.Now,
 	}
-	if err := archiveMonth(ctx, logger, pool, s3Client, opts); err != nil {
-		logger.Error("archive failed", "err", err)
+	err = archiveMonth(ctx, logger, pool, s3Client, opts)
+	if err != nil {
+		stage := classifyFailureStage(err)
+		logger.Error("archive failed", "err", err, "stage", stage)
+		if werr := writeTextfileMetrics(*metricsPath, *month, false, stage); werr != nil {
+			logger.Warn("failed to write failure textfile metrics", "err", werr)
+		}
 		os.Exit(1)
+	}
+	// Only a successful non-dry-run should bump the last-success
+	// gauge; a dry-run that made no state change is not a real
+	// archive. Operators running dry-run on schedule won't get a
+	// false "healthy" signal.
+	if !*dryRun {
+		if werr := writeTextfileMetrics(*metricsPath, *month, true, ""); werr != nil {
+			logger.Warn("failed to write success textfile metrics", "err", werr)
+		}
 	}
 	logger.Info("archive complete", "dry_run", *dryRun)
 }

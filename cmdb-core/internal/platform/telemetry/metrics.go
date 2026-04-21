@@ -181,6 +181,52 @@ var (
 		Name: "quality_scanner_runs_total",
 		Help: "Total scheduled per-tenant quality scan executions by outcome (ok|error).",
 	}, []string{"outcome"})
+
+	// AuditPartitionCount is the number of audit_events partitions
+	// currently attached to the parent table. Sampled at
+	// metrics-scrape time by a background poller (see
+	// StartAuditPartitionSampler). Expected steady state is
+	// retention_months + ~4 (legacy catch-all + current + next 3).
+	// A value below 3 for more than an hour means the CronJob failed
+	// to pre-create next-month's partition and writes will start
+	// bouncing off the partition-missing error.
+	AuditPartitionCount = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "cmdb_audit_partition_count",
+		Help: "Number of audit_events partitions currently attached to the parent.",
+	})
+
+	// AuditArchiveLastSuccessTimestamp records the Unix time of the
+	// most recent successful archive run. Alert rule:
+	//   time() - cmdb_audit_archive_last_success_unix > 40 * 86400
+	// pages on-call since the CronJob runs monthly — a 40-day gap
+	// means at least one run was missed.
+	AuditArchiveLastSuccessTimestamp = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "cmdb_audit_archive_last_success_unix",
+		Help: "Unix timestamp of the last successful audit-archive run.",
+	})
+
+	// AuditArchiveFailuresTotal counts failed archive invocations,
+	// labelled by the stage that failed so operators can page on
+	// concerning transitions (DETACH failure = DB issue; upload
+	// failure = S3/IAM issue; drop failure = partition orphaned +
+	// data safe in S3 so lower urgency).
+	//
+	// stage: validate | detach | export | upload | verify | drop
+	AuditArchiveFailuresTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "cmdb_audit_archive_failures_total",
+		Help: "Failed audit-archive invocations labelled by pipeline stage.",
+	}, []string{"stage"})
+)
+
+// AuditArchiveStage label values. Exported so the CLI can't drift
+// from the dashboard query that uses them.
+const (
+	AuditArchiveStageValidate = "validate"
+	AuditArchiveStageDetach   = "detach"
+	AuditArchiveStageExport   = "export"
+	AuditArchiveStageUpload   = "upload"
+	AuditArchiveStageVerify   = "verify"
+	AuditArchiveStageDrop     = "drop"
 )
 
 // Label values for the integration_* metrics. Exported so callers don't

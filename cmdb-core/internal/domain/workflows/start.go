@@ -41,6 +41,10 @@ import "context"
 // future commit can fold it in once the subpackage split lands.
 func (w *WorkflowSubscriber) StartAll(ctx context.Context) {
 	w.StartAssetVerificationChecker(ctx)
+	// Polls pg_inherits every 5m to publish cmdb_audit_partition_count.
+	// Paired with the audit-archive CronJob so a missed monthly run
+	// shows up as a gauge dip well before writes start bouncing.
+	w.StartAuditPartitionSampler(ctx)
 	w.StartConflictAndDiscoveryCleanup(ctx)
 	// Gated behind CMDB_INTEGRATION_DIVERGENCE_CHECK=1; default off.
 	w.StartDivergenceChecker(ctx)

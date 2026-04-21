@@ -108,7 +108,11 @@ spec:
                   exec /usr/local/bin/audit-archive \
                     --month  "$OLD_MONTH" \
                     --bucket "$AUDIT_BUCKET" \
-                    --retention-months "$RETENTION_MONTHS"
+                    --retention-months "$RETENTION_MONTHS" \
+                    --metrics-path /var/lib/node_exporter/textfile_collector/audit-archive.prom
+              volumeMounts:
+                - name: node-textfile
+                  mountPath: /var/lib/node_exporter/textfile_collector
               resources:
                 requests:
                   cpu: 100m
@@ -116,3 +120,13 @@ spec:
                 limits:
                   cpu: 1000m
                   memory: 1Gi
+          volumes:
+            # node_exporter's textfile collector scrapes *.prom files
+            # from this host path. The CronJob writes its textfile
+            # metrics here so last-success-timestamp and failure-stage
+            # counters are visible to Prometheus without running a
+            # pushgateway.
+            - name: node-textfile
+              hostPath:
+                path: /var/lib/node_exporter/textfile_collector
+                type: DirectoryOrCreate
