@@ -273,6 +273,64 @@ func TestLogin_EmptySlug_GloballyUnique_Fallback(t *testing.T) {
 	}
 }
 
+// TestLogin_SystemUser_AlwaysRejected verifies that the per-tenant
+// FK-safe sentinel seeded by migration 000052 cannot authenticate even
+// if an attacker knows its username. The trigger seeds username='system',
+// source='system', password_hash='!' on every new tenant; the guard must
+// reject the row before bcrypt even runs, and the error must be
+// indistinguishable from a wrong-password rejection.
+func TestLogin_SystemUser_AlwaysRejected(t *testing.T) {
+	pool := newAuthTestPool(t)
+	defer pool.Close()
+	rdb := newAuthTestRedis(t)
+
+	ctx := context.Background()
+
+	tenantID := uuid.New()
+	slug := "system-guard-" + tenantID.String()[:8]
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO tenants (id, name, slug, status) VALUES ($1, $2, $3, 'active')`,
+		tenantID, slug, slug); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM users WHERE tenant_id = $1`, tenantID)
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM tenants WHERE id = $1`, tenantID)
+	})
+
+	// The AFTER INSERT trigger on tenants seeds the system user row;
+	// assert it landed before we try to log in as that user.
+	var seededSource string
+	if err := pool.QueryRow(ctx,
+		`SELECT source FROM users WHERE tenant_id = $1 AND username = $2`,
+		tenantID, "system").Scan(&seededSource); err != nil {
+		t.Fatalf("trigger did not seed system user: %v", err)
+	}
+	if seededSource != "system" {
+		t.Fatalf("seeded system user has source=%q, want %q", seededSource, "system")
+	}
+
+	queries := dbgen.New(pool)
+	svc := NewAuthService(queries, rdb, "test-secret", pool)
+
+	// Try a handful of common-ish passwords. None should work — not even
+	// the literal '!' the migration seeded as password_hash (which is not
+	// a valid bcrypt hash anyway, but the guard must reject before that
+	// distinction matters).
+	for _, pw := range []string{"!", "system", "password", ""} {
+		_, err := svc.Login(ctx, LoginRequest{
+			TenantSlug: slug,
+			Username:   "system",
+			Password:   pw,
+		})
+		if err == nil {
+			t.Fatalf("system user login must fail, got success with password %q", pw)
+		}
+	}
+}
+
 // TestLogin_UnknownTenantSlug_FailsClosed verifies that a bad slug does
 // not fall through to the legacy path — supplying an unknown slug must
 // reject the login even if a global-unique user by that name exists.

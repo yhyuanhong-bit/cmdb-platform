@@ -33,6 +33,13 @@ const (
 	// authenticated request does not hit the DB. Bust on password change.
 	pwdChangedCachePrefix = "pwd_changed:"
 	pwdChangedCacheTTL    = 60 * time.Second
+	// systemUserSource is the users.source value for the per-tenant sentinel
+	// seeded by migration 000052. Login and any UI user-picker path MUST
+	// reject this value so the FK-safe sentinel cannot authenticate or be
+	// assigned work. Mirrors the literal in the migration — kept here
+	// instead of importing platform/identity to avoid pulling the whole
+	// resolver into every auth-service consumer.
+	systemUserSource = "system"
 )
 
 // Blacklist is the subset of *auth.Blacklist needed by AuthService. A narrow
@@ -89,6 +96,17 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*TokenRespon
 	user, err := s.resolveLoginUser(ctx, req)
 	if err != nil {
 		return nil, err
+	}
+
+	// The per-tenant 'system' user (migration 000052) exists only to satisfy
+	// FK constraints on workflow-triggered writes — it has no real password
+	// (seeded with '!' as password_hash) and must never authenticate. Fail
+	// closed *before* bcrypt so a lucky password collision cannot succeed
+	// and so we don't burn a bcrypt compare on a sentinel account. The
+	// generic error matches the wrong-password path to avoid leaking which
+	// usernames are sentinels.
+	if user.Source == systemUserSource {
+		return nil, errors.New("invalid username or password")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
