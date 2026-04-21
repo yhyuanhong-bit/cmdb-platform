@@ -83,3 +83,28 @@ def test_real_key_in_production_succeeds(monkeypatch):
     module = _reload_config(monkeypatch)
     assert module.settings.deploy_mode == "production"
     assert module.settings.credential_encryption_key == prod_key
+
+
+def test_cmdb_core_url_default(monkeypatch):
+    """Unset INGESTION_CMDB_CORE_URL must fall back to the localhost default.
+
+    Multi-replica deployments override this per-replica via env, but the
+    local dev loop still needs to work out of the box.
+    """
+    _clean_env(monkeypatch)
+    monkeypatch.delenv("INGESTION_CMDB_CORE_URL", raising=False)
+    monkeypatch.setenv("INGESTION_DEPLOY_MODE", "development")
+    module = _reload_config(monkeypatch)
+    assert module.settings.cmdb_core_url == "http://localhost:8080/api/v1"
+
+
+def test_cmdb_core_url_env_override(monkeypatch):
+    """Setting INGESTION_CMDB_CORE_URL must be honoured so multi-replica
+    deployments can point at a shared LB or per-pod sidecar."""
+    _clean_env(monkeypatch)
+    monkeypatch.setenv("INGESTION_DEPLOY_MODE", "development")
+    monkeypatch.setenv(
+        "INGESTION_CMDB_CORE_URL", "http://cmdb-core.prod.svc:8080/api/v1"
+    )
+    module = _reload_config(monkeypatch)
+    assert module.settings.cmdb_core_url == "http://cmdb-core.prod.svc:8080/api/v1"

@@ -20,8 +20,6 @@ from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
-CMDB_CORE_URL = "http://localhost:8080/api/v1"
-
 
 def _run_async(coro):
     """Create a new event loop, run the coroutine, and close the loop."""
@@ -204,7 +202,7 @@ async def _send_to_staging(tenant_id: str, raw: RawAssetData) -> None:
     }
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{CMDB_CORE_URL}/discovery/ingest",
+            f"{settings.cmdb_core_url}/discovery/ingest",
             json=payload,
             headers={"X-Tenant-ID": tenant_id},
             timeout=10,

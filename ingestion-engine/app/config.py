@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     deploy_mode: str = _DEPLOY_MODE
     tenant_id: str = "a0000000-0000-0000-0000-000000000001"
     credential_encryption_key: str = ""
+    # Service discovery: cmdb-core reachable address. Read from env so
+    # multi-replica deployments can point each replica at its local
+    # cmdb-core (or a shared LB) without rebuilding the image. Override
+    # with INGESTION_CMDB_CORE_URL.
+    cmdb_core_url: str = "http://localhost:8080/api/v1"
 
     model_config = {"env_prefix": "INGESTION_"}
 
