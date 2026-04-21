@@ -3,10 +3,25 @@ package middleware
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 )
+
+// TestMain seeds the RBAC runtime so tests that call extractResource or
+// RBAC without their own ConfigureRBAC still work. Individual tests may
+// override via ResetRBACForTesting. When `go test` runs inside this
+// package the cwd is the package directory, so the YAML is one filename
+// away.
+func TestMain(m *testing.M) {
+	cfg, err := LoadRBACConfig("rbac_config.yaml")
+	if err != nil {
+		panic("TestMain: failed to load default rbac config: " + err.Error())
+	}
+	ResetRBACForTesting(cfg)
+	os.Exit(m.Run())
+}
 
 func TestExtractResource(t *testing.T) {
 	tests := []struct {
