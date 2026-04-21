@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -141,4 +142,29 @@ func (q *Queries) QueryMetricsByAsset(ctx context.Context, arg QueryMetricsByAss
 		return nil, err
 	}
 	return items, nil
+}
+
+const sumLatestPowerKW = `-- name: SumLatestPowerKW :one
+SELECT (COALESCE(SUM(value), 0) / 1000.0)::float8
+FROM (
+    SELECT DISTINCT ON (asset_id) value
+    FROM metrics
+    WHERE tenant_id = $1::uuid
+      AND name = 'power.current_w'
+      AND time > now() - interval '10 minutes'
+    ORDER BY asset_id, time DESC
+) latest
+`
+
+// Sum of each asset's most-recent power.current_w reading within the
+// last 10 minutes, converted to kilowatts. DISTINCT ON picks the
+// newest value per asset; stale assets (no reading in the window)
+// drop out of the sum rather than contributing zeroed-out energy.
+// Returns 0 when no readings exist. The 10-minute lookback matches
+// the typical scrape cadence with headroom for one missed interval.
+func (q *Queries) SumLatestPowerKW(ctx context.Context, tenantID uuid.UUID) (float64, error) {
+	row := q.db.QueryRow(ctx, sumLatestPowerKW, tenantID)
+	var column_1 float64
+	err := row.Scan(&column_1)
+	return column_1, err
 }

@@ -11,6 +11,23 @@ LIMIT 500;
 INSERT INTO metrics (time, asset_id, tenant_id, name, value, labels)
 VALUES ($1, $2, $3, $4, $5, $6);
 
+-- name: SumLatestPowerKW :one
+-- Sum of each asset's most-recent power.current_w reading within the
+-- last 10 minutes, converted to kilowatts. DISTINCT ON picks the
+-- newest value per asset; stale assets (no reading in the window)
+-- drop out of the sum rather than contributing zeroed-out energy.
+-- Returns 0 when no readings exist. The 10-minute lookback matches
+-- the typical scrape cadence with headroom for one missed interval.
+SELECT (COALESCE(SUM(value), 0) / 1000.0)::float8
+FROM (
+    SELECT DISTINCT ON (asset_id) value
+    FROM metrics
+    WHERE tenant_id = sqlc.arg('tenant_id')::uuid
+      AND name = 'power.current_w'
+      AND time > now() - interval '10 minutes'
+    ORDER BY asset_id, time DESC
+) latest;
+
 -- name: AggregateMetricPerAsset :many
 -- Tenant-scoped aggregation used by the alert evaluator. Every call is
 -- strictly scoped by tenant_id so rules never read another tenant's metrics.

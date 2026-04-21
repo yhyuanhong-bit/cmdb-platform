@@ -107,6 +107,7 @@ func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*Stats, err
 		PendingWorkOrders:  pendingWorkOrders,
 		AvgQualityScore:    s.avgQualityScore(ctx, tenantID),
 		RackUtilizationPct: s.rackUtilizationPct(ctx, tenantID),
+		EnergyCurrentKW:    s.energyCurrentKW(ctx, tenantID),
 	}
 
 	// Write-through cache (best-effort).
@@ -139,6 +140,21 @@ func (s *Service) rackUtilizationPct(parent context.Context, tenantID uuid.UUID)
 	ctx, cancel := context.WithTimeout(parent, fieldTimeout)
 	defer cancel()
 	v, err := s.queries.TenantRackUtilizationPct(ctx, tenantID)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// energyCurrentKW sums each asset's most-recent power.current_w
+// reading (within the last 10 minutes) and returns the total in kW.
+// Zero on error or timeout — this tile hits the TimescaleDB
+// hypertable and is the likeliest to be slow under pressure, so the
+// 500ms budget is non-negotiable.
+func (s *Service) energyCurrentKW(parent context.Context, tenantID uuid.UUID) float64 {
+	ctx, cancel := context.WithTimeout(parent, fieldTimeout)
+	defer cancel()
+	v, err := s.queries.SumLatestPowerKW(ctx, tenantID)
 	if err != nil {
 		return 0
 	}
