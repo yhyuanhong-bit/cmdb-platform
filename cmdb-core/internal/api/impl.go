@@ -17,7 +17,6 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/sync"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
@@ -40,7 +39,7 @@ type APIServer struct {
 	eventBus          eventbus.Bus
 	authSvc           authService
 	identitySvc       identityService
-	topologySvc       *topology.Service
+	topologySvc       topologyService
 	assetSvc          assetService
 	maintenanceSvc    *maintenance.Service
 	monitoringSvc     *monitoring.Service
@@ -65,7 +64,7 @@ func NewAPIServer(
 	bus eventbus.Bus,
 	authSvc authService,
 	identitySvc identityService,
-	topologySvc *topology.Service,
+	topologySvc topologyService,
 	assetSvc assetService,
 	maintenanceSvc *maintenance.Service,
 	monitoringSvc *monitoring.Service,
