@@ -78,15 +78,11 @@ jobs:
     # isolation regressions, sync agent, RBAC, workflows event chains.
     # Without this job those tests sit in the repo as documentation only.
     services:
-      # Pin to TimescaleDB 2.18.2 — newer 2.26+ tightened the refresh-
-      # window check on continuous aggregates, breaking migration 000009
-      # (start_offset=2h, end_offset=1h with 1h buckets is rejected as
-      # "policy refresh window too small"). 2.18 still accepts it. The
-      # migration itself runs fine in any environment that started on an
-      # older TimescaleDB; the fix is to widen start_offset in 000009 if
-      # we want to support fresh installs on latest TimescaleDB.
+      # Match the deploy/docker-compose.yml image so CI reflects what
+      # production runs. Migration 000009 was widened to start_offset=3h
+      # to satisfy the strict refresh-window check on TimescaleDB 2.20+.
       postgres:
-        image: timescale/timescaledb:2.18.2-pg17
+        image: timescale/timescaledb:latest-pg17
         env:
           POSTGRES_USER: cmdb
           POSTGRES_PASSWORD: cmdb

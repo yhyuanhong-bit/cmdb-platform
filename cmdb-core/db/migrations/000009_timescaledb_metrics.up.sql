@@ -52,8 +52,12 @@ FROM metrics
 GROUP BY bucket, asset_id, tenant_id, name
 WITH NO DATA;
 
+-- start_offset must be strictly greater than end_offset + bucket_size,
+-- so for a 1-hour bucket with end_offset=1h the minimum is >2h. 3h
+-- gives the policy a stable refresh window without buying extra lag.
+-- The 5-minute aggregate above already has diff > bucket so no fix needed.
 SELECT add_continuous_aggregate_policy('metrics_1hour',
-    start_offset  => INTERVAL '2 hours',
+    start_offset  => INTERVAL '3 hours',
     end_offset    => INTERVAL '1 hour',
     schedule_interval => INTERVAL '1 hour'
 );
