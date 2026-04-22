@@ -1,6 +1,8 @@
 module github.com/cmdb-platform/cmdb-core
 
-go 1.25.0
+go 1.25.3
+
+toolchain go1.25.9
 
 require (
 	github.com/exaring/otelpgx v0.10.0

@@ -34,6 +34,16 @@ jobs:
       - name: Tenantlint (baseline-gated)
         run: ./scripts/tenantlint-check.sh
 
+      # D7-P1 (review-2026-04-21-v2): fail CI on known vulnerabilities in
+      # the Go module graph. govulncheck loads the Go vulnerability DB and
+      # reports only vulns the project actually calls into, so false
+      # positive rate stays low. Installed inline rather than cached to
+      # keep the tool version pinned to what's vetted for this repo.
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: govulncheck
+        run: govulncheck ./...
+
       - name: Test
         run: go test ./... -race -count=1 -timeout=60s
 
@@ -55,6 +65,16 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
+
+      # D7-P1 (review-2026-04-21-v2): npm audit on runtime deps only.
+      # --omit=dev keeps the signal focused on what actually ships; dev
+      # tools with transitive vulns don't reach users. Threshold is
+      # `critical` rather than `high` because the xlsx 0.18.5 vuln is
+      # known, unfixed upstream, and tracked under a separate follow-up
+      # to migrate off the unmaintained registry release; failing on it
+      # would block every PR until the migration lands.
+      - name: npm audit (runtime deps)
+        run: npm audit --audit-level=critical --omit=dev
 
       - name: Lint
         run: npm run lint
