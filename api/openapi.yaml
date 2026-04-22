@@ -1126,6 +1126,50 @@ paths:
         '400':
           description: Invalid or missing `at` parameter
 
+  /assets/{id}/diff:
+    get:
+      operationId: diffAssetState
+      tags: [assets]
+      summary: Diff two point-in-time asset states (D10-P2)
+      description: |
+        Returns the field-by-field differences between the asset's state
+        at `from` and its state at `to`. Each anchor resolves to the
+        most-recent snapshot at or before the given timestamp.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: from
+          in: query
+          required: true
+          description: RFC3339 timestamp of the earlier anchor.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          description: RFC3339 timestamp of the later anchor. Must be strictly after `from`.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Diff between the two resolved snapshots (empty `changes` if identical).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AssetDiff'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          description: Missing / malformed `from` or `to`, or `from` >= `to`.
+        '404':
+          description: One or both anchors resolved no snapshot (asset predates the requested time).
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /assets/{id}/snapshots:
     get:
       operationId: listAssetSnapshots
@@ -5725,6 +5769,51 @@ components:
           type: array
           items: { type: string }
           nullable: true
+        owner_team:
+          type: string
+          nullable: true
+          description: Team owner captured at snapshot time (D9-P1).
+
+    AssetDiffField:
+      type: object
+      description: |
+        One field whose value changed between the two anchor snapshots.
+        `from` and `to` use JSON null when the field was unset at that point,
+        matching the nullable semantics of the underlying column.
+      required: [field, from, to]
+      properties:
+        field:
+          type: string
+          description: Snapshot column name (e.g. `name`, `status`, `owner_team`).
+        from:
+          nullable: true
+          description: Value at the `from` anchor.
+        to:
+          nullable: true
+          description: Value at the `to` anchor.
+
+    AssetDiff:
+      type: object
+      description: |
+        Field-by-field differences between two point-in-time asset states
+        (D10-P2). Both anchors resolve to the most-recent snapshot at or
+        before their respective query time. `changes` is empty when the
+        two snapshots are identical.
+      required: [asset_id, from_at, to_at, changes]
+      properties:
+        asset_id: { type: string, format: uuid }
+        from_at:
+          type: string
+          format: date-time
+          description: The `valid_at` of the snapshot resolved for the `from` query time.
+        to_at:
+          type: string
+          format: date-time
+          description: The `valid_at` of the snapshot resolved for the `to` query time.
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetDiffField'
 
     QualityFlag:
       type: object

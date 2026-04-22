@@ -20,6 +20,7 @@ type assetService interface {
 	FindBySerialOrTag(ctx context.Context, tenantID uuid.UUID, serial, tag string) (*dbgen.Asset, error)
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
 	GetStateAt(ctx context.Context, tenantID, assetID uuid.UUID, atTime time.Time) (dbgen.AssetSnapshot, error)
+	DiffStateAt(ctx context.Context, tenantID, assetID uuid.UUID, fromAt, toAt time.Time) (*asset.DiffResult, error)
 	ListSnapshots(ctx context.Context, tenantID, assetID uuid.UUID, limit int32) ([]dbgen.AssetSnapshot, error)
 	BumpAccess(ctx context.Context, tenantID, assetID uuid.UUID) error
 	BumpAccessMany(ctx context.Context, tenantID uuid.UUID, assetIDs []uuid.UUID) error

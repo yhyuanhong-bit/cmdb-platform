@@ -689,6 +689,35 @@ type Asset struct {
 	WarrantyVendor *string `json:"warranty_vendor,omitempty"`
 }
 
+// AssetDiff Field-by-field differences between two point-in-time asset states
+// (D10-P2). Both anchors resolve to the most-recent snapshot at or
+// before their respective query time. `changes` is empty when the
+// two snapshots are identical.
+type AssetDiff struct {
+	AssetId openapi_types.UUID `json:"asset_id"`
+	Changes []AssetDiffField   `json:"changes"`
+
+	// FromAt The `valid_at` of the snapshot resolved for the `from` query time.
+	FromAt time.Time `json:"from_at"`
+
+	// ToAt The `valid_at` of the snapshot resolved for the `to` query time.
+	ToAt time.Time `json:"to_at"`
+}
+
+// AssetDiffField One field whose value changed between the two anchor snapshots.
+// `from` and `to` use JSON null when the field was unset at that point,
+// matching the nullable semantics of the underlying column.
+type AssetDiffField struct {
+	// Field Snapshot column name (e.g. `name`, `status`, `owner_team`).
+	Field string `json:"field"`
+
+	// From Value at the `from` anchor.
+	From interface{} `json:"from"`
+
+	// To Value at the `to` anchor.
+	To interface{} `json:"to"`
+}
+
 // AssetLifecycle defines model for AssetLifecycle.
 type AssetLifecycle struct {
 	AgeDays               *int                           `json:"age_days,omitempty"`
@@ -710,21 +739,24 @@ type AssetLifecycleWarrantyStatus string
 
 // AssetSnapshot Point-in-time snapshot of an asset, captured atomically by the assets_snapshot_after_write trigger (D10-P0).
 type AssetSnapshot struct {
-	AssetId      openapi_types.UUID     `json:"asset_id"`
-	AssetTag     string                 `json:"asset_tag"`
-	Attributes   map[string]interface{} `json:"attributes"`
-	BiaLevel     string                 `json:"bia_level"`
-	Id           openapi_types.UUID     `json:"id"`
-	LocationId   *openapi_types.UUID    `json:"location_id,omitempty"`
-	Model        *string                `json:"model,omitempty"`
-	Name         string                 `json:"name"`
-	RackId       *openapi_types.UUID    `json:"rack_id,omitempty"`
-	SerialNumber *string                `json:"serial_number,omitempty"`
-	Status       string                 `json:"status"`
-	Tags         *[]string              `json:"tags,omitempty"`
-	TenantId     openapi_types.UUID     `json:"tenant_id"`
-	ValidAt      time.Time              `json:"valid_at"`
-	Vendor       *string                `json:"vendor,omitempty"`
+	AssetId    openapi_types.UUID     `json:"asset_id"`
+	AssetTag   string                 `json:"asset_tag"`
+	Attributes map[string]interface{} `json:"attributes"`
+	BiaLevel   string                 `json:"bia_level"`
+	Id         openapi_types.UUID     `json:"id"`
+	LocationId *openapi_types.UUID    `json:"location_id,omitempty"`
+	Model      *string                `json:"model,omitempty"`
+	Name       string                 `json:"name"`
+
+	// OwnerTeam Team owner captured at snapshot time (D9-P1).
+	OwnerTeam    *string             `json:"owner_team,omitempty"`
+	RackId       *openapi_types.UUID `json:"rack_id,omitempty"`
+	SerialNumber *string             `json:"serial_number,omitempty"`
+	Status       string              `json:"status"`
+	Tags         *[]string           `json:"tags,omitempty"`
+	TenantId     openapi_types.UUID  `json:"tenant_id"`
+	ValidAt      time.Time           `json:"valid_at"`
+	Vendor       *string             `json:"vendor,omitempty"`
 }
 
 // AssignRoleRequest defines model for AssignRoleRequest.
@@ -1591,6 +1623,15 @@ type UpdateAssetJSONBody struct {
 	// WarrantyStart ISO-8601 date (YYYY-MM-DD)
 	WarrantyStart  *string `json:"warranty_start,omitempty"`
 	WarrantyVendor *string `json:"warranty_vendor,omitempty"`
+}
+
+// DiffAssetStateParams defines parameters for DiffAssetState.
+type DiffAssetStateParams struct {
+	// From RFC3339 timestamp of the earlier anchor.
+	From time.Time `form:"from" json:"from"`
+
+	// To RFC3339 timestamp of the later anchor. Must be strictly after `from`.
+	To time.Time `form:"to" json:"to"`
 }
 
 // ListAssetSnapshotsParams defines parameters for ListAssetSnapshots.
@@ -3094,6 +3135,9 @@ type ServerInterface interface {
 	// Update asset location from a QR scan
 	// (POST /assets/{id}/confirm-location)
 	ConfirmAssetLocation(c *gin.Context, id IdPath)
+	// Diff two point-in-time asset states (D10-P2)
+	// (GET /assets/{id}/diff)
+	DiffAssetState(c *gin.Context, id IdPath, params DiffAssetStateParams)
 	// Return lifecycle status (age, warranty, depreciation, upgrade recommendation)
 	// (GET /assets/{id}/lifecycle)
 	GetAssetLifecycle(c *gin.Context, id IdPath)
@@ -3889,6 +3933,65 @@ func (siw *ServerInterfaceWrapper) ConfirmAssetLocation(c *gin.Context) {
 	}
 
 	siw.Handler.ConfirmAssetLocation(c, id)
+}
+
+// DiffAssetState operation middleware
+func (siw *ServerInterfaceWrapper) DiffAssetState(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DiffAssetStateParams
+
+	// ------------- Required query parameter "from" -------------
+
+	if paramValue := c.Query("from"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument from is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", c.Request.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter from: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	if paramValue := c.Query("to"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument to is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", c.Request.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter to: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DiffAssetState(c, id, params)
 }
 
 // GetAssetLifecycle operation middleware
@@ -8109,6 +8212,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/assets/:id", wrapper.GetAsset)
 	router.PUT(options.BaseURL+"/assets/:id", wrapper.UpdateAsset)
 	router.POST(options.BaseURL+"/assets/:id/confirm-location", wrapper.ConfirmAssetLocation)
+	router.GET(options.BaseURL+"/assets/:id/diff", wrapper.DiffAssetState)
 	router.GET(options.BaseURL+"/assets/:id/lifecycle", wrapper.GetAssetLifecycle)
 	router.GET(options.BaseURL+"/assets/:id/location-history", wrapper.GetAssetLocationHistory)
 	router.GET(options.BaseURL+"/assets/:id/qr-data", wrapper.GetAssetQRData)

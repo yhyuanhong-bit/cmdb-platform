@@ -211,6 +211,7 @@ type AssetSnapshot struct {
 	SerialNumber pgtype.Text     `json:"serial_number"`
 	Attributes   json.RawMessage `json:"attributes"`
 	Tags         []string        `json:"tags"`
+	OwnerTeam    pgtype.Text     `json:"owner_team"`
 }
 
 type AssetSnapshotsLegacyPartition struct {

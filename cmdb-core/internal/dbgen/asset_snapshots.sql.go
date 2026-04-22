@@ -28,7 +28,7 @@ func (q *Queries) CountAssetSnapshots(ctx context.Context, tenantID uuid.UUID) (
 }
 
 const getAssetStateAt = `-- name: GetAssetStateAt :one
-SELECT id, asset_id, tenant_id, valid_at, name, asset_tag, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags
+SELECT id, asset_id, tenant_id, valid_at, name, asset_tag, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, owner_team
 FROM asset_snapshots
 WHERE asset_id = $1
   AND tenant_id = $2
@@ -68,12 +68,13 @@ func (q *Queries) GetAssetStateAt(ctx context.Context, arg GetAssetStateAtParams
 		&i.SerialNumber,
 		&i.Attributes,
 		&i.Tags,
+		&i.OwnerTeam,
 	)
 	return i, err
 }
 
 const listAssetSnapshots = `-- name: ListAssetSnapshots :many
-SELECT id, asset_id, tenant_id, valid_at, name, asset_tag, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags
+SELECT id, asset_id, tenant_id, valid_at, name, asset_tag, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, owner_team
 FROM asset_snapshots
 WHERE asset_id = $1
   AND tenant_id = $2
@@ -117,6 +118,7 @@ func (q *Queries) ListAssetSnapshots(ctx context.Context, arg ListAssetSnapshots
 			&i.SerialNumber,
 			&i.Attributes,
 			&i.Tags,
+			&i.OwnerTeam,
 		); err != nil {
 			return nil, err
 		}

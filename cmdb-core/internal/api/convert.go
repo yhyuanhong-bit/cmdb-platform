@@ -222,6 +222,7 @@ func toAPIAssetSnapshot(db dbgen.AssetSnapshot) AssetSnapshot {
 		SerialNumber: pgtextToPtr(db.SerialNumber),
 		Attributes:   rawJSONToMapVal(db.Attributes),
 		Tags:         tags,
+		OwnerTeam:    pgtextToPtr(db.OwnerTeam),
 	}
 }
 

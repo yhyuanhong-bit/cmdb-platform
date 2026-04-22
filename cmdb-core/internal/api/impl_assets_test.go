@@ -22,6 +22,7 @@ type mockAssetService struct {
 	findBySerialOrTagFn func(ctx context.Context, tenantID uuid.UUID, serial, tag string) (*dbgen.Asset, error)
 	deleteFn            func(ctx context.Context, tenantID, id uuid.UUID) error
 	getStateAtFn        func(ctx context.Context, tenantID, assetID uuid.UUID, atTime time.Time) (dbgen.AssetSnapshot, error)
+	diffStateAtFn       func(ctx context.Context, tenantID, assetID uuid.UUID, fromAt, toAt time.Time) (*asset.DiffResult, error)
 	listSnapshotsFn     func(ctx context.Context, tenantID, assetID uuid.UUID, limit int32) ([]dbgen.AssetSnapshot, error)
 }
 
@@ -48,6 +49,12 @@ func (m *mockAssetService) GetStateAt(ctx context.Context, tenantID, assetID uui
 		return dbgen.AssetSnapshot{}, errors.New("GetStateAt not stubbed")
 	}
 	return m.getStateAtFn(ctx, tenantID, assetID, atTime)
+}
+func (m *mockAssetService) DiffStateAt(ctx context.Context, tenantID, assetID uuid.UUID, fromAt, toAt time.Time) (*asset.DiffResult, error) {
+	if m.diffStateAtFn == nil {
+		return nil, errors.New("DiffStateAt not stubbed")
+	}
+	return m.diffStateAtFn(ctx, tenantID, assetID, fromAt, toAt)
 }
 func (m *mockAssetService) ListSnapshots(ctx context.Context, tenantID, assetID uuid.UUID, limit int32) ([]dbgen.AssetSnapshot, error) {
 	if m.listSnapshotsFn == nil {

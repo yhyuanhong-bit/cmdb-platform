@@ -175,6 +175,49 @@ func (s *Service) GetStateAt(ctx context.Context, tenantID, assetID uuid.UUID, a
 	return snap, nil
 }
 
+// DiffResult carries the two resolved snapshots backing an asset state
+// diff along with the per-field change list. Keeping the two anchor
+// timestamps separate from the query times lets the caller render
+// "you asked about 2026-03-01 and the closest snapshot was 2026-02-27"
+// without a second round-trip.
+type DiffResult struct {
+	From    dbgen.AssetSnapshot
+	To      dbgen.AssetSnapshot
+	Changes []FieldChange
+}
+
+// FieldChange is one field's before/after across the diff. `From` and
+// `To` are `any` because the snapshot columns are a mix of string,
+// *uuid.UUID, []string, and JSON objects — forcing them into a single
+// concrete type would require lossy coercion at the boundary.
+type FieldChange struct {
+	Field string
+	From  any
+	To    any
+}
+
+// DiffStateAt resolves both anchors via GetStateAt and returns the
+// per-field differences. The two timestamps define an open interval:
+// "what changed between time A and time B". Returns ErrSnapshotNotFound
+// when either anchor has no snapshot, since a diff against a missing
+// anchor is meaningless — the caller gets a 404 with the same semantics
+// as the point-in-time endpoint.
+func (s *Service) DiffStateAt(ctx context.Context, tenantID, assetID uuid.UUID, fromAt, toAt time.Time) (*DiffResult, error) {
+	from, err := s.GetStateAt(ctx, tenantID, assetID, fromAt)
+	if err != nil {
+		return nil, err
+	}
+	to, err := s.GetStateAt(ctx, tenantID, assetID, toAt)
+	if err != nil {
+		return nil, err
+	}
+	return &DiffResult{
+		From:    from,
+		To:      to,
+		Changes: DiffSnapshots(from, to),
+	}, nil
+}
+
 // ListSnapshots returns snapshots for an asset newest-first, capped at
 // limit. A limit of 0 uses the default (100) — a heavily-edited asset
 // can accumulate thousands of snapshots, and the UI uses this for a
