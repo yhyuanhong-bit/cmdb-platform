@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -489,7 +490,15 @@ func main() {
 	// rather than per-minute which is the useful granularity for brute-force
 	// mitigation). The wrapper ensures the limiter runs ONLY for these two
 	// paths and never for the rest of the API surface.
-	loginLimiter := middleware.NewIPRateLimiter(5)
+	//
+	// Budget: 20/min/IP. Was 5/min, but real users behind shared NAT
+	// (office gateway, VPN egress) hit it just by mistyping a password
+	// twice — and the frontend showed "invalid credentials" instead of
+	// "rate limited", so users assumed their password was wrong and
+	// rotated it. 20/min still blocks credential-stuffing (which targets
+	// thousands per second) without harming legit retries. Override per
+	// environment via LOGIN_RATE_PER_MIN.
+	loginLimiter := middleware.NewIPRateLimiter(envIntOr("LOGIN_RATE_PER_MIN", 20))
 	loginLimiterMW := loginLimiter.Middleware()
 	v1.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
@@ -691,4 +700,23 @@ func main() {
 	}
 
 	zap.L().Info("server exited gracefully")
+}
+
+// envIntOr reads a positive integer from the named env var, returning
+// fallback if the var is unset, non-numeric, or non-positive. Wrong
+// values do not brick startup — they fall back with a warning log.
+func envIntOr(envKey string, fallback int) int {
+	raw := os.Getenv(envKey)
+	if raw == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		zap.L().Warn("invalid env int, using fallback",
+			zap.String("env", envKey),
+			zap.String("raw", raw),
+			zap.Int("fallback", fallback))
+		return fallback
+	}
+	return n
 }

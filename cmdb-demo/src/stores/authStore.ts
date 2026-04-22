@@ -10,11 +10,20 @@ interface AuthState {
   user: CurrentUser | null
   isAuthenticated: boolean
 
-  login: (username: string, password: string, tenantSlug?: string) => Promise<boolean>
+  login: (username: string, password: string, tenantSlug?: string) => Promise<LoginResult>
   logout: () => void
   refreshTokens: () => Promise<boolean>
   fetchCurrentUser: () => Promise<void>
 }
+
+// LoginResult is what the login form needs to render the right error
+// message. We deliberately distinguish "wrong credentials" from
+// "rate-limited / server-down" so users do not get told to recheck
+// their password when the real problem is the rate limiter (5/min/IP)
+// or a backend outage.
+export type LoginResult =
+  | { ok: true }
+  | { ok: false; reason: 'invalid_credentials' | 'rate_limited' | 'server_unavailable' | 'network'; retryAfterSeconds?: number }
 
 const DEFAULT_TENANT_SLUG = import.meta.env.VITE_DEFAULT_TENANT_SLUG || 'tw'
 
@@ -26,7 +35,7 @@ export const useAuthStore = create<AuthState>()(
   user: null,
   isAuthenticated: false,
 
-  login: async (username, password, tenantSlug) => {
+  login: async (username, password, tenantSlug): Promise<LoginResult> => {
     try {
       const slug = tenantSlug?.trim() || DEFAULT_TENANT_SLUG
       const res = await fetch(`${API_URL}/auth/login`, {
@@ -34,12 +43,22 @@ export const useAuthStore = create<AuthState>()(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenant_slug: slug, username, password }),
       })
-      const json = await res.json()
+      // Some error responses may not be JSON (e.g. proxy 502). Guard
+      // the parse so a non-JSON 5xx still produces a useful result.
+      const json = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (import.meta.env.DEV) {
-          console.error('Login failed:', json)
+          console.error('Login failed:', res.status, json)
         }
-        return false
+        if (res.status === 429) {
+          const retryAfter = parseInt(res.headers.get('retry-after') || '60', 10)
+          return { ok: false, reason: 'rate_limited', retryAfterSeconds: Number.isFinite(retryAfter) ? retryAfter : 60 }
+        }
+        if (res.status >= 500) {
+          return { ok: false, reason: 'server_unavailable' }
+        }
+        // 401 / 403 / 400 → treat as bad credentials.
+        return { ok: false, reason: 'invalid_credentials' }
       }
 
       const tokens = json.data as TokenPair
@@ -50,12 +69,12 @@ export const useAuthStore = create<AuthState>()(
       })
 
       await get().fetchCurrentUser()
-      return true
+      return { ok: true }
     } catch (err) {
       if (import.meta.env.DEV) {
         console.error('Login network error (CORS or server unreachable?):', err)
       }
-      return false
+      return { ok: false, reason: 'network' }
     }
   },
 

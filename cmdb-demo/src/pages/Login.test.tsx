@@ -90,10 +90,12 @@ describe('Login', () => {
     })
   })
 
-  it('shows an error banner on failed login', async () => {
+  it('shows "Invalid username or password" on 401', async () => {
     const user = userEvent.setup()
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
+      status: 401,
+      headers: { get: () => null },
       json: () => Promise.resolve({ error: 'invalid credentials' }),
     }) as unknown as typeof fetch
 
@@ -104,10 +106,50 @@ describe('Login', () => {
     await user.click(screen.getByRole('button', { name: /login/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/login failed/i)).toBeInTheDocument()
+      expect(screen.getByText(/invalid username or password/i)).toBeInTheDocument()
     })
     // Still on login page
     expect(screen.queryByText('Locations Page')).not.toBeInTheDocument()
+  })
+
+  it('shows rate-limit message with retry-after seconds on 429', async () => {
+    const user = userEvent.setup()
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: (h: string) => (h.toLowerCase() === 'retry-after' ? '45' : null) },
+      json: () => Promise.resolve({ error: { code: 'RATE_LIMITED' } }),
+    }) as unknown as typeof fetch
+
+    renderLogin()
+
+    await user.type(screen.getByPlaceholderText('Enter username'), 'testuser')
+    await user.type(screen.getByPlaceholderText('Enter password'), 'pass')
+    await user.click(screen.getByRole('button', { name: /login/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/too many login attempts.*45 seconds/i)).toBeInTheDocument()
+    })
+  })
+
+  it('shows backend-unavailable message on 5xx', async () => {
+    const user = userEvent.setup()
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      headers: { get: () => null },
+      json: () => Promise.resolve({}),
+    }) as unknown as typeof fetch
+
+    renderLogin()
+
+    await user.type(screen.getByPlaceholderText('Enter username'), 'testuser')
+    await user.type(screen.getByPlaceholderText('Enter password'), 'pass')
+    await user.click(screen.getByRole('button', { name: /login/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/backend is unavailable/i)).toBeInTheDocument()
+    })
   })
 
   it('disables the submit button while logging in', async () => {

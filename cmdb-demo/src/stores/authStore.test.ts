@@ -52,8 +52,8 @@ describe('authStore', () => {
           }),
       })
 
-    const success = await useAuthStore.getState().login('admin', 'pass')
-    expect(success).toBe(true)
+    const result = await useAuthStore.getState().login('admin', 'pass')
+    expect(result.ok).toBe(true)
 
     const state = useAuthStore.getState()
     expect(state.isAuthenticated).toBe(true)
@@ -62,15 +62,48 @@ describe('authStore', () => {
     expect(state.user?.username).toBe('admin')
   })
 
-  it('login returns false on failure', async () => {
+  it('login returns invalid_credentials on 401', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
+      status: 401,
+      headers: { get: () => null },
       json: () => Promise.resolve({ error: 'invalid credentials' }),
     })
 
-    const success = await useAuthStore.getState().login('bad', 'bad')
-    expect(success).toBe(false)
+    const result = await useAuthStore.getState().login('bad', 'bad')
+    expect(result).toEqual({ ok: false, reason: 'invalid_credentials' })
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
+  })
+
+  it('login returns rate_limited on 429 with retry-after', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: { get: (h: string) => (h.toLowerCase() === 'retry-after' ? '45' : null) },
+      json: () => Promise.resolve({ error: { code: 'RATE_LIMITED' } }),
+    })
+
+    const result = await useAuthStore.getState().login('admin', 'pass')
+    expect(result).toEqual({ ok: false, reason: 'rate_limited', retryAfterSeconds: 45 })
+  })
+
+  it('login returns server_unavailable on 5xx', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      headers: { get: () => null },
+      json: () => Promise.resolve({}),
+    })
+
+    const result = await useAuthStore.getState().login('admin', 'pass')
+    expect(result).toEqual({ ok: false, reason: 'server_unavailable' })
+  })
+
+  it('login returns network on fetch throw', async () => {
+    globalThis.fetch = vi.fn().mockRejectedValueOnce(new TypeError('failed to fetch'))
+
+    const result = await useAuthStore.getState().login('admin', 'pass')
+    expect(result).toEqual({ ok: false, reason: 'network' })
   })
 
   it('logout clears all state', () => {

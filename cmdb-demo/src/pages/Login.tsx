@@ -15,13 +15,36 @@ export default function Login() {
     setError('')
     setLoading(true)
 
-    const success = await login(username, password)
+    const result = await login(username, password)
     setLoading(false)
 
-    if (success) {
+    if (result.ok) {
       navigate('/locations')
-    } else {
-      setError('Login failed — check username/password, or verify the backend is running at ' + (import.meta.env.VITE_API_URL || 'http://localhost:8080'))
+      return
+    }
+
+    // Distinguish failure modes so users do not get told to recheck
+    // their password when the backend rate-limited them or is down.
+    switch (result.reason) {
+      case 'rate_limited':
+        setError(
+          `Too many login attempts. Please wait ${result.retryAfterSeconds ?? 60} seconds before trying again.`,
+        )
+        break
+      case 'server_unavailable':
+        setError('Backend is unavailable. Please try again in a moment, or contact your administrator.')
+        break
+      case 'network':
+        setError(
+          'Cannot reach the backend at ' +
+            (import.meta.env.VITE_API_URL || '/api/v1') +
+            '. Check your network or that the server is running.',
+        )
+        break
+      case 'invalid_credentials':
+      default:
+        setError('Invalid username or password.')
+        break
     }
   }
 
