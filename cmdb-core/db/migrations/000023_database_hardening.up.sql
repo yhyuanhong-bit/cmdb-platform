@@ -81,12 +81,19 @@ CREATE INDEX IF NOT EXISTS idx_webhooks_enabled ON webhook_subscriptions(enabled
 CREATE INDEX IF NOT EXISTS idx_metrics_labels ON metrics USING GIN(labels);
 
 -- ============================================================
--- 8. Audit Events Retention (partial index for recent data)
+-- 8. Audit Events Retention (full index — partial WHERE removed)
 -- ============================================================
+--
+-- Was originally a partial index `WHERE created_at > now() - interval
+-- '90 days'`. Postgres rejects that because index predicates must be
+-- IMMUTABLE and now() is STABLE — and conceptually a "rolling 90-day"
+-- predicate cannot work anyway since it would be frozen at the moment
+-- the index was built. Migration 000053 partitions audit_events
+-- monthly, so per-partition indexes stay small in practice without
+-- needing a partial predicate here.
 
 CREATE INDEX IF NOT EXISTS idx_audit_events_recent
-ON audit_events(tenant_id, created_at DESC)
-WHERE created_at > now() - interval '90 days';
+ON audit_events(tenant_id, created_at DESC);
 
 -- Retention function: purge audit events older than 365 days
 CREATE OR REPLACE FUNCTION purge_old_audit_events() RETURNS void
