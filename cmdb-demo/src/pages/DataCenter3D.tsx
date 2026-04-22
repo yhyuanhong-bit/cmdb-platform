@@ -9,7 +9,7 @@ import type { LocationDeleteInfo } from "../lib/api/topology";
 import { useLocationContext } from "../contexts/LocationContext";
 import { useAlerts } from "../hooks/useMonitoring";
 import { apiClient } from "../lib/api/client";
-import type { Rack, Location } from "../lib/api/topology";
+import type { Rack } from "../lib/api/topology";
 import type { AlertEvent } from "../lib/api/monitoring";
 
 interface TreeNode {
@@ -202,7 +202,7 @@ export default function DataCenter3D() {
   // Fallback to Neihu campus if no location context set
   const contextLocationId = path.idc?.id ?? path.campus?.id ?? 'd0000000-0000-0000-0000-000000000004';
   const effectiveLocationId = selectedLocationId || contextLocationId;
-  const { data: racksResponse, isLoading } = useRacks(effectiveLocationId);
+  const { data: racksResponse } = useRacks(effectiveLocationId);
   const apiRacks: Rack[] = racksResponse?.data ?? [];
   const rackGrid = useMemo(() => buildRackGrid(apiRacks), [apiRacks]);
 

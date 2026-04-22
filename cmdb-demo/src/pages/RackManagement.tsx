@@ -6,7 +6,7 @@ import { useRacks, useMainTerritoryId, useUpdateRack, useDeleteRack, useRackSlot
 import { useLocationContext } from "../contexts/LocationContext";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { useUrlState } from "../hooks/useUrlState";
-import type { Rack, RackSlot } from "../lib/api/topology";
+import type { Rack } from "../lib/api/topology";
 
 // Shareable URL state for the Rack Management list page. Only the search
 // query is URL-worthy here — the rack edit/menu state is inline modal UX.

@@ -57,9 +57,9 @@ class ApiClient {
       return this.request<T>(path, options, attempt + 1)
     }
 
-    let json: any
+    let json: { data?: unknown; error?: { code?: string; message?: string } } | null
     try {
-      json = await res.json()
+      json = (await res.json()) as typeof json
     } catch {
       if (!res.ok) {
         throw new ApiRequestError('UNKNOWN', res.statusText || 'Request failed', res.status)
@@ -67,8 +67,8 @@ class ApiClient {
       return undefined as unknown as T
     }
 
-    if (!res.ok || json.error) {
-      const error = json.error || { code: 'UNKNOWN', message: res.statusText }
+    if (!res.ok || json?.error) {
+      const error = json?.error ?? { code: 'UNKNOWN', message: res.statusText }
 
       if (res.status === 401 && error.code === 'INVALID_TOKEN') {
         const refreshed = await useAuthStore.getState().refreshTokens()
@@ -82,7 +82,7 @@ class ApiClient {
         window.dispatchEvent(new CustomEvent('sync-in-progress'))
       }
 
-      throw new ApiRequestError(error.code, error.message, res.status)
+      throw new ApiRequestError(error.code ?? 'UNKNOWN', error.message ?? 'Request failed', res.status)
     }
 
     // Dev-only: warn if response lacks expected envelope shape
@@ -92,7 +92,7 @@ class ApiClient {
       }
     }
 
-    return json
+    return json as T
   }
 
   async get<T>(path: string, params?: Record<string, string>): Promise<T> {

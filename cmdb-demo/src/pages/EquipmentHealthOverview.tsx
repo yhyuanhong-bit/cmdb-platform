@@ -1,9 +1,7 @@
 import { toast } from 'sonner'
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAssets, useLifecycleStats, useCapacityPlanning } from '../hooks/useAssets'
-import type { Asset } from '../lib/api/assets'
 import type { AlertEvent } from '../lib/api/monitoring'
 import type { CapacityForecast } from '../lib/api/assets'
 import { useAlerts, useFleetMetrics } from '../hooks/useMonitoring'
@@ -56,7 +54,6 @@ type AssetWithLifecycle = import('../lib/api/assets').Asset & {
 export default function EquipmentHealthOverview() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [activeTab] = useState(0)
 
   // Fetch server assets for health overview context
   const { data: apiData } = useAssets({ type: 'server' })

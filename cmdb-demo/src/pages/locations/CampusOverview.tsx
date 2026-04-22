@@ -317,7 +317,6 @@ function CampusSection({
 function CapacityChart({ campuses }: { campuses: CampusData[] }) {
   const { t } = useTranslation();
   const allIdcs = campuses.flatMap((c) => c.idcs);
-  const maxRacks = Math.max(...allIdcs.map((idc) => idc.racks));
 
   return (
     <div className="rounded-lg bg-surface-container p-5">

@@ -59,7 +59,7 @@ function TaskStatusBadge({ status }: { status: string }) {
 /*  Stat summary from task result                                       */
 /* ------------------------------------------------------------------ */
 
-function TaskStatsSummary({ result }: { result?: Record<string, any> }) {
+function TaskStatsSummary({ result }: { result?: Record<string, unknown> }) {
   if (!result) return <span className="text-xs text-on-surface-variant">—</span>
   const parts: string[] = []
   if (result.discovered != null)  parts.push(`${result.discovered} discovered`)

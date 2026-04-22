@@ -38,12 +38,16 @@ export default function AuditEventDetail() {
   const displayDiff = apiEvent?.diff
     ? (typeof apiEvent.diff === 'string' ? JSON.parse(apiEvent.diff) : apiEvent.diff)
     : {}
-  const diffLines = Object.entries(displayDiff).map(([field, val]: [string, any]) => ({
-    field,
-    label: field.replace(/_/g, ' '),
-    prev: val?.old ?? '-',
-    next: val?.new ?? '-',
-  }))
+  const diffLines = Object.entries(displayDiff).map(([field, val]) => {
+    const entry = val as { old?: unknown; new?: unknown } | null | undefined
+    const render = (v: unknown) => (v == null ? '-' : typeof v === 'string' ? v : JSON.stringify(v))
+    return {
+      field,
+      label: field.replace(/_/g, ' '),
+      prev: render(entry?.old),
+      next: render(entry?.new),
+    }
+  })
 
   const event = displayEvent
 

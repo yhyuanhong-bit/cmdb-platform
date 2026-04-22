@@ -302,13 +302,10 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
           <div className="flex flex-col">
             {scanHistory.map((scan: ScanRecord, i: number) => {
               const isLast = i === scanHistory.length - 1;
-              let dotColor = "bg-[#69db7c]";
               let icon = "check_circle";
               if (scan.result === "status_mismatch") {
-                dotColor = "bg-error";
                 icon = "error";
               } else if (scan.result === "location_update") {
-                dotColor = "bg-primary";
                 icon = "swap_horiz";
               }
 

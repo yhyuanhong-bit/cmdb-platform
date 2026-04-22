@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
 import { useWorkOrder, useUpdateWorkOrder, useTransitionWorkOrder, useWorkOrderLogs, useWorkOrderComments, useCreateWorkOrderComment } from '../hooks/useMaintenance'
-import type { WorkOrderLog } from '../lib/api/maintenance'
 
 // Local comment type with fields used in this view
 interface WorkOrderComment {

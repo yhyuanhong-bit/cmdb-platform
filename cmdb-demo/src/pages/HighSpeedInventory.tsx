@@ -1,6 +1,5 @@
 import { toast } from 'sonner'
 import { memo, useState, useRef } from "react";
-import type * as XLSXTypes from 'xlsx'
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -46,13 +45,6 @@ interface DiscrepancyTile {
   resolved: boolean
 }
 
-interface ImportItemRow {
-  asset_tag?: string
-  serial_number?: string
-  property_number?: string
-  control_number?: string
-  expected_location?: string
-}
 
 interface InventoryExportItem {
   expected?: Record<string, string>

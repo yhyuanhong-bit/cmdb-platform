@@ -26,10 +26,10 @@ interface DiscoveredAsset {
   external_id?: string
   hostname?: string
   ip_address?: string
-  raw_data?: Record<string, any>
+  raw_data?: Record<string, unknown>
   status: string
   matched_asset_id?: string | null
-  diff_details?: Record<string, any> | null
+  diff_details?: Record<string, unknown> | null
   discovered_at: string
   reviewed_by?: string | null
   reviewed_at?: string | null
@@ -79,7 +79,7 @@ function StatusBadge({ status }: { status: string }) {
 /*  Diff viewer                                                        */
 /* ------------------------------------------------------------------ */
 
-function DiffDetails({ diff }: { diff: Record<string, any> }) {
+function DiffDetails({ diff }: { diff: Record<string, unknown> }) {
   const entries = Object.entries(diff)
   if (entries.length === 0) return null
   return (

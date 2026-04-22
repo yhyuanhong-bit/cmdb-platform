@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
 import StatCard from '../components/StatCard'
-import StatusBadge from '../components/StatusBadge'
 import { useWorkOrders, useTransitionWorkOrder, useDeleteWorkOrder } from '../hooks/useMaintenance'
 import type { WorkOrder as ApiWorkOrder } from '../lib/api/maintenance'
 

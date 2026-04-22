@@ -56,7 +56,6 @@ export default function AddNewRack() {
   const selectedCountry = countries.find((c: Location) => c.id === selectedTerritoryId)
   const selectedRegion = regions.find((r: Location) => r.id === selectedRegionId)
   const selectedCity = cities.find((c: Location) => c.id === selectedCityId)
-  const selectedCampus = campuses.find((c: Location) => c.id === selectedCampusId)
 
   return (
     <div className="min-h-screen bg-surface p-6 font-body text-on-surface">

@@ -63,7 +63,7 @@ export default function SystemSettings() {
   const [showCreateCredential, setShowCreateCredential] = useState(false)
   const [editingCredential, setEditingCredential] = useState<Credential | null>(null)
 
-  const { data: usersResp, isLoading: usersLoading } = useUsers()
+  const { data: usersResp } = useUsers()
   const { data: rolesResp } = useRoles()
   const { data: healthResp } = useSystemHealth()
   const { data: adaptersResp } = useAdapters()

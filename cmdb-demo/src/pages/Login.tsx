@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 
 export default function Login() {
-  const { t } = useTranslation()
   const navigate = useNavigate()
   const login = useAuthStore((s) => s.login)
   const [username, setUsername] = useState('')
