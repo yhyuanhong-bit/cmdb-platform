@@ -1,0 +1,482 @@
+# CMDB-Core SLO recording rules + burn-rate alerts
+#
+# Full definitions and reasoning live in docs/slo-definition.md. This
+# file MUST stay in lockstep with that doc; a target change in only
+# one place is a correctness bug.
+#
+# Metric names referenced here are all registered in
+# internal/platform/telemetry/metrics.go. No fictional metrics.
+#
+# Rule naming follows the Prometheus style guide:
+#   level_metric_operations  (e.g. sli:http_availability:ratio_5m)
+# where `sli:` is the aggregation level and `ratio_5m` is the
+# operation + window. Burn-rate rules use `slo:` prefix.
+
+groups:
+  # ---------------------------------------------------------------
+  # Recording rules: availability
+  # ---------------------------------------------------------------
+  - name: slo-http-availability-recording
+    interval: 30s
+    rules:
+      - record: sli:http_requests:rate5m
+        expr: sum(rate(http_requests_total[5m]))
+
+      - record: sli:http_requests:rate30m
+        expr: sum(rate(http_requests_total[30m]))
+
+      - record: sli:http_requests:rate1h
+        expr: sum(rate(http_requests_total[1h]))
+
+      - record: sli:http_requests:rate6h
+        expr: sum(rate(http_requests_total[6h]))
+
+      - record: sli:http_requests_errors:rate5m
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m]))
+
+      - record: sli:http_requests_errors:rate30m
+        expr: sum(rate(http_requests_total{status=~"5.."}[30m]))
+
+      - record: sli:http_requests_errors:rate1h
+        expr: sum(rate(http_requests_total{status=~"5.."}[1h]))
+
+      - record: sli:http_requests_errors:rate6h
+        expr: sum(rate(http_requests_total{status=~"5.."}[6h]))
+
+      # Availability = 1 - (5xx / total). These ratios drive dashboards;
+      # the burn-rate alerts below use the complementary error-ratio
+      # directly because that's the formulation the SRE workbook uses.
+      - record: sli:http_availability:ratio_5m
+        expr: |
+          1 - (
+            sli:http_requests_errors:rate5m
+            /
+            (sli:http_requests:rate5m > 0)
+          )
+
+      - record: sli:http_availability:ratio_30m
+        expr: |
+          1 - (
+            sli:http_requests_errors:rate30m
+            /
+            (sli:http_requests:rate30m > 0)
+          )
+
+      - record: sli:http_availability:ratio_1h
+        expr: |
+          1 - (
+            sli:http_requests_errors:rate1h
+            /
+            (sli:http_requests:rate1h > 0)
+          )
+
+      - record: sli:http_availability:ratio_6h
+        expr: |
+          1 - (
+            sli:http_requests_errors:rate6h
+            /
+            (sli:http_requests:rate6h > 0)
+          )
+
+      # Error-ratio form used by the burn-rate alerts. Zero-traffic
+      # windows return NaN and will (correctly) not trigger alerts.
+      - record: slo:http_errors:ratio_5m
+        expr: |
+          sli:http_requests_errors:rate5m
+          /
+          sli:http_requests:rate5m
+
+      - record: slo:http_errors:ratio_30m
+        expr: |
+          sli:http_requests_errors:rate30m
+          /
+          sli:http_requests:rate30m
+
+      - record: slo:http_errors:ratio_1h
+        expr: |
+          sli:http_requests_errors:rate1h
+          /
+          sli:http_requests:rate1h
+
+      - record: slo:http_errors:ratio_6h
+        expr: |
+          sli:http_requests_errors:rate6h
+          /
+          sli:http_requests:rate6h
+
+      # Auxiliary: unknown status labels (defensive — see slo-definition.md)
+      - record: slo:http_requests_unlabelled:rate5m
+        expr: sum(rate(http_requests_total{status!~"[1-5].."}[5m]))
+
+  # ---------------------------------------------------------------
+  # Recording rules: latency (fast-enough ratio, not p99)
+  # ---------------------------------------------------------------
+  - name: slo-http-latency-recording
+    interval: 30s
+    rules:
+      - record: sli:http_requests_fast:rate5m
+        expr: sum(rate(http_request_duration_seconds_bucket{le="1.0"}[5m]))
+
+      - record: sli:http_requests_fast:rate30m
+        expr: sum(rate(http_request_duration_seconds_bucket{le="1.0"}[30m]))
+
+      - record: sli:http_requests_fast:rate1h
+        expr: sum(rate(http_request_duration_seconds_bucket{le="1.0"}[1h]))
+
+      - record: sli:http_requests_fast:rate6h
+        expr: sum(rate(http_request_duration_seconds_bucket{le="1.0"}[6h]))
+
+      - record: sli:http_requests_observed:rate5m
+        expr: sum(rate(http_request_duration_seconds_count[5m]))
+
+      - record: sli:http_requests_observed:rate30m
+        expr: sum(rate(http_request_duration_seconds_count[30m]))
+
+      - record: sli:http_requests_observed:rate1h
+        expr: sum(rate(http_request_duration_seconds_count[1h]))
+
+      - record: sli:http_requests_observed:rate6h
+        expr: sum(rate(http_request_duration_seconds_count[6h]))
+
+      - record: sli:http_latency:ratio_5m
+        expr: |
+          sli:http_requests_fast:rate5m
+          /
+          (sli:http_requests_observed:rate5m > 0)
+
+      - record: sli:http_latency:ratio_30m
+        expr: |
+          sli:http_requests_fast:rate30m
+          /
+          (sli:http_requests_observed:rate30m > 0)
+
+      - record: sli:http_latency:ratio_1h
+        expr: |
+          sli:http_requests_fast:rate1h
+          /
+          (sli:http_requests_observed:rate1h > 0)
+
+      - record: sli:http_latency:ratio_6h
+        expr: |
+          sli:http_requests_fast:rate6h
+          /
+          (sli:http_requests_observed:rate6h > 0)
+
+      # Slow-ratio used by burn-rate alerts (1 - fast-ratio).
+      - record: slo:http_slow:ratio_5m
+        expr: |
+          1 - (
+            sli:http_requests_fast:rate5m
+            /
+            sli:http_requests_observed:rate5m
+          )
+
+      - record: slo:http_slow:ratio_30m
+        expr: |
+          1 - (
+            sli:http_requests_fast:rate30m
+            /
+            sli:http_requests_observed:rate30m
+          )
+
+      - record: slo:http_slow:ratio_1h
+        expr: |
+          1 - (
+            sli:http_requests_fast:rate1h
+            /
+            sli:http_requests_observed:rate1h
+          )
+
+      - record: slo:http_slow:ratio_6h
+        expr: |
+          1 - (
+            sli:http_requests_fast:rate6h
+            /
+            sli:http_requests_observed:rate6h
+          )
+
+  # ---------------------------------------------------------------
+  # Recording rules: sync apply success
+  #
+  # See slo-definition.md section 3 for why we measure success
+  # instead of freshness. Skipped envelopes are excluded from both
+  # numerator and denominator.
+  # ---------------------------------------------------------------
+  - name: slo-sync-apply-recording
+    interval: 30s
+    rules:
+      - record: sli:sync_envelope_applied:rate5m
+        expr: sum(rate(cmdb_sync_envelope_applied_total[5m]))
+
+      - record: sli:sync_envelope_applied:rate30m
+        expr: sum(rate(cmdb_sync_envelope_applied_total[30m]))
+
+      - record: sli:sync_envelope_applied:rate1h
+        expr: sum(rate(cmdb_sync_envelope_applied_total[1h]))
+
+      - record: sli:sync_envelope_applied:rate6h
+        expr: sum(rate(cmdb_sync_envelope_applied_total[6h]))
+
+      - record: sli:sync_envelope_bad:rate5m
+        expr: |
+          sum(rate(cmdb_sync_envelope_failed_total[5m]))
+          +
+          sum(rate(cmdb_sync_envelope_rejected_total[5m]))
+
+      - record: sli:sync_envelope_bad:rate30m
+        expr: |
+          sum(rate(cmdb_sync_envelope_failed_total[30m]))
+          +
+          sum(rate(cmdb_sync_envelope_rejected_total[30m]))
+
+      - record: sli:sync_envelope_bad:rate1h
+        expr: |
+          sum(rate(cmdb_sync_envelope_failed_total[1h]))
+          +
+          sum(rate(cmdb_sync_envelope_rejected_total[1h]))
+
+      - record: sli:sync_envelope_bad:rate6h
+        expr: |
+          sum(rate(cmdb_sync_envelope_failed_total[6h]))
+          +
+          sum(rate(cmdb_sync_envelope_rejected_total[6h]))
+
+      - record: sli:sync_envelope_observed:rate5m
+        expr: |
+          sli:sync_envelope_applied:rate5m
+          +
+          sli:sync_envelope_bad:rate5m
+
+      - record: sli:sync_envelope_observed:rate30m
+        expr: |
+          sli:sync_envelope_applied:rate30m
+          +
+          sli:sync_envelope_bad:rate30m
+
+      - record: sli:sync_envelope_observed:rate1h
+        expr: |
+          sli:sync_envelope_applied:rate1h
+          +
+          sli:sync_envelope_bad:rate1h
+
+      - record: sli:sync_envelope_observed:rate6h
+        expr: |
+          sli:sync_envelope_applied:rate6h
+          +
+          sli:sync_envelope_bad:rate6h
+
+      - record: sli:sync_success:ratio_5m
+        expr: |
+          sli:sync_envelope_applied:rate5m
+          /
+          (sli:sync_envelope_observed:rate5m > 0)
+
+      - record: sli:sync_success:ratio_30m
+        expr: |
+          sli:sync_envelope_applied:rate30m
+          /
+          (sli:sync_envelope_observed:rate30m > 0)
+
+      - record: sli:sync_success:ratio_1h
+        expr: |
+          sli:sync_envelope_applied:rate1h
+          /
+          (sli:sync_envelope_observed:rate1h > 0)
+
+      - record: sli:sync_success:ratio_6h
+        expr: |
+          sli:sync_envelope_applied:rate6h
+          /
+          (sli:sync_envelope_observed:rate6h > 0)
+
+      # Bad-ratio for burn-rate math.
+      - record: slo:sync_bad:ratio_5m
+        expr: |
+          sli:sync_envelope_bad:rate5m
+          /
+          sli:sync_envelope_observed:rate5m
+
+      - record: slo:sync_bad:ratio_30m
+        expr: |
+          sli:sync_envelope_bad:rate30m
+          /
+          sli:sync_envelope_observed:rate30m
+
+      - record: slo:sync_bad:ratio_1h
+        expr: |
+          sli:sync_envelope_bad:rate1h
+          /
+          sli:sync_envelope_observed:rate1h
+
+      - record: slo:sync_bad:ratio_6h
+        expr: |
+          sli:sync_envelope_bad:rate6h
+          /
+          sli:sync_envelope_observed:rate6h
+
+  # ---------------------------------------------------------------
+  # Multi-window multi-burn-rate alerts
+  #
+  # Pattern (Google SRE Workbook Ch. 5):
+  #   FAST  burn: 14.4x over 1h  (short window 5m)  -> PAGE
+  #   SLOW  burn:  1x   over 6h  (short window 30m) -> TICKET
+  #
+  # Thresholds below are derived from:
+  #   availability target 99.9% -> allowed error 0.001
+  #   latency target      99.0% -> allowed slow  0.010
+  #   sync target         99.0% -> allowed bad   0.010
+  #
+  #   fast: burn >= 14.4 * allowed
+  #   slow: burn >=  1.0 * allowed
+  #
+  # Both long-window AND short-window must exceed the threshold.
+  # The short window stops an alert from persisting after the
+  # problem has cleared — a long window alone lags recovery.
+  # ---------------------------------------------------------------
+  - name: slo-burn-rate-alerts
+    rules:
+      # --- Availability: 99.9% / 30d -------------------------------
+      - alert: HTTPAvailabilityFastBurn
+        expr: |
+          (
+            slo:http_errors:ratio_1h > (14.4 * 0.001)
+            and
+            slo:http_errors:ratio_5m > (14.4 * 0.001)
+          )
+        for: 2m
+        labels:
+          severity: page
+          slo: http_availability
+          window: 1h
+        annotations:
+          summary: "cmdb-core burning 30d availability budget >14.4x (fast burn)"
+          description: |
+            HTTP 5xx ratio over the last 1h is {{ $value | humanizePercentage }},
+            which at a 14.4x burn rate consumes 2% of the 30d error budget
+            per hour. On-call should investigate immediately.
+
+            SLO target: 99.9% non-5xx over 30d (budget: 43m 49s).
+            Dashboard: {{ printf "%s" "/d/cmdb-api-overview" }}
+            Runbook: docs/slo-definition.md#1-availability-slo
+
+      - alert: HTTPAvailabilitySlowBurn
+        expr: |
+          (
+            slo:http_errors:ratio_6h > (1.0 * 0.001)
+            and
+            slo:http_errors:ratio_30m > (1.0 * 0.001)
+          )
+        for: 15m
+        labels:
+          severity: ticket
+          slo: http_availability
+          window: 6h
+        annotations:
+          summary: "cmdb-core burning 30d availability budget at baseline (slow burn)"
+          description: |
+            HTTP 5xx ratio over the last 6h is {{ $value | humanizePercentage }},
+            which will exhaust the 30d error budget at the normal burn pace
+            if uncorrected. Open a ticket for the next business day.
+
+            SLO target: 99.9% non-5xx over 30d (budget: 43m 49s).
+            Runbook: docs/slo-definition.md#1-availability-slo
+
+      # --- Latency: 99% under 1s / 30d -----------------------------
+      - alert: HTTPLatencyFastBurn
+        expr: |
+          (
+            slo:http_slow:ratio_1h > (14.4 * 0.01)
+            and
+            slo:http_slow:ratio_5m > (14.4 * 0.01)
+          )
+        for: 2m
+        labels:
+          severity: page
+          slo: http_latency
+          window: 1h
+        annotations:
+          summary: "cmdb-core burning 30d latency budget >14.4x (fast burn)"
+          description: |
+            Share of requests exceeding 1s over the last 1h is
+            {{ $value | humanizePercentage }}, which at a 14.4x burn rate
+            consumes 2% of the 30d latency budget per hour. Likely causes:
+            DB contention, slow upstream (NATS/Redis), dashboard cache miss
+            storm.
+
+            SLO target: 99% of requests < 1s over 30d.
+            Runbook: docs/slo-definition.md#2-latency-slo
+
+      - alert: HTTPLatencySlowBurn
+        expr: |
+          (
+            slo:http_slow:ratio_6h > (1.0 * 0.01)
+            and
+            slo:http_slow:ratio_30m > (1.0 * 0.01)
+          )
+        for: 15m
+        labels:
+          severity: ticket
+          slo: http_latency
+          window: 6h
+        annotations:
+          summary: "cmdb-core burning 30d latency budget at baseline (slow burn)"
+          description: |
+            Share of requests exceeding 1s over the last 6h is
+            {{ $value | humanizePercentage }}. Open a ticket for the next
+            business day to investigate which endpoints regressed.
+
+            SLO target: 99% of requests < 1s over 30d.
+            Runbook: docs/slo-definition.md#2-latency-slo
+
+      # --- Sync apply success: 99% / 7d ----------------------------
+      #
+      # Window logic is identical to HTTP even though the target window
+      # is 7d rather than 30d. The burn-rate math only cares about the
+      # instantaneous rate of budget consumption, not the total window.
+      # See SRE Workbook Ch. 5 for the derivation.
+      - alert: SyncApplyFastBurn
+        expr: |
+          (
+            slo:sync_bad:ratio_1h > (14.4 * 0.01)
+            and
+            slo:sync_bad:ratio_5m > (14.4 * 0.01)
+          )
+        for: 2m
+        labels:
+          severity: page
+          slo: sync_apply
+          window: 1h
+        annotations:
+          summary: "cmdb-core sync apply budget burning >14.4x (fast burn)"
+          description: |
+            Fraction of sync envelopes failing or rejected over the last 1h
+            is {{ $value | humanizePercentage }}. Likely causes:
+            HMAC / checksum mismatches (investigate publisher), DB errors
+            during apply, tenant_mismatch flood (cross-tenant replay attempt).
+
+            Check `cmdb_sync_envelope_rejected_total` by reason label.
+
+            SLO target: 99% applied / (applied+failed+rejected) over 7d.
+            Runbook: docs/slo-definition.md#3-sync-apply-success-slo
+
+      - alert: SyncApplySlowBurn
+        expr: |
+          (
+            slo:sync_bad:ratio_6h > (1.0 * 0.01)
+            and
+            slo:sync_bad:ratio_30m > (1.0 * 0.01)
+          )
+        for: 15m
+        labels:
+          severity: ticket
+          slo: sync_apply
+          window: 6h
+        annotations:
+          summary: "cmdb-core sync apply budget burning at baseline (slow burn)"
+          description: |
+            Fraction of sync envelopes failing or rejected over the last 6h
+            is {{ $value | humanizePercentage }}. Open a ticket and look at
+            reconciliation runs for correlated drift.
+
+            SLO target: 99% applied / (applied+failed+rejected) over 7d.
+            Runbook: docs/slo-definition.md#3-sync-apply-success-slo
