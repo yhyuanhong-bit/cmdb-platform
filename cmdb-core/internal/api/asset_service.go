@@ -21,4 +21,6 @@ type assetService interface {
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
 	GetStateAt(ctx context.Context, tenantID, assetID uuid.UUID, atTime time.Time) (dbgen.AssetSnapshot, error)
 	ListSnapshots(ctx context.Context, tenantID, assetID uuid.UUID, limit int32) ([]dbgen.AssetSnapshot, error)
+	BumpAccess(ctx context.Context, tenantID, assetID uuid.UUID) error
+	BumpAccessMany(ctx context.Context, tenantID uuid.UUID, assetIDs []uuid.UUID) error
 }

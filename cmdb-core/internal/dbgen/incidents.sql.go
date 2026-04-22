@@ -177,7 +177,7 @@ SELECT DISTINCT a.id, a.tenant_id, a.asset_tag, a.property_number,
        a.deleted_at, a.sync_version, a.bmc_ip, a.bmc_type, a.bmc_firmware,
        a.purchase_date, a.purchase_cost, a.warranty_start, a.warranty_end,
        a.warranty_vendor, a.warranty_contract, a.expected_lifespan_months,
-       a.eol_date
+       a.eol_date, a.access_count_24h, a.last_accessed_at
 FROM assets a
 JOIN alert_events ae ON ae.asset_id = a.id
 JOIN incidents i
@@ -201,6 +201,11 @@ type ListAssetsForIncidentParams struct {
 // (same temporal window as ListAlertEventsByIncident). Soft-deleted assets
 // are excluded. Tenant scope is enforced on BOTH alert_events and assets
 // and on the incidents row (defence-in-depth).
+//
+// Explicit column list mirrors dbgen.Asset so sqlc returns []Asset rather
+// than a bespoke row type. When the assets table gains new columns (e.g.
+// 000058 added access_count_24h and last_accessed_at), add them here too
+// or the row shape diverges and callers break to compile.
 func (q *Queries) ListAssetsForIncident(ctx context.Context, arg ListAssetsForIncidentParams) ([]Asset, error) {
 	rows, err := q.db.Query(ctx, listAssetsForIncident, arg.IncidentID, arg.TenantID)
 	if err != nil {
@@ -244,6 +249,8 @@ func (q *Queries) ListAssetsForIncident(ctx context.Context, arg ListAssetsForIn
 			&i.WarrantyContract,
 			&i.ExpectedLifespanMonths,
 			&i.EolDate,
+			&i.AccessCount24h,
+			&i.LastAccessedAt,
 		); err != nil {
 			return nil, err
 		}

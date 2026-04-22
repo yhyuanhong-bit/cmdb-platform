@@ -92,3 +92,44 @@ SELECT count(*) FROM assets a
 JOIN locations l ON a.location_id = l.id
 WHERE a.tenant_id = $1
   AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree;
+
+-- name: BumpAssetAccess :exec
+-- D9-P1 read-heat counter. Called from the GetAsset/ListAssets handlers
+-- to track which assets are actively being read. Bypasses the 000058
+-- snapshot trigger because access_count_24h / last_accessed_at are NOT
+-- in the trigger's WHEN column list — an UPDATE that only touches these
+-- columns leaves asset_snapshots untouched.
+--
+-- Tenant scoping is enforced even though the caller already has the
+-- tenant from context; defense-in-depth against any future code path
+-- that might forward an asset_id without its tenant.
+UPDATE assets
+SET access_count_24h = access_count_24h + 1,
+    last_accessed_at = now()
+WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
+
+-- name: BumpAssetsAccess :exec
+-- Batch variant for ListAssets: one UPDATE touches N rows. Cheaper
+-- than emitting N separate BumpAssetAccess calls when a large list
+-- page is rendered.
+UPDATE assets
+SET access_count_24h = access_count_24h + 1,
+    last_accessed_at = now()
+WHERE id = ANY(sqlc.arg('ids')::uuid[])
+  AND tenant_id = sqlc.arg('tenant_id')
+  AND deleted_at IS NULL;
+
+-- name: DecayAssetAccessCounts :exec
+-- D9-P1 nightly rollup. Zeroes the rolling 24h counter so the number
+-- stays bounded. last_accessed_at is deliberately preserved — it's an
+-- absolute wall-clock reference used elsewhere (cold-asset detection,
+-- quality downweighting) and has no "decay" semantics.
+UPDATE assets SET access_count_24h = 0 WHERE access_count_24h > 0;
+
+-- name: ListHotAssets :many
+-- Top-N hot assets per tenant, used by the admin dashboard's "most
+-- read" widget. Uses idx_assets_access_heat (partial, count>0).
+SELECT * FROM assets
+WHERE tenant_id = $1 AND deleted_at IS NULL AND access_count_24h > 0
+ORDER BY access_count_24h DESC, last_accessed_at DESC NULLS LAST
+LIMIT $2;

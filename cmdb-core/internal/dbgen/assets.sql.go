@@ -13,6 +13,54 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bumpAssetAccess = `-- name: BumpAssetAccess :exec
+UPDATE assets
+SET access_count_24h = access_count_24h + 1,
+    last_accessed_at = now()
+WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+`
+
+type BumpAssetAccessParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+// D9-P1 read-heat counter. Called from the GetAsset/ListAssets handlers
+// to track which assets are actively being read. Bypasses the 000058
+// snapshot trigger because access_count_24h / last_accessed_at are NOT
+// in the trigger's WHEN column list — an UPDATE that only touches these
+// columns leaves asset_snapshots untouched.
+//
+// Tenant scoping is enforced even though the caller already has the
+// tenant from context; defense-in-depth against any future code path
+// that might forward an asset_id without its tenant.
+func (q *Queries) BumpAssetAccess(ctx context.Context, arg BumpAssetAccessParams) error {
+	_, err := q.db.Exec(ctx, bumpAssetAccess, arg.ID, arg.TenantID)
+	return err
+}
+
+const bumpAssetsAccess = `-- name: BumpAssetsAccess :exec
+UPDATE assets
+SET access_count_24h = access_count_24h + 1,
+    last_accessed_at = now()
+WHERE id = ANY($1::uuid[])
+  AND tenant_id = $2
+  AND deleted_at IS NULL
+`
+
+type BumpAssetsAccessParams struct {
+	Ids      []uuid.UUID `json:"ids"`
+	TenantID uuid.UUID   `json:"tenant_id"`
+}
+
+// Batch variant for ListAssets: one UPDATE touches N rows. Cheaper
+// than emitting N separate BumpAssetAccess calls when a large list
+// page is rendered.
+func (q *Queries) BumpAssetsAccess(ctx context.Context, arg BumpAssetsAccessParams) error {
+	_, err := q.db.Exec(ctx, bumpAssetsAccess, arg.Ids, arg.TenantID)
+	return err
+}
+
 const countAssets = `-- name: CountAssets :one
 SELECT count(*) FROM assets
 WHERE tenant_id = $1
@@ -85,7 +133,7 @@ INSERT INTO assets (
     $17, $18, $19,
     $20, $21, $22, $23,
     $24, $25, $26, $27
-) RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date
+) RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at
 `
 
 type CreateAssetParams struct {
@@ -183,8 +231,23 @@ func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset
 		&i.WarrantyContract,
 		&i.ExpectedLifespanMonths,
 		&i.EolDate,
+		&i.AccessCount24h,
+		&i.LastAccessedAt,
 	)
 	return i, err
+}
+
+const decayAssetAccessCounts = `-- name: DecayAssetAccessCounts :exec
+UPDATE assets SET access_count_24h = 0 WHERE access_count_24h > 0
+`
+
+// D9-P1 nightly rollup. Zeroes the rolling 24h counter so the number
+// stays bounded. last_accessed_at is deliberately preserved — it's an
+// absolute wall-clock reference used elsewhere (cold-asset detection,
+// quality downweighting) and has no "decay" semantics.
+func (q *Queries) DecayAssetAccessCounts(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, decayAssetAccessCounts)
+	return err
 }
 
 const deleteAsset = `-- name: DeleteAsset :exec
@@ -202,7 +265,7 @@ func (q *Queries) DeleteAsset(ctx context.Context, arg DeleteAssetParams) error 
 }
 
 const findAssetBySerialOrTag = `-- name: FindAssetBySerialOrTag :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date FROM assets
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets
 WHERE tenant_id = $1
   AND (serial_number = $2 OR asset_tag = $3)
 LIMIT 1
@@ -251,12 +314,14 @@ func (q *Queries) FindAssetBySerialOrTag(ctx context.Context, arg FindAssetBySer
 		&i.WarrantyContract,
 		&i.ExpectedLifespanMonths,
 		&i.EolDate,
+		&i.AccessCount24h,
+		&i.LastAccessedAt,
 	)
 	return i, err
 }
 
 const getAsset = `-- name: GetAsset :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date FROM assets WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets WHERE id = $1 AND tenant_id = $2
 `
 
 type GetAssetParams struct {
@@ -301,12 +366,14 @@ func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, erro
 		&i.WarrantyContract,
 		&i.ExpectedLifespanMonths,
 		&i.EolDate,
+		&i.AccessCount24h,
+		&i.LastAccessedAt,
 	)
 	return i, err
 }
 
 const getAssetByTag = `-- name: GetAssetByTag :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date FROM assets WHERE asset_tag = $1
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets WHERE asset_tag = $1
 `
 
 func (q *Queries) GetAssetByTag(ctx context.Context, assetTag string) (Asset, error) {
@@ -346,12 +413,14 @@ func (q *Queries) GetAssetByTag(ctx context.Context, assetTag string) (Asset, er
 		&i.WarrantyContract,
 		&i.ExpectedLifespanMonths,
 		&i.EolDate,
+		&i.AccessCount24h,
+		&i.LastAccessedAt,
 	)
 	return i, err
 }
 
 const listAssets = `-- name: ListAssets :many
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date FROM assets
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets
 WHERE tenant_id = $1
   AND deleted_at IS NULL
   AND ($4::varchar IS NULL OR type = $4)
@@ -429,6 +498,78 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 			&i.WarrantyContract,
 			&i.ExpectedLifespanMonths,
 			&i.EolDate,
+			&i.AccessCount24h,
+			&i.LastAccessedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listHotAssets = `-- name: ListHotAssets :many
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets
+WHERE tenant_id = $1 AND deleted_at IS NULL AND access_count_24h > 0
+ORDER BY access_count_24h DESC, last_accessed_at DESC NULLS LAST
+LIMIT $2
+`
+
+type ListHotAssetsParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Limit    int32     `json:"limit"`
+}
+
+// Top-N hot assets per tenant, used by the admin dashboard's "most
+// read" widget. Uses idx_assets_access_heat (partial, count>0).
+func (q *Queries) ListHotAssets(ctx context.Context, arg ListHotAssetsParams) ([]Asset, error) {
+	rows, err := q.db.Query(ctx, listHotAssets, arg.TenantID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Asset{}
+	for rows.Next() {
+		var i Asset
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.AssetTag,
+			&i.PropertyNumber,
+			&i.ControlNumber,
+			&i.Name,
+			&i.Type,
+			&i.SubType,
+			&i.Status,
+			&i.BiaLevel,
+			&i.LocationID,
+			&i.RackID,
+			&i.Vendor,
+			&i.Model,
+			&i.SerialNumber,
+			&i.Attributes,
+			&i.Tags,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IpAddress,
+			&i.DeletedAt,
+			&i.SyncVersion,
+			&i.BmcIp,
+			&i.BmcType,
+			&i.BmcFirmware,
+			&i.PurchaseDate,
+			&i.PurchaseCost,
+			&i.WarrantyStart,
+			&i.WarrantyEnd,
+			&i.WarrantyVendor,
+			&i.WarrantyContract,
+			&i.ExpectedLifespanMonths,
+			&i.EolDate,
+			&i.AccessCount24h,
+			&i.LastAccessedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -470,7 +611,7 @@ UPDATE assets SET
     eol_date                 = COALESCE($26, eol_date),
     updated_at               = now()
 WHERE id = $27
-RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date
+RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at
 `
 
 type UpdateAssetParams struct {
@@ -568,6 +709,8 @@ func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset
 		&i.WarrantyContract,
 		&i.ExpectedLifespanMonths,
 		&i.EolDate,
+		&i.AccessCount24h,
+		&i.LastAccessedAt,
 	)
 	return i, err
 }

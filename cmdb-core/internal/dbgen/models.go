@@ -166,6 +166,8 @@ type Asset struct {
 	WarrantyContract       pgtype.Text        `json:"warranty_contract"`
 	ExpectedLifespanMonths pgtype.Int4        `json:"expected_lifespan_months"`
 	EolDate                pgtype.Date        `json:"eol_date"`
+	AccessCount24h         int32              `json:"access_count_24h"`
+	LastAccessedAt         pgtype.Timestamptz `json:"last_accessed_at"`
 }
 
 type AssetDependency struct {

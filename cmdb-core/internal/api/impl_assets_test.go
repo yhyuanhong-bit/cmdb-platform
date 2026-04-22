@@ -55,6 +55,12 @@ func (m *mockAssetService) ListSnapshots(ctx context.Context, tenantID, assetID 
 	}
 	return m.listSnapshotsFn(ctx, tenantID, assetID, limit)
 }
+func (m *mockAssetService) BumpAccess(ctx context.Context, tenantID, assetID uuid.UUID) error {
+	return nil
+}
+func (m *mockAssetService) BumpAccessMany(ctx context.Context, tenantID uuid.UUID, assetIDs []uuid.UUID) error {
+	return nil
+}
 
 func newAssetsTestServer(svc *mockAssetService) *APIServer {
 	// qualitySvc, auditSvc, eventBus left nil. Handlers tolerate all three.

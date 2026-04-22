@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
@@ -15,6 +17,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
+
+// bumpAccessTimeout bounds the detached heat-counter write so a slow DB
+// never leaves goroutines hanging beyond the read that spawned them.
+const bumpAccessTimeout = 5 * time.Second
 
 // ---------------------------------------------------------------------------
 // Asset endpoints
@@ -42,7 +48,39 @@ func (s *APIServer) ListAssets(c *gin.Context, params ListAssetsParams) {
 		return
 	}
 
+	// Fire-and-forget heat bump (D9-P1). Detached context so counter
+	// failures never bleed into the user-visible list response.
+	if len(assets) > 0 {
+		ids := make([]uuid.UUID, len(assets))
+		for i, a := range assets {
+			ids[i] = a.ID
+		}
+		go s.bumpAccessMany(tenantID, ids)
+	}
+
 	response.OKList(c, convertSlice(assets, toAPIAsset), page, pageSize, int(total))
+}
+
+// bumpAccessMany runs the heat-counter UPDATE outside the request
+// context so a slow or cancelled request never cancels the counter
+// write. Errors are logged at debug — missing bumps are not a bug worth
+// paging on.
+func (s *APIServer) bumpAccessMany(tenantID uuid.UUID, ids []uuid.UUID) {
+	ctx, cancel := context.WithTimeout(context.Background(), bumpAccessTimeout)
+	defer cancel()
+	if err := s.assetSvc.BumpAccessMany(ctx, tenantID, ids); err != nil {
+		zap.L().Debug("assets: bump access batch failed", zap.Error(err), zap.Int("count", len(ids)))
+	}
+}
+
+// bumpAccess is the single-asset counterpart of bumpAccessMany, used
+// from GetAsset. Same detached-context semantics.
+func (s *APIServer) bumpAccess(tenantID, assetID uuid.UUID) {
+	ctx, cancel := context.WithTimeout(context.Background(), bumpAccessTimeout)
+	defer cancel()
+	if err := s.assetSvc.BumpAccess(ctx, tenantID, assetID); err != nil {
+		zap.L().Debug("assets: bump access failed", zap.Error(err), zap.String("asset_id", assetID.String()))
+	}
 }
 
 // CreateAsset creates a new asset.
@@ -148,11 +186,13 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 // GetAsset returns a single asset by ID.
 // (GET /assets/{id})
 func (s *APIServer) GetAsset(c *gin.Context, id IdPath) {
-	a, err := s.assetSvc.GetByID(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
+	tenantID := tenantIDFromContext(c)
+	a, err := s.assetSvc.GetByID(c.Request.Context(), tenantID, uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "asset not found")
 		return
 	}
+	go s.bumpAccess(tenantID, a.ID)
 	response.OK(c, toAPIAsset(*a))
 }
 

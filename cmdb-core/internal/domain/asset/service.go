@@ -189,6 +189,36 @@ func (s *Service) ListSnapshots(ctx context.Context, tenantID, assetID uuid.UUID
 	return snaps, nil
 }
 
+// BumpAccess records a read of one asset against the D9-P1 heat counter.
+// Fire-and-forget: callers run this in a goroutine with a detached
+// context so a counter failure never poisons the user-visible read.
+func (s *Service) BumpAccess(ctx context.Context, tenantID, assetID uuid.UUID) error {
+	if err := s.queries.BumpAssetAccess(ctx, dbgen.BumpAssetAccessParams{
+		ID:       assetID,
+		TenantID: tenantID,
+	}); err != nil {
+		return fmt.Errorf("bump asset access: %w", err)
+	}
+	return nil
+}
+
+// BumpAccessMany records reads of a page of assets in a single UPDATE.
+// A no-op when ids is empty — the UPDATE would touch zero rows anyway,
+// and the empty-array branch avoids a wasted round-trip on empty list
+// pages (filter with no results).
+func (s *Service) BumpAccessMany(ctx context.Context, tenantID uuid.UUID, assetIDs []uuid.UUID) error {
+	if len(assetIDs) == 0 {
+		return nil
+	}
+	if err := s.queries.BumpAssetsAccess(ctx, dbgen.BumpAssetsAccessParams{
+		Ids:      assetIDs,
+		TenantID: tenantID,
+	}); err != nil {
+		return fmt.Errorf("bump assets access: %w", err)
+	}
+	return nil
+}
+
 func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uuid.UUID) {
 	if s.pool == nil {
 		return
