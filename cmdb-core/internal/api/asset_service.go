@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
@@ -18,4 +19,6 @@ type assetService interface {
 	Update(ctx context.Context, params dbgen.UpdateAssetParams) (*dbgen.Asset, error)
 	FindBySerialOrTag(ctx context.Context, tenantID uuid.UUID, serial, tag string) (*dbgen.Asset, error)
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
+	GetStateAt(ctx context.Context, tenantID, assetID uuid.UUID, atTime time.Time) (dbgen.AssetSnapshot, error)
+	ListSnapshots(ctx context.Context, tenantID, assetID uuid.UUID, limit int32) ([]dbgen.AssetSnapshot, error)
 }

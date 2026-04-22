@@ -190,6 +190,42 @@ type AssetLocationHistory struct {
 	DetectedAt  pgtype.Timestamptz `json:"detected_at"`
 }
 
+type AssetSnapshot struct {
+	ID           uuid.UUID       `json:"id"`
+	AssetID      uuid.UUID       `json:"asset_id"`
+	TenantID     uuid.UUID       `json:"tenant_id"`
+	ValidAt      time.Time       `json:"valid_at"`
+	Name         string          `json:"name"`
+	AssetTag     string          `json:"asset_tag"`
+	Status       string          `json:"status"`
+	BiaLevel     string          `json:"bia_level"`
+	LocationID   pgtype.UUID     `json:"location_id"`
+	RackID       pgtype.UUID     `json:"rack_id"`
+	Vendor       pgtype.Text     `json:"vendor"`
+	Model        pgtype.Text     `json:"model"`
+	SerialNumber pgtype.Text     `json:"serial_number"`
+	Attributes   json.RawMessage `json:"attributes"`
+	Tags         []string        `json:"tags"`
+}
+
+type AssetSnapshotsLegacyPartition struct {
+	ID           uuid.UUID       `json:"id"`
+	AssetID      uuid.UUID       `json:"asset_id"`
+	TenantID     uuid.UUID       `json:"tenant_id"`
+	ValidAt      time.Time       `json:"valid_at"`
+	Name         string          `json:"name"`
+	AssetTag     string          `json:"asset_tag"`
+	Status       string          `json:"status"`
+	BiaLevel     string          `json:"bia_level"`
+	LocationID   pgtype.UUID     `json:"location_id"`
+	RackID       pgtype.UUID     `json:"rack_id"`
+	Vendor       pgtype.Text     `json:"vendor"`
+	Model        pgtype.Text     `json:"model"`
+	SerialNumber pgtype.Text     `json:"serial_number"`
+	Attributes   json.RawMessage `json:"attributes"`
+	Tags         []string        `json:"tags"`
+}
+
 type AuditEvent struct {
 	ID           uuid.UUID         `json:"id"`
 	TenantID     uuid.UUID         `json:"tenant_id"`

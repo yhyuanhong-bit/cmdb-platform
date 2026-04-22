@@ -2,15 +2,24 @@ package asset
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
-	"go.uber.org/zap"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
+
+// ErrSnapshotNotFound is returned by GetStateAt when the asset has no
+// snapshot at or before the requested time — distinct from an unknown
+// asset so the API layer can map it to a 404 with a targeted message
+// ("this asset did not exist yet") rather than a generic not-found.
+var ErrSnapshotNotFound = errors.New("no asset snapshot at or before requested time")
 
 // ListParams holds the filtering and pagination parameters for listing assets.
 type ListParams struct {
@@ -135,6 +144,49 @@ func (s *Service) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	}
 	s.incrementSyncVersion(ctx, "assets", id)
 	return nil
+}
+
+// GetStateAt returns the most-recent snapshot of the given asset whose
+// valid_at is at or before atTime, scoped to the tenant. Drives D10-P0
+// point-in-time queries ("what did this asset look like at 2026-03-01?").
+//
+// Returns ErrSnapshotNotFound when the asset has no snapshot at or
+// before atTime — which can happen two ways: (a) the asset was created
+// after atTime, (b) the asset existed but predates the 000056 backfill
+// and has not been written since. Both cases legitimately have no
+// historical state to return.
+func (s *Service) GetStateAt(ctx context.Context, tenantID, assetID uuid.UUID, atTime time.Time) (dbgen.AssetSnapshot, error) {
+	snap, err := s.queries.GetAssetStateAt(ctx, dbgen.GetAssetStateAtParams{
+		AssetID:  assetID,
+		TenantID: tenantID,
+		ValidAt:  atTime,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return dbgen.AssetSnapshot{}, ErrSnapshotNotFound
+		}
+		return dbgen.AssetSnapshot{}, fmt.Errorf("get asset state at %s: %w", atTime.Format(time.RFC3339), err)
+	}
+	return snap, nil
+}
+
+// ListSnapshots returns snapshots for an asset newest-first, capped at
+// limit. A limit of 0 uses the default (100) — a heavily-edited asset
+// can accumulate thousands of snapshots, and the UI uses this for a
+// paged timeline rather than a full dump.
+func (s *Service) ListSnapshots(ctx context.Context, tenantID, assetID uuid.UUID, limit int32) ([]dbgen.AssetSnapshot, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	snaps, err := s.queries.ListAssetSnapshots(ctx, dbgen.ListAssetSnapshotsParams{
+		AssetID:  assetID,
+		TenantID: tenantID,
+		Limit:    limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list asset snapshots: %w", err)
+	}
+	return snaps, nil
 }
 
 func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uuid.UUID) {

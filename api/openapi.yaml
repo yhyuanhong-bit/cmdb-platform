@@ -1067,6 +1067,65 @@ paths:
         '200':
           description: Lifecycle statistics
 
+  /assets/{id}/state-at:
+    get:
+      operationId: getAssetStateAt
+      tags: [assets]
+      summary: Point-in-time asset state (D10-P0)
+      description: |
+        Returns the most recent snapshot of the asset at or before the
+        `at` query parameter. Powers questions like "what was this
+        machine's location three months ago?" that the diff-only audit
+        log cannot answer.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: at
+          in: query
+          required: true
+          description: RFC3339 timestamp to query at
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Snapshot at or before the requested time
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetSnapshot'
+        '404':
+          description: No snapshot at or before the requested time
+        '400':
+          description: Invalid or missing `at` parameter
+
+  /assets/{id}/snapshots:
+    get:
+      operationId: listAssetSnapshots
+      tags: [assets]
+      summary: List asset snapshot timeline (D10-P0)
+      description: |
+        All snapshots of the asset newest-first. Feeds the history
+        timeline UI without replaying audit diffs.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+      responses:
+        '200':
+          description: Snapshot list newest-first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AssetSnapshot'
+
   /assets/{id}/upgrade-recommendations:
     get:
       operationId: getAssetUpgradeRecommendations
@@ -5602,6 +5661,39 @@ components:
           type: integer
 
     # ── QualityFlag ──────────────────────────────────────────────────
+    AssetSnapshot:
+      type: object
+      description: Point-in-time snapshot of an asset, captured atomically by the assets_snapshot_after_write trigger (D10-P0).
+      required:
+        - id
+        - asset_id
+        - tenant_id
+        - valid_at
+        - name
+        - asset_tag
+        - status
+        - bia_level
+        - attributes
+      properties:
+        id: { type: string, format: uuid }
+        asset_id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        valid_at: { type: string, format: date-time }
+        name: { type: string }
+        asset_tag: { type: string }
+        status: { type: string }
+        bia_level: { type: string }
+        location_id: { type: string, format: uuid, nullable: true }
+        rack_id: { type: string, format: uuid, nullable: true }
+        vendor: { type: string, nullable: true }
+        model: { type: string, nullable: true }
+        serial_number: { type: string, nullable: true }
+        attributes: { type: object, additionalProperties: true }
+        tags:
+          type: array
+          items: { type: string }
+          nullable: true
+
     QualityFlag:
       type: object
       required:

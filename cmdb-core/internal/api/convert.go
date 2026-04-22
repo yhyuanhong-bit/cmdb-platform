@@ -196,6 +196,35 @@ func convertSlice[F any, T any](items []F, fn func(F) T) []T {
 	return out
 }
 
+// toAPIAssetSnapshot converts a dbgen.AssetSnapshot into the API type.
+// Separate from toAPIAsset because the snapshot omits warranty/lifecycle
+// fields the point-in-time view does not capture — the shape is
+// intentionally leaner than the live asset DTO.
+func toAPIAssetSnapshot(db dbgen.AssetSnapshot) AssetSnapshot {
+	var tags *[]string
+	if db.Tags != nil {
+		t := []string(db.Tags)
+		tags = &t
+	}
+	return AssetSnapshot{
+		Id:           db.ID,
+		AssetId:      db.AssetID,
+		TenantId:     db.TenantID,
+		ValidAt:      db.ValidAt,
+		Name:         db.Name,
+		AssetTag:     db.AssetTag,
+		Status:       db.Status,
+		BiaLevel:     db.BiaLevel,
+		LocationId:   pguuidToUUIDPtr(db.LocationID),
+		RackId:       pguuidToUUIDPtr(db.RackID),
+		Vendor:       pgtextToPtr(db.Vendor),
+		Model:        pgtextToPtr(db.Model),
+		SerialNumber: pgtextToPtr(db.SerialNumber),
+		Attributes:   rawJSONToMapVal(db.Attributes),
+		Tags:         tags,
+	}
+}
+
 // ---------------------------------------------------------------------------
 // 1. toAPIAsset
 // ---------------------------------------------------------------------------

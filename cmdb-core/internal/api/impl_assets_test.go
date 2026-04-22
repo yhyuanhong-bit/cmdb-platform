@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
@@ -20,6 +21,8 @@ type mockAssetService struct {
 	updateFn            func(ctx context.Context, params dbgen.UpdateAssetParams) (*dbgen.Asset, error)
 	findBySerialOrTagFn func(ctx context.Context, tenantID uuid.UUID, serial, tag string) (*dbgen.Asset, error)
 	deleteFn            func(ctx context.Context, tenantID, id uuid.UUID) error
+	getStateAtFn        func(ctx context.Context, tenantID, assetID uuid.UUID, atTime time.Time) (dbgen.AssetSnapshot, error)
+	listSnapshotsFn     func(ctx context.Context, tenantID, assetID uuid.UUID, limit int32) ([]dbgen.AssetSnapshot, error)
 }
 
 func (m *mockAssetService) List(ctx context.Context, p asset.ListParams) ([]dbgen.Asset, int64, error) {
@@ -39,6 +42,18 @@ func (m *mockAssetService) FindBySerialOrTag(ctx context.Context, tenantID uuid.
 }
 func (m *mockAssetService) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	return m.deleteFn(ctx, tenantID, id)
+}
+func (m *mockAssetService) GetStateAt(ctx context.Context, tenantID, assetID uuid.UUID, atTime time.Time) (dbgen.AssetSnapshot, error) {
+	if m.getStateAtFn == nil {
+		return dbgen.AssetSnapshot{}, errors.New("GetStateAt not stubbed")
+	}
+	return m.getStateAtFn(ctx, tenantID, assetID, atTime)
+}
+func (m *mockAssetService) ListSnapshots(ctx context.Context, tenantID, assetID uuid.UUID, limit int32) ([]dbgen.AssetSnapshot, error) {
+	if m.listSnapshotsFn == nil {
+		return nil, errors.New("ListSnapshots not stubbed")
+	}
+	return m.listSnapshotsFn(ctx, tenantID, assetID, limit)
 }
 
 func newAssetsTestServer(svc *mockAssetService) *APIServer {

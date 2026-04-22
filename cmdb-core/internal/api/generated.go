@@ -705,6 +705,25 @@ type AssetLifecycleUpgradePriority string
 // AssetLifecycleWarrantyStatus defines model for AssetLifecycle.WarrantyStatus.
 type AssetLifecycleWarrantyStatus string
 
+// AssetSnapshot Point-in-time snapshot of an asset, captured atomically by the assets_snapshot_after_write trigger (D10-P0).
+type AssetSnapshot struct {
+	AssetId      openapi_types.UUID     `json:"asset_id"`
+	AssetTag     string                 `json:"asset_tag"`
+	Attributes   map[string]interface{} `json:"attributes"`
+	BiaLevel     string                 `json:"bia_level"`
+	Id           openapi_types.UUID     `json:"id"`
+	LocationId   *openapi_types.UUID    `json:"location_id,omitempty"`
+	Model        *string                `json:"model,omitempty"`
+	Name         string                 `json:"name"`
+	RackId       *openapi_types.UUID    `json:"rack_id,omitempty"`
+	SerialNumber *string                `json:"serial_number,omitempty"`
+	Status       string                 `json:"status"`
+	Tags         *[]string              `json:"tags,omitempty"`
+	TenantId     openapi_types.UUID     `json:"tenant_id"`
+	ValidAt      time.Time              `json:"valid_at"`
+	Vendor       *string                `json:"vendor,omitempty"`
+}
+
 // AssignRoleRequest defines model for AssignRoleRequest.
 type AssignRoleRequest struct {
 	RoleId openapi_types.UUID `json:"role_id"`
@@ -1565,6 +1584,17 @@ type UpdateAssetJSONBody struct {
 	// WarrantyStart ISO-8601 date (YYYY-MM-DD)
 	WarrantyStart  *string `json:"warranty_start,omitempty"`
 	WarrantyVendor *string `json:"warranty_vendor,omitempty"`
+}
+
+// ListAssetSnapshotsParams defines parameters for ListAssetSnapshots.
+type ListAssetSnapshotsParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetAssetStateAtParams defines parameters for GetAssetStateAt.
+type GetAssetStateAtParams struct {
+	// At RFC3339 timestamp to query at
+	At time.Time `form:"at" json:"at"`
 }
 
 // QueryAuditEventsParams defines parameters for QueryAuditEvents.
@@ -3060,6 +3090,12 @@ type ServerInterface interface {
 	// Return asset payload to encode into a QR code
 	// (GET /assets/{id}/qr-data)
 	GetAssetQRData(c *gin.Context, id IdPath)
+	// List asset snapshot timeline (D10-P0)
+	// (GET /assets/{id}/snapshots)
+	ListAssetSnapshots(c *gin.Context, id IdPath, params ListAssetSnapshotsParams)
+	// Point-in-time asset state (D10-P0)
+	// (GET /assets/{id}/state-at)
+	GetAssetStateAt(c *gin.Context, id IdPath, params GetAssetStateAtParams)
 	// Get upgrade recommendations for an asset
 	// (GET /assets/{id}/upgrade-recommendations)
 	GetAssetUpgradeRecommendations(c *gin.Context, id IdPath)
@@ -3910,6 +3946,87 @@ func (siw *ServerInterfaceWrapper) GetAssetQRData(c *gin.Context) {
 	}
 
 	siw.Handler.GetAssetQRData(c, id)
+}
+
+// ListAssetSnapshots operation middleware
+func (siw *ServerInterfaceWrapper) ListAssetSnapshots(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAssetSnapshotsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAssetSnapshots(c, id, params)
+}
+
+// GetAssetStateAt operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetStateAt(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAssetStateAtParams
+
+	// ------------- Required query parameter "at" -------------
+
+	if paramValue := c.Query("at"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument at is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "at", c.Request.URL.Query(), &params.At, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter at: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAssetStateAt(c, id, params)
 }
 
 // GetAssetUpgradeRecommendations operation middleware
@@ -7958,6 +8075,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/assets/:id/lifecycle", wrapper.GetAssetLifecycle)
 	router.GET(options.BaseURL+"/assets/:id/location-history", wrapper.GetAssetLocationHistory)
 	router.GET(options.BaseURL+"/assets/:id/qr-data", wrapper.GetAssetQRData)
+	router.GET(options.BaseURL+"/assets/:id/snapshots", wrapper.ListAssetSnapshots)
+	router.GET(options.BaseURL+"/assets/:id/state-at", wrapper.GetAssetStateAt)
 	router.GET(options.BaseURL+"/assets/:id/upgrade-recommendations", wrapper.GetAssetUpgradeRecommendations)
 	router.POST(options.BaseURL+"/assets/:id/upgrade-recommendations/:category/accept", wrapper.AcceptUpgradeRecommendation)
 	router.GET(options.BaseURL+"/audit/events", wrapper.QueryAuditEvents)
