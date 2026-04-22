@@ -36,6 +36,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -502,8 +503,9 @@ func (a *Agent) applyGeneric(ctx context.Context, env SyncEnvelope) error {
 		return fmt.Errorf("parse tenant_id: %w", err)
 	}
 	sc := database.Scope(a.pool, tenantUUID)
+	tableIdent := pgx.Identifier{env.EntityType}.Sanitize()
 	_, err = sc.Exec(ctx,
-		fmt.Sprintf("UPDATE %s SET sync_version = $2, updated_at = now() WHERE id = $3 AND tenant_id = $1 AND sync_version < $2", env.EntityType),
+		fmt.Sprintf("UPDATE %s SET sync_version = $2, updated_at = now() WHERE id = $3 AND tenant_id = $1 AND sync_version < $2", tableIdent),
 		env.Version, env.EntityID)
 	return err
 }
@@ -526,8 +528,9 @@ func (a *Agent) updateSyncState(ctx context.Context) {
 	tenantScopedTables := []string{"assets", "locations", "racks", "work_orders", "alert_events", "inventory_tasks"}
 	for _, table := range tenantScopedTables {
 		var maxVersion int64
+		tableIdent := pgx.Identifier{table}.Sanitize()
 		probeErr := sc.QueryRow(ctx,
-			fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s WHERE tenant_id = $1", table)).Scan(&maxVersion)
+			fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s WHERE tenant_id = $1", tableIdent)).Scan(&maxVersion)
 		if probeErr != nil {
 			zap.L().Warn("sync agent: max version probe failed",
 				zap.String("table", table), zap.Error(probeErr))

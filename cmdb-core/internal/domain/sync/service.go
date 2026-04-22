@@ -13,6 +13,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -105,8 +106,9 @@ func (s *Service) onDomainEvent(ctx context.Context, event eventbus.Event, entit
 		return nil
 	}
 	sc := database.Scope(s.pool, tenantUUID)
+	tableIdent := pgx.Identifier{entityType}.Sanitize()
 	err := sc.QueryRow(ctx,
-		fmt.Sprintf("SELECT sync_version FROM %s WHERE id = $2 AND tenant_id = $1", entityType),
+		fmt.Sprintf("SELECT sync_version FROM %s WHERE id = $2 AND tenant_id = $1", tableIdent),
 		entityID).Scan(&version)
 	if err != nil {
 		version = 0
@@ -175,8 +177,9 @@ func (s *Service) reconcile(ctx context.Context) {
 		// consistent with the pre-sqlc implementation.
 		var currentMaxVersion int64
 		sc := database.Scope(s.pool, row.TenantID)
+		tableIdent := pgx.Identifier{entityType}.Sanitize()
 		verr := sc.QueryRow(ctx,
-			fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s WHERE tenant_id = $1", entityType),
+			fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s WHERE tenant_id = $1", tableIdent),
 		).Scan(&currentMaxVersion)
 		if verr != nil {
 			continue

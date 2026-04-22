@@ -32,6 +32,9 @@ def test_ssh_supported_fields():
         "memory_mb",
         "disk_gb",
         "ip_address",
+        # sub_type distinguishes physical vs virtual hosts — set by the
+        # ssh collector based on /sys/hypervisor presence or dmidecode output.
+        "sub_type",
     }
     assert field_names == expected
 
