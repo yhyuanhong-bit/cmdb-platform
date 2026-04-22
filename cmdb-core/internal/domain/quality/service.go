@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"regexp"
 	"time"
 
@@ -264,11 +265,40 @@ func (s *Service) ScanAllAssets(ctx context.Context, tenantID uuid.UUID) (int, e
 			Consistency:  numericFromFloat(result.Consistency),
 			TotalScore:   numericFromFloat(result.Total),
 			IssueDetails: issueJSON,
+			AccessWeight: numericFromFloat(accessWeightFor(asset.AccessCount24h)),
 		})
 		scanned++
 	}
 	return scanned, nil
 }
+
+// accessWeightFor maps a 24h read count to the per-asset dashboard
+// weight stored alongside the score. The log damps the tail so one
+// super-hot asset can't dominate the weighted average — a cold asset
+// still counts, just less.
+//
+// Values (for reference):
+//
+//	count=0    → 1.0
+//	count=1    → 1.693
+//	count=10   → 3.398
+//	count=100  → 5.615
+//	count=1000 → 7.908
+//	count=1e4  → 10.0 (capped)
+//
+// Matches the formula stated in migration 000059's comment.
+func accessWeightFor(count int32) float64 {
+	if count <= 0 {
+		return 1.0
+	}
+	w := 1.0 + math.Log(1.0+float64(count))
+	if w > accessWeightCap {
+		return accessWeightCap
+	}
+	return w
+}
+
+const accessWeightCap = 10.0
 
 // ValidateForCreation evaluates whether an asset meets minimum quality standards
 // before creation. Returns the score and any issues found.

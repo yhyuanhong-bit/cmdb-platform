@@ -213,8 +213,11 @@ func (q *Queries) CreateQualityRule(ctx context.Context, arg CreateQualityRulePa
 }
 
 const createQualityScore = `-- name: CreateQualityScore :exec
-INSERT INTO quality_scores (tenant_id, asset_id, completeness, accuracy, timeliness, consistency, total_score, issue_details)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO quality_scores (
+    tenant_id, asset_id,
+    completeness, accuracy, timeliness, consistency,
+    total_score, issue_details, access_weight
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `
 
 type CreateQualityScoreParams struct {
@@ -226,8 +229,12 @@ type CreateQualityScoreParams struct {
 	Consistency  pgtype.Numeric `json:"consistency"`
 	TotalScore   pgtype.Numeric `json:"total_score"`
 	IssueDetails []byte         `json:"issue_details"`
+	AccessWeight pgtype.Numeric `json:"access_weight"`
 }
 
+// access_weight is stored at scan time from 1 + ln(1 + access_count_24h),
+// capped at 10. See 000059 migration for rationale. Default 1.0 means
+// "count once, like a cold asset" for callers that don't pass it.
 func (q *Queries) CreateQualityScore(ctx context.Context, arg CreateQualityScoreParams) error {
 	_, err := q.db.Exec(ctx, createQualityScore,
 		arg.TenantID,
@@ -238,12 +245,13 @@ func (q *Queries) CreateQualityScore(ctx context.Context, arg CreateQualityScore
 		arg.Consistency,
 		arg.TotalScore,
 		arg.IssueDetails,
+		arg.AccessWeight,
 	)
 	return err
 }
 
 const getAssetQualityHistory = `-- name: GetAssetQualityHistory :many
-SELECT id, tenant_id, asset_id, completeness, accuracy, timeliness, consistency, total_score, issue_details, scan_date FROM quality_scores
+SELECT id, tenant_id, asset_id, completeness, accuracy, timeliness, consistency, total_score, issue_details, scan_date, access_weight FROM quality_scores
 WHERE asset_id = $1
 ORDER BY scan_date DESC
 LIMIT 30
@@ -269,6 +277,7 @@ func (q *Queries) GetAssetQualityHistory(ctx context.Context, assetID uuid.UUID)
 			&i.TotalScore,
 			&i.IssueDetails,
 			&i.ScanDate,
+			&i.AccessWeight,
 		); err != nil {
 			return nil, err
 		}
@@ -282,11 +291,11 @@ func (q *Queries) GetAssetQualityHistory(ctx context.Context, assetID uuid.UUID)
 
 const getQualityDashboard = `-- name: GetQualityDashboard :one
 SELECT
-    coalesce(avg(total_score), 0) as avg_total,
-    coalesce(avg(completeness), 0) as avg_completeness,
-    coalesce(avg(accuracy), 0) as avg_accuracy,
-    coalesce(avg(timeliness), 0) as avg_timeliness,
-    coalesce(avg(consistency), 0) as avg_consistency,
+    coalesce(sum(total_score   * access_weight) / NULLIF(sum(access_weight), 0), 0) as avg_total,
+    coalesce(sum(completeness  * access_weight) / NULLIF(sum(access_weight), 0), 0) as avg_completeness,
+    coalesce(sum(accuracy      * access_weight) / NULLIF(sum(access_weight), 0), 0) as avg_accuracy,
+    coalesce(sum(timeliness    * access_weight) / NULLIF(sum(access_weight), 0), 0) as avg_timeliness,
+    coalesce(sum(consistency   * access_weight) / NULLIF(sum(access_weight), 0), 0) as avg_consistency,
     count(*) as total_scanned
 FROM quality_scores
 WHERE tenant_id = $1
@@ -302,6 +311,10 @@ type GetQualityDashboardRow struct {
 	TotalScanned    int64       `json:"total_scanned"`
 }
 
+// D9-P1 weighted dashboard: each score counts in proportion to the
+// asset's 24h read-heat. With all weights = 1 this reduces to the
+// plain AVG we had before, so tenants with no read traffic see no
+// behavior change.
 func (q *Queries) GetQualityDashboard(ctx context.Context, tenantID uuid.UUID) (GetQualityDashboardRow, error) {
 	row := q.db.QueryRow(ctx, getQualityDashboard, tenantID)
 	var i GetQualityDashboardRow
@@ -348,7 +361,7 @@ func (q *Queries) GetQualityFlag(ctx context.Context, arg GetQualityFlagParams) 
 }
 
 const getWorstAssets = `-- name: GetWorstAssets :many
-SELECT qs.id, qs.tenant_id, qs.asset_id, qs.completeness, qs.accuracy, qs.timeliness, qs.consistency, qs.total_score, qs.issue_details, qs.scan_date, a.name as asset_name, a.asset_tag
+SELECT qs.id, qs.tenant_id, qs.asset_id, qs.completeness, qs.accuracy, qs.timeliness, qs.consistency, qs.total_score, qs.issue_details, qs.scan_date, qs.access_weight, a.name as asset_name, a.asset_tag
 FROM quality_scores qs
 JOIN assets a ON qs.asset_id = a.id
 WHERE qs.tenant_id = $1
@@ -368,6 +381,7 @@ type GetWorstAssetsRow struct {
 	TotalScore   pgtype.Numeric `json:"total_score"`
 	IssueDetails []byte         `json:"issue_details"`
 	ScanDate     time.Time      `json:"scan_date"`
+	AccessWeight pgtype.Numeric `json:"access_weight"`
 	AssetName    string         `json:"asset_name"`
 	AssetTag     string         `json:"asset_tag"`
 }
@@ -392,6 +406,7 @@ func (q *Queries) GetWorstAssets(ctx context.Context, tenantID uuid.UUID) ([]Get
 			&i.TotalScore,
 			&i.IssueDetails,
 			&i.ScanDate,
+			&i.AccessWeight,
 			&i.AssetName,
 			&i.AssetTag,
 		); err != nil {

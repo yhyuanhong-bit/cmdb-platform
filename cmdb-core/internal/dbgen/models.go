@@ -584,6 +584,7 @@ type QualityScore struct {
 	TotalScore   pgtype.Numeric `json:"total_score"`
 	IssueDetails []byte         `json:"issue_details"`
 	ScanDate     time.Time      `json:"scan_date"`
+	AccessWeight pgtype.Numeric `json:"access_weight"`
 }
 
 type Rack struct {

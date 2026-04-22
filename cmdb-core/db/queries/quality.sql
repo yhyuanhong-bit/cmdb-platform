@@ -9,16 +9,26 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: CreateQualityScore :exec
-INSERT INTO quality_scores (tenant_id, asset_id, completeness, accuracy, timeliness, consistency, total_score, issue_details)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+-- access_weight is stored at scan time from 1 + ln(1 + access_count_24h),
+-- capped at 10. See 000059 migration for rationale. Default 1.0 means
+-- "count once, like a cold asset" for callers that don't pass it.
+INSERT INTO quality_scores (
+    tenant_id, asset_id,
+    completeness, accuracy, timeliness, consistency,
+    total_score, issue_details, access_weight
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
 -- name: GetQualityDashboard :one
+-- D9-P1 weighted dashboard: each score counts in proportion to the
+-- asset's 24h read-heat. With all weights = 1 this reduces to the
+-- plain AVG we had before, so tenants with no read traffic see no
+-- behavior change.
 SELECT
-    coalesce(avg(total_score), 0) as avg_total,
-    coalesce(avg(completeness), 0) as avg_completeness,
-    coalesce(avg(accuracy), 0) as avg_accuracy,
-    coalesce(avg(timeliness), 0) as avg_timeliness,
-    coalesce(avg(consistency), 0) as avg_consistency,
+    coalesce(sum(total_score   * access_weight) / NULLIF(sum(access_weight), 0), 0) as avg_total,
+    coalesce(sum(completeness  * access_weight) / NULLIF(sum(access_weight), 0), 0) as avg_completeness,
+    coalesce(sum(accuracy      * access_weight) / NULLIF(sum(access_weight), 0), 0) as avg_accuracy,
+    coalesce(sum(timeliness    * access_weight) / NULLIF(sum(access_weight), 0), 0) as avg_timeliness,
+    coalesce(sum(consistency   * access_weight) / NULLIF(sum(access_weight), 0), 0) as avg_consistency,
     count(*) as total_scanned
 FROM quality_scores
 WHERE tenant_id = $1
