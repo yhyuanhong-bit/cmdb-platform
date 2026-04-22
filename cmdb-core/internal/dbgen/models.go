@@ -177,6 +177,8 @@ type AssetDependency struct {
 	Description        pgtype.Text        `json:"description"`
 	CreatedAt          time.Time          `json:"created_at"`
 	DependencyCategory DependencyCategory `json:"dependency_category"`
+	ValidFrom          time.Time          `json:"valid_from"`
+	ValidTo            pgtype.Timestamptz `json:"valid_to"`
 }
 
 type AssetLocationHistory struct {

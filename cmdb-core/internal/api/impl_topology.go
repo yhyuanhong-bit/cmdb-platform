@@ -18,6 +18,10 @@ import (
 // Returns all dependency edges where the asset is either the source or target.
 // asset_id is optional in the OpenAPI spec but required here — the handler
 // always scopes to one asset.
+//
+// When ?at=<RFC3339> is set, the reply is a point-in-time view: only edges
+// whose validity interval [valid_from, valid_to) contains the instant are
+// returned. Omit the param to get current (open) edges.
 func (s *APIServer) ListAssetDependencies(c *gin.Context, params ListAssetDependenciesParams) {
 	tenantID := tenantIDFromContext(c)
 	if params.AssetId == nil {
@@ -25,18 +29,63 @@ func (s *APIServer) ListAssetDependencies(c *gin.Context, params ListAssetDepend
 		return
 	}
 	assetID := uuid.UUID(*params.AssetId)
+	q := dbgen.New(s.pool)
 
-	rows, err := dbgen.New(s.pool).ListAssetDependencies(c.Request.Context(), dbgen.ListAssetDependenciesParams{
-		TenantID:      tenantID,
-		SourceAssetID: assetID,
-	})
-	if err != nil {
-		response.InternalError(c, "failed to query dependencies")
-		return
+	// depRow is the shape both query variants produce — same columns, so we
+	// normalise upfront instead of duplicating the formatting loop.
+	type depRow struct {
+		ID                 uuid.UUID
+		SourceAssetID      uuid.UUID
+		SourceAssetName    string
+		TargetAssetID      uuid.UUID
+		TargetAssetName    string
+		DependencyType     string
+		DependencyCategory string
+		Description        string
+	}
+	var normalized []depRow
+
+	if params.At != nil {
+		rows, err := q.ListAssetDependenciesAt(c.Request.Context(), dbgen.ListAssetDependenciesAtParams{
+			TenantID: tenantID,
+			AssetID:  assetID,
+			AtTime:   *params.At,
+		})
+		if err != nil {
+			response.InternalError(c, "failed to query dependencies")
+			return
+		}
+		normalized = make([]depRow, 0, len(rows))
+		for _, r := range rows {
+			normalized = append(normalized, depRow{
+				ID: r.ID, SourceAssetID: r.SourceAssetID, SourceAssetName: r.SourceAssetName,
+				TargetAssetID: r.TargetAssetID, TargetAssetName: r.TargetAssetName,
+				DependencyType: r.DependencyType, DependencyCategory: string(r.DependencyCategory),
+				Description: r.Description,
+			})
+		}
+	} else {
+		rows, err := q.ListAssetDependencies(c.Request.Context(), dbgen.ListAssetDependenciesParams{
+			TenantID:      tenantID,
+			SourceAssetID: assetID,
+		})
+		if err != nil {
+			response.InternalError(c, "failed to query dependencies")
+			return
+		}
+		normalized = make([]depRow, 0, len(rows))
+		for _, r := range rows {
+			normalized = append(normalized, depRow{
+				ID: r.ID, SourceAssetID: r.SourceAssetID, SourceAssetName: r.SourceAssetName,
+				TargetAssetID: r.TargetAssetID, TargetAssetName: r.TargetAssetName,
+				DependencyType: r.DependencyType, DependencyCategory: string(r.DependencyCategory),
+				Description: r.Description,
+			})
+		}
 	}
 
-	deps := make([]gin.H, 0, len(rows))
-	for _, r := range rows {
+	deps := make([]gin.H, 0, len(normalized))
+	for _, r := range normalized {
 		deps = append(deps, gin.H{
 			"id":                  r.ID.String(),
 			"source_asset_id":     r.SourceAssetID.String(),
@@ -44,7 +93,7 @@ func (s *APIServer) ListAssetDependencies(c *gin.Context, params ListAssetDepend
 			"target_asset_id":     r.TargetAssetID.String(),
 			"target_asset_name":   r.TargetAssetName,
 			"dependency_type":     r.DependencyType,
-			"dependency_category": string(r.DependencyCategory),
+			"dependency_category": r.DependencyCategory,
 			"description":         r.Description,
 		})
 	}
@@ -407,7 +456,7 @@ func (s *APIServer) GetTopologyImpact(c *gin.Context, params GetTopologyImpactPa
 		direction = topology.ImpactDirection(*params.Direction)
 	}
 
-	edges, err := s.topologySvc.GetImpactPath(c.Request.Context(), tenantID, rootID, maxDepth, direction)
+	edges, err := s.topologySvc.GetImpactPathAt(c.Request.Context(), tenantID, rootID, maxDepth, direction, params.At)
 	if err != nil {
 		// Validation errors from the service surface as 400; anything
 		// else is treated as an internal failure. The validation layer

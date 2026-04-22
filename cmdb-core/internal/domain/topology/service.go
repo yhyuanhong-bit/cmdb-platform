@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/google/uuid"
@@ -393,16 +394,33 @@ type ImpactEdge struct {
 	Direction          ImpactDirection
 }
 
-// GetImpactPath returns the transitive dependency graph reachable from
-// rootAssetID up to maxDepth hops. For direction=both the downstream
-// and upstream subgraphs are concatenated; duplicates between them are
-// possible (e.g. when a cycle bridges the root) and intentional — each
-// edge retains its traversal direction so clients can render them.
+// GetImpactPath is the current-state variant. Use GetImpactPathAt when
+// a point-in-time traversal is required.
 func (s *Service) GetImpactPath(
 	ctx context.Context,
 	tenantID, rootAssetID uuid.UUID,
 	maxDepth int,
 	direction ImpactDirection,
+) ([]ImpactEdge, error) {
+	return s.GetImpactPathAt(ctx, tenantID, rootAssetID, maxDepth, direction, nil)
+}
+
+// GetImpactPathAt returns the transitive dependency graph reachable from
+// rootAssetID up to maxDepth hops. For direction=both the downstream
+// and upstream subgraphs are concatenated; duplicates between them are
+// possible (e.g. when a cycle bridges the root) and intentional — each
+// edge retains its traversal direction so clients can render them.
+//
+// When atTime is non-nil, every hop is filtered by the edge's validity
+// interval (valid_from <= atTime AND (valid_to IS NULL OR valid_to >
+// atTime)) so closed-edge history stays queryable. Nil means "current"
+// and uses the open-edge CTEs.
+func (s *Service) GetImpactPathAt(
+	ctx context.Context,
+	tenantID, rootAssetID uuid.UUID,
+	maxDepth int,
+	direction ImpactDirection,
+	atTime *time.Time,
 ) ([]ImpactEdge, error) {
 	if maxDepth < 1 || maxDepth > ImpactMaxDepthCap {
 		return nil, fmt.Errorf("max_depth must be between 1 and %d", ImpactMaxDepthCap)
@@ -416,52 +434,104 @@ func (s *Service) GetImpactPath(
 	edges := make([]ImpactEdge, 0)
 
 	if direction == ImpactDirectionDownstream || direction == ImpactDirectionBoth {
-		rows, err := s.queries.GetDownstreamDependencies(ctx, dbgen.GetDownstreamDependenciesParams{
-			TenantID:    tenantID,
-			RootAssetID: rootAssetID,
-			MaxDepth:    int32(maxDepth),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("downstream query: %w", err)
-		}
-		for _, r := range rows {
-			edges = append(edges, ImpactEdge{
-				ID:                 r.ID,
-				SourceAssetID:      r.SourceAssetID,
-				SourceAssetName:    r.SourceAssetName,
-				TargetAssetID:      r.TargetAssetID,
-				TargetAssetName:    r.TargetAssetName,
-				DependencyType:     r.DependencyType,
-				DependencyCategory: string(r.DependencyCategory),
-				Depth:              int(r.Depth),
-				Path:               r.Path,
-				Direction:          ImpactDirectionDownstream,
+		if atTime != nil {
+			rows, err := s.queries.GetDownstreamDependenciesAt(ctx, dbgen.GetDownstreamDependenciesAtParams{
+				TenantID:    tenantID,
+				RootAssetID: rootAssetID,
+				AtTime:      *atTime,
+				MaxDepth:    int32(maxDepth),
 			})
+			if err != nil {
+				return nil, fmt.Errorf("downstream query (at): %w", err)
+			}
+			for _, r := range rows {
+				edges = append(edges, ImpactEdge{
+					ID:                 r.ID,
+					SourceAssetID:      r.SourceAssetID,
+					SourceAssetName:    r.SourceAssetName,
+					TargetAssetID:      r.TargetAssetID,
+					TargetAssetName:    r.TargetAssetName,
+					DependencyType:     r.DependencyType,
+					DependencyCategory: string(r.DependencyCategory),
+					Depth:              int(r.Depth),
+					Path:               r.Path,
+					Direction:          ImpactDirectionDownstream,
+				})
+			}
+		} else {
+			rows, err := s.queries.GetDownstreamDependencies(ctx, dbgen.GetDownstreamDependenciesParams{
+				TenantID:    tenantID,
+				RootAssetID: rootAssetID,
+				MaxDepth:    int32(maxDepth),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("downstream query: %w", err)
+			}
+			for _, r := range rows {
+				edges = append(edges, ImpactEdge{
+					ID:                 r.ID,
+					SourceAssetID:      r.SourceAssetID,
+					SourceAssetName:    r.SourceAssetName,
+					TargetAssetID:      r.TargetAssetID,
+					TargetAssetName:    r.TargetAssetName,
+					DependencyType:     r.DependencyType,
+					DependencyCategory: string(r.DependencyCategory),
+					Depth:              int(r.Depth),
+					Path:               r.Path,
+					Direction:          ImpactDirectionDownstream,
+				})
+			}
 		}
 	}
 
 	if direction == ImpactDirectionUpstream || direction == ImpactDirectionBoth {
-		rows, err := s.queries.GetUpstreamDependents(ctx, dbgen.GetUpstreamDependentsParams{
-			TenantID:    tenantID,
-			RootAssetID: rootAssetID,
-			MaxDepth:    int32(maxDepth),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("upstream query: %w", err)
-		}
-		for _, r := range rows {
-			edges = append(edges, ImpactEdge{
-				ID:                 r.ID,
-				SourceAssetID:      r.SourceAssetID,
-				SourceAssetName:    r.SourceAssetName,
-				TargetAssetID:      r.TargetAssetID,
-				TargetAssetName:    r.TargetAssetName,
-				DependencyType:     r.DependencyType,
-				DependencyCategory: string(r.DependencyCategory),
-				Depth:              int(r.Depth),
-				Path:               r.Path,
-				Direction:          ImpactDirectionUpstream,
+		if atTime != nil {
+			rows, err := s.queries.GetUpstreamDependentsAt(ctx, dbgen.GetUpstreamDependentsAtParams{
+				TenantID:    tenantID,
+				RootAssetID: rootAssetID,
+				AtTime:      *atTime,
+				MaxDepth:    int32(maxDepth),
 			})
+			if err != nil {
+				return nil, fmt.Errorf("upstream query (at): %w", err)
+			}
+			for _, r := range rows {
+				edges = append(edges, ImpactEdge{
+					ID:                 r.ID,
+					SourceAssetID:      r.SourceAssetID,
+					SourceAssetName:    r.SourceAssetName,
+					TargetAssetID:      r.TargetAssetID,
+					TargetAssetName:    r.TargetAssetName,
+					DependencyType:     r.DependencyType,
+					DependencyCategory: string(r.DependencyCategory),
+					Depth:              int(r.Depth),
+					Path:               r.Path,
+					Direction:          ImpactDirectionUpstream,
+				})
+			}
+		} else {
+			rows, err := s.queries.GetUpstreamDependents(ctx, dbgen.GetUpstreamDependentsParams{
+				TenantID:    tenantID,
+				RootAssetID: rootAssetID,
+				MaxDepth:    int32(maxDepth),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("upstream query: %w", err)
+			}
+			for _, r := range rows {
+				edges = append(edges, ImpactEdge{
+					ID:                 r.ID,
+					SourceAssetID:      r.SourceAssetID,
+					SourceAssetName:    r.SourceAssetName,
+					TargetAssetID:      r.TargetAssetID,
+					TargetAssetName:    r.TargetAssetName,
+					DependencyType:     r.DependencyType,
+					DependencyCategory: string(r.DependencyCategory),
+					Depth:              int(r.Depth),
+					Path:               r.Path,
+					Direction:          ImpactDirectionUpstream,
+				})
+			}
 		}
 	}
 

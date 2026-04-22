@@ -7,6 +7,7 @@ package dbgen
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -50,8 +51,11 @@ func (q *Queries) CreateAssetDependency(ctx context.Context, arg CreateAssetDepe
 }
 
 const deleteAssetDependency = `-- name: DeleteAssetDependency :execrows
-DELETE FROM asset_dependencies
-WHERE id = $1 AND tenant_id = $2
+UPDATE asset_dependencies
+SET valid_to = now()
+WHERE id = $1
+  AND tenant_id = $2
+  AND valid_to IS NULL
 `
 
 type DeleteAssetDependencyParams struct {
@@ -59,7 +63,13 @@ type DeleteAssetDependencyParams struct {
 	TenantID uuid.UUID `json:"tenant_id"`
 }
 
-// Returns rows affected so the caller can map 0 -> 404.
+// Soft-close: sets valid_to=now() on the matching open edge instead of
+// physically deleting it, so the historical graph remains queryable via
+// ListAssetDependenciesAt. Returns rows affected so the caller can map
+// 0 -> 404. Only affects edges still open; a repeated call on an
+// already-closed edge is a no-op (returns 0). The partial unique index
+// uq_asset_deps_open means a fresh edge of the same shape can be
+// created right after closure.
 func (q *Queries) DeleteAssetDependency(ctx context.Context, arg DeleteAssetDependencyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteAssetDependency, arg.ID, arg.TenantID)
 	if err != nil {
@@ -81,6 +91,7 @@ WITH RECURSIVE tree AS (
     FROM asset_dependencies ad
     WHERE ad.tenant_id = $1
       AND ad.source_asset_id = $2
+      AND ad.valid_to IS NULL
 
     UNION ALL
 
@@ -95,6 +106,7 @@ WITH RECURSIVE tree AS (
     FROM asset_dependencies ad
     JOIN tree t ON ad.source_asset_id = t.target_asset_id
     WHERE ad.tenant_id = $1
+      AND ad.valid_to IS NULL
       AND t.depth < $3::int
       AND NOT (ad.target_asset_id = ANY(t.path))
 )
@@ -138,7 +150,9 @@ type GetDownstreamDependenciesRow struct {
 // Cycle-safe via the path accumulator: the recursive step rejects an edge
 // whose next node (the target) is already in path, so A→B→A terminates.
 // tenant_id is enforced at every hop; cross-tenant edges cannot leak in
-// even if an asset row somehow referenced a foreign tenant.
+// even if an asset row somehow referenced a foreign tenant. Currently-open
+// edges only (valid_to IS NULL) — see GetDownstreamDependenciesAt for the
+// point-in-time variant.
 func (q *Queries) GetDownstreamDependencies(ctx context.Context, arg GetDownstreamDependenciesParams) ([]GetDownstreamDependenciesRow, error) {
 	rows, err := q.db.Query(ctx, getDownstreamDependencies, arg.TenantID, arg.RootAssetID, arg.MaxDepth)
 	if err != nil {
@@ -148,6 +162,115 @@ func (q *Queries) GetDownstreamDependencies(ctx context.Context, arg GetDownstre
 	items := []GetDownstreamDependenciesRow{}
 	for rows.Next() {
 		var i GetDownstreamDependenciesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceAssetID,
+			&i.SourceAssetName,
+			&i.TargetAssetID,
+			&i.TargetAssetName,
+			&i.DependencyType,
+			&i.DependencyCategory,
+			&i.Depth,
+			&i.Path,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDownstreamDependenciesAt = `-- name: GetDownstreamDependenciesAt :many
+WITH RECURSIVE tree AS (
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        ad.dependency_category,
+        1::int AS depth,
+        ARRAY[ad.source_asset_id, ad.target_asset_id]::uuid[] AS path
+    FROM asset_dependencies ad
+    WHERE ad.tenant_id = $1
+      AND ad.source_asset_id = $2
+      AND ad.valid_from <= $3
+      AND (ad.valid_to IS NULL OR ad.valid_to > $3)
+
+    UNION ALL
+
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        ad.dependency_category,
+        t.depth + 1,
+        t.path || ad.target_asset_id
+    FROM asset_dependencies ad
+    JOIN tree t ON ad.source_asset_id = t.target_asset_id
+    WHERE ad.tenant_id = $1
+      AND ad.valid_from <= $3
+      AND (ad.valid_to IS NULL OR ad.valid_to > $3)
+      AND t.depth < $4::int
+      AND NOT (ad.target_asset_id = ANY(t.path))
+)
+SELECT
+    t.id,
+    t.source_asset_id,
+    sa.name AS source_asset_name,
+    t.target_asset_id,
+    ta.name AS target_asset_name,
+    t.dependency_type,
+    t.dependency_category,
+    t.depth,
+    t.path
+FROM tree t
+JOIN assets sa ON t.source_asset_id = sa.id
+JOIN assets ta ON t.target_asset_id = ta.id
+ORDER BY t.depth, sa.name, ta.name
+`
+
+type GetDownstreamDependenciesAtParams struct {
+	TenantID    uuid.UUID `json:"tenant_id"`
+	RootAssetID uuid.UUID `json:"root_asset_id"`
+	AtTime      time.Time `json:"at_time"`
+	MaxDepth    int32     `json:"max_depth"`
+}
+
+type GetDownstreamDependenciesAtRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	SourceAssetID      uuid.UUID          `json:"source_asset_id"`
+	SourceAssetName    string             `json:"source_asset_name"`
+	TargetAssetID      uuid.UUID          `json:"target_asset_id"`
+	TargetAssetName    string             `json:"target_asset_name"`
+	DependencyType     string             `json:"dependency_type"`
+	DependencyCategory DependencyCategory `json:"dependency_category"`
+	Depth              int32              `json:"depth"`
+	Path               []uuid.UUID        `json:"path"`
+}
+
+// D10-P1 point-in-time variant of GetDownstreamDependencies. Same
+// traversal and cycle-safety guarantees; the edge filter uses the
+// validity interval (valid_from <= at AND (valid_to IS NULL OR
+// valid_to > at)) at every hop so the historical path reflects the
+// graph exactly as it was at @at_time.
+func (q *Queries) GetDownstreamDependenciesAt(ctx context.Context, arg GetDownstreamDependenciesAtParams) ([]GetDownstreamDependenciesAtRow, error) {
+	rows, err := q.db.Query(ctx, getDownstreamDependenciesAt,
+		arg.TenantID,
+		arg.RootAssetID,
+		arg.AtTime,
+		arg.MaxDepth,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetDownstreamDependenciesAtRow{}
+	for rows.Next() {
+		var i GetDownstreamDependenciesAtRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.SourceAssetID,
@@ -182,6 +305,7 @@ WITH RECURSIVE tree AS (
     FROM asset_dependencies ad
     WHERE ad.tenant_id = $1
       AND ad.target_asset_id = $2
+      AND ad.valid_to IS NULL
 
     UNION ALL
 
@@ -196,6 +320,7 @@ WITH RECURSIVE tree AS (
     FROM asset_dependencies ad
     JOIN tree t ON ad.target_asset_id = t.source_asset_id
     WHERE ad.tenant_id = $1
+      AND ad.valid_to IS NULL
       AND t.depth < $3::int
       AND NOT (ad.source_asset_id = ANY(t.path))
 )
@@ -237,6 +362,7 @@ type GetUpstreamDependentsRow struct {
 // @root_asset_id, return every asset that (transitively) depends on it. Used
 // for impact analysis ("if I take this asset down, what else breaks?").
 // Same cycle-safety and tenant_id enforcement as the downstream variant.
+// Currently-open edges only.
 func (q *Queries) GetUpstreamDependents(ctx context.Context, arg GetUpstreamDependentsParams) ([]GetUpstreamDependentsRow, error) {
 	rows, err := q.db.Query(ctx, getUpstreamDependents, arg.TenantID, arg.RootAssetID, arg.MaxDepth)
 	if err != nil {
@@ -246,6 +372,112 @@ func (q *Queries) GetUpstreamDependents(ctx context.Context, arg GetUpstreamDepe
 	items := []GetUpstreamDependentsRow{}
 	for rows.Next() {
 		var i GetUpstreamDependentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceAssetID,
+			&i.SourceAssetName,
+			&i.TargetAssetID,
+			&i.TargetAssetName,
+			&i.DependencyType,
+			&i.DependencyCategory,
+			&i.Depth,
+			&i.Path,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUpstreamDependentsAt = `-- name: GetUpstreamDependentsAt :many
+WITH RECURSIVE tree AS (
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        ad.dependency_category,
+        1::int AS depth,
+        ARRAY[ad.target_asset_id, ad.source_asset_id]::uuid[] AS path
+    FROM asset_dependencies ad
+    WHERE ad.tenant_id = $1
+      AND ad.target_asset_id = $2
+      AND ad.valid_from <= $3
+      AND (ad.valid_to IS NULL OR ad.valid_to > $3)
+
+    UNION ALL
+
+    SELECT
+        ad.id,
+        ad.source_asset_id,
+        ad.target_asset_id,
+        ad.dependency_type,
+        ad.dependency_category,
+        t.depth + 1,
+        t.path || ad.source_asset_id
+    FROM asset_dependencies ad
+    JOIN tree t ON ad.target_asset_id = t.source_asset_id
+    WHERE ad.tenant_id = $1
+      AND ad.valid_from <= $3
+      AND (ad.valid_to IS NULL OR ad.valid_to > $3)
+      AND t.depth < $4::int
+      AND NOT (ad.source_asset_id = ANY(t.path))
+)
+SELECT
+    t.id,
+    t.source_asset_id,
+    sa.name AS source_asset_name,
+    t.target_asset_id,
+    ta.name AS target_asset_name,
+    t.dependency_type,
+    t.dependency_category,
+    t.depth,
+    t.path
+FROM tree t
+JOIN assets sa ON t.source_asset_id = sa.id
+JOIN assets ta ON t.target_asset_id = ta.id
+ORDER BY t.depth, sa.name, ta.name
+`
+
+type GetUpstreamDependentsAtParams struct {
+	TenantID    uuid.UUID `json:"tenant_id"`
+	RootAssetID uuid.UUID `json:"root_asset_id"`
+	AtTime      time.Time `json:"at_time"`
+	MaxDepth    int32     `json:"max_depth"`
+}
+
+type GetUpstreamDependentsAtRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	SourceAssetID      uuid.UUID          `json:"source_asset_id"`
+	SourceAssetName    string             `json:"source_asset_name"`
+	TargetAssetID      uuid.UUID          `json:"target_asset_id"`
+	TargetAssetName    string             `json:"target_asset_name"`
+	DependencyType     string             `json:"dependency_type"`
+	DependencyCategory DependencyCategory `json:"dependency_category"`
+	Depth              int32              `json:"depth"`
+	Path               []uuid.UUID        `json:"path"`
+}
+
+// D10-P1 point-in-time variant of GetUpstreamDependents. Mirrors the
+// downstream *At query but traverses target->source.
+func (q *Queries) GetUpstreamDependentsAt(ctx context.Context, arg GetUpstreamDependentsAtParams) ([]GetUpstreamDependentsAtRow, error) {
+	rows, err := q.db.Query(ctx, getUpstreamDependentsAt,
+		arg.TenantID,
+		arg.RootAssetID,
+		arg.AtTime,
+		arg.MaxDepth,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUpstreamDependentsAtRow{}
+	for rows.Next() {
+		var i GetUpstreamDependentsAtRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.SourceAssetID,
@@ -282,6 +514,7 @@ FROM asset_dependencies ad
 JOIN assets sa ON ad.source_asset_id = sa.id
 JOIN assets ta ON ad.target_asset_id = ta.id
 WHERE ad.tenant_id = $1
+  AND ad.valid_to IS NULL
   AND (ad.source_asset_id = $2 OR ad.target_asset_id = $2)
 `
 
@@ -310,7 +543,9 @@ type ListAssetDependenciesRow struct {
 // for the edge case where an external (cross-location, same-tenant) asset is
 // part of the graph. Pre-migration behavior preserved.
 // Returns dependency edges where the given asset is either source or target,
-// joined to the assets table on both ends for display names.
+// joined to the assets table on both ends for display names. Filters to
+// currently-open edges (valid_to IS NULL) — use ListAssetDependenciesAt for
+// the point-in-time variant.
 func (q *Queries) ListAssetDependencies(ctx context.Context, arg ListAssetDependenciesParams) ([]ListAssetDependenciesRow, error) {
 	rows, err := q.db.Query(ctx, listAssetDependencies, arg.TenantID, arg.SourceAssetID)
 	if err != nil {
@@ -340,10 +575,80 @@ func (q *Queries) ListAssetDependencies(ctx context.Context, arg ListAssetDepend
 	return items, nil
 }
 
+const listAssetDependenciesAt = `-- name: ListAssetDependenciesAt :many
+SELECT
+    ad.id,
+    ad.source_asset_id,
+    sa.name AS source_asset_name,
+    ad.target_asset_id,
+    ta.name AS target_asset_name,
+    ad.dependency_type,
+    ad.dependency_category,
+    COALESCE(ad.description, '') AS description
+FROM asset_dependencies ad
+JOIN assets sa ON ad.source_asset_id = sa.id
+JOIN assets ta ON ad.target_asset_id = ta.id
+WHERE ad.tenant_id = $1
+  AND (ad.source_asset_id = $2 OR ad.target_asset_id = $2)
+  AND ad.valid_from <= $3
+  AND (ad.valid_to IS NULL OR ad.valid_to > $3)
+`
+
+type ListAssetDependenciesAtParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	AssetID  uuid.UUID `json:"asset_id"`
+	AtTime   time.Time `json:"at_time"`
+}
+
+type ListAssetDependenciesAtRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	SourceAssetID      uuid.UUID          `json:"source_asset_id"`
+	SourceAssetName    string             `json:"source_asset_name"`
+	TargetAssetID      uuid.UUID          `json:"target_asset_id"`
+	TargetAssetName    string             `json:"target_asset_name"`
+	DependencyType     string             `json:"dependency_type"`
+	DependencyCategory DependencyCategory `json:"dependency_category"`
+	Description        string             `json:"description"`
+}
+
+// D10-P1 point-in-time variant of ListAssetDependencies. Returns edges
+// that were in effect at @at_time: valid_from <= @at_time AND
+// (valid_to IS NULL OR valid_to > @at_time). Powers topology queries
+// like "what depended on this service last quarter?".
+func (q *Queries) ListAssetDependenciesAt(ctx context.Context, arg ListAssetDependenciesAtParams) ([]ListAssetDependenciesAtRow, error) {
+	rows, err := q.db.Query(ctx, listAssetDependenciesAt, arg.TenantID, arg.AssetID, arg.AtTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAssetDependenciesAtRow{}
+	for rows.Next() {
+		var i ListAssetDependenciesAtRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceAssetID,
+			&i.SourceAssetName,
+			&i.TargetAssetID,
+			&i.TargetAssetName,
+			&i.DependencyType,
+			&i.DependencyCategory,
+			&i.Description,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAssetDependenciesByAssetIDs = `-- name: ListAssetDependenciesByAssetIDs :many
 SELECT id, source_asset_id, target_asset_id, dependency_type, dependency_category
 FROM asset_dependencies
-WHERE source_asset_id = ANY($1::uuid[]) OR target_asset_id = ANY($1::uuid[])
+WHERE (source_asset_id = ANY($1::uuid[]) OR target_asset_id = ANY($1::uuid[]))
+  AND valid_to IS NULL
 `
 
 type ListAssetDependenciesByAssetIDsRow struct {
@@ -357,7 +662,8 @@ type ListAssetDependenciesByAssetIDsRow struct {
 // cross-tenant: no tenant_id filter by design. Caller (GetTopologyGraph)
 // has already scoped the asset ID list to a single tenant via an earlier
 // tenant-scoped query; asset_dependencies rows referencing IDs outside that
-// set cannot appear. Preserving pre-migration behavior verbatim.
+// set cannot appear. Preserving pre-migration behavior verbatim — filters
+// to currently-open edges only; point-in-time callers use the *At variant.
 func (q *Queries) ListAssetDependenciesByAssetIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]ListAssetDependenciesByAssetIDsRow, error) {
 	rows, err := q.db.Query(ctx, listAssetDependenciesByAssetIDs, dollar_1)
 	if err != nil {
@@ -367,6 +673,57 @@ func (q *Queries) ListAssetDependenciesByAssetIDs(ctx context.Context, dollar_1 
 	items := []ListAssetDependenciesByAssetIDsRow{}
 	for rows.Next() {
 		var i ListAssetDependenciesByAssetIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceAssetID,
+			&i.TargetAssetID,
+			&i.DependencyType,
+			&i.DependencyCategory,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAssetDependenciesByAssetIDsAt = `-- name: ListAssetDependenciesByAssetIDsAt :many
+SELECT id, source_asset_id, target_asset_id, dependency_type, dependency_category
+FROM asset_dependencies
+WHERE (source_asset_id = ANY($1::uuid[])
+       OR target_asset_id = ANY($1::uuid[]))
+  AND valid_from <= $2
+  AND (valid_to IS NULL OR valid_to > $2)
+`
+
+type ListAssetDependenciesByAssetIDsAtParams struct {
+	AssetIds []uuid.UUID `json:"asset_ids"`
+	AtTime   time.Time   `json:"at_time"`
+}
+
+type ListAssetDependenciesByAssetIDsAtRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	SourceAssetID      uuid.UUID          `json:"source_asset_id"`
+	TargetAssetID      uuid.UUID          `json:"target_asset_id"`
+	DependencyType     string             `json:"dependency_type"`
+	DependencyCategory DependencyCategory `json:"dependency_category"`
+}
+
+// D10-P1 point-in-time variant for the topology graph builder. Same
+// tenant-scoping contract as ListAssetDependenciesByAssetIDs (the caller
+// has already constrained the asset ID set to one tenant).
+func (q *Queries) ListAssetDependenciesByAssetIDsAt(ctx context.Context, arg ListAssetDependenciesByAssetIDsAtParams) ([]ListAssetDependenciesByAssetIDsAtRow, error) {
+	rows, err := q.db.Query(ctx, listAssetDependenciesByAssetIDsAt, arg.AssetIds, arg.AtTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAssetDependenciesByAssetIDsAtRow{}
+	for rows.Next() {
+		var i ListAssetDependenciesByAssetIDsAtRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.SourceAssetID,

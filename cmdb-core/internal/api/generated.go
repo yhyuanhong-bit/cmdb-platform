@@ -2016,6 +2016,9 @@ type SyncSnapshotParamsEntityType string
 // ListAssetDependenciesParams defines parameters for ListAssetDependencies.
 type ListAssetDependenciesParams struct {
 	AssetId *openapi_types.UUID `form:"asset_id,omitempty" json:"asset_id,omitempty"`
+
+	// At Point-in-time instant (RFC3339). Omit for current state.
+	At *time.Time `form:"at,omitempty" json:"at,omitempty"`
 }
 
 // GetTopologyGraphParams defines parameters for GetTopologyGraph.
@@ -2035,6 +2038,9 @@ type GetTopologyImpactParams struct {
 	// upstream   = what depends on root (follow target→source);
 	// both       = union of both traversals.
 	Direction *GetTopologyImpactParamsDirection `form:"direction,omitempty" json:"direction,omitempty"`
+
+	// At Point-in-time instant (RFC3339). Omit for current state.
+	At *time.Time `form:"at,omitempty" json:"at,omitempty"`
 }
 
 // GetTopologyImpactParamsDirection defines parameters for GetTopologyImpact.
@@ -7582,6 +7588,14 @@ func (siw *ServerInterfaceWrapper) ListAssetDependencies(c *gin.Context) {
 		return
 	}
 
+	// ------------- Optional query parameter "at" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "at", c.Request.URL.Query(), &params.At, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter at: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -7699,6 +7713,14 @@ func (siw *ServerInterfaceWrapper) GetTopologyImpact(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "direction", c.Request.URL.Query(), &params.Direction, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter direction: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "at" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "at", c.Request.URL.Query(), &params.At, runtime.BindQueryParameterOptions{Type: "string", Format: "date-time"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter at: %w", err), http.StatusBadRequest)
 		return
 	}
 

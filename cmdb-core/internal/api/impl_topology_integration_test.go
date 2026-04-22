@@ -234,7 +234,11 @@ func TestIntegration_DeleteAssetDependency_TenantScoped(t *testing.T) {
 	// without a body write leaves the httptest recorder at its default
 	// 200 unless the response is flushed — that's a test-harness
 	// artifact, not a behavior change from the pre-migration handler.
-	// The real behavior under test is the row going away.
+	//
+	// Post-000057: "delete" is a soft-close (valid_to=now()), not a
+	// physical DELETE. The row persists so point-in-time topology
+	// queries can still see the edge historically. The assertion below
+	// validates the new shape: row present, valid_to populated.
 	c2, rec2 := newDepCtx(t, http.MethodDelete,
 		"/topology/dependencies/"+fix.depA.String(),
 		fix.tenantA, fix.userA, nil)
@@ -242,14 +246,14 @@ func TestIntegration_DeleteAssetDependency_TenantScoped(t *testing.T) {
 	if rec2.Code >= 400 {
 		t.Fatalf("same-tenant delete returned error status = %d — body=%s", rec2.Code, rec2.Body.String())
 	}
-	var remaining int
+	var validToSet bool
 	if err := pool.QueryRow(context.Background(),
-		`SELECT count(*) FROM asset_dependencies WHERE id = $1`,
-		fix.depA).Scan(&remaining); err != nil {
+		`SELECT valid_to IS NOT NULL FROM asset_dependencies WHERE id = $1`,
+		fix.depA).Scan(&validToSet); err != nil {
 		t.Fatalf("verify depA post-delete: %v", err)
 	}
-	if remaining != 0 {
-		t.Errorf("same-tenant delete did not remove depA — remaining rows = %d", remaining)
+	if !validToSet {
+		t.Errorf("same-tenant delete did not soft-close depA — valid_to still NULL")
 	}
 }
 

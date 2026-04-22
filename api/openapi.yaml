@@ -743,12 +743,22 @@ paths:
       operationId: listAssetDependencies
       tags: [topology]
       summary: List asset dependencies
+      description: |
+        Returns open dependency edges by default. Pass `at` (RFC3339) to
+        query the graph as it existed at that instant — edges are filtered
+        by valid_from <= at AND (valid_to IS NULL OR valid_to > at).
       parameters:
         - name: asset_id
           in: query
           schema:
             type: string
             format: uuid
+        - name: at
+          in: query
+          description: Point-in-time instant (RFC3339). Omit for current state.
+          schema:
+            type: string
+            format: date-time
       responses:
         '200':
           description: Dependency list
@@ -806,6 +816,10 @@ paths:
         up to max_depth hops. Cycle-safe via server-side path accumulator:
         edges whose next node is already on the current path are skipped,
         so A→B→A terminates. tenant_id is enforced at every hop.
+
+        Pass `at` (RFC3339) to traverse the graph as it existed at that
+        instant — every hop is filtered by the edge's validity interval,
+        so closed-edge history stays queryable.
       parameters:
         - name: root_asset_id
           in: query
@@ -832,6 +846,12 @@ paths:
             type: string
             enum: [downstream, upstream, both]
             default: downstream
+        - name: at
+          in: query
+          description: Point-in-time instant (RFC3339). Omit for current state.
+          schema:
+            type: string
+            format: date-time
       responses:
         '200':
           description: Impact graph
