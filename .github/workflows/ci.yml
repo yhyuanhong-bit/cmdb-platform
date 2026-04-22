@@ -47,6 +47,75 @@ jobs:
       - name: Test
         run: go test ./... -race -count=1 -timeout=60s
 
+  prometheus-rules:
+    name: Prometheus Rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Validate every SLO recording rule + burn-rate alert with promtool.
+      # Catches malformed PromQL that yaml.safe_load wouldn't see — the
+      # SLO definitions ship in cmdb-core/deploy/prometheus/rules/.
+      - name: Install promtool
+        run: |
+          PROM_VERSION=2.55.1
+          curl -sLO "https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/prometheus-${PROM_VERSION}.linux-amd64.tar.gz"
+          tar xzf "prometheus-${PROM_VERSION}.linux-amd64.tar.gz"
+          sudo mv "prometheus-${PROM_VERSION}.linux-amd64/promtool" /usr/local/bin/
+          promtool --version
+
+      - name: Validate SLO rules
+        run: promtool check rules cmdb-core/deploy/prometheus/rules/*.yml
+
+  go-integration-tests:
+    name: Go Integration Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cmdb-core
+
+    # Real Postgres covers the //go:build integration suites — tenant
+    # isolation regressions, sync agent, RBAC, workflows event chains.
+    # Without this job those tests sit in the repo as documentation only.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cmdb
+          POSTGRES_PASSWORD: cmdb
+          POSTGRES_DB: cmdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: cmdb-core/go.sum
+
+      - name: Install golang-migrate
+        run: |
+          curl -sL https://github.com/golang-migrate/migrate/releases/download/v4.18.1/migrate.linux-amd64.tar.gz | tar xz
+          sudo mv migrate /usr/local/bin/
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: postgres://cmdb:cmdb@localhost:5432/cmdb?sslmode=disable
+        run: migrate -path db/migrations -database "$DATABASE_URL" up
+
+      - name: Integration tests
+        env:
+          TEST_DATABASE_URL: postgres://cmdb:cmdb@localhost:5432/cmdb?sslmode=disable
+          DATABASE_URL: postgres://cmdb:cmdb@localhost:5432/cmdb?sslmode=disable
+        run: go test -tags integration -race -count=1 -timeout=300s ./...
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest

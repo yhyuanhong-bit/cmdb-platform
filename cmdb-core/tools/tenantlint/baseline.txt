@@ -1,7 +1,8 @@
-# tenantlint baseline — per-file violation counts at the moment the
-# CI gate was introduced. CI (see scripts/tenantlint-check.sh) fails
-# when any file's count exceeds its baseline OR when a file not in
-# this list gains its first violation.
+# tenantlint baseline — per-file violation counts.
+#
+# CI (see scripts/tenantlint-check.sh) fails when any file's count
+# exceeds its baseline OR when a file not in this list gains its first
+# violation.
 #
 # Rules for contributors:
 #   1. DO NOT raise a count here to silence a new finding. Either fix
@@ -13,48 +14,9 @@
 #   3. Remove a line entirely once its count reaches 0.
 #
 # Format: <path-relative-to-cmdb-core> <count>
-cmd/audit-archive/archive.go 5
-cmd/backfill-integration-secrets/main.go 7
-cmd/rotate-integration-secrets/main.go 7
-cmd/server/main.go 9
-internal/api/impl_activity.go 2
-internal/api/impl_alerts.go 1
-internal/api/impl_asset_lifecycle.go 6
-internal/api/impl_assets.go 2
-internal/api/impl_capacity_planning.go 7
-internal/api/impl_energy.go 5
-internal/api/impl_incidents.go 1
-internal/api/impl_inventory.go 7
-internal/api/impl_inventory_items.go 4
-internal/api/impl_inventory_more.go 2
-internal/api/impl_location_detect.go 7
-internal/api/impl_monitoring.go 2
-internal/api/impl_notifications.go 4
-internal/api/impl_prediction_upgrades.go 16
-internal/api/impl_qr.go 4
-internal/api/impl_rack_stats.go 2
-internal/api/impl_sensors.go 1
-internal/api/impl_sync.go 8
-internal/api/impl_system.go 1
-internal/api/impl_topology.go 3
-internal/domain/asset/service.go 1
-internal/domain/dashboard/service.go 1
-internal/domain/identity/auth_service.go 3
-internal/domain/location_detect/detector.go 5
-internal/domain/location_detect/service.go 5
-internal/domain/maintenance/service.go 1
-internal/domain/monitoring/evaluator.go 2
-internal/domain/quality/service.go 1
-internal/domain/sync/agent.go 12
-internal/domain/sync/service.go 2
-internal/domain/topology/service.go 6
-internal/domain/workflows/audit_partitions.go 1
-internal/domain/workflows/auto_workorders_governance.go 5
-internal/domain/workflows/auto_workorders_security.go 2
-internal/domain/workflows/auto_workorders_warranty.go 3
-internal/domain/workflows/cleanup.go 2
-internal/domain/workflows/divergence.go 1
-internal/domain/workflows/metrics.go 1
-internal/domain/workflows/notifications.go 7
-internal/domain/workflows/sla.go 3
-internal/platform/database/tenant.go 3
+#
+# Status as of 2026-04-22: baseline empty. Original 180-violation
+# backlog burned down to zero in commits f74f9be + 23ed580. All
+# remaining direct-pool calls either use database.TenantScoped or
+# carry a //tenantlint:allow-direct-pool marker with justification.
+# Any new entry here is a regression.

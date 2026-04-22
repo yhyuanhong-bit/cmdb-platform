@@ -33,17 +33,21 @@ set -e
 
 # Extract findings: lines of the form
 #   path/to/file.go:LINE:COL: direct pool.X call — …
-# Aggregate into "path count" pairs sorted by path.
+# Aggregate into "path count" pairs sorted by path. The leading
+# `grep || true` keeps pipefail from killing the script when the
+# vet output is empty (i.e. zero findings — the goal state).
 CURRENT_COUNTS=$(mktemp)
-grep -E 'direct pool\.' "$CURRENT" \
+{ grep -E 'direct pool\.' "$CURRENT" || true; } \
   | awk -F: '{print $1}' \
   | sort | uniq -c \
   | awk '{printf "%s %d\n",$2,$1}' \
   | sort > "$CURRENT_COUNTS"
 
-# Strip comments/blank lines from the baseline for comparison.
+# Strip comments/blank lines from the baseline for comparison. The
+# `grep || true` keeps pipefail from killing the script when the
+# baseline is fully cleared (only comments / blank lines remain).
 BASELINE_COUNTS=$(mktemp)
-grep -Ev '^(#|$)' "$BASELINE_FILE" | sort > "$BASELINE_COUNTS"
+{ grep -Ev '^(#|$)' "$BASELINE_FILE" || true; } | sort > "$BASELINE_COUNTS"
 
 echo "[tenantlint] comparing against baseline ($BASELINE_FILE)…"
 

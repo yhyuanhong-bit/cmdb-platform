@@ -13,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+//tenantlint:allow-direct-pool — integration-test fixture setup seeds rows across tenants to verify snapshot semantics; this is the opposite of tenant scoping by design.
+
 // D10-P0 integration test: verifies the assets_snapshot_after_write
 // trigger fires on every mutation AND that GetStateAt correctly picks
 // the last snapshot at or before a requested instant. Uses a real DB
