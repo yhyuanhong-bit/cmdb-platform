@@ -13,6 +13,52 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const assetsLowQualityPersistent = `-- name: AssetsLowQualityPersistent :many
+SELECT asset_id
+FROM (
+    SELECT asset_id,
+           COUNT(DISTINCT DATE_TRUNC('day', scan_date)) AS days_covered,
+           MAX(total_score)::float8 AS max_score
+    FROM quality_scores
+    WHERE tenant_id = $1
+      AND scan_date > now() - ($3::int * interval '1 day')
+    GROUP BY asset_id
+) agg
+WHERE agg.days_covered >= $3
+  AND agg.max_score < $2::float8
+`
+
+type AssetsLowQualityPersistentParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Column2  float64   `json:"column_2"`
+	Column3  int32     `json:"column_3"`
+}
+
+// D9-P0 auto-WO driver. Returns assets whose newest-per-day scores
+// have stayed below the threshold on every day in the lookback
+// window AND have at least one score per day (i.e. the scanner
+// actually ran), so we don't fire a work order on a scoring gap.
+// Caller passes threshold (typically 40) and required_days (7).
+func (q *Queries) AssetsLowQualityPersistent(ctx context.Context, arg AssetsLowQualityPersistentParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, assetsLowQualityPersistent, arg.TenantID, arg.Column2, arg.Column3)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var asset_id uuid.UUID
+		if err := rows.Scan(&asset_id); err != nil {
+			return nil, err
+		}
+		items = append(items, asset_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const avgLatestQualityScore = `-- name: AvgLatestQualityScore :one
 SELECT coalesce(avg(total_score), 0)::float8
 FROM (
@@ -33,6 +79,93 @@ func (q *Queries) AvgLatestQualityScore(ctx context.Context, tenantID uuid.UUID)
 	var column_1 float64
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const countRecentFlagsByAsset = `-- name: CountRecentFlagsByAsset :many
+SELECT asset_id, COUNT(*) AS flag_count
+FROM quality_flags
+WHERE tenant_id = $1
+  AND status IN ('open', 'acknowledged')
+  AND created_at > now() - interval '24 hours'
+GROUP BY asset_id
+`
+
+type CountRecentFlagsByAssetRow struct {
+	AssetID   uuid.UUID `json:"asset_id"`
+	FlagCount int64     `json:"flag_count"`
+}
+
+// Aggregate in one pass for the scan loop. Only open+acknowledged
+// rows count — a rejected or resolved flag must not keep dragging
+// the score down forever.
+func (q *Queries) CountRecentFlagsByAsset(ctx context.Context, tenantID uuid.UUID) ([]CountRecentFlagsByAssetRow, error) {
+	rows, err := q.db.Query(ctx, countRecentFlagsByAsset, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountRecentFlagsByAssetRow{}
+	for rows.Next() {
+		var i CountRecentFlagsByAssetRow
+		if err := rows.Scan(&i.AssetID, &i.FlagCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const createQualityFlag = `-- name: CreateQualityFlag :one
+INSERT INTO quality_flags (
+    tenant_id, asset_id, reporter_type, reporter_id,
+    severity, category, message
+) VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, tenant_id, asset_id, reporter_type, reporter_id, severity, category, message, status, resolved_at, resolved_by, resolution_note, created_at
+`
+
+type CreateQualityFlagParams struct {
+	TenantID     uuid.UUID   `json:"tenant_id"`
+	AssetID      uuid.UUID   `json:"asset_id"`
+	ReporterType string      `json:"reporter_type"`
+	ReporterID   pgtype.UUID `json:"reporter_id"`
+	Severity     string      `json:"severity"`
+	Category     string      `json:"category"`
+	Message      string      `json:"message"`
+}
+
+// Record an external report that an asset's data is wrong. The scanner
+// reads open+acknowledged rows from the last 24h to penalize the asset
+// score until the flag is triaged.
+func (q *Queries) CreateQualityFlag(ctx context.Context, arg CreateQualityFlagParams) (QualityFlag, error) {
+	row := q.db.QueryRow(ctx, createQualityFlag,
+		arg.TenantID,
+		arg.AssetID,
+		arg.ReporterType,
+		arg.ReporterID,
+		arg.Severity,
+		arg.Category,
+		arg.Message,
+	)
+	var i QualityFlag
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AssetID,
+		&i.ReporterType,
+		&i.ReporterID,
+		&i.Severity,
+		&i.Category,
+		&i.Message,
+		&i.Status,
+		&i.ResolvedAt,
+		&i.ResolvedBy,
+		&i.ResolutionNote,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const createQualityRule = `-- name: CreateQualityRule :one
@@ -183,6 +316,37 @@ func (q *Queries) GetQualityDashboard(ctx context.Context, tenantID uuid.UUID) (
 	return i, err
 }
 
+const getQualityFlag = `-- name: GetQualityFlag :one
+SELECT id, tenant_id, asset_id, reporter_type, reporter_id, severity, category, message, status, resolved_at, resolved_by, resolution_note, created_at FROM quality_flags
+WHERE id = $1 AND tenant_id = $2
+`
+
+type GetQualityFlagParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetQualityFlag(ctx context.Context, arg GetQualityFlagParams) (QualityFlag, error) {
+	row := q.db.QueryRow(ctx, getQualityFlag, arg.ID, arg.TenantID)
+	var i QualityFlag
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AssetID,
+		&i.ReporterType,
+		&i.ReporterID,
+		&i.Severity,
+		&i.Category,
+		&i.Message,
+		&i.Status,
+		&i.ResolvedAt,
+		&i.ResolvedBy,
+		&i.ResolutionNote,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getWorstAssets = `-- name: GetWorstAssets :many
 SELECT qs.id, qs.tenant_id, qs.asset_id, qs.completeness, qs.accuracy, qs.timeliness, qs.consistency, qs.total_score, qs.issue_details, qs.scan_date, a.name as asset_name, a.asset_tag
 FROM quality_scores qs
@@ -241,6 +405,123 @@ func (q *Queries) GetWorstAssets(ctx context.Context, tenantID uuid.UUID) ([]Get
 	return items, nil
 }
 
+const listOpenQualityFlags = `-- name: ListOpenQualityFlags :many
+SELECT qf.id, qf.tenant_id, qf.asset_id, qf.reporter_type, qf.reporter_id, qf.severity, qf.category, qf.message, qf.status, qf.resolved_at, qf.resolved_by, qf.resolution_note, qf.created_at, a.name AS asset_name, a.asset_tag
+FROM quality_flags qf
+JOIN assets a ON qf.asset_id = a.id
+WHERE qf.tenant_id = $1 AND qf.status = 'open'
+ORDER BY
+    CASE qf.severity
+        WHEN 'critical' THEN 0
+        WHEN 'high'     THEN 1
+        WHEN 'medium'   THEN 2
+        WHEN 'low'      THEN 3
+    END,
+    qf.created_at DESC
+LIMIT 100
+`
+
+type ListOpenQualityFlagsRow struct {
+	ID             uuid.UUID          `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	AssetID        uuid.UUID          `json:"asset_id"`
+	ReporterType   string             `json:"reporter_type"`
+	ReporterID     pgtype.UUID        `json:"reporter_id"`
+	Severity       string             `json:"severity"`
+	Category       string             `json:"category"`
+	Message        string             `json:"message"`
+	Status         string             `json:"status"`
+	ResolvedAt     pgtype.Timestamptz `json:"resolved_at"`
+	ResolvedBy     pgtype.UUID        `json:"resolved_by"`
+	ResolutionNote pgtype.Text        `json:"resolution_note"`
+	CreatedAt      time.Time          `json:"created_at"`
+	AssetName      string             `json:"asset_name"`
+	AssetTag       string             `json:"asset_tag"`
+}
+
+// Triage list — newest critical/high first, then medium/low.
+func (q *Queries) ListOpenQualityFlags(ctx context.Context, tenantID uuid.UUID) ([]ListOpenQualityFlagsRow, error) {
+	rows, err := q.db.Query(ctx, listOpenQualityFlags, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOpenQualityFlagsRow{}
+	for rows.Next() {
+		var i ListOpenQualityFlagsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.AssetID,
+			&i.ReporterType,
+			&i.ReporterID,
+			&i.Severity,
+			&i.Category,
+			&i.Message,
+			&i.Status,
+			&i.ResolvedAt,
+			&i.ResolvedBy,
+			&i.ResolutionNote,
+			&i.CreatedAt,
+			&i.AssetName,
+			&i.AssetTag,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQualityFlagsForAsset = `-- name: ListQualityFlagsForAsset :many
+SELECT id, tenant_id, asset_id, reporter_type, reporter_id, severity, category, message, status, resolved_at, resolved_by, resolution_note, created_at FROM quality_flags
+WHERE tenant_id = $1 AND asset_id = $2
+ORDER BY created_at DESC
+LIMIT 50
+`
+
+type ListQualityFlagsForAssetParams struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	AssetID  uuid.UUID `json:"asset_id"`
+}
+
+func (q *Queries) ListQualityFlagsForAsset(ctx context.Context, arg ListQualityFlagsForAssetParams) ([]QualityFlag, error) {
+	rows, err := q.db.Query(ctx, listQualityFlagsForAsset, arg.TenantID, arg.AssetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []QualityFlag{}
+	for rows.Next() {
+		var i QualityFlag
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.AssetID,
+			&i.ReporterType,
+			&i.ReporterID,
+			&i.Severity,
+			&i.Category,
+			&i.Message,
+			&i.Status,
+			&i.ResolvedAt,
+			&i.ResolvedBy,
+			&i.ResolutionNote,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQualityRules = `-- name: ListQualityRules :many
 SELECT id, tenant_id, ci_type, dimension, field_name, rule_type, rule_config, weight, enabled, created_at FROM quality_rules
 WHERE tenant_id = $1
@@ -276,4 +557,49 @@ func (q *Queries) ListQualityRules(ctx context.Context, tenantID uuid.UUID) ([]Q
 		return nil, err
 	}
 	return items, nil
+}
+
+const resolveQualityFlag = `-- name: ResolveQualityFlag :one
+UPDATE quality_flags
+SET status          = $3,
+    resolved_at     = now(),
+    resolved_by     = $4,
+    resolution_note = $5
+WHERE id = $1 AND tenant_id = $2
+RETURNING id, tenant_id, asset_id, reporter_type, reporter_id, severity, category, message, status, resolved_at, resolved_by, resolution_note, created_at
+`
+
+type ResolveQualityFlagParams struct {
+	ID             uuid.UUID   `json:"id"`
+	TenantID       uuid.UUID   `json:"tenant_id"`
+	Status         string      `json:"status"`
+	ResolvedBy     pgtype.UUID `json:"resolved_by"`
+	ResolutionNote pgtype.Text `json:"resolution_note"`
+}
+
+func (q *Queries) ResolveQualityFlag(ctx context.Context, arg ResolveQualityFlagParams) (QualityFlag, error) {
+	row := q.db.QueryRow(ctx, resolveQualityFlag,
+		arg.ID,
+		arg.TenantID,
+		arg.Status,
+		arg.ResolvedBy,
+		arg.ResolutionNote,
+	)
+	var i QualityFlag
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.AssetID,
+		&i.ReporterType,
+		&i.ReporterID,
+		&i.Severity,
+		&i.Category,
+		&i.Message,
+		&i.Status,
+		&i.ResolvedAt,
+		&i.ResolvedBy,
+		&i.ResolutionNote,
+		&i.CreatedAt,
+	)
+	return i, err
 }

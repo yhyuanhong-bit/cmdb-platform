@@ -504,6 +504,22 @@ type PredictionResult struct {
 	CreatedAt         time.Time          `json:"created_at"`
 }
 
+type QualityFlag struct {
+	ID             uuid.UUID          `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	AssetID        uuid.UUID          `json:"asset_id"`
+	ReporterType   string             `json:"reporter_type"`
+	ReporterID     pgtype.UUID        `json:"reporter_id"`
+	Severity       string             `json:"severity"`
+	Category       string             `json:"category"`
+	Message        string             `json:"message"`
+	Status         string             `json:"status"`
+	ResolvedAt     pgtype.Timestamptz `json:"resolved_at"`
+	ResolvedBy     pgtype.UUID        `json:"resolved_by"`
+	ResolutionNote pgtype.Text        `json:"resolution_note"`
+	CreatedAt      time.Time          `json:"created_at"`
+}
+
 type QualityRule struct {
 	ID         uuid.UUID   `json:"id"`
 	TenantID   uuid.UUID   `json:"tenant_id"`
