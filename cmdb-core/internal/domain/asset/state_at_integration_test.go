@@ -85,18 +85,18 @@ func TestGetStateAt_PicksLatestBeforeRequestedTime(t *testing.T) {
 	time.Sleep(50 * time.Millisecond) // guarantee monotonic valid_at ordering
 
 	// 2. First mutation: status=operational at T2.
-	if _, err := pool.Exec(ctx,
-		`UPDATE assets SET status='operational' WHERE id=$1`, assetID); err != nil {
-		t.Fatalf("update #1: %v", err)
+	if _, execErr := pool.Exec(ctx,
+		`UPDATE assets SET status='operational' WHERE id=$1`, assetID); execErr != nil {
+		t.Fatalf("update #1: %v", execErr)
 	}
 	midCheckpoint := time.Now()
 	time.Sleep(50 * time.Millisecond)
 
 	// 3. Second mutation: status=retired at T3. GetStateAt(midCheckpoint)
 	//    must still return 'operational', not this row.
-	if _, err := pool.Exec(ctx,
-		`UPDATE assets SET status='retired' WHERE id=$1`, assetID); err != nil {
-		t.Fatalf("update #2: %v", err)
+	if _, execErr := pool.Exec(ctx,
+		`UPDATE assets SET status='retired' WHERE id=$1`, assetID); execErr != nil {
+		t.Fatalf("update #2: %v", execErr)
 	}
 
 	// 4. Query at midCheckpoint — must return the 'operational' snapshot,

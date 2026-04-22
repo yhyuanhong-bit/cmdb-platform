@@ -95,13 +95,13 @@ func (s *Service) CompareLocations(ctx context.Context, tenantID uuid.UUID) ([]L
 		var cmdbRackID, actualRackID *uuid.UUID
 		var cmdbRackName, actualRackName *string
 
-		if err := rows.Scan(
+		if scanErr := rows.Scan(
 			&d.AssetID, &d.AssetTag, &d.AssetName,
 			&d.MACAddress,
 			&cmdbRackID, &cmdbRackName,
 			&actualRackID, &actualRackName,
 			&d.HasWorkOrder,
-		); err != nil {
+		); scanErr != nil {
 			continue
 		}
 

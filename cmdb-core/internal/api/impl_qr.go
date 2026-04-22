@@ -85,10 +85,10 @@ func (s *APIServer) ConfirmAssetLocation(c *gin.Context, id IdPath) {
 
 	// Get current rack
 	var currentRackID *uuid.UUID
-	if err := s.pool.QueryRow(c.Request.Context(),
+	if qErr := s.pool.QueryRow(c.Request.Context(),
 		"SELECT rack_id FROM assets WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
-		assetID, tenantID).Scan(&currentRackID); err != nil {
-		zap.L().Error("qr: failed to get current rack", zap.Error(err))
+		assetID, tenantID).Scan(&currentRackID); qErr != nil {
+		zap.L().Error("qr: failed to get current rack", zap.Error(qErr))
 	}
 
 	// Update location

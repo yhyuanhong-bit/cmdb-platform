@@ -108,10 +108,10 @@ func (w *WorkflowSubscriber) createLowQualityWorkOrder(ctx context.Context, tena
 	// by team without a second lookup.
 	var assetName, assetTag string
 	var ownerTeam pgtype.Text
-	if err := tx.QueryRow(ctx,
+	if scanErr := tx.QueryRow(ctx,
 		`SELECT name, asset_tag, owner_team FROM assets WHERE id = $1 AND tenant_id = $2`,
-		assetID, tenantID).Scan(&assetName, &assetTag, &ownerTeam); err != nil {
-		return fmt.Errorf("lookup asset: %w", err)
+		assetID, tenantID).Scan(&assetName, &assetTag, &ownerTeam); scanErr != nil {
+		return fmt.Errorf("lookup asset: %w", scanErr)
 	}
 
 	routing := routingLabelFor(ownerTeam)

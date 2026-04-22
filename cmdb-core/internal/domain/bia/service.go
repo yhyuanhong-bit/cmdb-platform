@@ -153,8 +153,8 @@ func (s *Service) CreateDependency(ctx context.Context, params dbgen.CreateBIADe
 
 	qtx := s.queries.WithTx(tx)
 
-	if err := s.verifyAssessmentTenant(ctx, qtx, params.AssessmentID, params.TenantID); err != nil {
-		return nil, err
+	if verr := s.verifyAssessmentTenant(ctx, qtx, params.AssessmentID, params.TenantID); verr != nil {
+		return nil, verr
 	}
 
 	created, err := qtx.CreateBIADependency(ctx, params)

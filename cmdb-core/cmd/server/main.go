@@ -69,8 +69,8 @@ func main() {
 	// 2a. Validate JWT signing secret strength before we accept any traffic.
 	// A weak/short secret lets attackers forge arbitrary tokens, so treat
 	// this as a hard startup failure rather than a warning.
-	if err := validateJWTSecret(cfg.JWTSecret); err != nil {
-		zap.L().Fatal("invalid JWT secret", zap.Error(err))
+	if jwtErr := validateJWTSecret(cfg.JWTSecret); jwtErr != nil {
+		zap.L().Fatal("invalid JWT secret", zap.Error(jwtErr))
 	}
 
 	// Root server context — cancelled on SIGINT/SIGTERM. Every background
@@ -127,7 +127,7 @@ func main() {
 		if migrationsDir == "" {
 			migrationsDir = "migrations"
 		}
-		if _, err := os.Stat(migrationsDir); err == nil {
+		if _, statErr := os.Stat(migrationsDir); statErr == nil {
 			entries, _ := os.ReadDir(migrationsDir)
 			for _, entry := range entries {
 				if !strings.HasSuffix(entry.Name(), ".up.sql") {
@@ -145,23 +145,22 @@ func main() {
 				}
 
 				// Apply migration
-				sqlBytes, err := os.ReadFile(filepath.Join(migrationsDir, entry.Name()))
-				if err != nil {
-					zap.L().Warn("migration: failed to read", zap.String("file", entry.Name()), zap.Error(err))
+				sqlBytes, readErr := os.ReadFile(filepath.Join(migrationsDir, entry.Name()))
+				if readErr != nil {
+					zap.L().Warn("migration: failed to read", zap.String("file", entry.Name()), zap.Error(readErr))
 					continue
 				}
-				_, err = pool.Exec(ctx, string(sqlBytes))
-				if err != nil {
-					zap.L().Error("migration: failed to apply", zap.String("file", entry.Name()), zap.Error(err))
+				if _, applyErr := pool.Exec(ctx, string(sqlBytes)); applyErr != nil {
+					zap.L().Error("migration: failed to apply", zap.String("file", entry.Name()), zap.Error(applyErr))
 					continue
 				}
 				// A failed schema_migrations row means the migration
 				// applied but the tracker didn't advance — on next boot
 				// we'd try to apply it again. That's the kind of silent
 				// divergence that leaves ops chasing phantom failures.
-				if _, err := pool.Exec(ctx, "INSERT INTO schema_migrations (version, dirty) VALUES ($1, false) ON CONFLICT DO NOTHING", version); err != nil {
+				if _, insErr := pool.Exec(ctx, "INSERT INTO schema_migrations (version, dirty) VALUES ($1, false) ON CONFLICT DO NOTHING", version); insErr != nil {
 					zap.L().Error("migration: failed to record applied version — tracker is out of sync",
-						zap.String("file", entry.Name()), zap.Int("version", version), zap.Error(err))
+						zap.String("file", entry.Name()), zap.Int("version", version), zap.Error(insErr))
 				}
 				zap.L().Info("migration: applied", zap.String("file", entry.Name()), zap.Int("version", version))
 			}
@@ -172,9 +171,8 @@ func main() {
 	{
 		const expectedMigration = 50 // bump this when adding new migrations
 		var dbVersion int
-		err := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&dbVersion)
-		if err != nil {
-			zap.L().Fatal("failed to check migration version — is the database initialized?", zap.Error(err))
+		if qErr := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&dbVersion); qErr != nil {
+			zap.L().Fatal("failed to check migration version — is the database initialized?", zap.Error(qErr))
 		}
 		if dbVersion < expectedMigration {
 			zap.L().Fatal("database schema is behind code — run pending migrations before starting the server",
@@ -200,8 +198,8 @@ func main() {
 		// existing admin. Fatal is the correct response: stop startup so
 		// ops can diagnose instead of racing into a half-initialized
 		// state.
-		if err := pool.QueryRow(ctx, "SELECT count(*) FROM users").Scan(&userCount); err != nil {
-			zap.L().Fatal("seed: failed to probe users count — cannot safely decide whether to seed", zap.Error(err))
+		if probeErr := pool.QueryRow(ctx, "SELECT count(*) FROM users").Scan(&userCount); probeErr != nil {
+			zap.L().Fatal("seed: failed to probe users count — cannot safely decide whether to seed", zap.Error(probeErr))
 		}
 		if userCount == 0 {
 			zap.L().Info("database is empty — running initial seed")
@@ -210,10 +208,9 @@ func main() {
 				seedDir = "db/seed"
 			}
 			seedFile := filepath.Join(seedDir, "seed.sql")
-			if sqlBytes, err := os.ReadFile(seedFile); err == nil {
-				_, err = pool.Exec(ctx, string(sqlBytes))
-				if err != nil {
-					zap.L().Error("seed: failed to apply", zap.Error(err))
+			if sqlBytes, seedReadErr := os.ReadFile(seedFile); seedReadErr == nil {
+				if _, seedExecErr := pool.Exec(ctx, string(sqlBytes)); seedExecErr != nil {
+					zap.L().Error("seed: failed to apply", zap.Error(seedExecErr))
 				} else {
 					zap.L().Info("seed: initial data loaded successfully")
 				}
@@ -224,9 +221,9 @@ func main() {
 				if adminPassword == "" {
 					adminPassword = "admin-" + uuid.New().String()[:8]
 				}
-				hash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
-				if err != nil {
-					zap.L().Fatal("seed: failed to hash admin password", zap.Error(err))
+				hash, hashErr := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+				if hashErr != nil {
+					zap.L().Fatal("seed: failed to hash admin password", zap.Error(hashErr))
 				}
 				// Each INSERT failure here means the minimal-admin seed
 				// never completed. We refuse to continue startup in that
@@ -243,9 +240,9 @@ func main() {
 					{"user_role", `INSERT INTO user_roles (user_id, role_id) VALUES ('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001') ON CONFLICT DO NOTHING`, nil},
 				}
 				for _, stmt := range seedStmts {
-					if _, err := pool.Exec(ctx, stmt.sql, stmt.args...); err != nil {
+					if _, seedErr := pool.Exec(ctx, stmt.sql, stmt.args...); seedErr != nil {
 						zap.L().Fatal("seed: minimal-admin insert failed — aborting startup",
-							zap.String("step", stmt.label), zap.Error(err))
+							zap.String("step", stmt.label), zap.Error(seedErr))
 					}
 				}
 				// SECURITY: do NOT log the plaintext password — log aggregators
@@ -340,11 +337,11 @@ func main() {
 					MACAddress    string `json:"mac_address"`
 				} `json:"entries"`
 			}
-			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			if unmarshalErr := json.Unmarshal(event.Payload, &payload); unmarshalErr != nil {
 				return nil
 			}
-			tenantID, err := uuid.Parse(payload.TenantID)
-			if err != nil {
+			tenantID, parseErr := uuid.Parse(payload.TenantID)
+			if parseErr != nil {
 				return nil
 			}
 
@@ -377,8 +374,8 @@ func main() {
 
 	// AI Registry
 	aiRegistry := ai.NewRegistry()
-	if err := aiRegistry.LoadFromDB(ctx, &ai.QueriesAdapter{Q: queries}); err != nil {
-		zap.L().Warn("failed to load AI models", zap.Error(err))
+	if aiErr := aiRegistry.LoadFromDB(ctx, &ai.QueriesAdapter{Q: queries}); aiErr != nil {
+		zap.L().Warn("failed to load AI models", zap.Error(aiErr))
 	}
 
 	// Prediction

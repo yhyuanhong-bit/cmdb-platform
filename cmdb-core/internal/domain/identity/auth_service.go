@@ -109,7 +109,7 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*TokenRespon
 		return nil, errors.New("invalid username or password")
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+	if bcryptErr := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); bcryptErr != nil {
 		return nil, errors.New("invalid username or password")
 	}
 
@@ -234,7 +234,7 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 	if err != nil {
 		return errors.New("user not found")
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); err != nil {
+	if bcryptErr := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(currentPassword)); bcryptErr != nil {
 		return errors.New("current password is incorrect")
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)

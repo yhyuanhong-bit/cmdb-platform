@@ -148,7 +148,7 @@ func (s *APIServer) CreateWebhook(c *gin.Context) {
 	// SSRF defense: reject targets that resolve to loopback/metadata/
 	// private networks. Admin allowlist bypasses.
 	if s.netGuard != nil {
-		if err := s.netGuard.ValidateURL(req.Url); err != nil {
+		if ngErr := s.netGuard.ValidateURL(req.Url); ngErr != nil {
 			response.BadRequest(c, "webhook url resolves to a blocked network")
 			return
 		}
@@ -164,8 +164,8 @@ func (s *APIServer) CreateWebhook(c *gin.Context) {
 	}
 	if req.Secret != nil {
 		params.Secret = pgtype.Text{String: *req.Secret, Valid: true}
-		enc, err := s.cipher.Encrypt([]byte(*req.Secret))
-		if err != nil {
+		enc, encErr := s.cipher.Encrypt([]byte(*req.Secret))
+		if encErr != nil {
 			response.InternalError(c, "failed to encrypt webhook secret")
 			return
 		}

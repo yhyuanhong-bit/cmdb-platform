@@ -109,8 +109,8 @@ func archiveMonth(ctx context.Context, log *slog.Logger, pool *pgxpool.Pool, s3c
 		return nil
 	}
 
-	if err := detachPartition(ctx, pool, partition); err != nil {
-		return fmt.Errorf("detach: %w", err)
+	if derr := detachPartition(ctx, pool, partition); derr != nil {
+		return fmt.Errorf("detach: %w", derr)
 	}
 	log.Info("partition detached")
 

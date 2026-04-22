@@ -198,13 +198,13 @@ func (s *MCPServer) handleGetTopology(ctx context.Context, req mcp.CallToolReque
 
 	// If location_id is provided, return children of that location.
 	if locID, ok := args["location_id"]; ok && locID != nil && locID != "" {
-		parsed, err := uuid.Parse(fmt.Sprint(locID))
-		if err != nil {
-			return nil, fmt.Errorf("invalid location UUID: %w", err)
+		parsed, parseErr := uuid.Parse(fmt.Sprint(locID))
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid location UUID: %w", parseErr)
 		}
-		children, err := s.queries.ListChildren(ctx, pgtype.UUID{Bytes: parsed, Valid: true})
-		if err != nil {
-			return nil, fmt.Errorf("list children: %w", err)
+		children, listErr := s.queries.ListChildren(ctx, pgtype.UUID{Bytes: parsed, Valid: true})
+		if listErr != nil {
+			return nil, fmt.Errorf("list children: %w", listErr)
 		}
 		return jsonResult(children)
 	}

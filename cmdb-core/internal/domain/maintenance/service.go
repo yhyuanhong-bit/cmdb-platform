@@ -221,8 +221,8 @@ func (s *Service) TransitionExecution(ctx context.Context, tenantID, id, operato
 		return nil, fmt.Errorf("get work order: %w", err)
 	}
 
-	if err := ValidateExecTransition(order.ExecutionStatus, newExec); err != nil {
-		return nil, err
+	if vErr := ValidateExecTransition(order.ExecutionStatus, newExec); vErr != nil {
+		return nil, vErr
 	}
 
 	derivedStatus, err := DeriveStatus(newExec, order.GovernanceStatus)
@@ -274,13 +274,13 @@ func (s *Service) TransitionGovernance(ctx context.Context, tenantID, id, operat
 		return nil, fmt.Errorf("get work order: %w", err)
 	}
 
-	if err := ValidateGovTransition(order.GovernanceStatus, newGov); err != nil {
-		return nil, err
+	if vErr := ValidateGovTransition(order.GovernanceStatus, newGov); vErr != nil {
+		return nil, vErr
 	}
 
 	if newGov == GovApproved || newGov == GovRejected {
-		if err := validateApproval(operatorID, order.RequestorID, operatorRoles); err != nil {
-			return nil, err
+		if aErr := validateApproval(operatorID, order.RequestorID, operatorRoles); aErr != nil {
+			return nil, aErr
 		}
 		if comment == "" {
 			return nil, fmt.Errorf("approval/rejection requires a comment")

@@ -142,19 +142,19 @@ func (s *Service) ApproveAndCreateAsset(
 	// 2. Idempotency fast-path.
 	if da.ApprovedAssetID.Valid {
 		existingID := uuid.UUID(da.ApprovedAssetID.Bytes)
-		existing, err := qtx.GetAsset(ctx, dbgen.GetAssetParams{
+		existing, getErr := qtx.GetAsset(ctx, dbgen.GetAssetParams{
 			ID:       existingID,
 			TenantID: tenantID,
 		})
-		if err != nil {
+		if getErr != nil {
 			// The link is dangling (asset was deleted). Treat as "not approved"
 			// would be dangerous — it could silently create a duplicate. Surface
 			// the inconsistency to the caller instead.
 			return nil, fmt.Errorf("idempotent lookup: discovered=%s approved_asset_id=%s: %w",
-				discoveredID, existingID, err)
+				discoveredID, existingID, getErr)
 		}
-		if err := tx.Commit(ctx); err != nil {
-			return nil, fmt.Errorf("commit idempotent: %w", err)
+		if commitErr := tx.Commit(ctx); commitErr != nil {
+			return nil, fmt.Errorf("commit idempotent: %w", commitErr)
 		}
 		return &ApproveResult{
 			Asset:            existing,
@@ -212,11 +212,11 @@ func (s *Service) ApproveAndCreateAsset(
 	// 3a. Patch ip_address onto the fresh asset if we have one. Done here
 	// (still inside the tx) so the post-commit row is consistent.
 	if da.IpAddress.Valid && da.IpAddress.String != "" {
-		if _, err := tx.Exec(ctx,
+		if _, ipErr := tx.Exec(ctx,
 			`UPDATE assets SET ip_address = $1, updated_at = now() WHERE id = $2 AND tenant_id = $3`,
 			da.IpAddress.String, newAsset.ID, tenantID,
-		); err != nil {
-			return nil, fmt.Errorf("set asset ip_address: %w", err)
+		); ipErr != nil {
+			return nil, fmt.Errorf("set asset ip_address: %w", ipErr)
 		}
 		newAsset.IpAddress = da.IpAddress
 	}

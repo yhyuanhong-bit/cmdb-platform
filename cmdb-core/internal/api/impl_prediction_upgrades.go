@@ -174,7 +174,7 @@ func (s *APIServer) GetFailureDistribution(c *gin.Context) {
 
 	for alertRows.Next() {
 		var message string
-		if err := alertRows.Scan(&message); err != nil {
+		if scanErr := alertRows.Scan(&message); scanErr != nil {
 			continue
 		}
 		cat := classify(message)
