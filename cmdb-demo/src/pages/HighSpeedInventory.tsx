@@ -174,7 +174,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
     const reader = new FileReader()
     reader.onload = async (evt) => {
       try {
-        const XLSX = await import('xlsx')
+        const XLSX = await import('@e965/xlsx')
         const data = evt.target?.result
         const workbook = XLSX.read(data, { type: 'array' })
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
@@ -221,7 +221,7 @@ const HighSpeedInventory = memo(function HighSpeedInventory() {
   }
 
   const handleDownloadTemplate = async () => {
-    const XLSX = await import('xlsx')
+    const XLSX = await import('@e965/xlsx')
     const headers = ['asset_tag', 'serial_number', 'property_number', 'control_number', 'expected_location']
     const exampleRow = ['SRV-PROD-001', 'SN-DELL-001', 'P-2025-0001', 'CTRL-TW-A-0001', 'RACK-A01']
     const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow])

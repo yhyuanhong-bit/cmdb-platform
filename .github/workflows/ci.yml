@@ -68,13 +68,9 @@ jobs:
 
       # D7-P1 (review-2026-04-21-v2): npm audit on runtime deps only.
       # --omit=dev keeps the signal focused on what actually ships; dev
-      # tools with transitive vulns don't reach users. Threshold is
-      # `critical` rather than `high` because the xlsx 0.18.5 vuln is
-      # known, unfixed upstream, and tracked under a separate follow-up
-      # to migrate off the unmaintained registry release; failing on it
-      # would block every PR until the migration lands.
+      # tools with transitive vulns don't reach users.
       - name: npm audit (runtime deps)
-        run: npm audit --audit-level=critical --omit=dev
+        run: npm audit --audit-level=high --omit=dev
 
       - name: Lint
         run: npm run lint
