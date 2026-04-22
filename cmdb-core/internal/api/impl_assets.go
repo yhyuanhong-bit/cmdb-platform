@@ -39,6 +39,7 @@ func (s *APIServer) ListAssets(c *gin.Context, params ListAssetsParams) {
 		LocationID:   uuidPtrFromOAPI(params.LocationId),
 		RackID:       uuidPtrFromOAPI(params.RackId),
 		SerialNumber: params.SerialNumber,
+		OwnerTeam:    params.OwnerTeam,
 		Search:       params.Search,
 		Limit:        limit,
 		Offset:       offset,
@@ -126,6 +127,7 @@ func (s *APIServer) CreateAsset(c *gin.Context) {
 		WarrantyContract:       textFromPtr(req.WarrantyContract),
 		ExpectedLifespanMonths: int4FromIntPtr(req.ExpectedLifespanMonths),
 		EolDate:                dateFromPtr(req.EolDate),
+		OwnerTeam:              textFromPtr(req.OwnerTeam),
 	}
 
 	// Quality gate: check minimum data quality before creation.
@@ -273,6 +275,9 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 	}
 	if req.EolDate != nil {
 		params.EolDate = dateFromPtr(req.EolDate)
+	}
+	if req.OwnerTeam != nil {
+		params.OwnerTeam = pgtype.Text{String: *req.OwnerTeam, Valid: true}
 	}
 
 	// Field-level authority check: prevent low-priority API source from

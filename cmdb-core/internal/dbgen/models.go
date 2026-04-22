@@ -168,6 +168,7 @@ type Asset struct {
 	EolDate                pgtype.Date        `json:"eol_date"`
 	AccessCount24h         int32              `json:"access_count_24h"`
 	LastAccessedAt         pgtype.Timestamptz `json:"last_accessed_at"`
+	OwnerTeam              pgtype.Text        `json:"owner_team"`
 }
 
 type AssetDependency struct {

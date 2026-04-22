@@ -190,7 +190,7 @@ func (q *Queries) GetRackOccupancy(ctx context.Context, id uuid.UUID) (GetRackOc
 }
 
 const listAssetsByRack = `-- name: ListAssetsByRack :many
-SELECT a.id, a.tenant_id, a.asset_tag, a.property_number, a.control_number, a.name, a.type, a.sub_type, a.status, a.bia_level, a.location_id, a.rack_id, a.vendor, a.model, a.serial_number, a.attributes, a.tags, a.created_at, a.updated_at, a.ip_address, a.deleted_at, a.sync_version, a.bmc_ip, a.bmc_type, a.bmc_firmware, a.purchase_date, a.purchase_cost, a.warranty_start, a.warranty_end, a.warranty_vendor, a.warranty_contract, a.expected_lifespan_months, a.eol_date, a.access_count_24h, a.last_accessed_at FROM assets a
+SELECT a.id, a.tenant_id, a.asset_tag, a.property_number, a.control_number, a.name, a.type, a.sub_type, a.status, a.bia_level, a.location_id, a.rack_id, a.vendor, a.model, a.serial_number, a.attributes, a.tags, a.created_at, a.updated_at, a.ip_address, a.deleted_at, a.sync_version, a.bmc_ip, a.bmc_type, a.bmc_firmware, a.purchase_date, a.purchase_cost, a.warranty_start, a.warranty_end, a.warranty_vendor, a.warranty_contract, a.expected_lifespan_months, a.eol_date, a.access_count_24h, a.last_accessed_at, a.owner_team FROM assets a
 WHERE a.rack_id = $1 AND a.deleted_at IS NULL
 ORDER BY a.name
 `
@@ -240,6 +240,7 @@ func (q *Queries) ListAssetsByRack(ctx context.Context, rackID pgtype.UUID) ([]A
 			&i.EolDate,
 			&i.AccessCount24h,
 			&i.LastAccessedAt,
+			&i.OwnerTeam,
 		); err != nil {
 			return nil, err
 		}

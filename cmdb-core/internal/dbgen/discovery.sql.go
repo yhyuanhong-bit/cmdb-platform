@@ -131,7 +131,7 @@ func (q *Queries) CreateDiscoveredAsset(ctx context.Context, arg CreateDiscovere
 }
 
 const findAssetByIP = `-- name: FindAssetByIP :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets WHERE tenant_id = $1 AND (ip_address = $2 OR bmc_ip = $2) AND deleted_at IS NULL LIMIT 1
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at, owner_team FROM assets WHERE tenant_id = $1 AND (ip_address = $2 OR bmc_ip = $2) AND deleted_at IS NULL LIMIT 1
 `
 
 type FindAssetByIPParams struct {
@@ -178,6 +178,7 @@ func (q *Queries) FindAssetByIP(ctx context.Context, arg FindAssetByIPParams) (A
 		&i.EolDate,
 		&i.AccessCount24h,
 		&i.LastAccessedAt,
+		&i.OwnerTeam,
 	)
 	return i, err
 }

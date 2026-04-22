@@ -893,6 +893,11 @@ paths:
           in: query
           schema:
             type: string
+        - name: owner_team
+          in: query
+          description: Filter to assets owned by the given team.
+          schema:
+            type: string
         - name: search
           in: query
           schema:
@@ -1042,6 +1047,9 @@ paths:
                   description: ISO-8601 date (YYYY-MM-DD)
                 expected_lifespan_months:
                   type: integer
+                  nullable: true
+                owner_team:
+                  type: string
                   nullable: true
                 ip_address:
                   type: string
@@ -4733,6 +4741,10 @@ components:
         expected_lifespan_months:
           type: integer
           nullable: true
+        owner_team:
+          type: string
+          nullable: true
+          description: Team responsible for this asset. Used by the auto-WO router so low-quality / maintenance orders land on the owning team's queue.
         created_at:
           type: string
           format: date-time

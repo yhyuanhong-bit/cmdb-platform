@@ -70,7 +70,8 @@ WHERE tenant_id = $1
   AND ($4::uuid IS NULL OR location_id = $4)
   AND ($5::uuid IS NULL OR rack_id = $5)
   AND ($6::varchar IS NULL OR serial_number = $6)
-  AND ($7::varchar IS NULL OR (name ILIKE '%' || $7 || '%' OR asset_tag ILIKE '%' || $7 || '%'))
+  AND ($7::varchar IS NULL OR owner_team = $7)
+  AND ($8::varchar IS NULL OR (name ILIKE '%' || $8 || '%' OR asset_tag ILIKE '%' || $8 || '%'))
 `
 
 type CountAssetsParams struct {
@@ -80,6 +81,7 @@ type CountAssetsParams struct {
 	LocationID   pgtype.UUID `json:"location_id"`
 	RackID       pgtype.UUID `json:"rack_id"`
 	SerialNumber pgtype.Text `json:"serial_number"`
+	OwnerTeam    pgtype.Text `json:"owner_team"`
 	Search       pgtype.Text `json:"search"`
 }
 
@@ -91,6 +93,7 @@ func (q *Queries) CountAssets(ctx context.Context, arg CountAssetsParams) (int64
 		arg.LocationID,
 		arg.RackID,
 		arg.SerialNumber,
+		arg.OwnerTeam,
 		arg.Search,
 	)
 	var count int64
@@ -125,15 +128,17 @@ INSERT INTO assets (
     rack_id, vendor, model, serial_number, attributes, tags,
     bmc_ip, bmc_type, bmc_firmware,
     purchase_date, purchase_cost, warranty_start, warranty_end,
-    warranty_vendor, warranty_contract, expected_lifespan_months, eol_date
+    warranty_vendor, warranty_contract, expected_lifespan_months, eol_date,
+    owner_team
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16,
     $17, $18, $19,
     $20, $21, $22, $23,
-    $24, $25, $26, $27
-) RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at
+    $24, $25, $26, $27,
+    $28
+) RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at, owner_team
 `
 
 type CreateAssetParams struct {
@@ -164,6 +169,7 @@ type CreateAssetParams struct {
 	WarrantyContract       pgtype.Text     `json:"warranty_contract"`
 	ExpectedLifespanMonths pgtype.Int4     `json:"expected_lifespan_months"`
 	EolDate                pgtype.Date     `json:"eol_date"`
+	OwnerTeam              pgtype.Text     `json:"owner_team"`
 }
 
 func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error) {
@@ -195,6 +201,7 @@ func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset
 		arg.WarrantyContract,
 		arg.ExpectedLifespanMonths,
 		arg.EolDate,
+		arg.OwnerTeam,
 	)
 	var i Asset
 	err := row.Scan(
@@ -233,6 +240,7 @@ func (q *Queries) CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset
 		&i.EolDate,
 		&i.AccessCount24h,
 		&i.LastAccessedAt,
+		&i.OwnerTeam,
 	)
 	return i, err
 }
@@ -265,7 +273,7 @@ func (q *Queries) DeleteAsset(ctx context.Context, arg DeleteAssetParams) error 
 }
 
 const findAssetBySerialOrTag = `-- name: FindAssetBySerialOrTag :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at, owner_team FROM assets
 WHERE tenant_id = $1
   AND (serial_number = $2 OR asset_tag = $3)
 LIMIT 1
@@ -316,12 +324,13 @@ func (q *Queries) FindAssetBySerialOrTag(ctx context.Context, arg FindAssetBySer
 		&i.EolDate,
 		&i.AccessCount24h,
 		&i.LastAccessedAt,
+		&i.OwnerTeam,
 	)
 	return i, err
 }
 
 const getAsset = `-- name: GetAsset :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at, owner_team FROM assets WHERE id = $1 AND tenant_id = $2
 `
 
 type GetAssetParams struct {
@@ -368,12 +377,13 @@ func (q *Queries) GetAsset(ctx context.Context, arg GetAssetParams) (Asset, erro
 		&i.EolDate,
 		&i.AccessCount24h,
 		&i.LastAccessedAt,
+		&i.OwnerTeam,
 	)
 	return i, err
 }
 
 const getAssetByTag = `-- name: GetAssetByTag :one
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets WHERE asset_tag = $1
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at, owner_team FROM assets WHERE asset_tag = $1
 `
 
 func (q *Queries) GetAssetByTag(ctx context.Context, assetTag string) (Asset, error) {
@@ -415,12 +425,13 @@ func (q *Queries) GetAssetByTag(ctx context.Context, assetTag string) (Asset, er
 		&i.EolDate,
 		&i.AccessCount24h,
 		&i.LastAccessedAt,
+		&i.OwnerTeam,
 	)
 	return i, err
 }
 
 const listAssets = `-- name: ListAssets :many
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at, owner_team FROM assets
 WHERE tenant_id = $1
   AND deleted_at IS NULL
   AND ($4::varchar IS NULL OR type = $4)
@@ -428,7 +439,8 @@ WHERE tenant_id = $1
   AND ($6::uuid IS NULL OR location_id = $6)
   AND ($7::uuid IS NULL OR rack_id = $7)
   AND ($8::varchar IS NULL OR serial_number = $8)
-  AND ($9::varchar IS NULL OR (name ILIKE '%' || $9 || '%' OR asset_tag ILIKE '%' || $9 || '%'))
+  AND ($9::varchar IS NULL OR owner_team = $9)
+  AND ($10::varchar IS NULL OR (name ILIKE '%' || $10 || '%' OR asset_tag ILIKE '%' || $10 || '%'))
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
 `
@@ -442,6 +454,7 @@ type ListAssetsParams struct {
 	LocationID   pgtype.UUID `json:"location_id"`
 	RackID       pgtype.UUID `json:"rack_id"`
 	SerialNumber pgtype.Text `json:"serial_number"`
+	OwnerTeam    pgtype.Text `json:"owner_team"`
 	Search       pgtype.Text `json:"search"`
 }
 
@@ -455,6 +468,7 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 		arg.LocationID,
 		arg.RackID,
 		arg.SerialNumber,
+		arg.OwnerTeam,
 		arg.Search,
 	)
 	if err != nil {
@@ -500,6 +514,7 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 			&i.EolDate,
 			&i.AccessCount24h,
 			&i.LastAccessedAt,
+			&i.OwnerTeam,
 		); err != nil {
 			return nil, err
 		}
@@ -512,7 +527,7 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 }
 
 const listHotAssets = `-- name: ListHotAssets :many
-SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at FROM assets
+SELECT id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at, owner_team FROM assets
 WHERE tenant_id = $1 AND deleted_at IS NULL AND access_count_24h > 0
 ORDER BY access_count_24h DESC, last_accessed_at DESC NULLS LAST
 LIMIT $2
@@ -570,6 +585,7 @@ func (q *Queries) ListHotAssets(ctx context.Context, arg ListHotAssetsParams) ([
 			&i.EolDate,
 			&i.AccessCount24h,
 			&i.LastAccessedAt,
+			&i.OwnerTeam,
 		); err != nil {
 			return nil, err
 		}
@@ -609,9 +625,10 @@ UPDATE assets SET
     warranty_contract        = COALESCE($24, warranty_contract),
     expected_lifespan_months = COALESCE($25, expected_lifespan_months),
     eol_date                 = COALESCE($26, eol_date),
+    owner_team               = COALESCE($27, owner_team),
     updated_at               = now()
-WHERE id = $27
-RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at
+WHERE id = $28
+RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at, owner_team
 `
 
 type UpdateAssetParams struct {
@@ -641,6 +658,7 @@ type UpdateAssetParams struct {
 	WarrantyContract       pgtype.Text    `json:"warranty_contract"`
 	ExpectedLifespanMonths pgtype.Int4    `json:"expected_lifespan_months"`
 	EolDate                pgtype.Date    `json:"eol_date"`
+	OwnerTeam              pgtype.Text    `json:"owner_team"`
 	ID                     uuid.UUID      `json:"id"`
 }
 
@@ -672,6 +690,7 @@ func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset
 		arg.WarrantyContract,
 		arg.ExpectedLifespanMonths,
 		arg.EolDate,
+		arg.OwnerTeam,
 		arg.ID,
 	)
 	var i Asset
@@ -711,6 +730,7 @@ func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset
 		&i.EolDate,
 		&i.AccessCount24h,
 		&i.LastAccessedAt,
+		&i.OwnerTeam,
 	)
 	return i, err
 }

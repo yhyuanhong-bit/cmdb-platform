@@ -29,6 +29,7 @@ type ListParams struct {
 	LocationID   *uuid.UUID
 	RackID       *uuid.UUID
 	SerialNumber *string
+	OwnerTeam    *string
 	Search       *string
 	Limit        int32
 	Offset       int32
@@ -76,6 +77,10 @@ func (s *Service) List(ctx context.Context, p ListParams) ([]dbgen.Asset, int64,
 	if p.SerialNumber != nil {
 		listParams.SerialNumber = pgtype.Text{String: *p.SerialNumber, Valid: true}
 		countParams.SerialNumber = pgtype.Text{String: *p.SerialNumber, Valid: true}
+	}
+	if p.OwnerTeam != nil {
+		listParams.OwnerTeam = pgtype.Text{String: *p.OwnerTeam, Valid: true}
+		countParams.OwnerTeam = pgtype.Text{String: *p.OwnerTeam, Valid: true}
 	}
 	if p.Search != nil {
 		listParams.Search = pgtype.Text{String: *p.Search, Valid: true}

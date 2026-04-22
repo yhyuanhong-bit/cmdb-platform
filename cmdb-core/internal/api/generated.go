@@ -663,8 +663,11 @@ type Asset struct {
 	LocationId             *openapi_types.UUID `json:"location_id,omitempty"`
 	Model                  string              `json:"model"`
 	Name                   string              `json:"name"`
-	PropertyNumber         *string             `json:"property_number,omitempty"`
-	PurchaseCost           *float64            `json:"purchase_cost,omitempty"`
+
+	// OwnerTeam Team responsible for this asset. Used by the auto-WO router so low-quality / maintenance orders land on the owning team's queue.
+	OwnerTeam      *string  `json:"owner_team,omitempty"`
+	PropertyNumber *string  `json:"property_number,omitempty"`
+	PurchaseCost   *float64 `json:"purchase_cost,omitempty"`
 
 	// PurchaseDate ISO-8601 date (YYYY-MM-DD)
 	PurchaseDate     *string             `json:"purchase_date,omitempty"`
@@ -1549,7 +1552,10 @@ type ListAssetsParams struct {
 	LocationId   *openapi_types.UUID `form:"location_id,omitempty" json:"location_id,omitempty"`
 	RackId       *openapi_types.UUID `form:"rack_id,omitempty" json:"rack_id,omitempty"`
 	SerialNumber *string             `form:"serial_number,omitempty" json:"serial_number,omitempty"`
-	Search       *string             `form:"search,omitempty" json:"search,omitempty"`
+
+	// OwnerTeam Filter to assets owned by the given team.
+	OwnerTeam *string `form:"owner_team,omitempty" json:"owner_team,omitempty"`
+	Search    *string `form:"search,omitempty" json:"search,omitempty"`
 }
 
 // UpdateAssetJSONBody defines parameters for UpdateAsset.
@@ -1567,6 +1573,7 @@ type UpdateAssetJSONBody struct {
 	LocationId             *openapi_types.UUID `json:"location_id,omitempty"`
 	Model                  *string             `json:"model,omitempty"`
 	Name                   *string             `json:"name,omitempty"`
+	OwnerTeam              *string             `json:"owner_team,omitempty"`
 	PurchaseCost           *float64            `json:"purchase_cost,omitempty"`
 
 	// PurchaseDate ISO-8601 date (YYYY-MM-DD)
@@ -3706,6 +3713,14 @@ func (siw *ServerInterfaceWrapper) ListAssets(c *gin.Context) {
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "serial_number", c.Request.URL.Query(), &params.SerialNumber, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter serial_number: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "owner_team" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "owner_team", c.Request.URL.Query(), &params.OwnerTeam, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter owner_team: %w", err), http.StatusBadRequest)
 		return
 	}
 

@@ -258,6 +258,7 @@ func toAPIAsset(db dbgen.Asset) Asset {
 		WarrantyContract:       pgtextToPtr(db.WarrantyContract),
 		ExpectedLifespanMonths: pgint4ToIntPtr(db.ExpectedLifespanMonths),
 		EolDate:                pgdateToPtr(db.EolDate),
+		OwnerTeam:              pgtextToPtr(db.OwnerTeam),
 		CreatedAt:              db.CreatedAt,
 		UpdatedAt:              db.UpdatedAt,
 	}

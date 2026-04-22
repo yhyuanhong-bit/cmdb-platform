@@ -7,6 +7,7 @@ WHERE tenant_id = $1
   AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'))
   AND (sqlc.narg('rack_id')::uuid IS NULL OR rack_id = sqlc.narg('rack_id'))
   AND (sqlc.narg('serial_number')::varchar IS NULL OR serial_number = sqlc.narg('serial_number'))
+  AND (sqlc.narg('owner_team')::varchar IS NULL OR owner_team = sqlc.narg('owner_team'))
   AND (sqlc.narg('search')::varchar IS NULL OR (name ILIKE '%' || sqlc.narg('search') || '%' OR asset_tag ILIKE '%' || sqlc.narg('search') || '%'))
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
@@ -20,6 +21,7 @@ WHERE tenant_id = $1
   AND (sqlc.narg('location_id')::uuid IS NULL OR location_id = sqlc.narg('location_id'))
   AND (sqlc.narg('rack_id')::uuid IS NULL OR rack_id = sqlc.narg('rack_id'))
   AND (sqlc.narg('serial_number')::varchar IS NULL OR serial_number = sqlc.narg('serial_number'))
+  AND (sqlc.narg('owner_team')::varchar IS NULL OR owner_team = sqlc.narg('owner_team'))
   AND (sqlc.narg('search')::varchar IS NULL OR (name ILIKE '%' || sqlc.narg('search') || '%' OR asset_tag ILIKE '%' || sqlc.narg('search') || '%'));
 
 -- name: GetAsset :one
@@ -35,14 +37,16 @@ INSERT INTO assets (
     rack_id, vendor, model, serial_number, attributes, tags,
     bmc_ip, bmc_type, bmc_firmware,
     purchase_date, purchase_cost, warranty_start, warranty_end,
-    warranty_vendor, warranty_contract, expected_lifespan_months, eol_date
+    warranty_vendor, warranty_contract, expected_lifespan_months, eol_date,
+    owner_team
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16,
     $17, $18, $19,
     $20, $21, $22, $23,
-    $24, $25, $26, $27
+    $24, $25, $26, $27,
+    $28
 ) RETURNING *;
 
 -- name: UpdateAsset :one
@@ -73,6 +77,7 @@ UPDATE assets SET
     warranty_contract        = COALESCE(sqlc.narg('warranty_contract'), warranty_contract),
     expected_lifespan_months = COALESCE(sqlc.narg('expected_lifespan_months'), expected_lifespan_months),
     eol_date                 = COALESCE(sqlc.narg('eol_date'), eol_date),
+    owner_team               = COALESCE(sqlc.narg('owner_team'), owner_team),
     updated_at               = now()
 WHERE id = sqlc.arg('id')
 RETURNING *;
