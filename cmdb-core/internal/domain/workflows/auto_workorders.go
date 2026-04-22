@@ -33,6 +33,7 @@ const (
 	sourceBMCSecurityCheck     = "workflows.auto_wo.bmc_security"
 	sourceScanDiffEventHandler = "workflows.auto_wo.scan_diff_event"
 	sourceBMCDefaultEventParse = "workflows.auto_wo.bmc_default_event"
+	sourceLowQualityCheck      = "workflows.auto_wo.low_quality"
 )
 
 // Reason used when maintenanceSvc.Create fails in an auto-WO scan.
@@ -74,6 +75,7 @@ func (w *WorkflowSubscriber) runDailyChecks(ctx context.Context) {
 	w.checkEOLReached(ctx)
 	w.checkOverLifespan(ctx)
 	w.checkFirmwareOutdated(ctx)
+	w.checkLowQualityPersistent(ctx)
 }
 
 // StartAssetVerificationChecker runs weekly and drives every scan
