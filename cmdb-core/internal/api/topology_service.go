@@ -45,7 +45,7 @@ type topologyService interface {
 	// Rack slots
 	ListRackSlots(ctx context.Context, rackID uuid.UUID) ([]dbgen.ListRackSlotsRow, error)
 	CheckSlotConflict(ctx context.Context, rackID uuid.UUID, side string, startU, endU int32) (int64, error)
-	CreateRackSlot(ctx context.Context, params dbgen.CreateRackSlotParams) (*dbgen.RackSlot, error)
+	CreateRackSlot(ctx context.Context, tenantID uuid.UUID, params dbgen.CreateRackSlotParams) (*dbgen.RackSlot, error)
 	DeleteRackSlot(ctx context.Context, tenantID, slotID uuid.UUID) error
 
 	// Dependencies / impact analysis

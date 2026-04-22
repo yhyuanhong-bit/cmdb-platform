@@ -12,6 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant security audit scheduler
+
 // --- Auto Work Order 9: Firmware Outdated → Firmware Upgrade ---
 
 // firmwareAssetRow is the per-asset projection the firmware scan loads

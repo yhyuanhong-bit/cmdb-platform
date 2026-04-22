@@ -11,6 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant warranty expiry scheduler
+
 // --- Auto Work Order 1: Warranty Expiry → Renewal Evaluation ---
 
 func (w *WorkflowSubscriber) checkWarrantyExpiry(ctx context.Context) {

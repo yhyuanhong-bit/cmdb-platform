@@ -1,5 +1,7 @@
 package api
 
+//tenantlint:allow-direct-pool — SyncResolveConflict builds dynamic SQL across tenant/non-tenant tables; scoped via conflict ownership check
+
 import (
 	"encoding/json"
 	"fmt"
@@ -13,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -204,7 +207,8 @@ func (s *APIServer) SyncGetChanges(c *gin.Context, params SyncGetChangesParams) 
 		query = "SELECT row_to_json(t) AS data, EXTRACT(EPOCH FROM t.created_at)::bigint AS sync_version FROM audit_events t WHERE t.tenant_id = $1 AND t.created_at > to_timestamp($2::bigint) ORDER BY t.created_at LIMIT $3"
 	}
 
-	rows, err := s.pool.Query(c.Request.Context(), query, tenantID, sinceVersion, limit+1)
+	sc := database.Scope(s.pool, tenantID)
+	rows, err := sc.Query(c.Request.Context(), query, sinceVersion, limit+1)
 	if err != nil {
 		response.InternalError(c, "failed to query changes")
 		return
@@ -473,6 +477,7 @@ func (s *APIServer) SyncResolveConflict(c *gin.Context, id IdPath) {
 func (s *APIServer) SyncStats(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 	ctx := c.Request.Context()
+	sc := database.Scope(s.pool, tenantID)
 
 	syncableTables := []string{"assets", "locations", "racks", "work_orders", "alert_events", "inventory_tasks", "alert_rules", "inventory_items"}
 
@@ -495,17 +500,17 @@ func (s *APIServer) SyncStats(c *gin.Context) {
 
 		switch table {
 		case "audit_events":
-			err = s.pool.QueryRow(ctx,
+			err = sc.QueryRow(ctx,
 				"SELECT COALESCE(MAX(EXTRACT(EPOCH FROM created_at))::bigint, 0) FROM audit_events WHERE tenant_id = $1",
-				tenantID).Scan(&maxVersion)
+			).Scan(&maxVersion)
 		case "inventory_items":
-			err = s.pool.QueryRow(ctx,
+			err = sc.QueryRow(ctx,
 				"SELECT COALESCE(MAX(t.sync_version), 0) FROM inventory_items t JOIN inventory_tasks it ON t.task_id = it.id WHERE it.tenant_id = $1",
-				tenantID).Scan(&maxVersion)
+			).Scan(&maxVersion)
 		default:
-			err = s.pool.QueryRow(ctx,
+			err = sc.QueryRow(ctx,
 				fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s WHERE tenant_id = $1", table),
-				tenantID).Scan(&maxVersion)
+			).Scan(&maxVersion)
 		}
 		if err != nil {
 			continue
@@ -563,7 +568,8 @@ func (s *APIServer) SyncSnapshot(c *gin.Context, params SyncSnapshotParams) {
 	default:
 		query = fmt.Sprintf("SELECT row_to_json(t) FROM %s t WHERE t.tenant_id = $1 ORDER BY t.sync_version", entityType)
 	}
-	rows, err := s.pool.Query(c.Request.Context(), query, tenantID)
+	sc2 := database.Scope(s.pool, tenantID)
+	rows, err := sc2.Query(c.Request.Context(), query)
 	if err != nil {
 		response.InternalError(c, "failed to query snapshot")
 		return

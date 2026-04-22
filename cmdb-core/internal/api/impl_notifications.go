@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -12,13 +13,14 @@ import (
 func (s *APIServer) ListNotifications(c *gin.Context) {
 	userID := userIDFromContext(c)
 	tenantID := tenantIDFromContext(c)
-	rows, err := s.pool.Query(c.Request.Context(),
+	sc := database.Scope(s.pool, tenantID)
+	rows, err := sc.Query(c.Request.Context(),
 		`SELECT id, tenant_id, user_id, type, title, body, resource_type, resource_id, is_read, created_at
 		 FROM notifications
-		 WHERE user_id = $1 AND tenant_id = $2 AND is_read = false
+		 WHERE user_id = $2 AND tenant_id = $1 AND is_read = false
 		 ORDER BY created_at DESC
 		 LIMIT 50`,
-		userID, tenantID)
+		userID)
 	if err != nil {
 		response.InternalError(c, "failed to list notifications")
 		return
@@ -65,10 +67,11 @@ func (s *APIServer) ListNotifications(c *gin.Context) {
 func (s *APIServer) CountUnreadNotifications(c *gin.Context) {
 	userID := userIDFromContext(c)
 	tenantID := tenantIDFromContext(c)
+	sc := database.Scope(s.pool, tenantID)
 	var count int64
-	if err := s.pool.QueryRow(c.Request.Context(),
-		"SELECT count(*) FROM notifications WHERE user_id = $1 AND tenant_id = $2 AND is_read = false",
-		userID, tenantID).Scan(&count); err != nil {
+	if err := sc.QueryRow(c.Request.Context(),
+		"SELECT count(*) FROM notifications WHERE user_id = $2 AND tenant_id = $1 AND is_read = false",
+		userID).Scan(&count); err != nil {
 		zap.L().Error("notifications: failed to count unread", zap.Error(err))
 		response.InternalError(c, "failed to count notifications")
 		return
@@ -81,9 +84,10 @@ func (s *APIServer) MarkNotificationRead(c *gin.Context, id IdPath) {
 	userID := userIDFromContext(c)
 	tenantID := tenantIDFromContext(c)
 	notifID := uuid.UUID(id)
-	if _, err := s.pool.Exec(c.Request.Context(),
-		"UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2 AND tenant_id = $3",
-		notifID, userID, tenantID); err != nil {
+	sc := database.Scope(s.pool, tenantID)
+	if _, err := sc.Exec(c.Request.Context(),
+		"UPDATE notifications SET is_read = true WHERE id = $2 AND user_id = $3 AND tenant_id = $1",
+		notifID, userID); err != nil {
 		zap.L().Error("notifications: failed to mark read", zap.Error(err))
 		response.InternalError(c, "failed to mark notification as read")
 		return
@@ -95,9 +99,10 @@ func (s *APIServer) MarkNotificationRead(c *gin.Context, id IdPath) {
 func (s *APIServer) MarkAllNotificationsRead(c *gin.Context) {
 	userID := userIDFromContext(c)
 	tenantID := tenantIDFromContext(c)
-	if _, err := s.pool.Exec(c.Request.Context(),
-		"UPDATE notifications SET is_read = true WHERE user_id = $1 AND tenant_id = $2 AND is_read = false",
-		userID, tenantID); err != nil {
+	sc := database.Scope(s.pool, tenantID)
+	if _, err := sc.Exec(c.Request.Context(),
+		"UPDATE notifications SET is_read = true WHERE user_id = $2 AND tenant_id = $1 AND is_read = false",
+		userID); err != nil {
 		zap.L().Error("notifications: failed to mark all read", zap.Error(err))
 		response.InternalError(c, "failed to mark notifications as read")
 		return

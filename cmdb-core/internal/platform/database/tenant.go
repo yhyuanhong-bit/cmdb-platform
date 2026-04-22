@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+//tenantlint:allow-direct-pool — TenantScoped implementation itself
+
 // TenantScoped wraps a pgxpool.Pool and enforces that every SQL statement
 // passed to Exec/Query/QueryRow references `tenant_id` and receives the
 // current tenant as its first positional argument ($1).

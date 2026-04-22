@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -21,11 +22,12 @@ const energyQueryTimeout = 10 * time.Second
 // the aggregation is always tenant-wide.
 // GET /energy/breakdown
 func (s *APIServer) GetEnergyBreakdown(c *gin.Context, _ GetEnergyBreakdownParams) {
-	tenantID := c.GetString("tenant_id")
+	tenantID := tenantIDFromContext(c)
 	ctx, cancel := context.WithTimeout(c.Request.Context(), energyQueryTimeout)
 	defer cancel()
 
-	rows, err := s.pool.Query(ctx, `
+	sc := database.Scope(s.pool, tenantID)
+	rows, err := sc.Query(ctx, `
 		SELECT
 			CASE a.type
 				WHEN 'server'  THEN 'IT Equipment'
@@ -41,7 +43,7 @@ func (s *APIServer) GetEnergyBreakdown(c *gin.Context, _ GetEnergyBreakdownParam
 		  AND m.name = 'power_kw'
 		  AND m.time > now() - interval '1 hour'
 		GROUP BY category
-	`, tenantID)
+	`)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -91,18 +93,20 @@ func (s *APIServer) GetEnergyBreakdown(c *gin.Context, _ GetEnergyBreakdownParam
 // GetEnergySummary returns PUE, total power, peak demand, and carbon footprint estimate.
 // GET /energy/summary
 func (s *APIServer) GetEnergySummary(c *gin.Context) {
-	tenantID := c.GetString("tenant_id")
+	tenantID := tenantIDFromContext(c)
 	ctx, cancel := context.WithTimeout(c.Request.Context(), energyQueryTimeout)
 	defer cancel()
+
+	sc := database.Scope(s.pool, tenantID)
 
 	// Latest PUE. ErrNoRows is expected (no metric yet) — default to 1.0.
 	// Any other error is a DB failure: abort rather than return misleading zeros.
 	var pue float64
-	if err := s.pool.QueryRow(ctx, `
+	if err := sc.QueryRow(ctx, `
 		SELECT COALESCE(value, 1.0) FROM metrics
 		WHERE tenant_id = $1 AND name = 'pue'
 		ORDER BY time DESC LIMIT 1
-	`, tenantID).Scan(&pue); err != nil {
+	`).Scan(&pue); err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			zap.L().Error("energy: failed to query PUE", zap.Error(err))
 			response.InternalError(c, "failed to query energy summary")
@@ -116,11 +120,11 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 	// Total power (last hour avg). Aggregates always return one row, so any
 	// error here indicates a real DB failure.
 	var totalKW float64
-	if err := s.pool.QueryRow(ctx, `
+	if err := sc.QueryRow(ctx, `
 		SELECT COALESCE(avg(value), 0) FROM metrics
 		WHERE tenant_id = $1 AND name = 'power_kw'
 		  AND time > now() - interval '1 hour'
-	`, tenantID).Scan(&totalKW); err != nil {
+	`).Scan(&totalKW); err != nil {
 		zap.L().Error("energy: failed to query total power", zap.Error(err))
 		response.InternalError(c, "failed to query energy summary")
 		return
@@ -128,11 +132,11 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 
 	// Peak demand (max in last 30 days)
 	var peakKW float64
-	if err := s.pool.QueryRow(ctx, `
+	if err := sc.QueryRow(ctx, `
 		SELECT COALESCE(max(value), 0) FROM metrics
 		WHERE tenant_id = $1 AND name = 'power_kw'
 		  AND time > now() - interval '30 days'
-	`, tenantID).Scan(&peakKW); err != nil {
+	`).Scan(&peakKW); err != nil {
 		zap.L().Error("energy: failed to query peak demand", zap.Error(err))
 		response.InternalError(c, "failed to query energy summary")
 		return
@@ -152,7 +156,7 @@ func (s *APIServer) GetEnergySummary(c *gin.Context) {
 // GetEnergyTrend returns hourly aggregated power consumption over the requested window.
 // GET /energy/trend?hours=24
 func (s *APIServer) GetEnergyTrend(c *gin.Context, params GetEnergyTrendParams) {
-	tenantID := c.GetString("tenant_id")
+	tenantID := tenantIDFromContext(c)
 	hoursVal := 24
 	if params.Hours != nil && *params.Hours >= 1 && *params.Hours <= 168 {
 		hoursVal = *params.Hours
@@ -161,7 +165,8 @@ func (s *APIServer) GetEnergyTrend(c *gin.Context, params GetEnergyTrendParams) 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), energyQueryTimeout)
 	defer cancel()
 
-	rows, err := s.pool.Query(ctx, `
+	sc := database.Scope(s.pool, tenantID)
+	rows, err := sc.Query(ctx, `
 		SELECT date_trunc('hour', time) as hour,
 		       COALESCE(sum(value), 0) as total_kw
 		FROM metrics
@@ -169,7 +174,7 @@ func (s *APIServer) GetEnergyTrend(c *gin.Context, params GetEnergyTrendParams) 
 		  AND time > now() - ($2 || ' hours')::interval
 		GROUP BY hour
 		ORDER BY hour
-	`, tenantID, hours)
+	`, hours)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

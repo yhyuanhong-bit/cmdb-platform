@@ -8,6 +8,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -77,11 +78,11 @@ func (s *Service) RunDetection(ctx context.Context, tenantID uuid.UUID) {
 					d.MACAddress, d.ActualRackName))
 
 			// Also create discovery candidate for review
-			s.pool.Exec(ctx, `
+			sc := database.Scope(s.pool, tenantID)
+			sc.Exec(ctx, `
 				INSERT INTO discovered_assets (tenant_id, source, hostname, ip_address, raw_data, status, discovered_at)
 				VALUES ($1, 'snmp_mac_detect', $2, '', $3, 'pending', now())
 				ON CONFLICT DO NOTHING`,
-				tenantID,
 				fmt.Sprintf("MAC-%s", d.MACAddress),
 				fmt.Sprintf(`{"mac_address":"%s","detected_rack":"%s","detected_at":"%s"}`, d.MACAddress, d.ActualRackName, d.DetectedAt.Format(time.RFC3339)))
 		}
@@ -107,9 +108,10 @@ func (s *Service) RunDetection(ctx context.Context, tenantID uuid.UUID) {
 
 func (s *Service) autoConfirmRelocation(ctx context.Context, tenantID uuid.UUID, d LocationDiff) {
 	// Update asset location in CMDB
-	_, err := s.pool.Exec(ctx,
-		"UPDATE assets SET rack_id = $1, sync_version = sync_version + 1 WHERE id = $2 AND tenant_id = $3",
-		d.ActualRackID, d.AssetID, tenantID)
+	sc := database.Scope(s.pool, tenantID)
+	_, err := sc.Exec(ctx,
+		"UPDATE assets SET rack_id = $2, sync_version = sync_version + 1 WHERE id = $3 AND tenant_id = $1",
+		d.ActualRackID, d.AssetID)
 	if err != nil {
 		zap.L().Warn("auto-confirm relocation failed", zap.Error(err))
 		return
@@ -138,12 +140,12 @@ func (s *Service) autoConfirmRelocation(ctx context.Context, tenantID uuid.UUID,
 	// probe query is surfaced via Warn + counter instead of the bare
 	// `_` discard — a broken work_orders table used to be invisible
 	// here, and the auto-close pipeline would silently stop.
-	rows, err := s.pool.Query(ctx,
+	rows, err := sc.Query(ctx,
 		`SELECT id FROM work_orders
-		 WHERE asset_id = $1 AND type = 'relocation'
+		 WHERE asset_id = $2 AND type = 'relocation'
 		 AND status NOT IN ('completed','verified','rejected')
-		 AND tenant_id = $2 AND deleted_at IS NULL`,
-		d.AssetID, tenantID)
+		 AND tenant_id = $1 AND deleted_at IS NULL`,
+		d.AssetID)
 	if err != nil {
 		zap.L().Warn("auto-close relocation: query failed",
 			zap.String("asset_id", d.AssetID.String()), zap.Error(err))
@@ -157,8 +159,8 @@ func (s *Service) autoConfirmRelocation(ctx context.Context, tenantID uuid.UUID,
 				telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceLocationAutoClose, telemetry.ReasonRowScanFailed).Inc()
 				continue
 			}
-			if _, updErr := s.pool.Exec(ctx,
-				"UPDATE work_orders SET status = 'completed', actual_end = now(), sync_version = sync_version + 1 WHERE id = $1",
+			if _, updErr := sc.Exec(ctx,
+				"UPDATE work_orders SET status = 'completed', actual_end = now(), sync_version = sync_version + 1 WHERE id = $2 AND tenant_id = $1",
 				woID,
 			); updErr != nil {
 				zap.L().Warn("auto-close relocation: update failed",
@@ -193,10 +195,11 @@ func (s *Service) autoConfirmRelocation(ctx context.Context, tenantID uuid.UUID,
 
 func (s *Service) createLocationAlert(ctx context.Context, tenantID uuid.UUID, d LocationDiff, severity, message string) {
 	// Insert alert event
-	if _, err := s.pool.Exec(ctx, `
+	sc := database.Scope(s.pool, tenantID)
+	if _, err := sc.Exec(ctx, `
 		INSERT INTO alert_events (tenant_id, asset_id, severity, status, message, fired_at)
 		VALUES ($1, $2, $3, 'firing', $4, now())
-	`, tenantID, d.AssetID, severity, message); err != nil {
+	`, d.AssetID, severity, message); err != nil {
 		zap.L().Error("location detect: failed to create alert", zap.Error(err))
 	}
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -61,7 +62,8 @@ func NewService(pool *pgxpool.Pool, bus eventbus.Bus) *Service {
 
 // CompareLocations compares CMDB records with MAC table data for a tenant.
 func (s *Service) CompareLocations(ctx context.Context, tenantID uuid.UUID) ([]LocationDiff, error) {
-	rows, err := s.pool.Query(ctx, `
+	sc := database.Scope(s.pool, tenantID)
+	rows, err := sc.Query(ctx, `
 		SELECT
 			a.id, a.asset_tag, a.name,
 			mc.mac_address,
@@ -81,7 +83,7 @@ func (s *Service) CompareLocations(ctx context.Context, tenantID uuid.UUID) ([]L
 		LEFT JOIN racks cr ON a.rack_id = cr.id
 		LEFT JOIN racks ar ON mc.detected_rack_id = ar.id
 		WHERE mc.tenant_id = $1
-	`, tenantID)
+	`)
 	if err != nil {
 		return nil, fmt.Errorf("compare locations: %w", err)
 	}
@@ -131,12 +133,12 @@ func (s *Service) CompareLocations(ctx context.Context, tenantID uuid.UUID) ([]L
 	}
 
 	// Also find MACs in cache with no asset_id (new/unregistered devices)
-	newRows, err := s.pool.Query(ctx, `
+	newRows, err := sc.Query(ctx, `
 		SELECT mc.mac_address, mc.detected_rack_id, r.name
 		FROM mac_address_cache mc
 		LEFT JOIN racks r ON mc.detected_rack_id = r.id
 		WHERE mc.tenant_id = $1 AND mc.asset_id IS NULL
-	`, tenantID)
+	`)
 	if err == nil {
 		defer newRows.Close()
 		for newRows.Next() {
@@ -163,25 +165,26 @@ func (s *Service) CompareLocations(ctx context.Context, tenantID uuid.UUID) ([]L
 
 // UpdateMACCache updates the MAC address cache from SNMP scan results.
 func (s *Service) UpdateMACCache(ctx context.Context, tenantID uuid.UUID, entries []MACEntry) error {
+	sc := database.Scope(s.pool, tenantID)
 	for _, e := range entries {
 		// Look up which rack this switch port maps to
 		var rackID *uuid.UUID
-		if err := s.pool.QueryRow(ctx,
-			"SELECT connected_rack_id FROM switch_port_mapping WHERE switch_asset_id = $1 AND port_name = $2 AND tenant_id = $3",
-			e.SwitchAssetID, e.PortName, tenantID).Scan(&rackID); err != nil {
+		if err := sc.QueryRow(ctx,
+			"SELECT connected_rack_id FROM switch_port_mapping WHERE switch_asset_id = $2 AND port_name = $3 AND tenant_id = $1",
+			e.SwitchAssetID, e.PortName).Scan(&rackID); err != nil {
 			zap.L().Debug("mac cache: switch port mapping not found", zap.String("mac", e.MACAddress), zap.Error(err))
 		}
 
 		// Try to match MAC to an existing asset
 		var assetID *uuid.UUID
-		if err := s.pool.QueryRow(ctx,
-			"SELECT id FROM assets WHERE attributes->>'mac_address' = $1 AND tenant_id = $2 AND deleted_at IS NULL",
-			e.MACAddress, tenantID).Scan(&assetID); err != nil {
+		if err := sc.QueryRow(ctx,
+			"SELECT id FROM assets WHERE attributes->>'mac_address' = $2 AND tenant_id = $1 AND deleted_at IS NULL",
+			e.MACAddress).Scan(&assetID); err != nil {
 			zap.L().Debug("mac cache: asset lookup by mac failed", zap.String("mac", e.MACAddress), zap.Error(err))
 		}
 
 		// Upsert into cache
-		_, err := s.pool.Exec(ctx, `
+		_, err := sc.Exec(ctx, `
 			INSERT INTO mac_address_cache (tenant_id, mac_address, switch_asset_id, port_name, vlan_id, asset_id, detected_rack_id, last_seen)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, now())
 			ON CONFLICT (tenant_id, mac_address) DO UPDATE SET
@@ -189,7 +192,7 @@ func (s *Service) UpdateMACCache(ctx context.Context, tenantID uuid.UUID, entrie
 				asset_id = COALESCE($6, mac_address_cache.asset_id),
 				detected_rack_id = COALESCE($7, mac_address_cache.detected_rack_id),
 				last_seen = now()
-		`, tenantID, e.MACAddress, e.SwitchAssetID, e.PortName, e.VLANID, assetID, rackID)
+		`, e.MACAddress, e.SwitchAssetID, e.PortName, e.VLANID, assetID, rackID)
 		if err != nil {
 			zap.L().Warn("mac cache upsert failed", zap.String("mac", e.MACAddress), zap.Error(err))
 		}

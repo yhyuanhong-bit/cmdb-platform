@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -97,7 +99,8 @@ func (s *Service) GetLocationStats(ctx context.Context, tenantID, locationID uui
 
 	// Compute average rack occupancy: used U positions / total U capacity.
 	var avgOccupancy float64
-	err = s.pool.QueryRow(ctx, `
+	sc := database.Scope(s.pool, loc.TenantID)
+	err = sc.QueryRow(ctx, `
 		SELECT COALESCE(AVG(
 			CASE WHEN r.total_u > 0
 			THEN (SELECT COUNT(*) FROM rack_slots rs WHERE rs.rack_id = r.id)::float / r.total_u * 100
@@ -107,7 +110,7 @@ func (s *Service) GetLocationStats(ctx context.Context, tenantID, locationID uui
 		JOIN locations l ON r.location_id = l.id
 		WHERE r.tenant_id = $1
 		  AND l.path <@ (SELECT loc.path FROM locations loc WHERE loc.id = $2)::ltree
-	`, loc.TenantID, locationID).Scan(&avgOccupancy)
+	`, locationID).Scan(&avgOccupancy)
 	if err != nil {
 		return LocationStats{}, fmt.Errorf("computing rack occupancy: %w", err)
 	}
@@ -157,7 +160,7 @@ func (s *Service) CreateLocation(ctx context.Context, params dbgen.CreateLocatio
 	if err != nil {
 		return nil, err
 	}
-	s.incrementSyncVersion(ctx, "locations", loc.ID)
+	s.incrementSyncVersion(ctx, "locations", loc.ID, params.TenantID)
 	return &loc, nil
 }
 
@@ -167,7 +170,7 @@ func (s *Service) UpdateLocation(ctx context.Context, params dbgen.UpdateLocatio
 	if err != nil {
 		return nil, err
 	}
-	s.incrementSyncVersion(ctx, "locations", loc.ID)
+	s.incrementSyncVersion(ctx, "locations", loc.ID, loc.TenantID)
 	return &loc, nil
 }
 
@@ -245,7 +248,7 @@ func (s *Service) CreateRack(ctx context.Context, params dbgen.CreateRackParams)
 	if err != nil {
 		return nil, err
 	}
-	s.incrementSyncVersion(ctx, "racks", rack.ID)
+	s.incrementSyncVersion(ctx, "racks", rack.ID, params.TenantID)
 	return &rack, nil
 }
 
@@ -255,7 +258,7 @@ func (s *Service) UpdateRack(ctx context.Context, params dbgen.UpdateRackParams)
 	if err != nil {
 		return nil, err
 	}
-	s.incrementSyncVersion(ctx, "racks", rack.ID)
+	s.incrementSyncVersion(ctx, "racks", rack.ID, params.TenantID)
 	return &rack, nil
 }
 
@@ -264,7 +267,7 @@ func (s *Service) DeleteRack(ctx context.Context, tenantID, id uuid.UUID) error 
 	if err := s.queries.DeleteRack(ctx, dbgen.DeleteRackParams{ID: id, TenantID: tenantID}); err != nil {
 		return err
 	}
-	s.incrementSyncVersion(ctx, "racks", id)
+	s.incrementSyncVersion(ctx, "racks", id, tenantID)
 	return nil
 }
 
@@ -285,16 +288,17 @@ func (s *Service) CheckSlotConflict(ctx context.Context, rackID uuid.UUID, side 
 
 // CreateRackSlot inserts a new rack slot assignment.
 // Also increments rack sync_version (#6) and sets assets.rack_id (#20).
-func (s *Service) CreateRackSlot(ctx context.Context, params dbgen.CreateRackSlotParams) (*dbgen.RackSlot, error) {
+func (s *Service) CreateRackSlot(ctx context.Context, tenantID uuid.UUID, params dbgen.CreateRackSlotParams) (*dbgen.RackSlot, error) {
 	slot, err := s.queries.CreateRackSlot(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 	// Fix #6: increment sync_version on the parent rack
-	s.incrementSyncVersion(ctx, "racks", params.RackID)
+	s.incrementSyncVersion(ctx, "racks", params.RackID, tenantID)
 	// Fix #20: synchronize assets.rack_id with rack_slots
 	if s.pool != nil {
-		if _, err := s.pool.Exec(ctx, "UPDATE assets SET rack_id = $1, updated_at = now() WHERE id = $2 AND (rack_id IS NULL OR rack_id != $1)", pgtype.UUID{Bytes: params.RackID, Valid: true}, params.AssetID); err != nil {
+		sc := database.Scope(s.pool, tenantID)
+		if _, err := sc.Exec(ctx, "UPDATE assets SET rack_id = $2, updated_at = now() WHERE id = $3 AND tenant_id = $1 AND (rack_id IS NULL OR rack_id != $2)", pgtype.UUID{Bytes: params.RackID, Valid: true}, params.AssetID); err != nil {
 			zap.L().Error("topology: failed to sync asset rack_id on slot create", zap.Error(err))
 		}
 	}
@@ -304,10 +308,16 @@ func (s *Service) CreateRackSlot(ctx context.Context, params dbgen.CreateRackSlo
 // DeleteRackSlot removes a rack slot assignment by ID, scoped to the given tenant.
 // Also increments rack sync_version (#6) and clears assets.rack_id if no other slots link it (#20).
 func (s *Service) DeleteRackSlot(ctx context.Context, tenantID, slotID uuid.UUID) error {
-	// Capture slot info before deleting so we can update the asset's rack_id
+	// Capture slot info before deleting so we can update the asset's rack_id.
+	// rack_slots has no tenant_id column; tenant scoping is enforced via the
+	// racks FK (see DeleteRackSlot sqlc query).
 	var rackID, assetID uuid.UUID
 	if s.pool != nil {
-		if err := s.pool.QueryRow(ctx, "SELECT rack_id, asset_id FROM rack_slots WHERE id = $1", slotID).Scan(&rackID, &assetID); err != nil {
+		sc := database.Scope(s.pool, tenantID)
+		if err := sc.QueryRow(ctx,
+			`SELECT rs.rack_id, rs.asset_id FROM rack_slots rs
+			 JOIN racks r ON rs.rack_id = r.id AND r.tenant_id = $1
+			 WHERE rs.id = $2`, slotID).Scan(&rackID, &assetID); err != nil {
 			zap.L().Error("topology: failed to read slot before delete", zap.Error(err))
 		}
 	}
@@ -318,17 +328,22 @@ func (s *Service) DeleteRackSlot(ctx context.Context, tenantID, slotID uuid.UUID
 
 	// Fix #6: increment sync_version on the parent rack
 	if rackID != uuid.Nil {
-		s.incrementSyncVersion(ctx, "racks", rackID)
+		s.incrementSyncVersion(ctx, "racks", rackID, tenantID)
 	}
 
-	// Fix #20: clear assets.rack_id if no other rack_slots link this asset to this rack
+	// Fix #20: clear assets.rack_id if no other rack_slots link this asset to this rack.
+	// rack_slots has no tenant_id; count via join through racks for tenant safety.
 	if s.pool != nil && assetID != uuid.Nil && rackID != uuid.Nil {
+		sc := database.Scope(s.pool, tenantID)
 		var remaining int64
-		if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM rack_slots WHERE rack_id = $1 AND asset_id = $2", rackID, assetID).Scan(&remaining); err != nil {
+		if err := sc.QueryRow(ctx,
+			`SELECT count(*) FROM rack_slots rs
+			 JOIN racks r ON rs.rack_id = r.id AND r.tenant_id = $1
+			 WHERE rs.rack_id = $2 AND rs.asset_id = $3`, rackID, assetID).Scan(&remaining); err != nil {
 			zap.L().Error("topology: failed to count remaining slots", zap.Error(err))
 		}
 		if remaining == 0 {
-			if _, err := s.pool.Exec(ctx, "UPDATE assets SET rack_id = NULL, updated_at = now() WHERE id = $1 AND rack_id = $2", assetID, pgtype.UUID{Bytes: rackID, Valid: true}); err != nil {
+			if _, err := sc.Exec(ctx, "UPDATE assets SET rack_id = NULL, updated_at = now() WHERE id = $2 AND tenant_id = $1 AND rack_id = $3", assetID, pgtype.UUID{Bytes: rackID, Valid: true}); err != nil {
 				zap.L().Error("topology: failed to clear asset rack_id on slot delete", zap.Error(err))
 			}
 		}
@@ -349,11 +364,13 @@ func (s *Service) GetRackOccupanciesByLocation(ctx context.Context, tenantID, lo
 	})
 }
 
-func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uuid.UUID) {
+func (s *Service) incrementSyncVersion(ctx context.Context, table string, id, tenantID uuid.UUID) {
 	if s.pool == nil {
 		return
 	}
-	if _, err := s.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", table), id); err != nil {
+	tableIdent := pgx.Identifier{table}.Sanitize()
+	sc := database.Scope(s.pool, tenantID)
+	if _, err := sc.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $2 AND tenant_id = $1", tableIdent), id); err != nil {
 		zap.L().Error("topology: failed to increment sync_version", zap.String("table", table), zap.Error(err))
 	}
 }

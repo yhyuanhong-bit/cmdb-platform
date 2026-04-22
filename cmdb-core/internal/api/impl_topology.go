@@ -8,6 +8,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -231,9 +232,10 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context, params GetTopologyGraphPara
 		return
 	}
 	locationID := uuid.UUID(*params.LocationId).String()
+	sc := database.Scope(s.pool, tenantID)
 
 	// Step 1: fetch assets in the location and its descendants (up to 200)
-	assetRows, err := s.pool.Query(c.Request.Context(), `
+	assetRows, err := sc.Query(c.Request.Context(), `
 		SELECT
 			a.id,
 			a.name,
@@ -259,7 +261,7 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context, params GetTopologyGraphPara
 		  )
 		ORDER BY a.name
 		LIMIT 200
-	`, tenantID, locationID)
+	`, locationID)
 	if err != nil {
 		response.InternalError(c, "failed to query assets")
 		return
@@ -332,13 +334,13 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context, params GetTopologyGraphPara
 
 	// Fetch external assets that participate in cross-location dependencies
 	if len(externalIDs) > 0 {
-		extRows, err := s.pool.Query(c.Request.Context(), `
+		extRows, err := sc.Query(c.Request.Context(), `
 			SELECT a.id, a.name, a.type, COALESCE(a.sub_type,''), a.status,
 			       COALESCE(a.bia_level,''), COALESCE(a.ip_address,''),
 			       COALESCE(a.model,''), COALESCE(r.name,''), COALESCE(a.tags,'{}'),
 			       EXISTS(SELECT 1 FROM alert_events ae WHERE ae.asset_id=a.id AND ae.status='firing')
 			FROM assets a LEFT JOIN racks r ON a.rack_id=r.id
-			WHERE a.id = ANY($1) AND a.deleted_at IS NULL
+			WHERE a.tenant_id = $1 AND a.id = ANY($2) AND a.deleted_at IS NULL
 		`, externalIDs)
 		if err == nil {
 			defer extRows.Close()
@@ -362,10 +364,11 @@ func (s *APIServer) GetTopologyGraph(c *gin.Context, params GetTopologyGraphPara
 	// Step 3: batch-fetch latest metrics for all assets (cpu, memory, disk)
 	metricsMap := map[string]gin.H{} // asset_id → { cpu, memory, disk_io }
 	if len(assetIDs) > 0 {
-		metricRows, err := s.pool.Query(c.Request.Context(), `
+		metricRows, err := sc.Query(c.Request.Context(), `
 			SELECT asset_id::text, name, COALESCE(avg(value), 0) AS avg_val
 			FROM metrics
-			WHERE asset_id = ANY($1)
+			WHERE tenant_id = $1
+			  AND asset_id = ANY($2)
 			  AND name IN ('cpu_usage', 'memory_usage', 'disk_usage')
 			  AND time > now() - interval '1 hour'
 			GROUP BY asset_id, name

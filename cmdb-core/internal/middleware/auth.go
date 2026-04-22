@@ -39,7 +39,7 @@ type RevocationChecker interface {
 // PasswordChangeChecker reports the timestamp of a user's most recent
 // password change. Tokens issued before that moment are rejected.
 type PasswordChangeChecker interface {
-	PasswordChangedAt(ctx context.Context, userID string) (time.Time, error)
+	PasswordChangedAt(ctx context.Context, userID, tenantID string) (time.Time, error)
 }
 
 // AuthOption configures optional behaviour of the Auth middleware.
@@ -114,7 +114,7 @@ func Auth(secret string, opts ...AuthOption) gin.HandlerFunc {
 		// Password-rotation check. Any token minted before the user last
 		// rotated their password is rejected.
 		if cfg.pwdChecker != nil && claims.IssuedAt > 0 {
-			pwdChangedAt, perr := cfg.pwdChecker.PasswordChangedAt(c.Request.Context(), claims.UserID)
+			pwdChangedAt, perr := cfg.pwdChecker.PasswordChangedAt(c.Request.Context(), claims.UserID, claims.TenantID)
 			switch {
 			case perr != nil:
 				zap.L().Warn("auth middleware: password-change check failed, failing open",

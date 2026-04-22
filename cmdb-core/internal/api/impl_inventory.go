@@ -1,5 +1,7 @@
 package api
 
+//tenantlint:allow-direct-pool — inventory_items, inventory_notes, inventory_scan_history lack tenant_id; scoped via task/item FK chain
+
 import (
 	"encoding/json"
 	"fmt"

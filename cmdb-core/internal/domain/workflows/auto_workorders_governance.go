@@ -15,6 +15,8 @@ import (
 	"go.uber.org/zap"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant governance scan scheduler
+
 // --- Auto Work Order 2: CMDB record not seen by scan → Asset Verification ---
 
 func (w *WorkflowSubscriber) checkMissingAssets(ctx context.Context) {
@@ -344,7 +346,7 @@ func (w *WorkflowSubscriber) createShadowITWorkOrder(ctx context.Context, tenant
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
-	w.maintenanceSvc.BumpSyncVersionAfterCreate(ctx, order.ID)
+	w.maintenanceSvc.BumpSyncVersionAfterCreate(ctx, order.ID, tenantID)
 	return nil
 }
 
@@ -481,7 +483,7 @@ func (w *WorkflowSubscriber) createDuplicateSerialWorkOrder(ctx context.Context,
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
-	w.maintenanceSvc.BumpSyncVersionAfterCreate(ctx, order.ID)
+	w.maintenanceSvc.BumpSyncVersionAfterCreate(ctx, order.ID, tenantID)
 	return nil
 }
 

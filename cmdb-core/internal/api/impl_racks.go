@@ -244,7 +244,7 @@ func (s *APIServer) CreateRackSlot(c *gin.Context, id IdPath) {
 		return
 	}
 
-	slot, err := s.topologySvc.CreateRackSlot(c.Request.Context(), dbgen.CreateRackSlotParams{
+	slot, err := s.topologySvc.CreateRackSlot(c.Request.Context(), tenantIDFromContext(c), dbgen.CreateRackSlotParams{
 		RackID:  uuid.UUID(id),
 		AssetID: uuid.UUID(req.AssetId),
 		StartU:  int32(req.StartU),

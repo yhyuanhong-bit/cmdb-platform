@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -19,13 +20,15 @@ func (s *APIServer) GetAssetLifecycleStats(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 	ctx := c.Request.Context()
 
+	sc := database.Scope(s.pool, tenantID)
+
 	// Status-grouped counts (kept for backward compatibility)
-	rows, err := s.pool.Query(ctx, `
+	rows, err := sc.Query(ctx, `
 		SELECT status, count(*) AS cnt
 		FROM assets
 		WHERE tenant_id = $1 AND deleted_at IS NULL
 		GROUP BY status
-	`, tenantID)
+	`)
 	if err != nil {
 		response.InternalError(c, "failed to query lifecycle stats")
 		return
@@ -45,34 +48,34 @@ func (s *APIServer) GetAssetLifecycleStats(c *gin.Context) {
 	// Aggregated financial & warranty fields. Any DB error here means the
 	// totals would be fabricated zeros — abort rather than mislead the caller.
 	var totalCost float64
-	if err := s.pool.QueryRow(ctx,
+	if err := sc.QueryRow(ctx,
 		"SELECT COALESCE(SUM(purchase_cost::numeric::float8), 0) FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL",
-		tenantID).Scan(&totalCost); err != nil {
+	).Scan(&totalCost); err != nil {
 		zap.L().Error("lifecycle: failed to sum purchase_cost", zap.Error(err))
 		response.InternalError(c, "failed to query lifecycle stats")
 		return
 	}
 
 	var warrantyActiveCount, warrantyExpiredCount, approachingEOL int64
-	if err := s.pool.QueryRow(ctx,
+	if err := sc.QueryRow(ctx,
 		"SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND warranty_end > now() AND deleted_at IS NULL",
-		tenantID).Scan(&warrantyActiveCount); err != nil {
+	).Scan(&warrantyActiveCount); err != nil {
 		zap.L().Error("lifecycle: failed to count active warranty", zap.Error(err))
 		response.InternalError(c, "failed to query lifecycle stats")
 		return
 	}
 
-	if err := s.pool.QueryRow(ctx,
+	if err := sc.QueryRow(ctx,
 		"SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND warranty_end IS NOT NULL AND warranty_end <= now() AND deleted_at IS NULL",
-		tenantID).Scan(&warrantyExpiredCount); err != nil {
+	).Scan(&warrantyExpiredCount); err != nil {
 		zap.L().Error("lifecycle: failed to count expired warranty", zap.Error(err))
 		response.InternalError(c, "failed to query lifecycle stats")
 		return
 	}
 
-	if err := s.pool.QueryRow(ctx,
+	if err := sc.QueryRow(ctx,
 		"SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND eol_date IS NOT NULL AND eol_date <= now() + interval '6 months' AND eol_date > now() AND deleted_at IS NULL",
-		tenantID).Scan(&approachingEOL); err != nil {
+	).Scan(&approachingEOL); err != nil {
 		zap.L().Error("lifecycle: failed to count approaching EOL", zap.Error(err))
 		response.InternalError(c, "failed to query lifecycle stats")
 		return
@@ -114,10 +117,11 @@ func (s *APIServer) GetAssetLifecycle(c *gin.Context, id IdPath) {
 	}
 
 	// 2. Query audit_events for this asset's history
-	auditRows, err := s.pool.Query(ctx,
+	sc := database.Scope(s.pool, tenantID)
+	auditRows, err := sc.Query(ctx,
 		`SELECT action, diff, operator_id, created_at
 		 FROM audit_events
-		 WHERE target_type = 'asset' AND target_id = $1
+		 WHERE tenant_id = $1 AND target_type = 'asset' AND target_id = $2
 		 ORDER BY created_at ASC`,
 		assetID)
 	if err != nil {

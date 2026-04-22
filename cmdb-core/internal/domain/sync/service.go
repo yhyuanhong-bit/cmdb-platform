@@ -10,7 +10,9 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -98,8 +100,13 @@ func (s *Service) onDomainEvent(ctx context.Context, event eventbus.Event, entit
 
 	// Query current sync_version
 	var version int64
-	err := s.pool.QueryRow(ctx,
-		fmt.Sprintf("SELECT sync_version FROM %s WHERE id = $1", entityType),
+	tenantUUID, parseErr := uuid.Parse(event.TenantID)
+	if parseErr != nil {
+		return nil
+	}
+	sc := database.Scope(s.pool, tenantUUID)
+	err := sc.QueryRow(ctx,
+		fmt.Sprintf("SELECT sync_version FROM %s WHERE id = $2 AND tenant_id = $1", entityType),
 		entityID).Scan(&version)
 	if err != nil {
 		version = 0
@@ -167,8 +174,9 @@ func (s *Service) reconcile(ctx context.Context) {
 		// inserted by the agent's table allowlist. Using Sprintf here is
 		// consistent with the pre-sqlc implementation.
 		var currentMaxVersion int64
-		verr := s.pool.QueryRow(ctx,
-			fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s", entityType),
+		sc := database.Scope(s.pool, row.TenantID)
+		verr := sc.QueryRow(ctx,
+			fmt.Sprintf("SELECT COALESCE(MAX(sync_version), 0) FROM %s WHERE tenant_id = $1", entityType),
 		).Scan(&currentMaxVersion)
 		if verr != nil {
 			continue

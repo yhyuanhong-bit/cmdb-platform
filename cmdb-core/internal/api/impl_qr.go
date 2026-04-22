@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -15,11 +16,12 @@ import (
 func (s *APIServer) GetAssetQRData(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
 	assetID := uuid.UUID(id)
+	sc := database.Scope(s.pool, tenantID)
 
 	var tag, sn, name string
-	err := s.pool.QueryRow(c.Request.Context(),
-		"SELECT asset_tag, COALESCE(serial_number, ''), name FROM assets WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
-		assetID, tenantID).Scan(&tag, &sn, &name)
+	err := sc.QueryRow(c.Request.Context(),
+		"SELECT asset_tag, COALESCE(serial_number, ''), name FROM assets WHERE id = $2 AND tenant_id = $1 AND deleted_at IS NULL",
+		assetID).Scan(&tag, &sn, &name)
 	if err != nil {
 		response.NotFound(c, "asset not found")
 		return
@@ -40,13 +42,14 @@ func (s *APIServer) GetAssetQRData(c *gin.Context, id IdPath) {
 func (s *APIServer) GetRackQRData(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
 	rackID := uuid.UUID(id)
+	sc := database.Scope(s.pool, tenantID)
 
 	var rackName, locName string
-	err := s.pool.QueryRow(c.Request.Context(),
+	err := sc.QueryRow(c.Request.Context(),
 		`SELECT r.name, COALESCE(l.name, '')
 		 FROM racks r LEFT JOIN locations l ON r.location_id = l.id
-		 WHERE r.id = $1 AND r.tenant_id = $2`,
-		rackID, tenantID).Scan(&rackName, &locName)
+		 WHERE r.id = $2 AND r.tenant_id = $1`,
+		rackID).Scan(&rackName, &locName)
 	if err != nil {
 		response.NotFound(c, "rack not found")
 		return
@@ -83,18 +86,20 @@ func (s *APIServer) ConfirmAssetLocation(c *gin.Context, id IdPath) {
 		return
 	}
 
+	sc := database.Scope(s.pool, tenantID)
+
 	// Get current rack
 	var currentRackID *uuid.UUID
-	if qErr := s.pool.QueryRow(c.Request.Context(),
-		"SELECT rack_id FROM assets WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
-		assetID, tenantID).Scan(&currentRackID); qErr != nil {
+	if qErr := sc.QueryRow(c.Request.Context(),
+		"SELECT rack_id FROM assets WHERE id = $2 AND tenant_id = $1 AND deleted_at IS NULL",
+		assetID).Scan(&currentRackID); qErr != nil {
 		zap.L().Error("qr: failed to get current rack", zap.Error(qErr))
 	}
 
 	// Update location
-	_, err = s.pool.Exec(c.Request.Context(),
-		"UPDATE assets SET rack_id = $1, sync_version = sync_version + 1, updated_at = now() WHERE id = $2 AND tenant_id = $3",
-		newRackID, assetID, tenantID)
+	_, err = sc.Exec(c.Request.Context(),
+		"UPDATE assets SET rack_id = $2, sync_version = sync_version + 1, updated_at = now() WHERE id = $3 AND tenant_id = $1",
+		newRackID, assetID)
 	if err != nil {
 		response.InternalError(c, "failed to update location")
 		return

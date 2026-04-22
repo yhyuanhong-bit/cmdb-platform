@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -207,7 +208,8 @@ func (s *APIServer) UpdateSensor(c *gin.Context, id IdPath) {
 
 	var setClauses []string
 	var args []interface{}
-	idx := 1
+	// Start at 2 because TenantScoped reserves $1 for tenant_id
+	idx := 2
 
 	for _, col := range []string{"asset_id", "name", "type", "location", "polling_interval", "enabled", "status"} {
 		if val, ok := body[col]; ok && allowed[col] {
@@ -225,13 +227,12 @@ func (s *APIServer) UpdateSensor(c *gin.Context, id IdPath) {
 	setClauses = append(setClauses, "updated_at = now()")
 	args = append(args, sensorID)
 	idIdx := idx
-	idx++
-	args = append(args, tenantID)
 
-	query := fmt.Sprintf("UPDATE sensors SET %s WHERE id = $%d AND tenant_id = $%d",
-		strings.Join(setClauses, ", "), idIdx, idx)
+	query := fmt.Sprintf("UPDATE sensors SET %s WHERE id = $%d AND tenant_id = $1",
+		strings.Join(setClauses, ", "), idIdx)
 
-	result, err := s.pool.Exec(c.Request.Context(), query, args...)
+	sc := database.Scope(s.pool, tenantID)
+	result, err := sc.Exec(c.Request.Context(), query, args...)
 	if err != nil {
 		response.InternalError(c, "failed to update sensor")
 		return

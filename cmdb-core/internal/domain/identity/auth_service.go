@@ -13,6 +13,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/middleware"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -121,7 +122,7 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*TokenRespon
 	if err != nil {
 		return nil, err
 	}
-	s.recordSession(ctx, user.ID, req.ClientIP, req.UserAgent)
+	s.recordSession(ctx, user.TenantID, user.ID, req.ClientIP, req.UserAgent)
 	return tokens, nil
 }
 
@@ -197,7 +198,7 @@ func parseUserAgent(ua string) (deviceType, browser string) {
 }
 
 // recordSession persists the login session and updates the user's last login info.
-func (s *AuthService) recordSession(ctx context.Context, userID uuid.UUID, clientIP, userAgent string) {
+func (s *AuthService) recordSession(ctx context.Context, tenantID, userID uuid.UUID, clientIP, userAgent string) {
 	if s.pool == nil {
 		return
 	}
@@ -215,7 +216,8 @@ func (s *AuthService) recordSession(ctx context.Context, userID uuid.UUID, clien
 	}); err != nil {
 		zap.L().Warn("recordSession: failed to insert session", zap.Error(err))
 	}
-	if _, err := s.pool.Exec(ctx, `UPDATE users SET last_login_at = now(), last_login_ip = $1 WHERE id = $2`, clientIP, userID); err != nil {
+	sc := database.Scope(s.pool, tenantID)
+	if _, err := sc.Exec(ctx, `UPDATE users SET last_login_at = now(), last_login_ip = $2 WHERE id = $3 AND tenant_id = $1`, clientIP, userID); err != nil {
 		zap.L().Warn("recordSession: failed to update last login", zap.Error(err))
 	}
 }
@@ -242,8 +244,9 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 	if s.pool != nil {
-		if _, err = s.pool.Exec(ctx,
-			`UPDATE users SET password_hash = $1, password_changed_at = now(), updated_at = now() WHERE id = $2`,
+		sc := database.Scope(s.pool, user.TenantID)
+		if _, err = sc.Exec(ctx,
+			`UPDATE users SET password_hash = $2, password_changed_at = now(), updated_at = now() WHERE id = $3 AND tenant_id = $1`,
 			string(hash), userID); err != nil {
 			return fmt.Errorf("failed to update password: %w", err)
 		}
@@ -412,12 +415,16 @@ func (s *AuthService) revokeAllRefreshTokens(ctx context.Context, userID uuid.UU
 // the middleware treats as "no change timestamp available" (fail-open).
 //
 // Implements middleware.PasswordChangeChecker.
-func (s *AuthService) PasswordChangedAt(ctx context.Context, userIDStr string) (time.Time, error) {
+func (s *AuthService) PasswordChangedAt(ctx context.Context, userIDStr, tenantIDStr string) (time.Time, error) {
 	if s.pool == nil {
 		return time.Time{}, nil
 	}
 	userID := parseUUID(userIDStr)
 	if userID == uuid.Nil {
+		return time.Time{}, nil
+	}
+	tenantID := parseUUID(tenantIDStr)
+	if tenantID == uuid.Nil {
 		return time.Time{}, nil
 	}
 
@@ -430,7 +437,8 @@ func (s *AuthService) PasswordChangedAt(ctx context.Context, userIDStr string) (
 	}
 
 	var changedAt time.Time
-	row := s.pool.QueryRow(ctx, `SELECT password_changed_at FROM users WHERE id = $1`, userID)
+	sc := database.Scope(s.pool, tenantID)
+	row := sc.QueryRow(ctx, `SELECT password_changed_at FROM users WHERE id = $2 AND tenant_id = $1`, userID)
 	if err := row.Scan(&changedAt); err != nil {
 		return time.Time{}, fmt.Errorf("fetch password_changed_at: %w", err)
 	}

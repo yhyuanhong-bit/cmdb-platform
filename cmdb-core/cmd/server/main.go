@@ -50,6 +50,8 @@ import (
 	"go.uber.org/zap"
 )
 
+//tenantlint:allow-direct-pool — server bootstrap: seed data and schema init run outside request context
+
 func main() {
 	// 1. Load config
 	cfg, err := config.Load()

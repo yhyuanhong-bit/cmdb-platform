@@ -13,6 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant notification dispatcher
+
 // Source labels for telemetry.ErrorsSuppressedTotal. One const per
 // module-function pair so the label value cannot drift between call
 // sites and operators see a stable series name in Grafana.

@@ -19,6 +19,8 @@ import (
 	"github.com/parquet-go/parquet-go"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant audit partition archiver
+
 type archiveOptions struct {
 	bucket          string
 	month           string // YYYY-MM

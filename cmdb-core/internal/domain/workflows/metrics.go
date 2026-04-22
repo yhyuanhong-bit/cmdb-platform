@@ -14,6 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant metrics aggregation
+
 // Adapter failure policy. Centralized so callers and tests share the same
 // numbers and we do not accidentally drift them across files.
 const (

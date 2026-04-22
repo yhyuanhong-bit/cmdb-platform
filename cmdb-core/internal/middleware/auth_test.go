@@ -226,7 +226,7 @@ type stubPwdChecker struct {
 	err       error
 }
 
-func (s *stubPwdChecker) PasswordChangedAt(_ context.Context, _ string) (time.Time, error) {
+func (s *stubPwdChecker) PasswordChangedAt(_ context.Context, _, _ string) (time.Time, error) {
 	if s.err != nil {
 		return time.Time{}, s.err
 	}

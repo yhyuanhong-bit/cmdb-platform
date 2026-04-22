@@ -8,6 +8,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -133,6 +134,7 @@ func (s *APIServer) UpdateIncident(c *gin.Context, id IdPath) {
 //
 // (GET /monitoring/metrics)
 func (s *APIServer) QueryMetrics(c *gin.Context, params QueryMetricsParams) {
+	tenantID := tenantIDFromContext(c)
 	assetID := uuid.UUID(params.AssetId)
 	metricName := params.MetricName
 	timeRange := params.TimeRange
@@ -171,15 +173,17 @@ func (s *APIServer) QueryMetrics(c *gin.Context, params QueryMetricsParams) {
 	query := fmt.Sprintf(
 		`SELECT %s AS time, name, %s AS value
 		 FROM %s
-		 WHERE asset_id = $1
-		   AND name = $2
-		   AND %s > $3
+		 WHERE tenant_id = $1
+		   AND asset_id = $2
+		   AND name = $3
+		   AND %s > $4
 		 ORDER BY %s DESC
 		 LIMIT 500`,
 		timeCol, valueCol, tableName, timeCol, timeCol,
 	)
 
-	rows, err := s.pool.Query(c.Request.Context(), query, assetID, metricName, since)
+	sc := database.Scope(s.pool, tenantID)
+	rows, err := sc.Query(c.Request.Context(), query, assetID, metricName, since)
 	if err != nil {
 		response.InternalError(c, "failed to query metrics")
 		return

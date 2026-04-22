@@ -8,6 +8,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -222,6 +223,7 @@ func (s *APIServer) GetFleetMetricsSummary(c *gin.Context) {
 		{"network_out_bytes", "Network Out", "MB/s"},
 	}
 
+	sc := database.Scope(s.pool, tenantID)
 	results := make([]metricSummary, 0, len(metricDefs))
 
 	for _, md := range metricDefs {
@@ -235,13 +237,13 @@ func (s *APIServer) GetFleetMetricsSummary(c *gin.Context) {
 		// Aggregate stats from the last 24 hours.
 		var avg, min, max, p95 *float64
 		var count int
-		err := s.pool.QueryRow(ctx,
+		err := sc.QueryRow(ctx,
 			`SELECT avg(value), min(value), max(value),
 			        percentile_cont(0.95) WITHIN GROUP (ORDER BY value),
 			        count(*)
 			 FROM metrics
 			 WHERE tenant_id = $1 AND name = $2 AND time > now() - interval '24 hours'`,
-			tenantID, md.name).Scan(&avg, &min, &max, &p95, &count)
+			md.name).Scan(&avg, &min, &max, &p95, &count)
 
 		if err == nil && count > 0 {
 			ms.AvgValue = avg
@@ -252,12 +254,12 @@ func (s *APIServer) GetFleetMetricsSummary(c *gin.Context) {
 		}
 
 		// 7-day sparkline: one daily average per day.
-		sparkRows, err := s.pool.Query(ctx,
+		sparkRows, err := sc.Query(ctx,
 			`SELECT date_trunc('day', time) AS d, avg(value)
 			 FROM metrics
 			 WHERE tenant_id = $1 AND name = $2 AND time > now() - interval '7 days'
 			 GROUP BY d ORDER BY d`,
-			tenantID, md.name)
+			md.name)
 		if err == nil {
 			for sparkRows.Next() {
 				var t time.Time

@@ -11,6 +11,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -287,13 +288,14 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 
 	tenantID := tenantIDFromContext(c)
 	if s.pool != nil {
-		authRows, authErr := s.pool.Query(c.Request.Context(),
+		authSc := database.Scope(s.pool, tenantID)
+		authRows, authErr := authSc.Query(c.Request.Context(),
 			`SELECT field_name, MAX(priority) as max_priority
 			 FROM asset_field_authorities
 			 WHERE tenant_id = $1
 			 GROUP BY field_name
 			 HAVING MAX(priority) > $2`,
-			tenantID, apiSourcePriority)
+			apiSourcePriority)
 		if authErr == nil {
 			defer authRows.Close()
 			blockedFields := make(map[string]int)
@@ -333,9 +335,10 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 	// Supplementary update for ip_address (not in sqlc-generated query).
 	// Scoped to tenant to prevent cross-tenant writes.
 	if req.IpAddress != nil {
-		if _, err := s.pool.Exec(c.Request.Context(),
-			"UPDATE assets SET ip_address = $1 WHERE id = $2 AND tenant_id = $3",
-			*req.IpAddress, uuid.UUID(id), tenantID,
+		ipSc := database.Scope(s.pool, tenantID)
+		if _, err := ipSc.Exec(c.Request.Context(),
+			"UPDATE assets SET ip_address = $2 WHERE id = $3 AND tenant_id = $1",
+			*req.IpAddress, uuid.UUID(id),
 		); err != nil {
 			zap.L().Error("assets: failed to update ip_address", zap.Error(err), zap.String("asset_id", uuid.UUID(id).String()))
 			response.InternalError(c, "failed to update ip_address")

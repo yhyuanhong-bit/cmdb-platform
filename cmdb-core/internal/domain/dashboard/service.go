@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -103,7 +104,8 @@ func (s *Service) GetStats(ctx context.Context, tenantID uuid.UUID) (*Stats, err
 	}
 
 	var totalRacks int64
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM racks WHERE tenant_id = $1 AND deleted_at IS NULL`, tenantID).Scan(&totalRacks); err != nil {
+	sc := database.Scope(s.pool, tenantID)
+	if err := sc.QueryRow(ctx, `SELECT count(*) FROM racks WHERE tenant_id = $1 AND deleted_at IS NULL`).Scan(&totalRacks); err != nil {
 		return nil, fmt.Errorf("count racks: %w", err)
 	}
 

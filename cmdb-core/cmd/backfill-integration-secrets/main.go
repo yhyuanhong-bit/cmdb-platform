@@ -34,6 +34,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+//tenantlint:allow-direct-pool — one-time cross-tenant migration script
+
 type tableStats struct {
 	name      string
 	candidate int64 // rows that qualify for backfill

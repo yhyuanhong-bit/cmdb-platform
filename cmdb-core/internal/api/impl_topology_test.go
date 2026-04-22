@@ -42,7 +42,7 @@ type mockTopologyService struct {
 	deleteRackFn                   func(ctx context.Context, tenantID, id uuid.UUID) error
 	listRackSlotsFn                func(ctx context.Context, rackID uuid.UUID) ([]dbgen.ListRackSlotsRow, error)
 	checkSlotConflictFn            func(ctx context.Context, rackID uuid.UUID, side string, startU, endU int32) (int64, error)
-	createRackSlotFn               func(ctx context.Context, params dbgen.CreateRackSlotParams) (*dbgen.RackSlot, error)
+	createRackSlotFn               func(ctx context.Context, tenantID uuid.UUID, params dbgen.CreateRackSlotParams) (*dbgen.RackSlot, error)
 	deleteRackSlotFn               func(ctx context.Context, tenantID, slotID uuid.UUID) error
 	getImpactPathFn                func(ctx context.Context, tenantID, rootAssetID uuid.UUID, maxDepth int, direction topology.ImpactDirection) ([]topology.ImpactEdge, error)
 	getImpactPathAtFn              func(ctx context.Context, tenantID, rootAssetID uuid.UUID, maxDepth int, direction topology.ImpactDirection, atTime *time.Time) ([]topology.ImpactEdge, error)
@@ -121,8 +121,8 @@ func (m *mockTopologyService) ListRackSlots(ctx context.Context, rackID uuid.UUI
 func (m *mockTopologyService) CheckSlotConflict(ctx context.Context, rackID uuid.UUID, side string, startU, endU int32) (int64, error) {
 	return m.checkSlotConflictFn(ctx, rackID, side, startU, endU)
 }
-func (m *mockTopologyService) CreateRackSlot(ctx context.Context, params dbgen.CreateRackSlotParams) (*dbgen.RackSlot, error) {
-	return m.createRackSlotFn(ctx, params)
+func (m *mockTopologyService) CreateRackSlot(ctx context.Context, tenantID uuid.UUID, params dbgen.CreateRackSlotParams) (*dbgen.RackSlot, error) {
+	return m.createRackSlotFn(ctx, tenantID, params)
 }
 func (m *mockTopologyService) DeleteRackSlot(ctx context.Context, tenantID, slotID uuid.UUID) error {
 	return m.deleteRackSlotFn(ctx, tenantID, slotID)

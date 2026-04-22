@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -23,7 +24,8 @@ func (s *APIServer) GetAlertsTrend(c *gin.Context) {
 
 	hours := c.DefaultQuery("hours", "24")
 
-	rows, err := s.pool.Query(c.Request.Context(), `
+	sc := database.Scope(s.pool, tenantID)
+	rows, err := sc.Query(c.Request.Context(), `
 		SELECT
 			date_trunc('hour', fired_at)                            AS hour,
 			count(*) FILTER (WHERE severity = 'critical')           AS critical,
@@ -34,7 +36,7 @@ func (s *APIServer) GetAlertsTrend(c *gin.Context) {
 		  AND fired_at > now() - ($2 || ' hours')::interval
 		GROUP BY hour
 		ORDER BY hour
-	`, tenantID, hours)
+	`, hours)
 	if err != nil {
 		response.InternalError(c, "failed to query alerts trend")
 		return

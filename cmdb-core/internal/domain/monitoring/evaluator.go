@@ -540,6 +540,7 @@ func parseCondition(raw json.RawMessage) (RuleCondition, error) {
 	return cond, nil
 }
 
+//tenantlint:allow-direct-pool — poolAdapter is a multi-tenant pass-through; tenant scoping is enforced by the evaluator's SQL (WHERE tenant_id = $1)
 // poolAdapter wraps a *pgxpool.Pool to satisfy the aggregateQuerier interface
 // that tests mock. The method signatures match pgxpool.Pool exactly, so the
 // adapter is a zero-cost wrapper at runtime.

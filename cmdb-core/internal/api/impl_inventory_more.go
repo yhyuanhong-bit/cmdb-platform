@@ -1,5 +1,7 @@
 package api
 
+//tenantlint:allow-direct-pool — inventory_items lacks tenant_id; scoped via task FK chain
+
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

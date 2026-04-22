@@ -8,6 +8,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -115,7 +116,7 @@ func (s *Service) Create(ctx context.Context, params dbgen.CreateAssetParams) (*
 	if err != nil {
 		return nil, fmt.Errorf("create asset: %w", err)
 	}
-	s.incrementSyncVersion(ctx, "assets", a.ID)
+	s.incrementSyncVersion(ctx, "assets", a.ID, params.TenantID)
 	return &a, nil
 }
 
@@ -125,7 +126,7 @@ func (s *Service) Update(ctx context.Context, params dbgen.UpdateAssetParams) (*
 	if err != nil {
 		return nil, fmt.Errorf("update asset: %w", err)
 	}
-	s.incrementSyncVersion(ctx, "assets", a.ID)
+	s.incrementSyncVersion(ctx, "assets", a.ID, a.TenantID)
 	return &a, nil
 }
 
@@ -147,7 +148,7 @@ func (s *Service) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	if err := s.queries.DeleteAsset(ctx, dbgen.DeleteAssetParams{ID: id, TenantID: tenantID}); err != nil {
 		return fmt.Errorf("delete asset: %w", err)
 	}
-	s.incrementSyncVersion(ctx, "assets", id)
+	s.incrementSyncVersion(ctx, "assets", id, tenantID)
 	return nil
 }
 
@@ -267,11 +268,13 @@ func (s *Service) BumpAccessMany(ctx context.Context, tenantID uuid.UUID, assetI
 	return nil
 }
 
-func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uuid.UUID) {
+func (s *Service) incrementSyncVersion(ctx context.Context, table string, id, tenantID uuid.UUID) {
 	if s.pool == nil {
 		return
 	}
-	if _, err := s.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", table), id); err != nil {
+	tableIdent := pgx.Identifier{table}.Sanitize()
+	sc := database.Scope(s.pool, tenantID)
+	if _, err := sc.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $2 AND tenant_id = $1", tableIdent), id); err != nil {
 		zap.L().Error("asset: failed to increment sync_version", zap.String("table", table), zap.Error(err))
 	}
 }

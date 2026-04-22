@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -91,6 +92,7 @@ func (s *APIServer) GetCapacityPlanning(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 	ctx := c.Request.Context()
 
+	sc := database.Scope(s.pool, tenantID)
 	var forecasts []CapacityForecast
 
 	// ============================================================
@@ -99,21 +101,21 @@ func (s *APIServer) GetCapacityPlanning(c *gin.Context) {
 
 	// 1a. Rack U-slot capacity — derive used_u from rack_slots
 	var totalU float64
-	if err := s.pool.QueryRow(ctx,
+	if err := sc.QueryRow(ctx,
 		"SELECT COALESCE(SUM(total_u), 0) FROM racks WHERE tenant_id = $1 AND deleted_at IS NULL",
-		tenantID).Scan(&totalU); err != nil {
+	).Scan(&totalU); err != nil {
 		zap.L().Error("capacity: failed to sum rack total_u", zap.Error(err))
 		response.InternalError(c, "failed to query capacity planning")
 		return
 	}
 
 	var usedU float64
-	if err := s.pool.QueryRow(ctx,
+	if err := sc.QueryRow(ctx,
 		`SELECT COALESCE(SUM(rs.end_u - rs.start_u + 1), 0)
 		 FROM rack_slots rs
 		 JOIN racks r ON r.id = rs.rack_id
 		 WHERE r.tenant_id = $1 AND r.deleted_at IS NULL`,
-		tenantID).Scan(&usedU); err != nil {
+	).Scan(&usedU); err != nil {
 		zap.L().Error("capacity: failed to sum used_u", zap.Error(err))
 		response.InternalError(c, "failed to query capacity planning")
 		return
@@ -123,10 +125,10 @@ func (s *APIServer) GetCapacityPlanning(c *gin.Context) {
 		pct := usedU / totalU * 100
 		// Get monthly asset-creation rate (new assets per month over last 6 months)
 		var monthlyData []float64
-		rows, err := s.pool.Query(ctx,
+		rows, err := sc.Query(ctx,
 			`SELECT date_trunc('month', created_at) AS m, COUNT(*)
 			 FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL AND created_at > now() - interval '6 months'
-			 GROUP BY m ORDER BY m`, tenantID)
+			 GROUP BY m ORDER BY m`)
 		if err != nil {
 			zap.L().Error("capacity: failed to query asset monthly rate", zap.Error(err))
 			response.InternalError(c, "failed to query capacity planning")
@@ -170,9 +172,9 @@ func (s *APIServer) GetCapacityPlanning(c *gin.Context) {
 
 	// 1b. Power capacity — only total_capacity is available; skip current if no sensor data
 	var totalPower float64
-	if err := s.pool.QueryRow(ctx,
+	if err := sc.QueryRow(ctx,
 		"SELECT COALESCE(SUM(power_capacity_kw), 0) FROM racks WHERE tenant_id = $1 AND deleted_at IS NULL",
-		tenantID).Scan(&totalPower); err != nil {
+	).Scan(&totalPower); err != nil {
 		zap.L().Error("capacity: failed to sum power_capacity_kw", zap.Error(err))
 		response.InternalError(c, "failed to query capacity planning")
 		return
@@ -195,19 +197,19 @@ func (s *APIServer) GetCapacityPlanning(c *gin.Context) {
 
 	// 1c. Asset growth trend
 	var totalAssets float64
-	if err := s.pool.QueryRow(ctx,
+	if err := sc.QueryRow(ctx,
 		"SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL",
-		tenantID).Scan(&totalAssets); err != nil {
+	).Scan(&totalAssets); err != nil {
 		zap.L().Error("capacity: failed to count assets", zap.Error(err))
 		response.InternalError(c, "failed to query capacity planning")
 		return
 	}
 
 	var assetMonthly []float64
-	rows2, err := s.pool.Query(ctx,
+	rows2, err := sc.Query(ctx,
 		`SELECT date_trunc('month', created_at) AS m, COUNT(*)
 		 FROM assets WHERE tenant_id = $1 AND deleted_at IS NULL AND created_at > now() - interval '6 months'
-		 GROUP BY m ORDER BY m`, tenantID)
+		 GROUP BY m ORDER BY m`)
 	if err != nil {
 		zap.L().Error("capacity: failed to query asset monthly growth", zap.Error(err))
 		response.InternalError(c, "failed to query capacity planning")
@@ -253,10 +255,10 @@ func (s *APIServer) GetCapacityPlanning(c *gin.Context) {
 
 	for _, mt := range metricTypes {
 		var monthly []float64
-		mrows, err := s.pool.Query(ctx,
+		mrows, err := sc.Query(ctx,
 			`SELECT date_trunc('month', time) AS m, avg(value)
 			 FROM metrics WHERE tenant_id = $1 AND name = $2 AND time > now() - interval '6 months'
-			 GROUP BY m ORDER BY m`, tenantID, mt.name)
+			 GROUP BY m ORDER BY m`, mt.name)
 		if err != nil {
 			zap.L().Error("capacity: failed to query device metric", zap.String("metric", mt.name), zap.Error(err))
 			response.InternalError(c, "failed to query capacity planning")

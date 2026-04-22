@@ -12,6 +12,7 @@ import (
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -112,8 +113,8 @@ func (s *Service) CreateTx(ctx context.Context, tx pgx.Tx, tenantID, requestorID
 // this once their tx commits successfully. A failure here is non-fatal —
 // sync_version only drives edge-to-central replication and is reconciled
 // by the next real update.
-func (s *Service) BumpSyncVersionAfterCreate(ctx context.Context, orderID uuid.UUID) {
-	s.incrementSyncVersion(ctx, "work_orders", orderID)
+func (s *Service) BumpSyncVersionAfterCreate(ctx context.Context, orderID, tenantID uuid.UUID) {
+	s.incrementSyncVersion(ctx, "work_orders", orderID, tenantID)
 }
 
 // createWith holds the shared insert+log logic for Create / CreateTx.
@@ -175,7 +176,7 @@ func (s *Service) createWith(
 		return nil, fmt.Errorf("create work order: %w", err)
 	}
 	if bumpSyncVersion {
-		s.incrementSyncVersion(ctx, "work_orders", order.ID)
+		s.incrementSyncVersion(ctx, "work_orders", order.ID, tenantID)
 	}
 
 	// Create initial log entry
@@ -244,7 +245,7 @@ func (s *Service) TransitionExecution(ctx context.Context, tenantID, id, operato
 		return nil, fmt.Errorf("update execution_status: %w", err)
 	}
 
-	s.incrementSyncVersion(ctx, "work_orders", id)
+	s.incrementSyncVersion(ctx, "work_orders", id, tenantID)
 
 	_, _ = s.queries.CreateWorkOrderLog(ctx, dbgen.CreateWorkOrderLogParams{
 		OrderID:    id,
@@ -318,7 +319,7 @@ func (s *Service) TransitionGovernance(ctx context.Context, tenantID, id, operat
 		return nil, fmt.Errorf("update governance_status: %w", err)
 	}
 
-	s.incrementSyncVersion(ctx, "work_orders", id)
+	s.incrementSyncVersion(ctx, "work_orders", id, tenantID)
 
 	logParams := dbgen.CreateWorkOrderLogParams{
 		OrderID:    id,
@@ -381,7 +382,7 @@ func (s *Service) TransitionEmergencyAtomic(ctx context.Context, tenantID, order
 		return nil, fmt.Errorf("atomic emergency transition: %w", err)
 	}
 
-	s.incrementSyncVersion(ctx, "work_orders", orderID)
+	s.incrementSyncVersion(ctx, "work_orders", orderID, tenantID)
 
 	// Best-effort audit trail. Failing to write the log should not roll back
 	// a successful state transition — the transition is the source of truth.
@@ -475,11 +476,13 @@ func (s *Service) ListLogs(ctx context.Context, orderID uuid.UUID) ([]dbgen.Work
 	return logs, nil
 }
 
-func (s *Service) incrementSyncVersion(ctx context.Context, table string, id uuid.UUID) {
+func (s *Service) incrementSyncVersion(ctx context.Context, table string, id, tenantID uuid.UUID) {
 	if s.pool == nil {
 		return
 	}
-	if _, err := s.pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $1", table), id); err != nil {
+	tableIdent := pgx.Identifier{table}.Sanitize()
+	sc := database.Scope(s.pool, tenantID)
+	if _, err := sc.Exec(ctx, fmt.Sprintf("UPDATE %s SET sync_version = sync_version + 1 WHERE id = $2 AND tenant_id = $1", tableIdent), id); err != nil {
 		zap.L().Error("maintenance: failed to increment sync_version", zap.String("table", table), zap.Error(err))
 	}
 }

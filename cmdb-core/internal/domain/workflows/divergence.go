@@ -22,6 +22,8 @@ import (
 	"go.uber.org/zap"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant configuration drift detector
+
 const (
 	// divergenceCheckInterval is how often the sampler runs when enabled.
 	divergenceCheckInterval = 15 * time.Minute

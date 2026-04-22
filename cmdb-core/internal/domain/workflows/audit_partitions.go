@@ -8,6 +8,8 @@ import (
 	"go.uber.org/zap"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant audit partition maintenance
+
 // sourceAuditPartitionSample is the ErrorsSuppressedTotal label for a
 // failed partition-count sample. Using a dedicated label keeps the
 // partition-sampler failures distinct from workflow-level DB errors.

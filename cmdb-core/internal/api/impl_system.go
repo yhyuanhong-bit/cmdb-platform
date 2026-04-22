@@ -1,5 +1,7 @@
 package api
 
+//tenantlint:allow-direct-pool — health-check SELECT 1 is deliberately cross-tenant
+
 import (
 	"time"
 

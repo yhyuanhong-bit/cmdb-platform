@@ -48,6 +48,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant key rotation tool
+
 type tableStats struct {
 	name       string
 	candidate  int64

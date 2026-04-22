@@ -11,6 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant SLA breach scheduler
+
 // Source labels for telemetry.ErrorsSuppressedTotal.
 const (
 	sourceSLABreach  = "workflows.sla.checkSLABreaches"

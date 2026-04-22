@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -14,8 +15,9 @@ import (
 // Returns total rack count, total U capacity, used U slots, and occupancy percentage.
 func (s *APIServer) GetRackStats(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
+	sc := database.Scope(s.pool, tenantID)
 
-	row := s.pool.QueryRow(c.Request.Context(), `
+	row := sc.QueryRow(c.Request.Context(), `
 		SELECT
 			count(DISTINCT r.id)         AS total_racks,
 			COALESCE(sum(r.total_u), 0)  AS total_u,
@@ -23,7 +25,7 @@ func (s *APIServer) GetRackStats(c *gin.Context) {
 		FROM racks r
 		LEFT JOIN rack_slots rs ON rs.rack_id = r.id
 		WHERE r.tenant_id = $1
-	`, tenantID)
+	`)
 
 	var totalRacks, totalU, usedSlots int64
 	if err := row.Scan(&totalRacks, &totalU, &usedSlots); err != nil {
@@ -63,17 +65,18 @@ type rackMaintenanceRecord struct {
 func (s *APIServer) GetRackMaintenance(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
 	rackID := uuid.UUID(id)
+	sc := database.Scope(s.pool, tenantID)
 
-	rows, err := s.pool.Query(c.Request.Context(), `
+	rows, err := sc.Query(c.Request.Context(), `
 		SELECT
 			wo.id, wo.code, wo.title, wo.type, wo.status, wo.priority,
 			wo.scheduled_start, wo.actual_start, wo.actual_end, wo.created_at
 		FROM work_orders wo
 		JOIN assets a ON wo.asset_id = a.id
-		WHERE a.rack_id = $1 AND a.tenant_id = $2 AND wo.tenant_id = $2
+		WHERE a.rack_id = $2 AND a.tenant_id = $1 AND wo.tenant_id = $1
 		ORDER BY wo.created_at DESC
 		LIMIT 20
-	`, rackID, tenantID)
+	`, rackID)
 	if err != nil {
 		response.InternalError(c, "failed to query rack maintenance")
 		return

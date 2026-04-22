@@ -11,6 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
+//tenantlint:allow-direct-pool — cross-tenant data cleanup scheduler
+
 // Webhook retention windows (in days). Exported as constants so tests
 // don't drift from production values.
 const (

@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 )
 
@@ -46,11 +47,12 @@ func (s *APIServer) GetAssetRUL(c *gin.Context, id IdPath) {
 		attrBytes []byte
 		createdAt time.Time
 	)
-	err := s.pool.QueryRow(c.Request.Context(), `
+	sc := database.Scope(s.pool, tenantID)
+	err := sc.QueryRow(c.Request.Context(), `
 		SELECT name, type, attributes, created_at
 		FROM assets
-		WHERE id = $1 AND tenant_id = $2
-	`, assetID, tenantID).Scan(&name, &assetType, &attrBytes, &createdAt)
+		WHERE id = $2 AND tenant_id = $1
+	`, assetID).Scan(&name, &assetType, &attrBytes, &createdAt)
 	if err != nil {
 		response.NotFound(c, "asset not found")
 		return
@@ -159,13 +161,15 @@ func (s *APIServer) GetFailureDistribution(c *gin.Context) {
 		"Other":      0,
 	}
 
+	sc := database.Scope(s.pool, tenantID)
+
 	// Query alert_events for last 90 days
-	alertRows, err := s.pool.Query(c.Request.Context(), `
+	alertRows, err := sc.Query(c.Request.Context(), `
 		SELECT message
 		FROM alert_events
 		WHERE tenant_id = $1
 		  AND fired_at > now() - INTERVAL '90 days'
-	`, tenantID)
+	`)
 	if err != nil {
 		response.InternalError(c, "failed to query alert events")
 		return
@@ -183,12 +187,12 @@ func (s *APIServer) GetFailureDistribution(c *gin.Context) {
 	alertRows.Close()
 
 	// Query work_orders for last 90 days
-	woRows, err := s.pool.Query(c.Request.Context(), `
+	woRows, err := sc.Query(c.Request.Context(), `
 		SELECT type, title
 		FROM work_orders
 		WHERE tenant_id = $1
 		  AND created_at > now() - INTERVAL '90 days'
-	`, tenantID)
+	`)
 	if err != nil {
 		response.InternalError(c, "failed to query work orders")
 		return
@@ -260,10 +264,11 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context, id IdPath) {
 	var eolDate sql.NullTime
 	var warrantyEnd sql.NullTime
 
-	err := s.pool.QueryRow(c.Request.Context(), `
+	sc := database.Scope(s.pool, tenantID)
+	err := sc.QueryRow(c.Request.Context(), `
 		SELECT type, attributes, COALESCE(bia_level, 'normal'), eol_date, warranty_end, model
-		FROM assets WHERE id = $1 AND tenant_id = $2
-	`, assetID, tenantID).Scan(&assetType, &attrBytes, &biaLevel, &eolDate, &warrantyEnd, &assetModel)
+		FROM assets WHERE id = $2 AND tenant_id = $1
+	`, assetID).Scan(&assetType, &attrBytes, &biaLevel, &eolDate, &warrantyEnd, &assetModel)
 	if err != nil {
 		response.NotFound(c, "asset not found")
 		return
@@ -283,11 +288,11 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context, id IdPath) {
 	}
 
 	// Load upgrade rules for this asset_type and tenant
-	ruleRows, err := s.pool.Query(c.Request.Context(), `
+	ruleRows, err := sc.Query(c.Request.Context(), `
 		SELECT id, category, metric_name, threshold, duration_days, priority, recommendation
 		FROM upgrade_rules
 		WHERE tenant_id = $1 AND asset_type = $2 AND enabled = true
-	`, tenantID, assetType)
+	`, assetType)
 	if err != nil {
 		response.InternalError(c, "failed to query upgrade rules")
 		return
@@ -341,12 +346,13 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context, id IdPath) {
 	for _, r := range rules {
 		// Query average metric value over duration_days
 		var avgValue float64
-		err := s.pool.QueryRow(c.Request.Context(), `
+		err := sc.QueryRow(c.Request.Context(), `
 			SELECT COALESCE(avg(value), 0)
 			FROM metrics
-			WHERE asset_id = $1
-			  AND name = $2
-			  AND time > now() - ($3 || ' days')::interval
+			WHERE tenant_id = $1
+			  AND asset_id = $2
+			  AND name = $3
+			  AND time > now() - ($4 || ' days')::interval
 		`, assetID, r.metricName, r.durationDays).Scan(&avgValue)
 		if err != nil {
 			continue
@@ -354,10 +360,10 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context, id IdPath) {
 
 		// 2b. P95 check alongside average
 		var p95Value float64
-		s.pool.QueryRow(c.Request.Context(), `
+		sc.QueryRow(c.Request.Context(), `
 			SELECT COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY value), 0)
 			FROM metrics
-			WHERE asset_id = $1 AND name = $2 AND time > now() - ($3 || ' days')::interval
+			WHERE tenant_id = $1 AND asset_id = $2 AND name = $3 AND time > now() - ($4 || ' days')::interval
 		`, assetID, r.metricName, r.durationDays).Scan(&p95Value)
 
 		// Trigger if avg > threshold OR p95 > threshold * 1.1
@@ -404,18 +410,18 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context, id IdPath) {
 
 	// Item 7: Composite load score — weighted combination of CPU, RAM, disk metrics
 	var cpuAvg, memAvg, diskAvg float64
-	if err := s.pool.QueryRow(c.Request.Context(),
-		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE asset_id = $1 AND name = 'cpu_usage' AND time > now() - interval '7 days'",
+	if err := sc.QueryRow(c.Request.Context(),
+		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE tenant_id = $1 AND asset_id = $2 AND name = 'cpu_usage' AND time > now() - interval '7 days'",
 		assetID).Scan(&cpuAvg); err != nil {
 		zap.L().Error("prediction: failed to query cpu_usage", zap.Error(err))
 	}
-	if err := s.pool.QueryRow(c.Request.Context(),
-		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE asset_id = $1 AND name = 'memory_usage' AND time > now() - interval '7 days'",
+	if err := sc.QueryRow(c.Request.Context(),
+		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE tenant_id = $1 AND asset_id = $2 AND name = 'memory_usage' AND time > now() - interval '7 days'",
 		assetID).Scan(&memAvg); err != nil {
 		zap.L().Error("prediction: failed to query memory_usage", zap.Error(err))
 	}
-	if err := s.pool.QueryRow(c.Request.Context(),
-		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE asset_id = $1 AND name = 'disk_usage' AND time > now() - interval '7 days'",
+	if err := sc.QueryRow(c.Request.Context(),
+		"SELECT COALESCE(avg(value), 0) FROM metrics WHERE tenant_id = $1 AND asset_id = $2 AND name = 'disk_usage' AND time > now() - interval '7 days'",
 		assetID).Scan(&diskAvg); err != nil {
 		zap.L().Error("prediction: failed to query disk_usage", zap.Error(err))
 	}
@@ -440,13 +446,13 @@ func (s *APIServer) GetAssetUpgradeRecommendations(c *gin.Context, id IdPath) {
 		for i := range recommendations {
 			var peerAvg float64
 			var peerCount int
-			if err := s.pool.QueryRow(c.Request.Context(),
+			if err := sc.QueryRow(c.Request.Context(),
 				`SELECT COALESCE(avg(m.value), 0), COUNT(DISTINCT m.asset_id)
 				 FROM metrics m JOIN assets a ON m.asset_id = a.id
 				 WHERE a.tenant_id = $1 AND a.model = $2 AND a.id != $3
 				   AND m.name = $4 AND m.time > now() - interval '7 days'
 				   AND a.deleted_at IS NULL`,
-				tenantID, assetModel.String, assetID, recommendations[i].MetricName,
+				assetModel.String, assetID, recommendations[i].MetricName,
 			).Scan(&peerAvg, &peerCount); err != nil {
 				zap.L().Error("prediction: failed to query peer metrics", zap.String("metric", recommendations[i].MetricName), zap.Error(err))
 			}
@@ -533,16 +539,18 @@ func (s *APIServer) AcceptUpgradeRecommendation(c *gin.Context, id IdPath, categ
 	tenantID := tenantIDFromContext(c)
 	userID := userIDFromContext(c)
 
+	sc := database.Scope(s.pool, tenantID)
+
 	// Get the matching rule for this asset + category
 	var ruleRecommendation string
 	var assetType string
-	err := s.pool.QueryRow(c.Request.Context(), `
+	err := sc.QueryRow(c.Request.Context(), `
 		SELECT ur.recommendation, a.type
 		FROM upgrade_rules ur
 		JOIN assets a ON a.type = ur.asset_type AND a.tenant_id = ur.tenant_id
-		WHERE a.id = $1 AND ur.category = $2 AND ur.tenant_id = $3 AND ur.enabled = true
+		WHERE a.id = $2 AND ur.category = $3 AND ur.tenant_id = $1 AND ur.enabled = true
 		LIMIT 1
-	`, assetUUID, category, tenantID).Scan(&ruleRecommendation, &assetType)
+	`, assetUUID, category).Scan(&ruleRecommendation, &assetType)
 	if err != nil {
 		response.NotFound(c, "no matching upgrade rule found")
 		return
@@ -572,13 +580,14 @@ func (s *APIServer) AcceptUpgradeRecommendation(c *gin.Context, id IdPath, categ
 // Returns all upgrade rules for the current tenant.
 func (s *APIServer) GetUpgradeRules(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
+	sc := database.Scope(s.pool, tenantID)
 
-	rows, err := s.pool.Query(c.Request.Context(), `
+	rows, err := sc.Query(c.Request.Context(), `
 		SELECT id, asset_type, category, metric_name, threshold, duration_days, priority, recommendation, enabled
 		FROM upgrade_rules
 		WHERE tenant_id = $1
 		ORDER BY asset_type, category
-	`, tenantID)
+	`)
 	if err != nil {
 		response.InternalError(c, "failed to query upgrade rules")
 		return
@@ -617,6 +626,7 @@ func (s *APIServer) GetUpgradeRules(c *gin.Context) {
 // Creates a new upgrade rule for the current tenant.
 func (s *APIServer) CreateUpgradeRule(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
+	sc := database.Scope(s.pool, tenantID)
 
 	var body struct {
 		AssetType      string  `json:"asset_type" binding:"required"`
@@ -646,10 +656,10 @@ func (s *APIServer) CreateUpgradeRule(c *gin.Context) {
 	}
 
 	newID := uuid.New()
-	_, err := s.pool.Exec(c.Request.Context(), `
+	_, err := sc.Exec(c.Request.Context(), `
 		INSERT INTO upgrade_rules (id, tenant_id, asset_type, category, metric_name, threshold, duration_days, priority, recommendation, enabled, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
-	`, newID, tenantID, body.AssetType, body.Category, body.MetricName, body.Threshold, body.DurationDays, body.Priority, body.Recommendation, enabled)
+		VALUES ($2, $1, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
+	`, newID, body.AssetType, body.Category, body.MetricName, body.Threshold, body.DurationDays, body.Priority, body.Recommendation, enabled)
 	if err != nil {
 		response.InternalError(c, "failed to create upgrade rule")
 		return
@@ -678,7 +688,8 @@ func (s *APIServer) UpdateUpgradeRule(c *gin.Context, id IdPath) {
 		p := string(*body.Priority)
 		priority = &p
 	}
-	tag, err := s.pool.Exec(c.Request.Context(), `
+	sc := database.Scope(s.pool, tenantID)
+	tag, err := sc.Exec(c.Request.Context(), `
 		UPDATE upgrade_rules SET
 		  threshold      = COALESCE($3, threshold),
 		  duration_days  = COALESCE($4, duration_days),
@@ -686,8 +697,8 @@ func (s *APIServer) UpdateUpgradeRule(c *gin.Context, id IdPath) {
 		  recommendation = COALESCE($6, recommendation),
 		  enabled        = COALESCE($7, enabled),
 		  updated_at     = now()
-		WHERE id = $1 AND tenant_id = $2
-	`, ruleID, tenantID, body.Threshold, body.DurationDays, priority, body.Recommendation, body.Enabled)
+		WHERE id = $2 AND tenant_id = $1
+	`, ruleID, body.Threshold, body.DurationDays, priority, body.Recommendation, body.Enabled)
 	if err != nil {
 		response.InternalError(c, "failed to update upgrade rule")
 		return
@@ -704,7 +715,8 @@ func (s *APIServer) UpdateUpgradeRule(c *gin.Context, id IdPath) {
 func (s *APIServer) DeleteUpgradeRule(c *gin.Context, id IdPath) {
 	ruleID := uuid.UUID(id)
 	tenantID := tenantIDFromContext(c)
-	tag, err := s.pool.Exec(c.Request.Context(), "DELETE FROM upgrade_rules WHERE id = $1 AND tenant_id = $2", ruleID, tenantID)
+	sc := database.Scope(s.pool, tenantID)
+	tag, err := sc.Exec(c.Request.Context(), "DELETE FROM upgrade_rules WHERE id = $2 AND tenant_id = $1", ruleID)
 	if err != nil {
 		zap.L().Error("failed to delete upgrade rule", zap.String("id", ruleID.String()), zap.Error(err))
 		response.InternalError(c, "failed to delete rule")

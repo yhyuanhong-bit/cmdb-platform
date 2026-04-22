@@ -3,6 +3,7 @@ package api
 import (
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -17,7 +18,8 @@ func (s *APIServer) GetActivityFeed(c *gin.Context, params GetActivityFeedParams
 	targetType := string(params.TargetType)
 	targetID := uuid.UUID(params.TargetId).String()
 
-	rows, err := s.pool.Query(c.Request.Context(), `
+	sc := database.Scope(s.pool, tenantID)
+	rows, err := sc.Query(c.Request.Context(), `
 		SELECT event_type, action, description, timestamp, severity, operator
 		FROM (
 			-- Arm 1: audit events
@@ -30,11 +32,11 @@ func (s *APIServer) GetActivityFeed(c *gin.Context, params GetActivityFeedParams
 				COALESCE(u.display_name, '') AS operator
 			FROM audit_events ae
 			LEFT JOIN users u ON ae.operator_id = u.id
-			WHERE ae.tenant_id = $3
+			WHERE ae.tenant_id = $1
 			  AND (
-				  ($1 = 'rack'     AND ae.target_type = 'rack'     AND ae.target_id::text = $2)
-				  OR ($1 = 'asset'    AND ae.target_type = 'asset'    AND ae.target_id::text = $2)
-				  OR ($1 = 'location' AND ae.target_type = 'location' AND ae.target_id::text = $2)
+				  ($2 = 'rack'     AND ae.target_type = 'rack'     AND ae.target_id::text = $3)
+				  OR ($2 = 'asset'    AND ae.target_type = 'asset'    AND ae.target_id::text = $3)
+				  OR ($2 = 'location' AND ae.target_type = 'location' AND ae.target_id::text = $3)
 			  )
 
 			UNION ALL
@@ -49,11 +51,11 @@ func (s *APIServer) GetActivityFeed(c *gin.Context, params GetActivityFeedParams
 				''                                         AS operator
 			FROM alert_events ale
 			JOIN assets a ON ale.asset_id = a.id
-			WHERE ale.tenant_id = $3
+			WHERE ale.tenant_id = $1
 			  AND (
-				  ($1 = 'asset'    AND ale.asset_id::text = $2)
-				  OR ($1 = 'rack'  AND a.rack_id::text   = $2)
-				  OR ($1 = 'location' AND a.location_id::text = $2)
+				  ($2 = 'asset'    AND ale.asset_id::text = $3)
+				  OR ($2 = 'rack'  AND a.rack_id::text   = $3)
+				  OR ($2 = 'location' AND a.location_id::text = $3)
 			  )
 
 			UNION ALL
@@ -70,16 +72,16 @@ func (s *APIServer) GetActivityFeed(c *gin.Context, params GetActivityFeedParams
 			JOIN work_orders wo ON wol.order_id = wo.id
 			JOIN assets a2      ON wo.asset_id = a2.id
 			LEFT JOIN users u2  ON wol.operator_id = u2.id
-			WHERE wo.tenant_id = $3
+			WHERE wo.tenant_id = $1
 			  AND (
-				  ($1 = 'asset'    AND wo.asset_id::text   = $2)
-				  OR ($1 = 'rack'  AND a2.rack_id::text    = $2)
-				  OR ($1 = 'location' AND a2.location_id::text = $2)
+				  ($2 = 'asset'    AND wo.asset_id::text   = $3)
+				  OR ($2 = 'rack'  AND a2.rack_id::text    = $3)
+				  OR ($2 = 'location' AND a2.location_id::text = $3)
 			  )
 		) combined
 		ORDER BY timestamp DESC
 		LIMIT 20
-	`, targetType, targetID, tenantID)
+	`, targetType, targetID)
 	if err != nil {
 		response.InternalError(c, "failed to query activity feed")
 		return
@@ -112,7 +114,8 @@ func (s *APIServer) GetAuditEventDetail(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
 	eventID := uuid.UUID(id)
 
-	row := s.pool.QueryRow(c.Request.Context(), `
+	sc := database.Scope(s.pool, tenantID)
+	row := sc.QueryRow(c.Request.Context(), `
 		SELECT
 			ae.id,
 			ae.action,
@@ -127,8 +130,8 @@ func (s *APIServer) GetAuditEventDetail(c *gin.Context, id IdPath) {
 			COALESCE(u.email, '')        AS email
 		FROM audit_events ae
 		LEFT JOIN users u ON ae.operator_id = u.id
-		WHERE ae.id = $1 AND ae.tenant_id = $2
-	`, eventID, tenantID)
+		WHERE ae.id = $2 AND ae.tenant_id = $1
+	`, eventID)
 
 	var eventIDStr, action, module, targetType, source, displayName, email string
 	var diff []byte
