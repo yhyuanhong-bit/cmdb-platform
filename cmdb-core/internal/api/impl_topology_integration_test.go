@@ -260,7 +260,9 @@ func TestIntegration_CreateAssetDependency_Unique(t *testing.T) {
 	defer pool.Close()
 	fix := setupDepFixture(t, pool)
 
-	s := &APIServer{pool: pool}
+	// Duplicate path now goes through the topology service's typed
+	// ErrDependencyExists, so the APIServer needs the svc wired.
+	s := newImpactServer(pool)
 
 	// Attempt to insert a duplicate of depA (same src/tgt/type) for
 	// tenantA. Must be 409.
@@ -585,13 +587,14 @@ func TestIntegration_CreateAssetDependency_CategoryPersisted(t *testing.T) {
 	defer pool.Close()
 	fix := setupDepFixture(t, pool)
 
-	s := &APIServer{pool: pool}
+	s := newImpactServer(pool)
 
 	// Use a fresh (src,tgt,type) combo so we don't collide with depA's
-	// unique index. reverse direction of the A1→A2 edge.
+	// unique index. Same direction as depA (A1→A2) but a different
+	// verb — reversing would fire the cycle pre-check added in D2-P1b.
 	payload, _ := json.Marshal(map[string]string{
-		"source_asset_id":     fix.assetA2.String(),
-		"target_asset_id":     fix.assetA1.String(),
+		"source_asset_id":     fix.assetA1.String(),
+		"target_asset_id":     fix.assetA2.String(),
 		"dependency_type":     "contains",
 		"dependency_category": "containment",
 		"description":         "rack contains server",
@@ -609,7 +612,7 @@ func TestIntegration_CreateAssetDependency_CategoryPersisted(t *testing.T) {
 	if err := pool.QueryRow(context.Background(),
 		`SELECT dependency_category::text FROM asset_dependencies
 		 WHERE tenant_id=$1 AND source_asset_id=$2 AND target_asset_id=$3 AND dependency_type='contains'`,
-		fix.tenantA, fix.assetA2, fix.assetA1).Scan(&cat); err != nil {
+		fix.tenantA, fix.assetA1, fix.assetA2).Scan(&cat); err != nil {
 		t.Fatalf("fetch category: %v", err)
 	}
 	if cat != "containment" {
@@ -617,11 +620,11 @@ func TestIntegration_CreateAssetDependency_CategoryPersisted(t *testing.T) {
 	}
 
 	// Verify ListAssetDependencies echoes the category in its JSON.
-	assetA2ID := openapi_types.UUID(fix.assetA2)
+	assetA1ID := openapi_types.UUID(fix.assetA1)
 	c2, rec2 := newDepCtx(t, http.MethodGet,
-		"/topology/dependencies?asset_id="+fix.assetA2.String(),
+		"/topology/dependencies?asset_id="+fix.assetA1.String(),
 		fix.tenantA, fix.userA, nil)
-	s.ListAssetDependencies(c2, ListAssetDependenciesParams{AssetId: &assetA2ID})
+	s.ListAssetDependencies(c2, ListAssetDependenciesParams{AssetId: &assetA1ID})
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("list status = %d, want 200", rec2.Code)
 	}
@@ -659,13 +662,15 @@ func TestIntegration_CreateAssetDependency_CategoryDefault(t *testing.T) {
 	defer pool.Close()
 	fix := setupDepFixture(t, pool)
 
-	s := &APIServer{pool: pool}
+	s := newImpactServer(pool)
 
-	// Fresh edge (reverse of depA) with no category supplied.
+	// Fresh edge: same direction as depA (A1→A2) but with a different
+	// verb so the unique index on (src,tgt,type) lets it through; a
+	// reverse edge (A2→A1) would now trip the cycle pre-check.
 	payload, _ := json.Marshal(map[string]string{
-		"source_asset_id": fix.assetA2.String(),
-		"target_asset_id": fix.assetA1.String(),
-		"dependency_type": "depends_on",
+		"source_asset_id": fix.assetA1.String(),
+		"target_asset_id": fix.assetA2.String(),
+		"dependency_type": "connects_to",
 	})
 	c, rec := newDepCtx(t, http.MethodPost,
 		"/topology/dependencies",
@@ -677,8 +682,8 @@ func TestIntegration_CreateAssetDependency_CategoryDefault(t *testing.T) {
 	var cat string
 	if err := pool.QueryRow(context.Background(),
 		`SELECT dependency_category::text FROM asset_dependencies
-		 WHERE tenant_id=$1 AND source_asset_id=$2 AND target_asset_id=$3 AND dependency_type='depends_on'`,
-		fix.tenantA, fix.assetA2, fix.assetA1).Scan(&cat); err != nil {
+		 WHERE tenant_id=$1 AND source_asset_id=$2 AND target_asset_id=$3 AND dependency_type='connects_to'`,
+		fix.tenantA, fix.assetA1, fix.assetA2).Scan(&cat); err != nil {
 		t.Fatalf("fetch category: %v", err)
 	}
 	if cat != "dependency" {
@@ -694,7 +699,7 @@ func TestIntegration_CreateAssetDependency_InvalidCategory(t *testing.T) {
 	defer pool.Close()
 	fix := setupDepFixture(t, pool)
 
-	s := &APIServer{pool: pool}
+	s := newImpactServer(pool)
 
 	payload, _ := json.Marshal(map[string]string{
 		"source_asset_id":     fix.assetA2.String(),
@@ -814,6 +819,179 @@ func TestIntegration_GetTopologyImpact_CategoryPassThrough(t *testing.T) {
 		if e.DependencyCategory != "dependency" {
 			t.Errorf("edge %d category = %q, want %q", i, e.DependencyCategory, "dependency")
 		}
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Cycle detection (D2-P1b) tests
+//
+// CreateDependency pre-checks by walking downstream from the proposed
+// target; if the source is reachable, the new edge would close a loop
+// and we reject with HTTP 409 (code="dependency_cycle") before the
+// INSERT. The tests exercise:
+//
+//   - direct 2-node cycle (A→B exists, caller posts B→A)
+//   - multi-hop cycle   (A→B→C exists, caller posts C→A)
+//   - self-dependency   (A→A)
+//   - happy path        (A→B on an unrelated pair succeeds)
+//   - tenant scoping    (cycle check on tenantA's edges must not
+//                        leak into another tenant's graph)
+// ──────────────────────────────────────────────────────────────────────
+
+// postCreateDep is a terse helper that builds a request payload and
+// dispatches CreateAssetDependency for a given handler.
+func postCreateDep(t *testing.T, s *APIServer, tenantID, userID, src, tgt uuid.UUID, depType string) *httptest.ResponseRecorder {
+	t.Helper()
+	payload, _ := json.Marshal(map[string]string{
+		"source_asset_id": src.String(),
+		"target_asset_id": tgt.String(),
+		"dependency_type": depType,
+	})
+	c, rec := newDepCtx(t, http.MethodPost,
+		"/topology/dependencies",
+		tenantID, userID, payload)
+	s.CreateAssetDependency(c)
+	return rec
+}
+
+// errCodeFrom extracts the response envelope's error code. The shape
+// matches platform/response.Err: {"error":{"code":"...","message":"..."}}.
+func errCodeFrom(t *testing.T, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	var env struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal err envelope: %v — body=%s", err, rec.Body.String())
+	}
+	return env.Error.Code
+}
+
+func TestIntegration_CreateAssetDependency_DirectCycle(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	// chA→chB already exists (from fixture). Posting chB→chA closes
+	// a 2-node cycle and must be rejected with 409/dependency_cycle.
+	rec := postCreateDep(t, s, fix.tenantA, fix.userA, fix.chB, fix.chA, "depends_on")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("direct cycle status = %d, want 409 — body=%s", rec.Code, rec.Body.String())
+	}
+	if code := errCodeFrom(t, rec); code != "dependency_cycle" {
+		t.Errorf("direct cycle error code = %q, want %q", code, "dependency_cycle")
+	}
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM asset_dependencies WHERE tenant_id=$1 AND source_asset_id=$2 AND target_asset_id=$3`,
+		fix.tenantA, fix.chB, fix.chA).Scan(&n); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("cycle edge was inserted despite 409 — count=%d", n)
+	}
+}
+
+func TestIntegration_CreateAssetDependency_MultiHopCycle(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	// Chain A→B→C→D exists. Posting D→A closes a 4-node cycle; the
+	// cycle pre-check walks downstream from A (target) and finds D
+	// (source) reachable, so it rejects.
+	rec := postCreateDep(t, s, fix.tenantA, fix.userA, fix.chD, fix.chA, "depends_on")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("multi-hop cycle status = %d, want 409 — body=%s", rec.Code, rec.Body.String())
+	}
+	if code := errCodeFrom(t, rec); code != "dependency_cycle" {
+		t.Errorf("multi-hop cycle error code = %q, want %q", code, "dependency_cycle")
+	}
+}
+
+func TestIntegration_CreateAssetDependency_SelfLoop(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	// A→A is a length-1 cycle. The service rejects self-loops with a
+	// distinct error code so UI copy can distinguish "you picked the
+	// same asset twice" from "this would create a cycle".
+	rec := postCreateDep(t, s, fix.tenantA, fix.userA, fix.chA, fix.chA, "depends_on")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("self-loop status = %d, want 409 — body=%s", rec.Code, rec.Body.String())
+	}
+	if code := errCodeFrom(t, rec); code != "dependency_self" {
+		t.Errorf("self-loop error code = %q, want %q", code, "dependency_self")
+	}
+}
+
+func TestIntegration_CreateAssetDependency_NoFalsePositive(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	// chA→chD extends the chain through a different edge shape but
+	// NOT a cycle (no path D→…→A exists). Must succeed.
+	rec := postCreateDep(t, s, fix.tenantA, fix.userA, fix.chA, fix.chD, "connects_to")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("non-cycle create status = %d, want 201 — body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestIntegration_CreateAssetDependency_CycleTenantScoped(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	_ = setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	// Spin up an unrelated tenant with its own assets. The cycle
+	// pre-check inside tenantA's graph must not affect the new
+	// tenant's INSERT. Regression guard: an earlier draft of the
+	// downstream pre-check omitted tenant_id and would have scanned
+	// cross-tenant rows.
+	ctx := context.Background()
+	tenantC := uuid.New()
+	userC := uuid.New()
+	x1 := uuid.New()
+	x2 := uuid.New()
+	suff := tenantC.String()[:8]
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3)`,
+		tenantC, "imp-c-"+suff, "imp-c-"+suff); err != nil {
+		t.Fatalf("insert tenantC: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO users (id, tenant_id, username, display_name, email, password_hash)
+		 VALUES ($1, $2, $3, $4, $5, 'x')`,
+		userC, tenantC, "imp-uc-"+suff, "Imp UC", "imp-uc-"+suff+"@t.local"); err != nil {
+		t.Fatalf("insert userC: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO assets (id, tenant_id, asset_tag, name, type) VALUES
+		 ($1, $2, $3, 'x1', 'server'), ($4, $2, $5, 'x2', 'server')`,
+		x1, tenantC, "IMP-X1-"+suff, x2, "IMP-X2-"+suff); err != nil {
+		t.Fatalf("insert assets: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM asset_dependencies WHERE tenant_id=$1`, tenantC)
+		_, _ = pool.Exec(ctx, `DELETE FROM assets WHERE tenant_id=$1`, tenantC)
+		_, _ = pool.Exec(ctx, `DELETE FROM users WHERE tenant_id=$1`, tenantC)
+		_, _ = pool.Exec(ctx, `DELETE FROM tenants WHERE id=$1`, tenantC)
+	})
+
+	// x1→x2 in tenantC must succeed — tenantC starts with an empty
+	// dependency graph so the cycle check is trivially satisfied.
+	rec := postCreateDep(t, s, tenantC, userC, x1, x2, "depends_on")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("tenantC first edge status = %d, want 201 — body=%s", rec.Code, rec.Body.String())
 	}
 }
 

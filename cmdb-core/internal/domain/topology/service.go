@@ -2,7 +2,9 @@ package topology
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/google/uuid"
@@ -464,4 +466,126 @@ func (s *Service) GetImpactPath(
 	}
 
 	return edges, nil
+}
+
+// Dependency-creation errors that callers translate to HTTP status
+// codes. The handler imports them rather than string-matching on
+// err.Error() so a future rename doesn't silently change response
+// codes.
+var (
+	// ErrCycleDetected means adding the edge would create a directed
+	// cycle in the dependency graph (src and tgt would belong to the
+	// same SCC). Maps to HTTP 409 with a dedicated error code.
+	ErrCycleDetected = errors.New("dependency cycle detected")
+
+	// ErrSelfDependency means src == tgt. An asset depending on itself
+	// is always a cycle of length 1 and the recursive CTE's path guard
+	// would reject it on traversal anyway; we fail fast. Maps to 409.
+	ErrSelfDependency = errors.New("asset cannot depend on itself")
+
+	// ErrDependencyExists is the typed form of the unique-violation on
+	// (source_asset_id, target_asset_id, dependency_type). Maps to 409.
+	ErrDependencyExists = errors.New("dependency already exists")
+
+	// ErrInvalidCategory is returned if the caller somehow passes a
+	// string outside the ENUM members; the API handler validates first
+	// so this only fires on programming errors.
+	ErrInvalidCategory = errors.New("invalid dependency_category")
+)
+
+// CreateDependencyParams captures the inputs for CreateDependency.
+// Category is a string rather than dbgen.DependencyCategory because
+// the generated type lives inside an internal package the handler
+// already translates to/from; accepting a string keeps the service's
+// API surface free of dbgen leakage while the method casts at the
+// DB boundary.
+type CreateDependencyParams struct {
+	ID             uuid.UUID
+	TenantID       uuid.UUID
+	SourceAssetID  uuid.UUID
+	TargetAssetID  uuid.UUID
+	DependencyType string
+	// Category is one of: containment, dependency, communication, custom.
+	Category    string
+	Description string
+}
+
+// CreateDependency inserts a new asset dependency edge after checking
+// that the edge would not introduce a cycle.
+//
+// The pre-check walks downstream from the proposed TargetAssetID up
+// to ImpactMaxDepthCap hops. If any reachable node equals
+// SourceAssetID, the edge (src → tgt) would close the loop:
+//
+//	src → tgt → ... → src
+//
+// We reject with ErrCycleDetected before the INSERT so callers get a
+// deterministic 409 instead of a foreign-key or unique violation that
+// happens to mask the real issue.
+//
+// Self-loops (src == tgt) are rejected up front as ErrSelfDependency.
+// The unique-violation on (src, tgt, type) surfaces as
+// ErrDependencyExists so the handler doesn't have to string-match.
+//
+// Race note: this is a TOCTOU-style pre-check — between the downstream
+// query and the INSERT, another caller could race us and create the
+// back-edge. The consequence is that we'd commit an edge that now
+// forms a cycle. Catching this requires a serializable transaction
+// around both steps, which we can layer on later; for now, the window
+// is narrow and callers in practice don't race each other on the same
+// node pair. A background "find-cycles" audit job is out of scope for
+// D2-P1b.
+func (s *Service) CreateDependency(ctx context.Context, p CreateDependencyParams) error {
+	if p.SourceAssetID == p.TargetAssetID {
+		return ErrSelfDependency
+	}
+
+	// Does a path already exist from target back to source? If yes,
+	// adding src→tgt would close a cycle. We reuse the existing
+	// recursive CTE so cycle-detection semantics match the impact
+	// query exactly (same max_depth, same tenant scoping at every hop).
+	downstream, err := s.queries.GetDownstreamDependencies(ctx, dbgen.GetDownstreamDependenciesParams{
+		TenantID:    p.TenantID,
+		RootAssetID: p.TargetAssetID,
+		MaxDepth:    int32(ImpactMaxDepthCap),
+	})
+	if err != nil {
+		return fmt.Errorf("cycle pre-check: %w", err)
+	}
+	for _, r := range downstream {
+		if r.TargetAssetID == p.SourceAssetID {
+			return ErrCycleDetected
+		}
+		// Defensive: the CTE's anchor row has source == root == target,
+		// but if a future query shape ever populates source differently
+		// we still want to catch source collisions.
+		if r.SourceAssetID == p.SourceAssetID && r.Depth > 0 {
+			return ErrCycleDetected
+		}
+	}
+
+	err = s.queries.CreateAssetDependency(ctx, dbgen.CreateAssetDependencyParams{
+		ID:                 p.ID,
+		TenantID:           p.TenantID,
+		SourceAssetID:      p.SourceAssetID,
+		TargetAssetID:      p.TargetAssetID,
+		DependencyType:     p.DependencyType,
+		DependencyCategory: dbgen.DependencyCategory(p.Category),
+		Description:        pgtype.Text{String: p.Description, Valid: p.Description != ""},
+	})
+	if err != nil {
+		errStr := err.Error()
+		// pgx surfaces unique violations as err with SQLSTATE 23505;
+		// we keep a string match for robustness because the handler
+		// previously did the same. Tightening to *pgconn.PgError is a
+		// follow-up not required for the typed-error contract.
+		if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique") {
+			return ErrDependencyExists
+		}
+		if strings.Contains(errStr, "invalid input value for enum dependency_category") {
+			return ErrInvalidCategory
+		}
+		return fmt.Errorf("create dependency: %w", err)
+	}
+	return nil
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -96,19 +96,28 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 	}
 
 	newID := uuid.New()
-	err := dbgen.New(s.pool).CreateAssetDependency(c.Request.Context(), dbgen.CreateAssetDependencyParams{
-		ID:                 newID,
-		TenantID:           tenantID,
-		SourceAssetID:      srcUUID,
-		TargetAssetID:      tgtUUID,
-		DependencyType:     depType,
-		DependencyCategory: dbgen.DependencyCategory(category),
-		Description:        pgtype.Text{String: description, Valid: description != ""},
+	err := s.topologySvc.CreateDependency(c.Request.Context(), topology.CreateDependencyParams{
+		ID:             newID,
+		TenantID:       tenantID,
+		SourceAssetID:  srcUUID,
+		TargetAssetID:  tgtUUID,
+		DependencyType: depType,
+		Category:       string(category),
+		Description:    description,
 	})
 	if err != nil {
-		errStr := err.Error()
-		if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique") {
+		switch {
+		case errors.Is(err, topology.ErrSelfDependency):
+			response.Err(c, http.StatusConflict, "dependency_self", "asset cannot depend on itself")
+			return
+		case errors.Is(err, topology.ErrCycleDetected):
+			response.Err(c, http.StatusConflict, "dependency_cycle", "adding this edge would create a dependency cycle")
+			return
+		case errors.Is(err, topology.ErrDependencyExists):
 			response.Err(c, http.StatusConflict, "CONFLICT", "dependency already exists")
+			return
+		case errors.Is(err, topology.ErrInvalidCategory):
+			response.BadRequest(c, "dependency_category must be containment, dependency, communication, or custom")
 			return
 		}
 		response.InternalError(c, "failed to create dependency")
