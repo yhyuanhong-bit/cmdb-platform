@@ -666,6 +666,74 @@ func toAPIRackSlot(db dbgen.ListRackSlotsRow) RackSlot {
 }
 
 // ---------------------------------------------------------------------------
+// 23a. toAPIQualityFlag
+// ---------------------------------------------------------------------------
+
+func toAPIQualityFlag(db dbgen.QualityFlag) QualityFlag {
+	f := QualityFlag{
+		Id:           db.ID,
+		TenantId:     db.TenantID,
+		AssetId:      db.AssetID,
+		ReporterType: QualityFlagReporterType(db.ReporterType),
+		Severity:     QualityFlagSeverity(db.Severity),
+		Category:     db.Category,
+		Message:      db.Message,
+		Status:       QualityFlagStatus(db.Status),
+		CreatedAt:    db.CreatedAt,
+	}
+	if db.ReporterID.Valid {
+		rid := uuid.UUID(db.ReporterID.Bytes)
+		f.ReporterId = &rid
+	}
+	if db.ResolvedAt.Valid {
+		ra := db.ResolvedAt.Time
+		f.ResolvedAt = &ra
+	}
+	if db.ResolvedBy.Valid {
+		rb := uuid.UUID(db.ResolvedBy.Bytes)
+		f.ResolvedBy = &rb
+	}
+	if db.ResolutionNote.Valid {
+		rn := db.ResolutionNote.String
+		f.ResolutionNote = &rn
+	}
+	return f
+}
+
+func toAPIQualityFlagListItem(db dbgen.ListOpenQualityFlagsRow) QualityFlagListItem {
+	item := QualityFlagListItem{
+		Id:           db.ID,
+		TenantId:     db.TenantID,
+		AssetId:      db.AssetID,
+		ReporterType: QualityFlagListItemReporterType(db.ReporterType),
+		Severity:     QualityFlagListItemSeverity(db.Severity),
+		Category:     db.Category,
+		Message:      db.Message,
+		Status:       QualityFlagListItemStatus(db.Status),
+		CreatedAt:    db.CreatedAt,
+		AssetName:    &db.AssetName,
+		AssetTag:     &db.AssetTag,
+	}
+	if db.ReporterID.Valid {
+		rid := uuid.UUID(db.ReporterID.Bytes)
+		item.ReporterId = &rid
+	}
+	if db.ResolvedAt.Valid {
+		ra := db.ResolvedAt.Time
+		item.ResolvedAt = &ra
+	}
+	if db.ResolvedBy.Valid {
+		rb := uuid.UUID(db.ResolvedBy.Bytes)
+		item.ResolvedBy = &rb
+	}
+	if db.ResolutionNote.Valid {
+		rn := db.ResolutionNote.String
+		item.ResolutionNote = &rn
+	}
+	return item
+}
+
+// ---------------------------------------------------------------------------
 // 23. toAPIQualityRule
 // ---------------------------------------------------------------------------
 

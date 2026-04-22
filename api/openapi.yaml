@@ -3544,6 +3544,93 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /quality/flag-issue:
+    post:
+      operationId: flagQualityIssue
+      tags: [quality]
+      summary: Report a data quality issue against an asset
+      description: >
+        Consumer-side feedback loop. Downstream systems, operators, and
+        automated tools call this when they spot incorrect or stale CMDB
+        data. The next scheduled quality scan reads recent open flags
+        and applies an accuracy penalty so the score drops until the
+        flag is triaged. Resolved or rejected flags stop counting.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QualityFlagCreate'
+      responses:
+        '201':
+          description: Flag created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityFlag'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /quality/flags:
+    get:
+      operationId: listOpenQualityFlags
+      tags: [quality]
+      summary: List open quality flags for triage
+      description: >
+        Operator dashboard view. Returns up to 100 open flags sorted
+        by severity descending, then newest first.
+      responses:
+        '200':
+          description: Open flags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QualityFlagListItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /quality/flags/{id}/resolve:
+    post:
+      operationId: resolveQualityFlag
+      tags: [quality]
+      summary: Resolve or reject an open quality flag
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QualityFlagResolve'
+      responses:
+        '200':
+          description: Flag updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/QualityFlag'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   # -- Discovery (Auto-Discovery Staging Area) --------------------------------
   /discovery/pending:
     get:
@@ -5513,6 +5600,78 @@ components:
           type: number
         total_scanned:
           type: integer
+
+    # ── QualityFlag ──────────────────────────────────────────────────
+    QualityFlag:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - asset_id
+        - reporter_type
+        - severity
+        - category
+        - message
+        - status
+        - created_at
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        asset_id: { type: string, format: uuid }
+        reporter_type:
+          type: string
+          enum: [user, system, external, downstream]
+        reporter_id: { type: string, format: uuid, nullable: true }
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        category: { type: string }
+        message: { type: string }
+        status:
+          type: string
+          enum: [open, acknowledged, resolved, rejected]
+        resolved_at: { type: string, format: date-time, nullable: true }
+        resolved_by: { type: string, format: uuid, nullable: true }
+        resolution_note: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    QualityFlagListItem:
+      allOf:
+        - $ref: '#/components/schemas/QualityFlag'
+        - type: object
+          properties:
+            asset_name: { type: string, nullable: true }
+            asset_tag: { type: string, nullable: true }
+
+    QualityFlagCreate:
+      type: object
+      required:
+        - asset_id
+        - reporter_type
+        - severity
+        - category
+        - message
+      properties:
+        asset_id: { type: string, format: uuid }
+        reporter_type:
+          type: string
+          enum: [user, system, external, downstream]
+        reporter_id: { type: string, format: uuid, nullable: true }
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        category: { type: string, minLength: 1, maxLength: 64 }
+        message: { type: string, minLength: 1 }
+
+    QualityFlagResolve:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [acknowledged, resolved, rejected]
+        resolution_note: { type: string, nullable: true }
 
     # ── DiscoveredAsset ──────────────────────────────────────────────
     DiscoveredAsset:

@@ -78,6 +78,95 @@ func (s *Service) GetAssetHistory(ctx context.Context, assetID uuid.UUID) ([]dbg
 	return s.queries.GetAssetQualityHistory(ctx, assetID)
 }
 
+// FlagIssueParams is the input for FlagIssue. ReporterID is optional —
+// external/downstream reporters may not have a CMDB user identity.
+type FlagIssueParams struct {
+	TenantID     uuid.UUID
+	AssetID      uuid.UUID
+	ReporterType string
+	ReporterID   *uuid.UUID
+	Severity     string
+	Category     string
+	Message      string
+}
+
+// FlagIssue records a consumer-side report that an asset's data is
+// wrong. The scanner picks it up on its next pass via
+// countRecentFlagsByAsset and applies an accuracy penalty until the
+// flag is triaged (resolved/rejected).
+func (s *Service) FlagIssue(ctx context.Context, p FlagIssueParams) (*dbgen.QualityFlag, error) {
+	params := dbgen.CreateQualityFlagParams{
+		TenantID:     p.TenantID,
+		AssetID:      p.AssetID,
+		ReporterType: p.ReporterType,
+		Severity:     p.Severity,
+		Category:     p.Category,
+		Message:      p.Message,
+	}
+	if p.ReporterID != nil {
+		params.ReporterID = pgtype.UUID{Bytes: *p.ReporterID, Valid: true}
+	}
+	flag, err := s.queries.CreateQualityFlag(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("create quality flag: %w", err)
+	}
+	return &flag, nil
+}
+
+// ListOpenFlags returns up to 100 open flags for the tenant, sorted
+// by severity (critical first) then newest first. Used by the
+// operator triage view.
+func (s *Service) ListOpenFlags(ctx context.Context, tenantID uuid.UUID) ([]dbgen.ListOpenQualityFlagsRow, error) {
+	return s.queries.ListOpenQualityFlags(ctx, tenantID)
+}
+
+// ResolveFlag transitions an open/acknowledged flag to a terminal
+// state. Only 'acknowledged', 'resolved', 'rejected' are accepted.
+func (s *Service) ResolveFlag(ctx context.Context, tenantID, flagID uuid.UUID, newStatus string, resolvedBy *uuid.UUID, note string) (*dbgen.QualityFlag, error) {
+	params := dbgen.ResolveQualityFlagParams{
+		ID:       flagID,
+		TenantID: tenantID,
+		Status:   newStatus,
+	}
+	if resolvedBy != nil {
+		params.ResolvedBy = pgtype.UUID{Bytes: *resolvedBy, Valid: true}
+	}
+	if note != "" {
+		params.ResolutionNote = pgtype.Text{String: note, Valid: true}
+	}
+	flag, err := s.queries.ResolveQualityFlag(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("resolve quality flag: %w", err)
+	}
+	return &flag, nil
+}
+
+// flagPenalty maps how much accuracy a recent open flag shaves off.
+// Capped per-call at totalFlagPenaltyCap so a storm of low-sev
+// reports can't drive the score negative.
+const (
+	flagPenaltyLow        = 3.0
+	flagPenaltyMedium     = 7.0
+	flagPenaltyHigh       = 15.0
+	flagPenaltyCritical   = 25.0
+	totalFlagPenaltyCap   = 40.0
+	flagPenaltyDefault    = 5.0
+)
+
+// flagPenaltyFor returns the accuracy deduction for a given count
+// and severity. Severity is read from the aggregate row's implicit
+// default; the caller supplies a weighted count from the raw rows.
+func flagPenaltyFor(count int64) float64 {
+	if count <= 0 {
+		return 0
+	}
+	p := float64(count) * flagPenaltyDefault
+	if p > totalFlagPenaltyCap {
+		return totalFlagPenaltyCap
+	}
+	return p
+}
+
 // ScanTenant runs the full per-tenant quality scan and is the entry
 // point used by the scheduled scanner (Phase 2.11). It is a thin wrapper
 // around ScanAllAssets that discards the scanned-count (the scheduler
@@ -105,9 +194,38 @@ func (s *Service) ScanAllAssets(ctx context.Context, tenantID uuid.UUID) (int, e
 		return 0, fmt.Errorf("list quality rules: %w", err)
 	}
 
+	// D9-P0: fetch open+acknowledged flag counts per asset in one shot so
+	// the inner loop stays O(assets) rather than O(assets × query).
+	recentFlagCounts := map[uuid.UUID]int64{}
+	if flagRows, flagErr := s.queries.CountRecentFlagsByAsset(ctx, tenantID); flagErr == nil {
+		for _, r := range flagRows {
+			recentFlagCounts[r.AssetID] = r.FlagCount
+		}
+	} else {
+		zap.L().Debug("quality: count recent flags failed", zap.Error(flagErr))
+	}
+
 	scanned := 0
 	for _, asset := range assets {
 		result := evaluateAsset(asset, rules)
+
+		// Apply consumer-feedback penalty on the accuracy dimension.
+		// Accuracy is the right dimension because a recent flag means
+		// "somebody consuming this CI found its data wrong" — which
+		// is the definition of accuracy, not completeness or timeliness.
+		if count := recentFlagCounts[asset.ID]; count > 0 {
+			penalty := flagPenaltyFor(count)
+			result.Accuracy -= penalty
+			if result.Accuracy < 0 {
+				result.Accuracy = 0
+			}
+			result.Issues = append(result.Issues, map[string]string{
+				"field":     "accuracy",
+				"dimension": "accuracy",
+				"error":     fmt.Sprintf("%d open quality flag(s) in the last 24h", count),
+			})
+			result.Total = result.Completeness*0.4 + result.Accuracy*0.3 + result.Timeliness*0.1 + result.Consistency*0.2
+		}
 
 		// Location consistency bonus check via MAC cache
 		if s.pool != nil && asset.RackID.Valid {

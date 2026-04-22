@@ -183,6 +183,219 @@ func (e QRRackPayloadT) Valid() bool {
 	}
 }
 
+// Defines values for QualityFlagReporterType.
+const (
+	QualityFlagReporterTypeDownstream QualityFlagReporterType = "downstream"
+	QualityFlagReporterTypeExternal   QualityFlagReporterType = "external"
+	QualityFlagReporterTypeSystem     QualityFlagReporterType = "system"
+	QualityFlagReporterTypeUser       QualityFlagReporterType = "user"
+)
+
+// Valid indicates whether the value is a known member of the QualityFlagReporterType enum.
+func (e QualityFlagReporterType) Valid() bool {
+	switch e {
+	case QualityFlagReporterTypeDownstream:
+		return true
+	case QualityFlagReporterTypeExternal:
+		return true
+	case QualityFlagReporterTypeSystem:
+		return true
+	case QualityFlagReporterTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QualityFlagSeverity.
+const (
+	QualityFlagSeverityCritical QualityFlagSeverity = "critical"
+	QualityFlagSeverityHigh     QualityFlagSeverity = "high"
+	QualityFlagSeverityLow      QualityFlagSeverity = "low"
+	QualityFlagSeverityMedium   QualityFlagSeverity = "medium"
+)
+
+// Valid indicates whether the value is a known member of the QualityFlagSeverity enum.
+func (e QualityFlagSeverity) Valid() bool {
+	switch e {
+	case QualityFlagSeverityCritical:
+		return true
+	case QualityFlagSeverityHigh:
+		return true
+	case QualityFlagSeverityLow:
+		return true
+	case QualityFlagSeverityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QualityFlagStatus.
+const (
+	QualityFlagStatusAcknowledged QualityFlagStatus = "acknowledged"
+	QualityFlagStatusOpen         QualityFlagStatus = "open"
+	QualityFlagStatusRejected     QualityFlagStatus = "rejected"
+	QualityFlagStatusResolved     QualityFlagStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the QualityFlagStatus enum.
+func (e QualityFlagStatus) Valid() bool {
+	switch e {
+	case QualityFlagStatusAcknowledged:
+		return true
+	case QualityFlagStatusOpen:
+		return true
+	case QualityFlagStatusRejected:
+		return true
+	case QualityFlagStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QualityFlagCreateReporterType.
+const (
+	QualityFlagCreateReporterTypeDownstream QualityFlagCreateReporterType = "downstream"
+	QualityFlagCreateReporterTypeExternal   QualityFlagCreateReporterType = "external"
+	QualityFlagCreateReporterTypeSystem     QualityFlagCreateReporterType = "system"
+	QualityFlagCreateReporterTypeUser       QualityFlagCreateReporterType = "user"
+)
+
+// Valid indicates whether the value is a known member of the QualityFlagCreateReporterType enum.
+func (e QualityFlagCreateReporterType) Valid() bool {
+	switch e {
+	case QualityFlagCreateReporterTypeDownstream:
+		return true
+	case QualityFlagCreateReporterTypeExternal:
+		return true
+	case QualityFlagCreateReporterTypeSystem:
+		return true
+	case QualityFlagCreateReporterTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QualityFlagCreateSeverity.
+const (
+	QualityFlagCreateSeverityCritical QualityFlagCreateSeverity = "critical"
+	QualityFlagCreateSeverityHigh     QualityFlagCreateSeverity = "high"
+	QualityFlagCreateSeverityLow      QualityFlagCreateSeverity = "low"
+	QualityFlagCreateSeverityMedium   QualityFlagCreateSeverity = "medium"
+)
+
+// Valid indicates whether the value is a known member of the QualityFlagCreateSeverity enum.
+func (e QualityFlagCreateSeverity) Valid() bool {
+	switch e {
+	case QualityFlagCreateSeverityCritical:
+		return true
+	case QualityFlagCreateSeverityHigh:
+		return true
+	case QualityFlagCreateSeverityLow:
+		return true
+	case QualityFlagCreateSeverityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QualityFlagListItemReporterType.
+const (
+	QualityFlagListItemReporterTypeDownstream QualityFlagListItemReporterType = "downstream"
+	QualityFlagListItemReporterTypeExternal   QualityFlagListItemReporterType = "external"
+	QualityFlagListItemReporterTypeSystem     QualityFlagListItemReporterType = "system"
+	QualityFlagListItemReporterTypeUser       QualityFlagListItemReporterType = "user"
+)
+
+// Valid indicates whether the value is a known member of the QualityFlagListItemReporterType enum.
+func (e QualityFlagListItemReporterType) Valid() bool {
+	switch e {
+	case QualityFlagListItemReporterTypeDownstream:
+		return true
+	case QualityFlagListItemReporterTypeExternal:
+		return true
+	case QualityFlagListItemReporterTypeSystem:
+		return true
+	case QualityFlagListItemReporterTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QualityFlagListItemSeverity.
+const (
+	QualityFlagListItemSeverityCritical QualityFlagListItemSeverity = "critical"
+	QualityFlagListItemSeverityHigh     QualityFlagListItemSeverity = "high"
+	QualityFlagListItemSeverityLow      QualityFlagListItemSeverity = "low"
+	QualityFlagListItemSeverityMedium   QualityFlagListItemSeverity = "medium"
+)
+
+// Valid indicates whether the value is a known member of the QualityFlagListItemSeverity enum.
+func (e QualityFlagListItemSeverity) Valid() bool {
+	switch e {
+	case QualityFlagListItemSeverityCritical:
+		return true
+	case QualityFlagListItemSeverityHigh:
+		return true
+	case QualityFlagListItemSeverityLow:
+		return true
+	case QualityFlagListItemSeverityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QualityFlagListItemStatus.
+const (
+	QualityFlagListItemStatusAcknowledged QualityFlagListItemStatus = "acknowledged"
+	QualityFlagListItemStatusOpen         QualityFlagListItemStatus = "open"
+	QualityFlagListItemStatusRejected     QualityFlagListItemStatus = "rejected"
+	QualityFlagListItemStatusResolved     QualityFlagListItemStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the QualityFlagListItemStatus enum.
+func (e QualityFlagListItemStatus) Valid() bool {
+	switch e {
+	case QualityFlagListItemStatusAcknowledged:
+		return true
+	case QualityFlagListItemStatusOpen:
+		return true
+	case QualityFlagListItemStatusRejected:
+		return true
+	case QualityFlagListItemStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QualityFlagResolveStatus.
+const (
+	Acknowledged QualityFlagResolveStatus = "acknowledged"
+	Rejected     QualityFlagResolveStatus = "rejected"
+	Resolved     QualityFlagResolveStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the QualityFlagResolveStatus enum.
+func (e QualityFlagResolveStatus) Valid() bool {
+	switch e {
+	case Acknowledged:
+		return true
+	case Rejected:
+		return true
+	case Resolved:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SyncResolveRequestResolution.
 const (
 	LocalWins  SyncResolveRequestResolution = "local_wins"
@@ -245,19 +458,19 @@ func (e UpdateUpgradeRuleRequestPriority) Valid() bool {
 
 // Defines values for UpgradeRulePriority.
 const (
-	High   UpgradeRulePriority = "high"
-	Low    UpgradeRulePriority = "low"
-	Medium UpgradeRulePriority = "medium"
+	UpgradeRulePriorityHigh   UpgradeRulePriority = "high"
+	UpgradeRulePriorityLow    UpgradeRulePriority = "low"
+	UpgradeRulePriorityMedium UpgradeRulePriority = "medium"
 )
 
 // Valid indicates whether the value is a known member of the UpgradeRulePriority enum.
 func (e UpgradeRulePriority) Valid() bool {
 	switch e {
-	case High:
+	case UpgradeRulePriorityHigh:
 		return true
-	case Low:
+	case UpgradeRulePriorityLow:
 		return true
-	case Medium:
+	case UpgradeRulePriorityMedium:
 		return true
 	default:
 		return false
@@ -389,19 +602,19 @@ func (e SyncSnapshotParamsEntityType) Valid() bool {
 
 // Defines values for GetTopologyImpactParamsDirection.
 const (
-	Both       GetTopologyImpactParamsDirection = "both"
-	Downstream GetTopologyImpactParamsDirection = "downstream"
-	Upstream   GetTopologyImpactParamsDirection = "upstream"
+	GetTopologyImpactParamsDirectionBoth       GetTopologyImpactParamsDirection = "both"
+	GetTopologyImpactParamsDirectionDownstream GetTopologyImpactParamsDirection = "downstream"
+	GetTopologyImpactParamsDirectionUpstream   GetTopologyImpactParamsDirection = "upstream"
 )
 
 // Valid indicates whether the value is a known member of the GetTopologyImpactParamsDirection enum.
 func (e GetTopologyImpactParamsDirection) Valid() bool {
 	switch e {
-	case Both:
+	case GetTopologyImpactParamsDirectionBoth:
 		return true
-	case Downstream:
+	case GetTopologyImpactParamsDirectionDownstream:
 		return true
-	case Upstream:
+	case GetTopologyImpactParamsDirectionUpstream:
 		return true
 	default:
 		return false
@@ -947,6 +1160,85 @@ type QualityDashboard struct {
 	AvgTotal        *float32 `json:"avg_total,omitempty"`
 	TotalScanned    *int     `json:"total_scanned,omitempty"`
 }
+
+// QualityFlag defines model for QualityFlag.
+type QualityFlag struct {
+	AssetId        openapi_types.UUID      `json:"asset_id"`
+	Category       string                  `json:"category"`
+	CreatedAt      time.Time               `json:"created_at"`
+	Id             openapi_types.UUID      `json:"id"`
+	Message        string                  `json:"message"`
+	ReporterId     *openapi_types.UUID     `json:"reporter_id,omitempty"`
+	ReporterType   QualityFlagReporterType `json:"reporter_type"`
+	ResolutionNote *string                 `json:"resolution_note,omitempty"`
+	ResolvedAt     *time.Time              `json:"resolved_at,omitempty"`
+	ResolvedBy     *openapi_types.UUID     `json:"resolved_by,omitempty"`
+	Severity       QualityFlagSeverity     `json:"severity"`
+	Status         QualityFlagStatus       `json:"status"`
+	TenantId       openapi_types.UUID      `json:"tenant_id"`
+}
+
+// QualityFlagReporterType defines model for QualityFlag.ReporterType.
+type QualityFlagReporterType string
+
+// QualityFlagSeverity defines model for QualityFlag.Severity.
+type QualityFlagSeverity string
+
+// QualityFlagStatus defines model for QualityFlag.Status.
+type QualityFlagStatus string
+
+// QualityFlagCreate defines model for QualityFlagCreate.
+type QualityFlagCreate struct {
+	AssetId      openapi_types.UUID            `json:"asset_id"`
+	Category     string                        `json:"category"`
+	Message      string                        `json:"message"`
+	ReporterId   *openapi_types.UUID           `json:"reporter_id,omitempty"`
+	ReporterType QualityFlagCreateReporterType `json:"reporter_type"`
+	Severity     QualityFlagCreateSeverity     `json:"severity"`
+}
+
+// QualityFlagCreateReporterType defines model for QualityFlagCreate.ReporterType.
+type QualityFlagCreateReporterType string
+
+// QualityFlagCreateSeverity defines model for QualityFlagCreate.Severity.
+type QualityFlagCreateSeverity string
+
+// QualityFlagListItem defines model for QualityFlagListItem.
+type QualityFlagListItem struct {
+	AssetId        openapi_types.UUID              `json:"asset_id"`
+	AssetName      *string                         `json:"asset_name,omitempty"`
+	AssetTag       *string                         `json:"asset_tag,omitempty"`
+	Category       string                          `json:"category"`
+	CreatedAt      time.Time                       `json:"created_at"`
+	Id             openapi_types.UUID              `json:"id"`
+	Message        string                          `json:"message"`
+	ReporterId     *openapi_types.UUID             `json:"reporter_id,omitempty"`
+	ReporterType   QualityFlagListItemReporterType `json:"reporter_type"`
+	ResolutionNote *string                         `json:"resolution_note,omitempty"`
+	ResolvedAt     *time.Time                      `json:"resolved_at,omitempty"`
+	ResolvedBy     *openapi_types.UUID             `json:"resolved_by,omitempty"`
+	Severity       QualityFlagListItemSeverity     `json:"severity"`
+	Status         QualityFlagListItemStatus       `json:"status"`
+	TenantId       openapi_types.UUID              `json:"tenant_id"`
+}
+
+// QualityFlagListItemReporterType defines model for QualityFlagListItem.ReporterType.
+type QualityFlagListItemReporterType string
+
+// QualityFlagListItemSeverity defines model for QualityFlagListItem.Severity.
+type QualityFlagListItemSeverity string
+
+// QualityFlagListItemStatus defines model for QualityFlagListItem.Status.
+type QualityFlagListItemStatus string
+
+// QualityFlagResolve defines model for QualityFlagResolve.
+type QualityFlagResolve struct {
+	ResolutionNote *string                  `json:"resolution_note,omitempty"`
+	Status         QualityFlagResolveStatus `json:"status"`
+}
+
+// QualityFlagResolveStatus defines model for QualityFlagResolve.Status.
+type QualityFlagResolveStatus string
 
 // QualityRule defines model for QualityRule.
 type QualityRule struct {
@@ -1838,6 +2130,12 @@ type CreateRCAJSONRequestBody CreateRCAJSONBody
 
 // VerifyRCAJSONRequestBody defines body for VerifyRCA for application/json ContentType.
 type VerifyRCAJSONRequestBody VerifyRCAJSONBody
+
+// FlagQualityIssueJSONRequestBody defines body for FlagQualityIssue for application/json ContentType.
+type FlagQualityIssueJSONRequestBody = QualityFlagCreate
+
+// ResolveQualityFlagJSONRequestBody defines body for ResolveQualityFlag for application/json ContentType.
+type ResolveQualityFlagJSONRequestBody = QualityFlagResolve
 
 // CreateQualityRuleJSONRequestBody defines body for CreateQualityRule for application/json ContentType.
 type CreateQualityRuleJSONRequestBody = CreateQualityRuleRequest
@@ -3074,6 +3372,15 @@ type ServerInterface interface {
 	// Get quality dashboard with aggregate scores
 	// (GET /quality/dashboard)
 	GetQualityDashboard(c *gin.Context)
+	// Report a data quality issue against an asset
+	// (POST /quality/flag-issue)
+	FlagQualityIssue(c *gin.Context)
+	// List open quality flags for triage
+	// (GET /quality/flags)
+	ListOpenQualityFlags(c *gin.Context)
+	// Resolve or reject an open quality flag
+	// (POST /quality/flags/{id}/resolve)
+	ResolveQualityFlag(c *gin.Context, id IdPath)
 	// Get quality score history for an asset
 	// (GET /quality/history/{id})
 	GetAssetQualityHistory(c *gin.Context, id IdPath)
@@ -6263,6 +6570,62 @@ func (siw *ServerInterfaceWrapper) GetQualityDashboard(c *gin.Context) {
 	siw.Handler.GetQualityDashboard(c)
 }
 
+// FlagQualityIssue operation middleware
+func (siw *ServerInterfaceWrapper) FlagQualityIssue(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.FlagQualityIssue(c)
+}
+
+// ListOpenQualityFlags operation middleware
+func (siw *ServerInterfaceWrapper) ListOpenQualityFlags(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListOpenQualityFlags(c)
+}
+
+// ResolveQualityFlag operation middleware
+func (siw *ServerInterfaceWrapper) ResolveQualityFlag(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResolveQualityFlag(c, id)
+}
+
 // GetAssetQualityHistory operation middleware
 func (siw *ServerInterfaceWrapper) GetAssetQualityHistory(c *gin.Context) {
 
@@ -7699,6 +8062,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)
 	router.GET(options.BaseURL+"/prediction/rul/:id", wrapper.GetAssetRUL)
 	router.GET(options.BaseURL+"/quality/dashboard", wrapper.GetQualityDashboard)
+	router.POST(options.BaseURL+"/quality/flag-issue", wrapper.FlagQualityIssue)
+	router.GET(options.BaseURL+"/quality/flags", wrapper.ListOpenQualityFlags)
+	router.POST(options.BaseURL+"/quality/flags/:id/resolve", wrapper.ResolveQualityFlag)
 	router.GET(options.BaseURL+"/quality/history/:id", wrapper.GetAssetQualityHistory)
 	router.GET(options.BaseURL+"/quality/rules", wrapper.ListQualityRules)
 	router.POST(options.BaseURL+"/quality/rules", wrapper.CreateQualityRule)
