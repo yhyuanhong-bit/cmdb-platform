@@ -288,7 +288,23 @@ func TestAuthMiddleware_AllowsUnrevokedJTI(t *testing.T) {
 	}
 }
 
-func TestAuthMiddleware_BlacklistErrorFailsOpen(t *testing.T) {
+func TestAuthMiddleware_BlacklistErrorFailsClosedByDefault(t *testing.T) {
+	jti := uuid.New().String()
+	tok := issueWithJTI(t, jti, time.Now(), time.Now().Add(15*time.Minute))
+	bl := &stubBlacklist{err: errors.New("redis down")}
+
+	// Default policy is "closed": a Redis outage must not let tokens slip
+	// through. Production should alert on the 503, not on the 200 response
+	// the old fail-open behaviour produced.
+	mw := Auth(testSecret, WithBlacklist(bl))
+	rec := runAuth(t, mw, tok)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 (fail-closed) on blacklist error, got %d", rec.Code)
+	}
+}
+
+func TestAuthMiddleware_BlacklistErrorFailsOpenWhenConfigured(t *testing.T) {
+	t.Setenv("AUTH_FAIL_POLICY", "open")
 	jti := uuid.New().String()
 	tok := issueWithJTI(t, jti, time.Now(), time.Now().Add(15*time.Minute))
 	bl := &stubBlacklist{err: errors.New("redis down")}
@@ -296,7 +312,7 @@ func TestAuthMiddleware_BlacklistErrorFailsOpen(t *testing.T) {
 	mw := Auth(testSecret, WithBlacklist(bl))
 	rec := runAuth(t, mw, tok)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected fail-open on blacklist error, got %d", rec.Code)
+		t.Fatalf("expected fail-open on blacklist error with AUTH_FAIL_POLICY=open, got %d", rec.Code)
 	}
 }
 
@@ -333,14 +349,26 @@ func TestAuthMiddleware_AllowsTokenIssuedAfterPasswordChange(t *testing.T) {
 	}
 }
 
-func TestAuthMiddleware_PasswordCheckerErrorFailsOpen(t *testing.T) {
+func TestAuthMiddleware_PasswordCheckerErrorFailsClosedByDefault(t *testing.T) {
+	tok := issueWithJTI(t, uuid.New().String(), time.Now(), time.Now().Add(5*time.Minute))
+	pwd := &stubPwdChecker{err: errors.New("db down")}
+
+	mw := Auth(testSecret, WithPasswordChangeChecker(pwd))
+	rec := runAuth(t, mw, tok)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 (fail-closed) on pwd-checker error, got %d", rec.Code)
+	}
+}
+
+func TestAuthMiddleware_PasswordCheckerErrorFailsOpenWhenConfigured(t *testing.T) {
+	t.Setenv("AUTH_FAIL_POLICY", "open")
 	tok := issueWithJTI(t, uuid.New().String(), time.Now(), time.Now().Add(5*time.Minute))
 	pwd := &stubPwdChecker{err: errors.New("db down")}
 
 	mw := Auth(testSecret, WithPasswordChangeChecker(pwd))
 	rec := runAuth(t, mw, tok)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected fail-open on pwd-checker error, got %d", rec.Code)
+		t.Fatalf("expected fail-open on pwd-checker error with AUTH_FAIL_POLICY=open, got %d", rec.Code)
 	}
 }
 

@@ -3,12 +3,41 @@ package database
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
+
+// Pool sizing defaults. Intentionally conservative so a single replica cannot
+// saturate a modestly-sized Postgres (default max_connections=200). Override
+// per-environment via DB_MAX_CONNS / DB_MIN_CONNS.
+const (
+	defaultMaxConns = 50
+	defaultMinConns = 5
+)
+
+// resolvePoolSize reads an int32 from the named env var, clamped to (0, 10000].
+// Returns fallback when the var is unset, non-numeric, or out of range so a
+// typo cannot brick startup.
+func resolvePoolSize(envKey string, fallback int32) int32 {
+	raw := os.Getenv(envKey)
+	if raw == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 || n > 10000 {
+		zap.L().Warn("invalid pool size env var, using fallback",
+			zap.String("env", envKey),
+			zap.String("raw", raw),
+			zap.Int32("fallback", fallback))
+		return fallback
+	}
+	return int32(n)
+}
 
 // PoolOption configures NewPool. Zero options keeps the historical
 // behavior (default 500ms slow-query threshold, global zap logger), so
@@ -75,8 +104,8 @@ func NewPool(ctx context.Context, databaseURL string, opts ...PoolOption) (*pgxp
 	if err != nil {
 		return nil, fmt.Errorf("parse database url: %w", err)
 	}
-	cfg.MaxConns = 50
-	cfg.MinConns = 5
+	cfg.MaxConns = resolvePoolSize("DB_MAX_CONNS", defaultMaxConns)
+	cfg.MinConns = resolvePoolSize("DB_MIN_CONNS", defaultMinConns)
 
 	// Tracer wiring: always install otelpgx so trace context from the
 	// upstream HTTP/NATS handler flows through every Query/Exec as a

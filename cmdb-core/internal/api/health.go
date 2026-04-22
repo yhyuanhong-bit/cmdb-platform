@@ -9,15 +9,24 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// natsChecker is the narrow interface HealthHandler needs from the event bus:
+// just a yes/no on current connection state. Kept as an interface so tests
+// can stub it and so health.go doesn't pull in the full eventbus package.
+type natsChecker interface {
+	IsConnected() bool
+}
+
 // HealthHandler provides health and readiness endpoints.
 type HealthHandler struct {
 	pool  *pgxpool.Pool
 	redis *redis.Client
+	nats  natsChecker
 }
 
-// NewHealthHandler creates a new HealthHandler.
-func NewHealthHandler(pool *pgxpool.Pool, redis *redis.Client) *HealthHandler {
-	return &HealthHandler{pool: pool, redis: redis}
+// NewHealthHandler creates a new HealthHandler. The nats argument may be nil;
+// when nil, readyz reports nats as "not_configured" and does not gate on it.
+func NewHealthHandler(pool *pgxpool.Pool, redis *redis.Client, nats natsChecker) *HealthHandler {
+	return &HealthHandler{pool: pool, redis: redis, nats: nats}
 }
 
 // Liveness returns 200 if the process is alive. Used for K8s liveness probe.
@@ -36,12 +45,16 @@ func (h *HealthHandler) Readiness(c *gin.Context) {
 	healthy := true
 
 	// Check PostgreSQL
-	dbStart := time.Now()
-	if err := h.pool.Ping(ctx); err != nil {
-		checks["database"] = gin.H{"status": "down", "error": err.Error()}
-		healthy = false
+	if h.pool != nil {
+		dbStart := time.Now()
+		if err := h.pool.Ping(ctx); err != nil {
+			checks["database"] = gin.H{"status": "down", "error": err.Error()}
+			healthy = false
+		} else {
+			checks["database"] = gin.H{"status": "up", "latency_ms": time.Since(dbStart).Milliseconds()}
+		}
 	} else {
-		checks["database"] = gin.H{"status": "up", "latency_ms": time.Since(dbStart).Milliseconds()}
+		checks["database"] = gin.H{"status": "not_configured"}
 	}
 
 	// Check Redis
@@ -55,6 +68,20 @@ func (h *HealthHandler) Readiness(c *gin.Context) {
 		}
 	} else {
 		checks["redis"] = gin.H{"status": "not_configured"}
+	}
+
+	// Check NATS. A disconnected bus means domain events (sync, alerts,
+	// webhooks) are silently dropped — the service can still serve reads
+	// but is not healthy for write traffic. Treat as not_ready.
+	if h.nats != nil {
+		if h.nats.IsConnected() {
+			checks["nats"] = gin.H{"status": "up"}
+		} else {
+			checks["nats"] = gin.H{"status": "down"}
+			healthy = false
+		}
+	} else {
+		checks["nats"] = gin.H{"status": "not_configured"}
 	}
 
 	status := 200

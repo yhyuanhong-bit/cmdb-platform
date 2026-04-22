@@ -453,7 +453,7 @@ func main() {
 	router.Use(telemetry.PrometheusMiddleware())
 
 	// Health & readiness probes
-	healthHandler := api.NewHealthHandler(pool, redisClient)
+	healthHandler := api.NewHealthHandler(pool, redisClient, natsBus)
 	router.GET("/healthz", healthHandler.Liveness)
 	router.GET("/readyz", healthHandler.Readiness)
 

@@ -166,6 +166,17 @@ func (b *NATSBus) Subscribe(subject string, handler Handler) error {
 	return nil
 }
 
+// IsConnected reports whether the underlying NATS connection is currently
+// usable. Used by /readyz to surface NATS outages — without this check a
+// NATS failure would leave the service accepting traffic while silently
+// dropping every domain event (sync, alerts, webhooks).
+func (b *NATSBus) IsConnected() bool {
+	if b == nil || b.nc == nil {
+		return false
+	}
+	return b.nc.IsConnected()
+}
+
 // Close unsubscribes all active subscriptions and closes the NATS connection.
 func (b *NATSBus) Close() error {
 	b.mu.Lock()

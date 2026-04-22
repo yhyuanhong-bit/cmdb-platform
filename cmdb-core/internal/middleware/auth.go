@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"strings"
 	"time"
 
@@ -13,6 +14,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+// authFailPolicy determines how the middleware behaves when its optional
+// backing checks (Redis blacklist, password-change check) are unreachable.
+//
+//   - "closed" (default): return 503 and reject the request. This is the safe
+//     choice in production — a Redis outage could otherwise let revoked tokens
+//     keep working for the remainder of their TTL.
+//   - "open": log a warning and let the request through. This keeps dev and
+//     early-stage environments usable without a Redis dependency.
+//
+// Controlled by the AUTH_FAIL_POLICY env var; read once at middleware init.
+func authFailPolicy() string {
+	p := strings.ToLower(strings.TrimSpace(os.Getenv("AUTH_FAIL_POLICY")))
+	if p == "open" {
+		return "open"
+	}
+	return "closed"
+}
 
 // JWTClaims holds the custom claims embedded in a JWT token.
 //
@@ -72,6 +91,7 @@ func Auth(secret string, opts ...AuthOption) gin.HandlerFunc {
 	for _, opt := range opts {
 		opt(cfg)
 	}
+	failPolicy := authFailPolicy()
 	return func(c *gin.Context) {
 		header := c.GetHeader("Authorization")
 		if !strings.HasPrefix(header, "Bearer ") {
@@ -94,16 +114,26 @@ func Auth(secret string, opts ...AuthOption) gin.HandlerFunc {
 			return
 		}
 
-		// Revocation check via Redis blacklist. A Redis outage fails OPEN with
-		// a loud warning so dev environments stay usable; production should
-		// alert on this log line.
+		// Revocation check via Redis blacklist. Fail behaviour is governed by
+		// AUTH_FAIL_POLICY: "closed" (default) returns 503 so revoked tokens
+		// cannot ride out a Redis outage; "open" logs a warning and allows
+		// the request through for dev setups without Redis.
 		if cfg.blacklist != nil && claims.ID != "" {
 			revoked, rerr := cfg.blacklist.IsRevoked(c.Request.Context(), claims.ID)
 			switch {
 			case rerr != nil:
-				zap.L().Warn("auth middleware: blacklist unavailable, failing open",
-					zap.String("jti", claims.ID),
-					zap.Error(rerr))
+				if failPolicy == "open" {
+					zap.L().Warn("auth middleware: blacklist unavailable, failing open",
+						zap.String("jti", claims.ID),
+						zap.Error(rerr))
+				} else {
+					zap.L().Error("auth middleware: blacklist unavailable, failing closed",
+						zap.String("jti", claims.ID),
+						zap.Error(rerr))
+					response.Err(c, 503, "AUTH_UNAVAILABLE", "authentication service temporarily unavailable")
+					c.Abort()
+					return
+				}
 			case revoked:
 				response.Err(c, 401, "TOKEN_REVOKED", "token has been revoked")
 				c.Abort()
@@ -112,14 +142,24 @@ func Auth(secret string, opts ...AuthOption) gin.HandlerFunc {
 		}
 
 		// Password-rotation check. Any token minted before the user last
-		// rotated their password is rejected.
+		// rotated their password is rejected. Fail behaviour matches the
+		// blacklist check above (AUTH_FAIL_POLICY).
 		if cfg.pwdChecker != nil && claims.IssuedAt > 0 {
 			pwdChangedAt, perr := cfg.pwdChecker.PasswordChangedAt(c.Request.Context(), claims.UserID, claims.TenantID)
 			switch {
 			case perr != nil:
-				zap.L().Warn("auth middleware: password-change check failed, failing open",
-					zap.String("user_id", claims.UserID),
-					zap.Error(perr))
+				if failPolicy == "open" {
+					zap.L().Warn("auth middleware: password-change check failed, failing open",
+						zap.String("user_id", claims.UserID),
+						zap.Error(perr))
+				} else {
+					zap.L().Error("auth middleware: password-change check failed, failing closed",
+						zap.String("user_id", claims.UserID),
+						zap.Error(perr))
+					response.Err(c, 503, "AUTH_UNAVAILABLE", "authentication service temporarily unavailable")
+					c.Abort()
+					return
+				}
 			case !pwdChangedAt.IsZero() && claims.IssuedAt < pwdChangedAt.Unix():
 				response.Err(c, 401, "TOKEN_OUTDATED", "token was issued before last password change")
 				c.Abort()
