@@ -87,6 +87,30 @@ func (e CreateUpgradeRuleRequestPriority) Valid() bool {
 	}
 }
 
+// Defines values for DependencyCategory.
+const (
+	Communication DependencyCategory = "communication"
+	Containment   DependencyCategory = "containment"
+	Custom        DependencyCategory = "custom"
+	Dependency    DependencyCategory = "dependency"
+)
+
+// Valid indicates whether the value is a known member of the DependencyCategory enum.
+func (e DependencyCategory) Valid() bool {
+	switch e {
+	case Communication:
+		return true
+	case Containment:
+		return true
+	case Custom:
+		return true
+	case Dependency:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImpactEdgeDirection.
 const (
 	ImpactEdgeDirectionDownstream ImpactEdgeDirection = "downstream"
@@ -557,6 +581,20 @@ type ConfirmLocationRequest struct {
 	RackId openapi_types.UUID `json:"rack_id"`
 }
 
+// CreateAssetDependencyRequest defines model for CreateAssetDependencyRequest.
+type CreateAssetDependencyRequest struct {
+	// DependencyCategory Coarse classification layered on top of the free-form
+	// dependency_type verb (migration 000054). Maps to the Postgres
+	// ENUM dependency_category.
+	DependencyCategory *DependencyCategory `json:"dependency_category,omitempty"`
+
+	// DependencyType Free-form verb such as depends_on, connects_to.
+	DependencyType *string            `json:"dependency_type,omitempty"`
+	Description    *string            `json:"description,omitempty"`
+	SourceAssetId  openapi_types.UUID `json:"source_asset_id"`
+	TargetAssetId  openapi_types.UUID `json:"target_asset_id"`
+}
+
 // CreateQualityRuleRequest defines model for CreateQualityRuleRequest.
 type CreateQualityRuleRequest struct {
 	CiType     *string                 `json:"ci_type,omitempty"`
@@ -612,6 +650,11 @@ type DashboardStats struct {
 	TotalRacks         int     `json:"total_racks"`
 }
 
+// DependencyCategory Coarse classification layered on top of the free-form
+// dependency_type verb (migration 000054). Maps to the Postgres
+// ENUM dependency_category.
+type DependencyCategory string
+
 // DiscoveredAsset defines model for DiscoveredAsset.
 type DiscoveredAsset struct {
 	DiffDetails    *map[string]interface{} `json:"diff_details,omitempty"`
@@ -663,7 +706,11 @@ type FleetMetrics struct {
 // full chain of asset IDs visited from root to this edge's far node,
 // so clients can render paths without re-querying.
 type ImpactEdge struct {
-	DependencyType string `json:"dependency_type"`
+	// DependencyCategory Coarse classification layered on top of the free-form
+	// dependency_type verb (migration 000054). Maps to the Postgres
+	// ENUM dependency_category.
+	DependencyCategory DependencyCategory `json:"dependency_category"`
+	DependencyType     string             `json:"dependency_type"`
 
 	// Depth 1 = direct edge from root, 2 = one hop away, etc.
 	Depth           int                  `json:"depth"`
@@ -1649,9 +1696,6 @@ type ListAssetDependenciesParams struct {
 	AssetId *openapi_types.UUID `form:"asset_id,omitempty" json:"asset_id,omitempty"`
 }
 
-// CreateAssetDependencyJSONBody defines parameters for CreateAssetDependency.
-type CreateAssetDependencyJSONBody = map[string]interface{}
-
 // GetTopologyGraphParams defines parameters for GetTopologyGraph.
 type GetTopologyGraphParams struct {
 	LocationId *openapi_types.UUID `form:"location_id,omitempty" json:"location_id,omitempty"`
@@ -1820,7 +1864,7 @@ type CreateSensorJSONRequestBody = CreateSensorJSONBody
 type SyncResolveConflictJSONRequestBody = SyncResolveRequest
 
 // CreateAssetDependencyJSONRequestBody defines body for CreateAssetDependency for application/json ContentType.
-type CreateAssetDependencyJSONRequestBody = CreateAssetDependencyJSONBody
+type CreateAssetDependencyJSONRequestBody = CreateAssetDependencyRequest
 
 // CreateUpgradeRuleJSONRequestBody defines body for CreateUpgradeRule for application/json ContentType.
 type CreateUpgradeRuleJSONRequestBody = CreateUpgradeRuleRequest

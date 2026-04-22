@@ -38,61 +38,72 @@ func (s *APIServer) ListAssetDependencies(c *gin.Context, params ListAssetDepend
 	deps := make([]gin.H, 0, len(rows))
 	for _, r := range rows {
 		deps = append(deps, gin.H{
-			"id":                r.ID.String(),
-			"source_asset_id":   r.SourceAssetID.String(),
-			"source_asset_name": r.SourceAssetName,
-			"target_asset_id":   r.TargetAssetID.String(),
-			"target_asset_name": r.TargetAssetName,
-			"dependency_type":   r.DependencyType,
-			"description":       r.Description,
+			"id":                  r.ID.String(),
+			"source_asset_id":     r.SourceAssetID.String(),
+			"source_asset_name":   r.SourceAssetName,
+			"target_asset_id":     r.TargetAssetID.String(),
+			"target_asset_name":   r.TargetAssetName,
+			"dependency_type":     r.DependencyType,
+			"dependency_category": string(r.DependencyCategory),
+			"description":         r.Description,
 		})
 	}
 
 	response.OK(c, gin.H{"dependencies": deps})
 }
 
-// CreateAssetDependency handles POST /topology/dependencies
-// Creates a new directed dependency edge between two assets.
+// CreateAssetDependency handles POST /topology/dependencies.
+// Creates a directed dependency edge between two assets.
+//
+// dependency_category (migration 000054) is optional in the request; when
+// absent we default to "dependency" to match the DB column default and
+// pre-category handler behavior. dependency_type defaults to "depends_on"
+// so pre-migration clients keep working; any caller that supplies a
+// dependency_type but not a category gets "dependency" — this is the
+// conservative bucket for legacy verbs like 'depends_on' / 'requires'.
 func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)
 
-	var body struct {
-		SourceAssetID  string `json:"source_asset_id"`
-		TargetAssetID  string `json:"target_asset_id"`
-		DependencyType string `json:"dependency_type"`
-		Description    string `json:"description"`
-	}
+	var body CreateAssetDependencyRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.BadRequest(c, "invalid request body")
 		return
 	}
-	if body.SourceAssetID == "" || body.TargetAssetID == "" {
+	srcUUID := uuid.UUID(body.SourceAssetId)
+	tgtUUID := uuid.UUID(body.TargetAssetId)
+	if srcUUID == uuid.Nil || tgtUUID == uuid.Nil {
 		response.BadRequest(c, "source_asset_id and target_asset_id are required")
 		return
 	}
-	if body.DependencyType == "" {
-		body.DependencyType = "depends_on"
+
+	depType := "depends_on"
+	if body.DependencyType != nil && *body.DependencyType != "" {
+		depType = *body.DependencyType
 	}
 
-	srcUUID, err := uuid.Parse(body.SourceAssetID)
-	if err != nil {
-		response.BadRequest(c, "invalid source_asset_id")
-		return
+	category := Dependency
+	if body.DependencyCategory != nil {
+		if !body.DependencyCategory.Valid() {
+			response.BadRequest(c, "dependency_category must be containment, dependency, communication, or custom")
+			return
+		}
+		category = *body.DependencyCategory
 	}
-	tgtUUID, err := uuid.Parse(body.TargetAssetID)
-	if err != nil {
-		response.BadRequest(c, "invalid target_asset_id")
-		return
+
+	description := ""
+	if body.Description != nil {
+		description = *body.Description
 	}
 
 	newID := uuid.New()
-	err = dbgen.New(s.pool).CreateAssetDependency(c.Request.Context(), dbgen.CreateAssetDependencyParams{
-		ID:             newID,
-		TenantID:       tenantID,
-		SourceAssetID:  srcUUID,
-		TargetAssetID:  tgtUUID,
-		DependencyType: body.DependencyType,
-		Description:    pgtype.Text{String: body.Description, Valid: body.Description != ""},
+	err := dbgen.New(s.pool).CreateAssetDependency(c.Request.Context(), dbgen.CreateAssetDependencyParams{
+		ID:                 newID,
+		TenantID:           tenantID,
+		SourceAssetID:      srcUUID,
+		TargetAssetID:      tgtUUID,
+		DependencyType:     depType,
+		DependencyCategory: dbgen.DependencyCategory(category),
+		Description:        pgtype.Text{String: description, Valid: description != ""},
 	})
 	if err != nil {
 		errStr := err.Error()
@@ -105,9 +116,10 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 	}
 
 	s.recordAudit(c, "dependency.created", "topology", "asset_dependency", newID, map[string]any{
-		"source_asset_id": body.SourceAssetID,
-		"target_asset_id": body.TargetAssetID,
-		"dependency_type": body.DependencyType,
+		"source_asset_id":     srcUUID.String(),
+		"target_asset_id":     tgtUUID.String(),
+		"dependency_type":     depType,
+		"dependency_category": string(category),
 	})
 	response.Created(c, gin.H{"id": newID.String()})
 }
@@ -407,15 +419,16 @@ func (s *APIServer) GetTopologyImpact(c *gin.Context, params GetTopologyImpactPa
 			path[i] = openapi_types.UUID(p)
 		}
 		apiEdges = append(apiEdges, ImpactEdge{
-			Id:              openapi_types.UUID(e.ID),
-			SourceAssetId:   openapi_types.UUID(e.SourceAssetID),
-			SourceAssetName: e.SourceAssetName,
-			TargetAssetId:   openapi_types.UUID(e.TargetAssetID),
-			TargetAssetName: e.TargetAssetName,
-			DependencyType:  e.DependencyType,
-			Depth:           e.Depth,
-			Path:            path,
-			Direction:       ImpactEdgeDirection(e.Direction),
+			Id:                 openapi_types.UUID(e.ID),
+			SourceAssetId:      openapi_types.UUID(e.SourceAssetID),
+			SourceAssetName:    e.SourceAssetName,
+			TargetAssetId:      openapi_types.UUID(e.TargetAssetID),
+			TargetAssetName:    e.TargetAssetName,
+			DependencyType:     e.DependencyType,
+			DependencyCategory: DependencyCategory(e.DependencyCategory),
+			Depth:              e.Depth,
+			Path:               path,
+			Direction:          ImpactEdgeDirection(e.Direction),
 		})
 	}
 

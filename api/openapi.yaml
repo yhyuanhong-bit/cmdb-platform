@@ -761,10 +761,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/CreateAssetDependencyRequest'
       responses:
         '201':
           description: Dependency created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Dependency already exists or would create a cycle
 
   /topology/dependencies/{id}:
     delete:
@@ -4324,6 +4328,32 @@ components:
           type: string
       required: [code, message]
 
+    DependencyCategory:
+      type: string
+      description: |
+        Coarse classification layered on top of the free-form
+        dependency_type verb (migration 000054). Maps to the Postgres
+        ENUM dependency_category.
+      enum: [containment, dependency, communication, custom]
+
+    CreateAssetDependencyRequest:
+      type: object
+      properties:
+        source_asset_id:
+          type: string
+          format: uuid
+        target_asset_id:
+          type: string
+          format: uuid
+        dependency_type:
+          type: string
+          description: Free-form verb such as depends_on, connects_to.
+        dependency_category:
+          $ref: '#/components/schemas/DependencyCategory'
+        description:
+          type: string
+      required: [source_asset_id, target_asset_id]
+
     ImpactEdge:
       type: object
       description: |
@@ -4346,6 +4376,8 @@ components:
           type: string
         dependency_type:
           type: string
+        dependency_category:
+          $ref: '#/components/schemas/DependencyCategory'
         depth:
           type: integer
           description: 1 = direct edge from root, 2 = one hop away, etc.
@@ -4364,6 +4396,7 @@ components:
         - target_asset_id
         - target_asset_name
         - dependency_type
+        - dependency_category
         - depth
         - path
         - direction

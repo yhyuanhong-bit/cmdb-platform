@@ -17,6 +17,7 @@ SELECT
     ad.target_asset_id,
     ta.name AS target_asset_name,
     ad.dependency_type,
+    ad.dependency_category,
     COALESCE(ad.description, '') AS description
 FROM asset_dependencies ad
 JOIN assets sa ON ad.source_asset_id = sa.id
@@ -27,9 +28,15 @@ WHERE ad.tenant_id = $1
 -- name: CreateAssetDependency :exec
 -- The unique index on (source_asset_id, target_asset_id, dependency_type)
 -- means duplicate edges surface as a unique-violation error — callers
--- translate that to HTTP 409.
-INSERT INTO asset_dependencies (id, tenant_id, source_asset_id, target_asset_id, dependency_type, description)
-VALUES ($1, $2, $3, $4, $5, $6);
+-- translate that to HTTP 409. dependency_category (migration 000054) is
+-- NOT NULL with default 'dependency'; we require it explicitly here so
+-- the handler layer decides classification rather than relying on the
+-- DB default silently picking for callers that forgot.
+INSERT INTO asset_dependencies (
+    id, tenant_id, source_asset_id, target_asset_id,
+    dependency_type, dependency_category, description
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7);
 
 -- name: DeleteAssetDependency :execrows
 -- Returns rows affected so the caller can map 0 -> 404.
@@ -41,7 +48,7 @@ WHERE id = $1 AND tenant_id = $2;
 -- has already scoped the asset ID list to a single tenant via an earlier
 -- tenant-scoped query; asset_dependencies rows referencing IDs outside that
 -- set cannot appear. Preserving pre-migration behavior verbatim.
-SELECT id, source_asset_id, target_asset_id, dependency_type
+SELECT id, source_asset_id, target_asset_id, dependency_type, dependency_category
 FROM asset_dependencies
 WHERE source_asset_id = ANY($1::uuid[]) OR target_asset_id = ANY($1::uuid[]);
 
@@ -59,6 +66,7 @@ WITH RECURSIVE tree AS (
         ad.source_asset_id,
         ad.target_asset_id,
         ad.dependency_type,
+        ad.dependency_category,
         1::int AS depth,
         ARRAY[ad.source_asset_id, ad.target_asset_id]::uuid[] AS path
     FROM asset_dependencies ad
@@ -72,6 +80,7 @@ WITH RECURSIVE tree AS (
         ad.source_asset_id,
         ad.target_asset_id,
         ad.dependency_type,
+        ad.dependency_category,
         t.depth + 1,
         t.path || ad.target_asset_id
     FROM asset_dependencies ad
@@ -87,6 +96,7 @@ SELECT
     t.target_asset_id,
     ta.name AS target_asset_name,
     t.dependency_type,
+    t.dependency_category,
     t.depth,
     t.path
 FROM tree t
@@ -105,6 +115,7 @@ WITH RECURSIVE tree AS (
         ad.source_asset_id,
         ad.target_asset_id,
         ad.dependency_type,
+        ad.dependency_category,
         1::int AS depth,
         ARRAY[ad.target_asset_id, ad.source_asset_id]::uuid[] AS path
     FROM asset_dependencies ad
@@ -118,6 +129,7 @@ WITH RECURSIVE tree AS (
         ad.source_asset_id,
         ad.target_asset_id,
         ad.dependency_type,
+        ad.dependency_category,
         t.depth + 1,
         t.path || ad.source_asset_id
     FROM asset_dependencies ad
@@ -133,6 +145,7 @@ SELECT
     t.target_asset_id,
     ta.name AS target_asset_name,
     t.dependency_type,
+    t.dependency_category,
     t.depth,
     t.path
 FROM tree t

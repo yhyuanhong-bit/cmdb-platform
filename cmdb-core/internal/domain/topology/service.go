@@ -373,16 +373,22 @@ const ImpactMaxDepthCap = 10
 // Path is the chain of asset IDs visited from root to the far node of
 // this edge (inclusive on both ends), so the client can render full
 // chains without re-querying.
+//
+// DependencyCategory is the coarse bucket from migration 000054; kept
+// as a plain string at this layer because the dbgen type is package-
+// private at the domain boundary and the API layer already knows how
+// to validate it.
 type ImpactEdge struct {
-	ID              uuid.UUID
-	SourceAssetID   uuid.UUID
-	SourceAssetName string
-	TargetAssetID   uuid.UUID
-	TargetAssetName string
-	DependencyType  string
-	Depth           int
-	Path            []uuid.UUID
-	Direction       ImpactDirection
+	ID                 uuid.UUID
+	SourceAssetID      uuid.UUID
+	SourceAssetName    string
+	TargetAssetID      uuid.UUID
+	TargetAssetName    string
+	DependencyType     string
+	DependencyCategory string
+	Depth              int
+	Path               []uuid.UUID
+	Direction          ImpactDirection
 }
 
 // GetImpactPath returns the transitive dependency graph reachable from
@@ -418,15 +424,16 @@ func (s *Service) GetImpactPath(
 		}
 		for _, r := range rows {
 			edges = append(edges, ImpactEdge{
-				ID:              r.ID,
-				SourceAssetID:   r.SourceAssetID,
-				SourceAssetName: r.SourceAssetName,
-				TargetAssetID:   r.TargetAssetID,
-				TargetAssetName: r.TargetAssetName,
-				DependencyType:  r.DependencyType,
-				Depth:           int(r.Depth),
-				Path:            r.Path,
-				Direction:       ImpactDirectionDownstream,
+				ID:                 r.ID,
+				SourceAssetID:      r.SourceAssetID,
+				SourceAssetName:    r.SourceAssetName,
+				TargetAssetID:      r.TargetAssetID,
+				TargetAssetName:    r.TargetAssetName,
+				DependencyType:     r.DependencyType,
+				DependencyCategory: string(r.DependencyCategory),
+				Depth:              int(r.Depth),
+				Path:               r.Path,
+				Direction:          ImpactDirectionDownstream,
 			})
 		}
 	}
@@ -442,15 +449,16 @@ func (s *Service) GetImpactPath(
 		}
 		for _, r := range rows {
 			edges = append(edges, ImpactEdge{
-				ID:              r.ID,
-				SourceAssetID:   r.SourceAssetID,
-				SourceAssetName: r.SourceAssetName,
-				TargetAssetID:   r.TargetAssetID,
-				TargetAssetName: r.TargetAssetName,
-				DependencyType:  r.DependencyType,
-				Depth:           int(r.Depth),
-				Path:            r.Path,
-				Direction:       ImpactDirectionUpstream,
+				ID:                 r.ID,
+				SourceAssetID:      r.SourceAssetID,
+				SourceAssetName:    r.SourceAssetName,
+				TargetAssetID:      r.TargetAssetID,
+				TargetAssetName:    r.TargetAssetName,
+				DependencyType:     r.DependencyType,
+				DependencyCategory: string(r.DependencyCategory),
+				Depth:              int(r.Depth),
+				Path:               r.Path,
+				Direction:          ImpactDirectionUpstream,
 			})
 		}
 	}

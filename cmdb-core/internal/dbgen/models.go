@@ -59,6 +59,50 @@ func (ns NullAuditOperatorType) Value() (driver.Value, error) {
 	return string(ns.AuditOperatorType), nil
 }
 
+type DependencyCategory string
+
+const (
+	DependencyCategoryContainment   DependencyCategory = "containment"
+	DependencyCategoryDependency    DependencyCategory = "dependency"
+	DependencyCategoryCommunication DependencyCategory = "communication"
+	DependencyCategoryCustom        DependencyCategory = "custom"
+)
+
+func (e *DependencyCategory) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DependencyCategory(s)
+	case string:
+		*e = DependencyCategory(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DependencyCategory: %T", src)
+	}
+	return nil
+}
+
+type NullDependencyCategory struct {
+	DependencyCategory DependencyCategory `json:"dependency_category"`
+	Valid              bool               `json:"valid"` // Valid is true if DependencyCategory is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDependencyCategory) Scan(value interface{}) error {
+	if value == nil {
+		ns.DependencyCategory, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DependencyCategory.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDependencyCategory) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DependencyCategory), nil
+}
+
 type AlertEvent struct {
 	ID           uuid.UUID          `json:"id"`
 	TenantID     uuid.UUID          `json:"tenant_id"`
@@ -125,13 +169,14 @@ type Asset struct {
 }
 
 type AssetDependency struct {
-	ID             uuid.UUID   `json:"id"`
-	TenantID       uuid.UUID   `json:"tenant_id"`
-	SourceAssetID  uuid.UUID   `json:"source_asset_id"`
-	TargetAssetID  uuid.UUID   `json:"target_asset_id"`
-	DependencyType string      `json:"dependency_type"`
-	Description    pgtype.Text `json:"description"`
-	CreatedAt      time.Time   `json:"created_at"`
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	SourceAssetID      uuid.UUID          `json:"source_asset_id"`
+	TargetAssetID      uuid.UUID          `json:"target_asset_id"`
+	DependencyType     string             `json:"dependency_type"`
+	Description        pgtype.Text        `json:"description"`
+	CreatedAt          time.Time          `json:"created_at"`
+	DependencyCategory DependencyCategory `json:"dependency_category"`
 }
 
 type AssetLocationHistory struct {

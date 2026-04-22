@@ -13,22 +13,29 @@ import (
 )
 
 const createAssetDependency = `-- name: CreateAssetDependency :exec
-INSERT INTO asset_dependencies (id, tenant_id, source_asset_id, target_asset_id, dependency_type, description)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO asset_dependencies (
+    id, tenant_id, source_asset_id, target_asset_id,
+    dependency_type, dependency_category, description
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 `
 
 type CreateAssetDependencyParams struct {
-	ID             uuid.UUID   `json:"id"`
-	TenantID       uuid.UUID   `json:"tenant_id"`
-	SourceAssetID  uuid.UUID   `json:"source_asset_id"`
-	TargetAssetID  uuid.UUID   `json:"target_asset_id"`
-	DependencyType string      `json:"dependency_type"`
-	Description    pgtype.Text `json:"description"`
+	ID                 uuid.UUID          `json:"id"`
+	TenantID           uuid.UUID          `json:"tenant_id"`
+	SourceAssetID      uuid.UUID          `json:"source_asset_id"`
+	TargetAssetID      uuid.UUID          `json:"target_asset_id"`
+	DependencyType     string             `json:"dependency_type"`
+	DependencyCategory DependencyCategory `json:"dependency_category"`
+	Description        pgtype.Text        `json:"description"`
 }
 
 // The unique index on (source_asset_id, target_asset_id, dependency_type)
 // means duplicate edges surface as a unique-violation error — callers
-// translate that to HTTP 409.
+// translate that to HTTP 409. dependency_category (migration 000054) is
+// NOT NULL with default 'dependency'; we require it explicitly here so
+// the handler layer decides classification rather than relying on the
+// DB default silently picking for callers that forgot.
 func (q *Queries) CreateAssetDependency(ctx context.Context, arg CreateAssetDependencyParams) error {
 	_, err := q.db.Exec(ctx, createAssetDependency,
 		arg.ID,
@@ -36,6 +43,7 @@ func (q *Queries) CreateAssetDependency(ctx context.Context, arg CreateAssetDepe
 		arg.SourceAssetID,
 		arg.TargetAssetID,
 		arg.DependencyType,
+		arg.DependencyCategory,
 		arg.Description,
 	)
 	return err
@@ -67,6 +75,7 @@ WITH RECURSIVE tree AS (
         ad.source_asset_id,
         ad.target_asset_id,
         ad.dependency_type,
+        ad.dependency_category,
         1::int AS depth,
         ARRAY[ad.source_asset_id, ad.target_asset_id]::uuid[] AS path
     FROM asset_dependencies ad
@@ -80,6 +89,7 @@ WITH RECURSIVE tree AS (
         ad.source_asset_id,
         ad.target_asset_id,
         ad.dependency_type,
+        ad.dependency_category,
         t.depth + 1,
         t.path || ad.target_asset_id
     FROM asset_dependencies ad
@@ -95,6 +105,7 @@ SELECT
     t.target_asset_id,
     ta.name AS target_asset_name,
     t.dependency_type,
+    t.dependency_category,
     t.depth,
     t.path
 FROM tree t
@@ -110,14 +121,15 @@ type GetDownstreamDependenciesParams struct {
 }
 
 type GetDownstreamDependenciesRow struct {
-	ID              uuid.UUID   `json:"id"`
-	SourceAssetID   uuid.UUID   `json:"source_asset_id"`
-	SourceAssetName string      `json:"source_asset_name"`
-	TargetAssetID   uuid.UUID   `json:"target_asset_id"`
-	TargetAssetName string      `json:"target_asset_name"`
-	DependencyType  string      `json:"dependency_type"`
-	Depth           int32       `json:"depth"`
-	Path            []uuid.UUID `json:"path"`
+	ID                 uuid.UUID          `json:"id"`
+	SourceAssetID      uuid.UUID          `json:"source_asset_id"`
+	SourceAssetName    string             `json:"source_asset_name"`
+	TargetAssetID      uuid.UUID          `json:"target_asset_id"`
+	TargetAssetName    string             `json:"target_asset_name"`
+	DependencyType     string             `json:"dependency_type"`
+	DependencyCategory DependencyCategory `json:"dependency_category"`
+	Depth              int32              `json:"depth"`
+	Path               []uuid.UUID        `json:"path"`
 }
 
 // Recursive CTE: starting from @root_asset_id, follow source→target edges
@@ -143,6 +155,7 @@ func (q *Queries) GetDownstreamDependencies(ctx context.Context, arg GetDownstre
 			&i.TargetAssetID,
 			&i.TargetAssetName,
 			&i.DependencyType,
+			&i.DependencyCategory,
 			&i.Depth,
 			&i.Path,
 		); err != nil {
@@ -163,6 +176,7 @@ WITH RECURSIVE tree AS (
         ad.source_asset_id,
         ad.target_asset_id,
         ad.dependency_type,
+        ad.dependency_category,
         1::int AS depth,
         ARRAY[ad.target_asset_id, ad.source_asset_id]::uuid[] AS path
     FROM asset_dependencies ad
@@ -176,6 +190,7 @@ WITH RECURSIVE tree AS (
         ad.source_asset_id,
         ad.target_asset_id,
         ad.dependency_type,
+        ad.dependency_category,
         t.depth + 1,
         t.path || ad.source_asset_id
     FROM asset_dependencies ad
@@ -191,6 +206,7 @@ SELECT
     t.target_asset_id,
     ta.name AS target_asset_name,
     t.dependency_type,
+    t.dependency_category,
     t.depth,
     t.path
 FROM tree t
@@ -206,14 +222,15 @@ type GetUpstreamDependentsParams struct {
 }
 
 type GetUpstreamDependentsRow struct {
-	ID              uuid.UUID   `json:"id"`
-	SourceAssetID   uuid.UUID   `json:"source_asset_id"`
-	SourceAssetName string      `json:"source_asset_name"`
-	TargetAssetID   uuid.UUID   `json:"target_asset_id"`
-	TargetAssetName string      `json:"target_asset_name"`
-	DependencyType  string      `json:"dependency_type"`
-	Depth           int32       `json:"depth"`
-	Path            []uuid.UUID `json:"path"`
+	ID                 uuid.UUID          `json:"id"`
+	SourceAssetID      uuid.UUID          `json:"source_asset_id"`
+	SourceAssetName    string             `json:"source_asset_name"`
+	TargetAssetID      uuid.UUID          `json:"target_asset_id"`
+	TargetAssetName    string             `json:"target_asset_name"`
+	DependencyType     string             `json:"dependency_type"`
+	DependencyCategory DependencyCategory `json:"dependency_category"`
+	Depth              int32              `json:"depth"`
+	Path               []uuid.UUID        `json:"path"`
 }
 
 // Mirror of GetDownstreamDependencies traversing target→source edges: given
@@ -236,6 +253,7 @@ func (q *Queries) GetUpstreamDependents(ctx context.Context, arg GetUpstreamDepe
 			&i.TargetAssetID,
 			&i.TargetAssetName,
 			&i.DependencyType,
+			&i.DependencyCategory,
 			&i.Depth,
 			&i.Path,
 		); err != nil {
@@ -258,6 +276,7 @@ SELECT
     ad.target_asset_id,
     ta.name AS target_asset_name,
     ad.dependency_type,
+    ad.dependency_category,
     COALESCE(ad.description, '') AS description
 FROM asset_dependencies ad
 JOIN assets sa ON ad.source_asset_id = sa.id
@@ -272,13 +291,14 @@ type ListAssetDependenciesParams struct {
 }
 
 type ListAssetDependenciesRow struct {
-	ID              uuid.UUID `json:"id"`
-	SourceAssetID   uuid.UUID `json:"source_asset_id"`
-	SourceAssetName string    `json:"source_asset_name"`
-	TargetAssetID   uuid.UUID `json:"target_asset_id"`
-	TargetAssetName string    `json:"target_asset_name"`
-	DependencyType  string    `json:"dependency_type"`
-	Description     string    `json:"description"`
+	ID                 uuid.UUID          `json:"id"`
+	SourceAssetID      uuid.UUID          `json:"source_asset_id"`
+	SourceAssetName    string             `json:"source_asset_name"`
+	TargetAssetID      uuid.UUID          `json:"target_asset_id"`
+	TargetAssetName    string             `json:"target_asset_name"`
+	DependencyType     string             `json:"dependency_type"`
+	DependencyCategory DependencyCategory `json:"dependency_category"`
+	Description        string             `json:"description"`
 }
 
 // asset_dependencies: directed edges between assets (source depends on
@@ -307,6 +327,7 @@ func (q *Queries) ListAssetDependencies(ctx context.Context, arg ListAssetDepend
 			&i.TargetAssetID,
 			&i.TargetAssetName,
 			&i.DependencyType,
+			&i.DependencyCategory,
 			&i.Description,
 		); err != nil {
 			return nil, err
@@ -320,16 +341,17 @@ func (q *Queries) ListAssetDependencies(ctx context.Context, arg ListAssetDepend
 }
 
 const listAssetDependenciesByAssetIDs = `-- name: ListAssetDependenciesByAssetIDs :many
-SELECT id, source_asset_id, target_asset_id, dependency_type
+SELECT id, source_asset_id, target_asset_id, dependency_type, dependency_category
 FROM asset_dependencies
 WHERE source_asset_id = ANY($1::uuid[]) OR target_asset_id = ANY($1::uuid[])
 `
 
 type ListAssetDependenciesByAssetIDsRow struct {
-	ID             uuid.UUID `json:"id"`
-	SourceAssetID  uuid.UUID `json:"source_asset_id"`
-	TargetAssetID  uuid.UUID `json:"target_asset_id"`
-	DependencyType string    `json:"dependency_type"`
+	ID                 uuid.UUID          `json:"id"`
+	SourceAssetID      uuid.UUID          `json:"source_asset_id"`
+	TargetAssetID      uuid.UUID          `json:"target_asset_id"`
+	DependencyType     string             `json:"dependency_type"`
+	DependencyCategory DependencyCategory `json:"dependency_category"`
 }
 
 // cross-tenant: no tenant_id filter by design. Caller (GetTopologyGraph)
@@ -350,6 +372,7 @@ func (q *Queries) ListAssetDependenciesByAssetIDs(ctx context.Context, dollar_1 
 			&i.SourceAssetID,
 			&i.TargetAssetID,
 			&i.DependencyType,
+			&i.DependencyCategory,
 		); err != nil {
 			return nil, err
 		}

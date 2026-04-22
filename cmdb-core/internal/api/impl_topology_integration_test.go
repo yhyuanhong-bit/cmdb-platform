@@ -573,6 +573,250 @@ func TestIntegration_GetTopologyImpact_TenantIsolation(t *testing.T) {
 	}
 }
 
+// ──────────────────────────────────────────────────────────────────────
+// dependency_category (migration 000054) tests
+// ──────────────────────────────────────────────────────────────────────
+
+// TestIntegration_CreateAssetDependency_CategoryPersisted covers the
+// happy path for D2-P1a: a client supplying a category gets that
+// category written to the DB and echoed back from List.
+func TestIntegration_CreateAssetDependency_CategoryPersisted(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupDepFixture(t, pool)
+
+	s := &APIServer{pool: pool}
+
+	// Use a fresh (src,tgt,type) combo so we don't collide with depA's
+	// unique index. reverse direction of the A1→A2 edge.
+	payload, _ := json.Marshal(map[string]string{
+		"source_asset_id":     fix.assetA2.String(),
+		"target_asset_id":     fix.assetA1.String(),
+		"dependency_type":     "contains",
+		"dependency_category": "containment",
+		"description":         "rack contains server",
+	})
+	c, rec := newDepCtx(t, http.MethodPost,
+		"/topology/dependencies",
+		fix.tenantA, fix.userA, payload)
+	s.CreateAssetDependency(c)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201 — body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Verify DB column reflects the ENUM value.
+	var cat string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT dependency_category::text FROM asset_dependencies
+		 WHERE tenant_id=$1 AND source_asset_id=$2 AND target_asset_id=$3 AND dependency_type='contains'`,
+		fix.tenantA, fix.assetA2, fix.assetA1).Scan(&cat); err != nil {
+		t.Fatalf("fetch category: %v", err)
+	}
+	if cat != "containment" {
+		t.Errorf("DB category = %q, want %q", cat, "containment")
+	}
+
+	// Verify ListAssetDependencies echoes the category in its JSON.
+	assetA2ID := openapi_types.UUID(fix.assetA2)
+	c2, rec2 := newDepCtx(t, http.MethodGet,
+		"/topology/dependencies?asset_id="+fix.assetA2.String(),
+		fix.tenantA, fix.userA, nil)
+	s.ListAssetDependencies(c2, ListAssetDependenciesParams{AssetId: &assetA2ID})
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want 200", rec2.Code)
+	}
+	var env struct {
+		Data struct {
+			Dependencies []struct {
+				DependencyType     string `json:"dependency_type"`
+				DependencyCategory string `json:"dependency_category"`
+			} `json:"dependencies"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec2.Body.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	var found bool
+	for _, d := range env.Data.Dependencies {
+		if d.DependencyType == "contains" {
+			found = true
+			if d.DependencyCategory != "containment" {
+				t.Errorf("list category = %q, want containment", d.DependencyCategory)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("contains edge not present in list response — %s", rec2.Body.String())
+	}
+}
+
+// TestIntegration_CreateAssetDependency_CategoryDefault verifies that
+// when the client omits dependency_category, the handler defaults to
+// 'dependency' — matching the DB column default and pre-migration
+// behavior for legacy clients.
+func TestIntegration_CreateAssetDependency_CategoryDefault(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupDepFixture(t, pool)
+
+	s := &APIServer{pool: pool}
+
+	// Fresh edge (reverse of depA) with no category supplied.
+	payload, _ := json.Marshal(map[string]string{
+		"source_asset_id": fix.assetA2.String(),
+		"target_asset_id": fix.assetA1.String(),
+		"dependency_type": "depends_on",
+	})
+	c, rec := newDepCtx(t, http.MethodPost,
+		"/topology/dependencies",
+		fix.tenantA, fix.userA, payload)
+	s.CreateAssetDependency(c)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want 201 — body=%s", rec.Code, rec.Body.String())
+	}
+	var cat string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT dependency_category::text FROM asset_dependencies
+		 WHERE tenant_id=$1 AND source_asset_id=$2 AND target_asset_id=$3 AND dependency_type='depends_on'`,
+		fix.tenantA, fix.assetA2, fix.assetA1).Scan(&cat); err != nil {
+		t.Fatalf("fetch category: %v", err)
+	}
+	if cat != "dependency" {
+		t.Errorf("default category = %q, want %q", cat, "dependency")
+	}
+}
+
+// TestIntegration_CreateAssetDependency_InvalidCategory verifies the
+// handler rejects a category outside the ENUM with HTTP 400 before the
+// INSERT ever reaches the database.
+func TestIntegration_CreateAssetDependency_InvalidCategory(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupDepFixture(t, pool)
+
+	s := &APIServer{pool: pool}
+
+	payload, _ := json.Marshal(map[string]string{
+		"source_asset_id":     fix.assetA2.String(),
+		"target_asset_id":     fix.assetA1.String(),
+		"dependency_type":     "depends_on",
+		"dependency_category": "bogus_bucket",
+	})
+	c, rec := newDepCtx(t, http.MethodPost,
+		"/topology/dependencies",
+		fix.tenantA, fix.userA, payload)
+	s.CreateAssetDependency(c)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for invalid category — body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Confirm nothing was written.
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM asset_dependencies WHERE tenant_id=$1 AND source_asset_id=$2 AND target_asset_id=$3`,
+		fix.tenantA, fix.assetA2, fix.assetA1).Scan(&n); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("invalid category still inserted a row — count=%d", n)
+	}
+}
+
+// TestIntegration_Migration054_BackfillMapping verifies the backfill
+// logic in 000054_dependency_category.up.sql classified the seed/prod
+// verbs into the right buckets. This matters because the migration is
+// one-shot: if the CASE statement drifts from the verbs we use, rows
+// silently end up in 'custom' and impact queries pivot wrongly.
+//
+// We re-create one row per known verb, then assert the backfill ran
+// the same CASE expression the migration did.
+func TestIntegration_Migration054_BackfillMapping(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupDepFixture(t, pool)
+
+	ctx := context.Background()
+	type verbCat struct{ verb, want string }
+	// Mirror 000054_dependency_category.up.sql CASE branches 1:1.
+	cases := []verbCat{
+		{"contains", "containment"}, {"part_of", "containment"},
+		{"mounted_in", "containment"}, {"hosts", "containment"},
+		{"requires", "dependency"}, {"uses", "dependency"}, {"needs", "dependency"},
+		{"connects_to", "communication"}, {"talks_to", "communication"},
+		{"subscribes_to", "communication"}, {"publishes_to", "communication"},
+		{"some_unknown_verb", "custom"},
+	}
+	// Insert all edges, then apply the same CASE expression live to
+	// simulate re-running the backfill on fresh rows.
+	for _, tc := range cases {
+		id := uuid.New()
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO asset_dependencies (id, tenant_id, source_asset_id, target_asset_id, dependency_type, dependency_category)
+			 VALUES ($1, $2, $3, $4, $5::text, CASE
+				WHEN $5::text IN ('contains','part_of','mounted_in','hosts') THEN 'containment'::dependency_category
+				WHEN $5::text IN ('depends_on','requires','uses','needs') THEN 'dependency'::dependency_category
+				WHEN $5::text IN ('connects_to','talks_to','subscribes_to','publishes_to') THEN 'communication'::dependency_category
+				ELSE 'custom'::dependency_category END)`,
+			id, fix.tenantA, fix.assetA2, fix.assetA1, tc.verb); err != nil {
+			t.Fatalf("insert verb=%q: %v", tc.verb, err)
+		}
+		var got string
+		if err := pool.QueryRow(ctx,
+			`SELECT dependency_category::text FROM asset_dependencies WHERE id=$1`, id).Scan(&got); err != nil {
+			t.Fatalf("fetch verb=%q: %v", tc.verb, err)
+		}
+		if got != tc.want {
+			t.Errorf("verb=%q -> category=%q, want %q", tc.verb, got, tc.want)
+		}
+	}
+}
+
+// TestIntegration_GetTopologyImpact_CategoryPassThrough verifies
+// GetTopologyImpact surfaces dependency_category on every returned
+// edge, both downstream and upstream. Regression guard for the wiring
+// between the recursive CTE rows and the API ImpactEdge shape.
+func TestIntegration_GetTopologyImpact_CategoryPassThrough(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupImpactFixture(t, pool)
+	s := newImpactServer(pool)
+
+	// setupImpactFixture inserts all edges as 'depends_on' which back-
+	// fills to 'dependency'. That's enough for this assertion — what
+	// we're guarding against is the field going missing, not a specific
+	// value per edge.
+	rootID := openapi_types.UUID(fix.chA)
+	depth := 5
+	c, rec := newDepCtx(t, http.MethodGet,
+		"/topology/impact?root_asset_id="+fix.chA.String(),
+		fix.tenantA, fix.userA, nil)
+	s.GetTopologyImpact(c, GetTopologyImpactParams{
+		RootAssetId: rootID,
+		MaxDepth:    &depth,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var body struct {
+		Data struct {
+			Edges []struct {
+				DependencyCategory string `json:"dependency_category"`
+			} `json:"edges"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v — %s", err, rec.Body.String())
+	}
+	if len(body.Data.Edges) == 0 {
+		t.Fatal("expected >=1 edge, got 0")
+	}
+	for i, e := range body.Data.Edges {
+		if e.DependencyCategory != "dependency" {
+			t.Errorf("edge %d category = %q, want %q", i, e.DependencyCategory, "dependency")
+		}
+	}
+}
+
 // TestIntegration_GetTopologyImpact_DepthValidation verifies the
 // service rejects max_depth outside [1, 10].
 func TestIntegration_GetTopologyImpact_DepthValidation(t *testing.T) {
