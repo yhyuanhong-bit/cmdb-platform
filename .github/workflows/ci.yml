@@ -78,8 +78,11 @@ jobs:
     # isolation regressions, sync agent, RBAC, workflows event chains.
     # Without this job those tests sit in the repo as documentation only.
     services:
+      # Match the deploy/docker-compose.yml image — migrations 000031+
+      # depend on TimescaleDB (create_hypertable, continuous aggregates),
+      # so vanilla postgres would fail at apply time.
       postgres:
-        image: postgres:16
+        image: timescale/timescaledb:latest-pg17
         env:
           POSTGRES_USER: cmdb
           POSTGRES_PASSWORD: cmdb
