@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useInventoryTask, useInventoryItems, useScanItem, useItemScanHistory, useItemNotes, useCreateItemNote } from "../hooks/useInventory";
+import { useAsset } from "../hooks/useAssets";
 interface ScanRecord {
   scanned_serial?: string
   scanned_asset_tag?: string
@@ -76,28 +77,47 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
   const createNote = useCreateItemNote()
   const [noteText, setNoteText] = useState('')
 
-  // Build ASSET from API task + inventory item. Fields that the API does not
-  // yet expose (model, manufacturer, owner, purchase/warranty/maintenance
-  // dates, IP/MAC) show "—" rather than decorative fake values.
-  // TODO(phase-3.10): wire up GET /assets/{id} once the inventory item is
-  // linked to the full asset record — today the task endpoint only exposes
-  // task + item fields, not the underlying asset's financial/network attrs.
+  // Fetch full asset detail when the inventory item is linked to a real
+  // asset. Hook is enabled only when asset_id is non-empty — unlinked items
+  // (orphan scans) fall back to the task-level name/code.
+  const linkedAssetId = firstItem?.asset_id ?? '';
+  const { data: assetResp } = useAsset(linkedAssetId);
+  const linkedAsset = assetResp?.data;
+
+  // Build ASSET from the three data sources in priority order:
+  //   1. Linked asset detail (canonical attributes)
+  //   2. Inventory task metadata (name/code fallback)
+  //   3. Inventory item's expected/actual JSON blobs (last resort)
+  // Fields that none of the sources provide show "—" rather than fake values.
+  //
+  // The Asset OpenAPI type pins only the core fields explicitly; financial
+  // and network attributes live in the generic `attributes` JSONB. We access
+  // them through a Record<string, unknown> cast rather than type-assertion
+  // so the compiler tracks the unknown-ness.
   const EMPTY = '—';
+  const expectedBlob = (firstItem?.expected ?? {}) as Record<string, unknown>;
+  const actualBlob = (firstItem?.actual ?? {}) as Record<string, unknown>;
+  const str = (v: unknown): string => (typeof v === 'string' && v.length > 0 ? v : EMPTY);
+  const assetRec = (linkedAsset ?? {}) as Record<string, unknown>;
+  const assetAttrs = (assetRec.attributes ?? {}) as Record<string, unknown>;
+
   const ASSET = {
-    name: task?.name ?? EMPTY,
-    tag: task?.code ?? EMPTY,
-    serialNumber: firstItem?.asset_id ?? EMPTY,
-    model: EMPTY,
-    manufacturer: EMPTY,
-    location: EMPTY,
-    status: firstItem?.status ?? EMPTY,
-    expectedStatus: EMPTY,
-    owner: EMPTY,
-    purchaseDate: EMPTY,
-    warrantyExpiry: EMPTY,
-    lastMaintenance: EMPTY,
-    ipAddress: EMPTY,
-    macAddress: EMPTY,
+    name: linkedAsset?.name ?? task?.name ?? EMPTY,
+    tag: linkedAsset?.asset_tag ?? task?.code ?? EMPTY,
+    serialNumber: str(assetRec.serial_number) !== EMPTY
+      ? str(assetRec.serial_number)
+      : str(actualBlob.serial_number),
+    model: str(assetRec.model),
+    manufacturer: str(assetRec.manufacturer),
+    location: str(assetRec.location_name),
+    status: firstItem?.status ?? linkedAsset?.status ?? EMPTY,
+    expectedStatus: str(expectedBlob.status),
+    owner: str(assetRec.owner),
+    purchaseDate: str(assetAttrs.purchase_date ?? assetRec.purchase_date),
+    warrantyExpiry: str(assetAttrs.warranty_expiry ?? assetRec.warranty_expiry),
+    lastMaintenance: str(assetRec.last_maintenance_at),
+    ipAddress: str(assetAttrs.ip_address ?? assetRec.ip_address),
+    macAddress: str(assetAttrs.mac_address ?? assetRec.mac_address),
   };
 
   if (taskLoading) {
@@ -122,15 +142,23 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
           </button>
           <div className="flex items-center gap-3">
             <h1
-              className="font-headline text-3xl font-bold tracking-tight text-on-surface cursor-pointer hover:text-primary transition-colors"
-              onClick={() => navigate('/assets/detail')}
-              title={t('inventory_detail.tooltip_view_asset')}
+              className={`font-headline text-3xl font-bold tracking-tight text-on-surface transition-colors ${
+                linkedAssetId
+                  ? 'cursor-pointer hover:text-primary'
+                  : ''
+              }`}
+              onClick={() => {
+                if (linkedAssetId) navigate(`/assets/${linkedAssetId}`);
+              }}
+              title={linkedAssetId ? t('inventory_detail.tooltip_view_asset') : ''}
             >
               {ASSET.name}
             </h1>
-            <span className="bg-error-container text-error text-[10px] font-label font-bold tracking-widest px-3 py-1 rounded-lg">
-              {t('inventory_detail.mismatch')}
-            </span>
+            {firstItem?.status === 'discrepancy' && (
+              <span className="bg-error-container text-error text-[10px] font-label font-bold tracking-widest px-3 py-1 rounded-lg">
+                {t('inventory_detail.mismatch')}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-4 mt-2">
             <span className="text-xs text-on-surface-variant font-label">
@@ -212,24 +240,59 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
             </div>
           </div>
 
-          {/* Status mismatch alert — only render when a real discrepancy is
-              present on the inventory item. TODO(phase-3.10): surface the
-              actual mismatch details from the /inventory/tasks/{id}/items
-              API (expected vs actual) once status_change context is exposed.
-          */}
-          {firstItem?.discrepancy && (
-            <div className="mt-4 bg-error-container/30 rounded-xl p-4 flex items-start gap-3">
-              <Icon name="warning" className="text-error text-xl shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-headline font-bold text-error mb-1">
-                  {t('inventory_detail.status_discrepancy_detected')}
-                </p>
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  {firstItem.discrepancy}
-                </p>
+          {/* Status mismatch alert. Renders a per-field diff between the
+              inventory item's `expected` and `actual` JSON blobs whenever
+              the item is in 'discrepancy' status. Fields where expected
+              and actual agree are suppressed so the alert points the eye
+              at the real deviation. */}
+          {firstItem?.status === 'discrepancy' && (() => {
+            const keys = Array.from(
+              new Set([...Object.keys(expectedBlob), ...Object.keys(actualBlob)]),
+            );
+            const diffs = keys
+              .map((k) => ({
+                key: k,
+                expected: expectedBlob[k],
+                actual: actualBlob[k],
+              }))
+              .filter((d) => JSON.stringify(d.expected) !== JSON.stringify(d.actual));
+            if (diffs.length === 0) return null;
+            return (
+              <div className="mt-4 bg-error-container/30 rounded-xl p-4">
+                <div className="flex items-start gap-3 mb-3">
+                  <Icon name="warning" className="text-error text-xl shrink-0 mt-0.5" />
+                  <p className="text-sm font-headline font-bold text-error">
+                    {t('inventory_detail.status_discrepancy_detected')}
+                  </p>
+                </div>
+                <div className="space-y-2 pl-8">
+                  {diffs.map((d) => (
+                    <div key={d.key} className="text-xs grid grid-cols-3 gap-2">
+                      <span className="font-label uppercase tracking-wider text-on-surface-variant">
+                        {d.key}
+                      </span>
+                      <span className="text-on-surface">
+                        <span className="text-on-surface-variant mr-1">exp:</span>
+                        {d.expected === undefined || d.expected === null
+                          ? EMPTY
+                          : typeof d.expected === 'object'
+                          ? JSON.stringify(d.expected)
+                          : String(d.expected)}
+                      </span>
+                      <span className="text-error font-medium">
+                        <span className="text-on-surface-variant mr-1">got:</span>
+                        {d.actual === undefined || d.actual === null
+                          ? EMPTY
+                          : typeof d.actual === 'object'
+                          ? JSON.stringify(d.actual)
+                          : String(d.actual)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* QR / Barcode panel */}

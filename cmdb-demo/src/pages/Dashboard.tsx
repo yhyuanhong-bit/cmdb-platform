@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocationContext } from '../contexts/LocationContext';
 import LocationBreadcrumb from '../components/LocationBreadcrumb';
 import EmptyState from '../components/EmptyState';
-import { useDashboardStats, useRackStats, useLifecycleStats } from '../hooks/useDashboard';
+import { useDashboardStats, useRackStats, useLifecycleStats, useAssetsTrend, useRackHeatmap } from '../hooks/useDashboard';
 import { useAlerts } from '../hooks/useMonitoring';
 import type { AlertEvent } from '../lib/api/monitoring';
 import { useBIAStats } from '../hooks/useBIA';
@@ -139,6 +139,35 @@ function Dashboard() {
   const activeTask = inventoryTasksResp?.data?.[0];
   const { data: activeTaskSummary } = useTaskSummary(activeTask?.id ?? '');
   const activeTaskCompletion = activeTaskSummary?.data?.completion_pct ?? 0;
+
+  // Assets trend series backs the assets tile's sparkline and delta label.
+  // Using 30d so the tile answers "what changed this month" without demanding
+  // a long history. 7d shows too little movement; 90d muddies recent changes.
+  const { data: trendResp } = useAssetsTrend('30d');
+  const trendPoints = trendResp?.data?.points ?? [];
+  const trendDelta = useMemo(() => {
+    if (trendPoints.length < 2) return null;
+    const first = trendPoints[0].count;
+    const last = trendPoints[trendPoints.length - 1].count;
+    if (first === 0) return null;
+    return { absolute: last - first, pct: ((last - first) / first) * 100 };
+  }, [trendPoints]);
+
+  // Rack heatmap grid. Unfiltered: show every rack in the tenant grouped by
+  // row_label. Frontend groups client-side to keep the API stable as more
+  // grouping needs emerge (e.g. by status, by location).
+  const { data: heatmapResp } = useRackHeatmap();
+  const heatmapCells = heatmapResp?.data ?? [];
+  const heatmapRows = useMemo(() => {
+    const groups = new Map<string, typeof heatmapCells>();
+    for (const cell of heatmapCells) {
+      const key = cell.row_label ?? '—';
+      const existing = groups.get(key);
+      if (existing) existing.push(cell);
+      else groups.set(key, [cell]);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [heatmapCells]);
   const activeTaskScanned = activeTaskSummary?.data?.scanned ?? 0;
   const activeTaskTotal = activeTaskSummary?.data?.total ?? 0;
 
@@ -240,14 +269,24 @@ function Dashboard() {
           <p className="font-headline text-3xl font-bold text-on-surface">
             {displayData.assets.toLocaleString()}
           </p>
-          {/*
-            TODO(phase-3.10): wire up GET /dashboard/assets-trend when the
-            backend endpoint is available. Removed fabricated "▲ 12% vs last
-            month" delta per audit remediation roadmap §3.10.
-          */}
-          <span className="mt-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wider text-on-surface-variant">
-            {t('common.coming_soon')}
-          </span>
+          {trendDelta ? (
+            <span
+              className={`mt-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wider ${
+                trendDelta.absolute >= 0 ? 'text-success' : 'text-error'
+              }`}
+            >
+              {trendDelta.absolute >= 0 ? '▲' : '▼'}{' '}
+              {Math.abs(trendDelta.pct).toFixed(1)}% {t('dashboard.vs_30d_ago')}
+              <span className="text-on-surface-variant">
+                ({trendDelta.absolute >= 0 ? '+' : ''}
+                {trendDelta.absolute})
+              </span>
+            </span>
+          ) : (
+            <span className="mt-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-wider text-on-surface-variant">
+              {t('dashboard.trend_unavailable')}
+            </span>
+          )}
         </div>
 
         {/* Rack Occupancy */}
@@ -422,21 +461,57 @@ function Dashboard() {
           )}
         </Section>
 
-        {/* Rack Utilization Heatmap — Empty state until per-position API exists.
-            TODO(phase-3.10): wire up GET /racks/heatmap (grid of row×column
-            occupancy_pct) when the backend endpoint is available. Previously
-            rendered a seeded decorative grid derived from (row*7+col*13)%N. */}
+        {/* Rack Utilization Heatmap — live data from /dashboard/rack-heatmap.
+            Racks are grouped by row_label (schema has no explicit grid
+            column), and each cell is colour-coded by the backend-supplied
+            status band (healthy/warning/critical). Clicking a cell opens
+            the rack detail page. */}
         <Section
           title={t('dashboard.rack_utilization_heatmap')}
           icon="grid_view"
           className="lg:col-span-3"
         >
-          <EmptyState
-            icon="grid_view"
-            title={t('common.empty_not_wired_title')}
-            description={t('common.empty_not_wired_desc')}
-            tone="info"
-          />
+          {heatmapRows.length === 0 ? (
+            <EmptyState
+              icon="grid_view"
+              title={t('common.empty_no_data')}
+              description={t('dashboard.no_racks_yet')}
+              tone="info"
+              compact
+            />
+          ) : (
+            <div className="space-y-3">
+              {heatmapRows.map(([rowLabel, racks]) => (
+                <div key={rowLabel} className="flex items-center gap-3">
+                  <div className="w-8 text-xs font-medium uppercase tracking-wider text-on-surface-variant">
+                    {rowLabel}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {racks.map((rack) => {
+                      const colorClass =
+                        rack.status === 'critical'
+                          ? 'bg-error/80 hover:bg-error text-on-error'
+                          : rack.status === 'warning'
+                          ? 'bg-warning/70 hover:bg-warning text-on-warning'
+                          : 'bg-success/60 hover:bg-success text-on-success';
+                      return (
+                        <button
+                          key={rack.rack_id}
+                          onClick={() => navigate(`/racks/${rack.rack_id}`)}
+                          title={`${rack.rack_name} — ${rack.occupancy_pct.toFixed(
+                            0,
+                          )}% (${rack.u_used}/${rack.u_total} U)`}
+                          className={`rounded px-2 py-1.5 text-[10px] font-medium transition-colors ${colorClass}`}
+                        >
+                          {rack.rack_name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
       </div>
 

@@ -2505,6 +2505,118 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /dashboard/assets-trend:
+    get:
+      operationId: getDashboardAssetsTrend
+      tags: [dashboard]
+      summary: Asset count trend over time
+      description: |
+        Returns total active asset count at the end of each bucket within the
+        requested period. Buckets are weekly for `period=90d`, daily for
+        shorter periods. Data is derived from the audit_events table (creates
+        and soft-deletes).
+      parameters:
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [7d, 30d, 90d]
+      responses:
+        '200':
+          description: Asset trend series
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      period:
+                        type: string
+                      points:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            bucket:
+                              type: string
+                              format: date-time
+                            count:
+                              type: integer
+                            created:
+                              type: integer
+                              description: assets created in this bucket
+                            deleted:
+                              type: integer
+                              description: assets soft-deleted in this bucket
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /dashboard/rack-heatmap:
+    get:
+      operationId: getDashboardRackHeatmap
+      tags: [dashboard]
+      summary: Rack utilization heatmap
+      description: |
+        Returns one entry per rack with row label, U-slot occupancy
+        percentage, and aggregated power capacity. Used by the Dashboard
+        heatmap widget to render a grouped-by-row view of all racks in the
+        tenant (or filtered to a location). The schema does not store an
+        explicit grid (row, column) — racks are grouped by `row_label` and
+        ordered by name within each row.
+      parameters:
+        - name: location_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Rack heatmap entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        rack_id:
+                          type: string
+                          format: uuid
+                        rack_name:
+                          type: string
+                        location_id:
+                          type: string
+                          format: uuid
+                        row_label:
+                          type: string
+                          nullable: true
+                        u_total:
+                          type: integer
+                        u_used:
+                          type: integer
+                        occupancy_pct:
+                          type: number
+                          format: float
+                        power_capacity_kw:
+                          type: number
+                          format: float
+                          nullable: true
+                        status:
+                          type: string
+                          enum: [healthy, warning, critical]
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # ── Identity ────────────────────────────────────────────────────────────
   /users:
     get:

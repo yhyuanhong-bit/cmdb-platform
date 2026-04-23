@@ -350,12 +350,21 @@ ON CONFLICT DO NOTHING;
 -- ============================================================
 -- Alert Rules (5 monitoring thresholds)
 -- ============================================================
+-- alert_rules.condition schema (see internal/domain/monitoring/evaluator.go RuleCondition):
+--   { "operator": ">"|"<"|">="|"<="|"=="|"!=",
+--     "threshold": <number>,
+--     "window_seconds": <int>,
+--     "aggregation": "avg"|"max"|"min"|"p95"|"p99",
+--     "consecutive_triggers": <int> }
+-- The early seed used a non-conforming "op" key + missing fields, which the
+-- evaluator silently skipped at startup with "invalid operator". Fixed.
+-- ops/cutover/2026-04-22-alert-rule-condition-format.sql migrates existing rows.
 INSERT INTO alert_rules (id, tenant_id, name, metric_name, condition, severity, enabled) VALUES
-    ('40000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'CPU High', 'cpu_usage', '{"op": ">", "threshold": 85}', 'warning', true),
-    ('40000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'CPU Critical', 'cpu_usage', '{"op": ">", "threshold": 95}', 'critical', true),
-    ('40000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Temp High', 'temperature', '{"op": ">", "threshold": 40}', 'warning', true),
-    ('40000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Disk Full', 'disk_usage', '{"op": ">", "threshold": 90}', 'critical', true),
-    ('40000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'Memory High', 'memory_usage', '{"op": ">", "threshold": 90}', 'warning', true)
+    ('40000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'CPU High', 'cpu_usage', '{"operator": ">", "threshold": 85, "window_seconds": 300, "aggregation": "avg", "consecutive_triggers": 2}', 'warning', true),
+    ('40000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'CPU Critical', 'cpu_usage', '{"operator": ">", "threshold": 95, "window_seconds": 60, "aggregation": "max", "consecutive_triggers": 1}', 'critical', true),
+    ('40000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Temp High', 'temperature', '{"operator": ">", "threshold": 40, "window_seconds": 300, "aggregation": "avg", "consecutive_triggers": 2}', 'warning', true),
+    ('40000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Disk Full', 'disk_usage', '{"operator": ">", "threshold": 90, "window_seconds": 600, "aggregation": "max", "consecutive_triggers": 1}', 'critical', true),
+    ('40000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'Memory High', 'memory_usage', '{"operator": ">", "threshold": 90, "window_seconds": 300, "aggregation": "avg", "consecutive_triggers": 2}', 'warning', true)
 ON CONFLICT DO NOTHING;
 
 -- ============================================================

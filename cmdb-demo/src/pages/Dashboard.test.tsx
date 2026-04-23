@@ -8,6 +8,8 @@ vi.mock('../hooks/useDashboard', () => ({
   useDashboardStats: vi.fn(),
   useRackStats: vi.fn(),
   useLifecycleStats: vi.fn(),
+  useAssetsTrend: vi.fn(),
+  useRackHeatmap: vi.fn(),
 }))
 vi.mock('../hooks/useMonitoring', () => ({
   useAlerts: vi.fn(),
@@ -33,7 +35,7 @@ vi.mock('../components/LocationBreadcrumb', () => ({
 }))
 
 import Dashboard from './Dashboard'
-import { useDashboardStats, useRackStats, useLifecycleStats } from '../hooks/useDashboard'
+import { useDashboardStats, useRackStats, useLifecycleStats, useAssetsTrend, useRackHeatmap } from '../hooks/useDashboard'
 import { useAlerts } from '../hooks/useMonitoring'
 import { useBIAStats } from '../hooks/useBIA'
 import { useInventoryTasks, useTaskSummary } from '../hooks/useInventory'
@@ -45,6 +47,8 @@ const mockedAlerts = vi.mocked(useAlerts)
 const mockedBIAStats = vi.mocked(useBIAStats)
 const mockedInventoryTasks = vi.mocked(useInventoryTasks)
 const mockedTaskSummary = vi.mocked(useTaskSummary)
+const mockedAssetsTrend = vi.mocked(useAssetsTrend)
+const mockedRackHeatmap = vi.mocked(useRackHeatmap)
 
 function stubQuery<R>(overrides: Partial<{ data: unknown; isLoading: boolean; error: unknown; refetch: () => void }> = {}): R {
   return {
@@ -71,6 +75,8 @@ beforeEach(() => {
   mockedBIAStats.mockReturnValue(stubQuery<ReturnType<typeof useBIAStats>>({ data: { data: { by_tier: {} } } }))
   mockedInventoryTasks.mockReturnValue(stubQuery<ReturnType<typeof useInventoryTasks>>({ data: { data: [] } }))
   mockedTaskSummary.mockReturnValue(stubQuery<ReturnType<typeof useTaskSummary>>({ data: { data: { completion_pct: 0, scanned: 0, total: 0 } } }))
+  mockedAssetsTrend.mockReturnValue(stubQuery<ReturnType<typeof useAssetsTrend>>({ data: { data: { period: '30d', points: [] } } }))
+  mockedRackHeatmap.mockReturnValue(stubQuery<ReturnType<typeof useRackHeatmap>>({ data: { data: [] } }))
 })
 
 describe('Dashboard', () => {

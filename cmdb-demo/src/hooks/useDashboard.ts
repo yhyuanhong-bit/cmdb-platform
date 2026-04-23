@@ -22,6 +22,49 @@ export function useDashboardStats(params?: Record<string, string>) {
   })
 }
 
+export interface AssetsTrendPoint {
+  bucket: string
+  count: number
+  created: number
+  deleted: number
+}
+
+interface AssetsTrendResponse {
+  period: '7d' | '30d' | '90d'
+  points: AssetsTrendPoint[]
+}
+
+export function useAssetsTrend(period: '7d' | '30d' | '90d' = '30d') {
+  return useQuery({
+    queryKey: ['assetsTrend', period],
+    queryFn: () =>
+      apiClient.get<ApiResponse<AssetsTrendResponse>>('/dashboard/assets-trend', { period }),
+  })
+}
+
+export interface RackHeatmapCell {
+  rack_id: string
+  rack_name: string
+  location_id: string
+  row_label: string | null
+  u_total: number
+  u_used: number
+  occupancy_pct: number
+  power_capacity_kw: number | null
+  status: 'healthy' | 'warning' | 'critical'
+}
+
+export function useRackHeatmap(locationId?: string) {
+  return useQuery({
+    queryKey: ['rackHeatmap', locationId],
+    queryFn: () =>
+      apiClient.get<ApiResponse<RackHeatmapCell[]>>(
+        '/dashboard/rack-heatmap',
+        locationId ? { location_id: locationId } : undefined,
+      ),
+  })
+}
+
 export function useRackStats() {
   return useQuery({
     queryKey: ['rackStats'],

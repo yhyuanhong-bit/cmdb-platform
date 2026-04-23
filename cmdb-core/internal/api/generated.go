@@ -498,6 +498,27 @@ func (e GetActivityFeedParamsTargetType) Valid() bool {
 	}
 }
 
+// Defines values for GetDashboardAssetsTrendParamsPeriod.
+const (
+	N30d GetDashboardAssetsTrendParamsPeriod = "30d"
+	N7d  GetDashboardAssetsTrendParamsPeriod = "7d"
+	N90d GetDashboardAssetsTrendParamsPeriod = "90d"
+)
+
+// Valid indicates whether the value is a known member of the GetDashboardAssetsTrendParamsPeriod enum.
+func (e GetDashboardAssetsTrendParamsPeriod) Valid() bool {
+	switch e {
+	case N30d:
+		return true
+	case N7d:
+		return true
+	case N90d:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ResolveInventoryDiscrepancyJSONBodyAction.
 const (
 	AddFindings ResolveInventoryDiscrepancyJSONBodyAction = "add_findings"
@@ -1714,6 +1735,19 @@ type UpdateBIAScoringRuleJSONBody struct {
 	MinScore     *int     `json:"min_score,omitempty"`
 	RpoThreshold *float32 `json:"rpo_threshold,omitempty"`
 	RtoThreshold *float32 `json:"rto_threshold,omitempty"`
+}
+
+// GetDashboardAssetsTrendParams defines parameters for GetDashboardAssetsTrend.
+type GetDashboardAssetsTrendParams struct {
+	Period GetDashboardAssetsTrendParamsPeriod `form:"period" json:"period"`
+}
+
+// GetDashboardAssetsTrendParamsPeriod defines parameters for GetDashboardAssetsTrend.
+type GetDashboardAssetsTrendParamsPeriod string
+
+// GetDashboardRackHeatmapParams defines parameters for GetDashboardRackHeatmap.
+type GetDashboardRackHeatmapParams struct {
+	LocationId *openapi_types.UUID `form:"location_id,omitempty" json:"location_id,omitempty"`
 }
 
 // GetDashboardStatsParams defines parameters for GetDashboardStats.
@@ -3219,6 +3253,12 @@ type ServerInterface interface {
 	// Tenant-wide capacity planning snapshot (power/cooling/rack U utilization)
 	// (GET /capacity-planning)
 	GetCapacityPlanning(c *gin.Context)
+	// Asset count trend over time
+	// (GET /dashboard/assets-trend)
+	GetDashboardAssetsTrend(c *gin.Context, params GetDashboardAssetsTrendParams)
+	// Rack utilization heatmap
+	// (GET /dashboard/rack-heatmap)
+	GetDashboardRackHeatmap(c *gin.Context, params GetDashboardRackHeatmapParams)
 	// Get dashboard statistics
 	// (GET /dashboard/stats)
 	GetDashboardStats(c *gin.Context, params GetDashboardStatsParams)
@@ -4682,6 +4722,69 @@ func (siw *ServerInterfaceWrapper) GetCapacityPlanning(c *gin.Context) {
 	}
 
 	siw.Handler.GetCapacityPlanning(c)
+}
+
+// GetDashboardAssetsTrend operation middleware
+func (siw *ServerInterfaceWrapper) GetDashboardAssetsTrend(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDashboardAssetsTrendParams
+
+	// ------------- Required query parameter "period" -------------
+
+	if paramValue := c.Query("period"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument period is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "period", c.Request.URL.Query(), &params.Period, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter period: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetDashboardAssetsTrend(c, params)
+}
+
+// GetDashboardRackHeatmap operation middleware
+func (siw *ServerInterfaceWrapper) GetDashboardRackHeatmap(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDashboardRackHeatmapParams
+
+	// ------------- Optional query parameter "location_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location_id", c.Request.URL.Query(), &params.LocationId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter location_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetDashboardRackHeatmap(c, params)
 }
 
 // GetDashboardStats operation middleware
@@ -8240,6 +8343,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/bia/rules/:id", wrapper.UpdateBIAScoringRule)
 	router.GET(options.BaseURL+"/bia/stats", wrapper.GetBIAStats)
 	router.GET(options.BaseURL+"/capacity-planning", wrapper.GetCapacityPlanning)
+	router.GET(options.BaseURL+"/dashboard/assets-trend", wrapper.GetDashboardAssetsTrend)
+	router.GET(options.BaseURL+"/dashboard/rack-heatmap", wrapper.GetDashboardRackHeatmap)
 	router.GET(options.BaseURL+"/dashboard/stats", wrapper.GetDashboardStats)
 	router.POST(options.BaseURL+"/discovery/ingest", wrapper.IngestDiscoveredAsset)
 	router.GET(options.BaseURL+"/discovery/pending", wrapper.ListDiscoveredAssets)

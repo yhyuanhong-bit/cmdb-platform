@@ -109,16 +109,28 @@ Frontend runs on `http://localhost:5175`
 - Sensor configuration and alert rule management
 
 ### Edge Sync (v1.2)
-- Offline-capable Edge nodes with NATS leafnode federation
+- Edge nodes with bidirectional sync and central failover
 - Bidirectional sync for assets, work orders, inventory, alerts
 - Conflict resolution UI
-- Auto-recovery after 14 days offline
+- Sync envelope retention: 14 days (NATS JetStream MaxAge)
+
+> **Scope note**: Edge nodes require connectivity to central for writes. The
+> `SyncGateMiddleware` returns HTTP 503 with `Retry-After` while initial sync
+> is in progress. True offline-write buffering is not currently implemented.
+> See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ### Intelligence
 - BIA (Business Impact Analysis) modeling
-- Predictive AI with RCA (Root Cause Analysis)
+- Asset health scoring + LLM-assisted root cause analysis (beta)
 - Data quality scoring (4 dimensions)
 - SNMP location detection
+
+> **About "AI" in this platform**: Health scoring is rule-based
+> (`min(warranty_remaining, lifespan_remaining)` + alert frequency). Root
+> cause analysis routes incident context to a configurable LLM provider
+> (OpenAI / Claude / Dify / custom HTTP endpoint). Native ML failure
+> prediction is on the roadmap pending sufficient operational telemetry
+> data — see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ### Observability
 - Prometheus metrics pull from adapters
