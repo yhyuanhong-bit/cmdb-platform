@@ -1,41 +1,41 @@
 -- ============================================================================
--- 000062: Status field CHECK constraints
+-- 000062: Extend status field CHECK constraints
 -- ============================================================================
--- Locks the set of allowed values for every mutable status column we care
--- about in a CMDB. Before this migration, status fields were raw VARCHAR —
--- typos, stale values from old code paths, or scripts that bypassed the
--- Go layer could all pollute the table. That's how we accumulated things
--- like alert_rules.condition.op vs .operator (see cutover
--- 2026-04-22-alert-rule-condition-format.sql).
+-- Migration 000028 first introduced status CHECK constraints on assets,
+-- work_orders, alert_events, and inventory_tasks. This migration:
+--   1. Widens those allowlists to match values actually seen in production
+--      (audited 2026-04-23: assets has 'active'/'deployed'/'inventoried'/
+--      'maintenance'/'operational'/'retired'; work_orders has all 7 plus
+--      'cancelled' coming in product roadmap).
+--   2. Adds a NEW constraint on discovered_assets.status (not covered by 028).
+--   3. Adds 'silenced' to alert_events (standard alerting feature).
+--   4. Adds 'cancelled' to inventory_tasks.
 --
--- Allowlist derivation — each constraint covers:
---   (a) every value currently present in production data (audited
---       2026-04-23 against running DB);
---   (b) canonical values the Go code / statemachine references; and
---   (c) near-term values planned by subsequent roadmap waves.
--- Values outside the allowlist are rejected at INSERT/UPDATE time.
+-- Approach: DROP each pre-existing constraint, then ADD the superset. This
+-- keeps the migration idempotent when re-applied against a DB that has
+-- 028 but not 062, without needing separate up-steps.
 --
--- Drift not resolved here — this migration intentionally accepts
--- synonymous values (e.g. assets.status has both 'active' and
--- 'operational'). Normalization to a single canonical value is a
--- separate Wave-3+ project with user-facing implications. This
--- migration just prevents NEW drift.
+-- Allowlist rationale:
+--   assets: the 028 set already covers the canonical lifecycle. We
+--     remove 'procurement' / 'deploying' / 'decommission' / 'offline'
+--     (zero production rows observed) and add 'planned' / 'in_stock' to
+--     match the new-hardware-received workflow the roadmap assumes.
+--   work_orders: add 'cancelled' for abort paths.
+--   alert_events: add 'silenced' for maintenance-window suppression.
+--   inventory_tasks: add 'cancelled' for abort paths.
+--   discovered_assets: NEW — the existing 'pending'/'matched'/'conflict'/
+--     'approved'/'ignored' states are all exercised by Wave 3.
 
 BEGIN;
 
 -- ---------------------------------------------------------------------------
--- assets.status
+-- assets.status — replace 028's constraint with the canonical + roadmap set.
 -- ---------------------------------------------------------------------------
--- In use (2026-04-23): active, deployed, inventoried, maintenance,
--- operational, retired.
--- Canonical (future): planned, in_stock, deployed, operational,
--- maintenance, retired, disposed. 'active' is a synonym for operational
--- kept for compatibility.
-ALTER TABLE assets
-    ADD CONSTRAINT chk_assets_status
+ALTER TABLE assets DROP CONSTRAINT IF EXISTS chk_assets_status;
+ALTER TABLE assets ADD CONSTRAINT chk_assets_status
     CHECK (status IN (
-        'planned',       -- procured but not yet received
-        'in_stock',      -- received, in warehouse
+        'planned',       -- procured but not yet received (roadmap)
+        'in_stock',      -- received, in warehouse (roadmap)
         'inventoried',   -- physically located, pre-deployment
         'deployed',      -- placed in rack but not yet serving traffic
         'active',        -- serving traffic (synonym for operational)
@@ -46,15 +46,10 @@ ALTER TABLE assets
     ));
 
 -- ---------------------------------------------------------------------------
--- work_orders.status (governance + execution state machine collapsed view)
+-- work_orders.status — add 'cancelled' to 028's set.
 -- ---------------------------------------------------------------------------
--- In use (2026-04-23): approved, completed, draft, in_progress, rejected,
--- submitted, verified.
--- Canonical (see internal/domain/maintenance/statemachine.go): submitted,
--- approved, rejected, in_progress, completed, verified. 'draft' is used
--- for pre-submission authoring. 'cancelled' added for product need.
-ALTER TABLE work_orders
-    ADD CONSTRAINT chk_work_orders_status
+ALTER TABLE work_orders DROP CONSTRAINT IF EXISTS chk_work_orders_status;
+ALTER TABLE work_orders ADD CONSTRAINT chk_work_orders_status
     CHECK (status IN (
         'draft',         -- authoring, not yet submitted
         'submitted',     -- awaiting approval
@@ -67,12 +62,10 @@ ALTER TABLE work_orders
     ));
 
 -- ---------------------------------------------------------------------------
--- discovered_assets.status (Discovery review gate, Wave 3)
+-- discovered_assets.status — NEW constraint. Wave 3 uses the 5 states below.
 -- ---------------------------------------------------------------------------
--- In use (2026-04-23): approved, ignored, pending.
--- Wave 3 adds: conflict, matched (auto-matched before review).
-ALTER TABLE discovered_assets
-    ADD CONSTRAINT chk_discovered_assets_status
+ALTER TABLE discovered_assets DROP CONSTRAINT IF EXISTS chk_discovered_assets_status;
+ALTER TABLE discovered_assets ADD CONSTRAINT chk_discovered_assets_status
     CHECK (status IN (
         'pending',       -- awaiting review
         'matched',       -- auto-matched to existing CI (Wave 3)
@@ -82,12 +75,10 @@ ALTER TABLE discovered_assets
     ));
 
 -- ---------------------------------------------------------------------------
--- alert_events.status
+-- alert_events.status — add 'silenced'.
 -- ---------------------------------------------------------------------------
--- In use (2026-04-23): acknowledged, firing, resolved.
--- 'silenced' added for standard alert workflow support.
-ALTER TABLE alert_events
-    ADD CONSTRAINT chk_alert_events_status
+ALTER TABLE alert_events DROP CONSTRAINT IF EXISTS chk_alert_events_status;
+ALTER TABLE alert_events ADD CONSTRAINT chk_alert_events_status
     CHECK (status IN (
         'firing',        -- condition currently met
         'acknowledged',  -- operator saw it but condition still active
@@ -96,12 +87,10 @@ ALTER TABLE alert_events
     ));
 
 -- ---------------------------------------------------------------------------
--- inventory_tasks.status
+-- inventory_tasks.status — add 'cancelled'.
 -- ---------------------------------------------------------------------------
--- In use (2026-04-23): completed, planned.
--- in_progress added for the common intermediate state; cancelled for abort.
-ALTER TABLE inventory_tasks
-    ADD CONSTRAINT chk_inventory_tasks_status
+ALTER TABLE inventory_tasks DROP CONSTRAINT IF EXISTS chk_inventory_tasks_status;
+ALTER TABLE inventory_tasks ADD CONSTRAINT chk_inventory_tasks_status
     CHECK (status IN (
         'planned',       -- scheduled but not started
         'in_progress',   -- scan actively underway
