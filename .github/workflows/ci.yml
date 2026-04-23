@@ -124,16 +124,12 @@ jobs:
           # Phase 2: the rest.
           migrate -path db/migrations -database "$DATABASE_URL" up
 
-      # Load the test-fixture so integration tests have realistic data:
-      # locations, racks, sample assets, alerts, work orders, BIA rows.
-      # seed.sql already ran via the pre-seed step above; test-fixture
-      # extends it. Both use ON CONFLICT DO NOTHING so re-runs are safe.
-      - name: Load test fixture
-        env:
-          PGPASSWORD: cmdb
-        run: |
-          psql -h localhost -U cmdb -d cmdb -f db/seed/seed.sql
-          psql -h localhost -U cmdb -d cmdb -f db/seed/test-fixture.sql
+      # Note: integration tests create their own fixtures inline via test
+      # helpers (see e.g. auth_service_tenant_isolation_test.go, tenant_
+      # isolation_integration_test.go). They do NOT need seed.sql or
+      # test-fixture.sql loaded here — loading them would conflict with
+      # the unique tenant / asset IDs each test helper creates fresh.
+      # test-fixture.sql exists for UI development; see db/seed/README.md.
 
       - name: Integration tests
         env:

@@ -252,7 +252,7 @@ INSERT INTO work_orders (id, tenant_id, code, title, type, status, priority, loc
      'Update Nexus firmware to fix CVE-2026-1234', 'Security vulnerability patch',
      now() + interval '1 day', now() + interval '1 day 2 hours'),
     ('20000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001',
-     'WO-2026-0003', 'Backup Server Repair', 'repair', 'pending', 'medium',
+     'WO-2026-0003', 'Backup Server Repair', 'repair', 'submitted', 'medium',
      'd0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000008',
      'b0000000-0000-0000-0000-000000000002', NULL,
      'Diagnose and repair failed RAID controller', 'Server in maintenance status',
@@ -280,8 +280,8 @@ ON CONFLICT DO NOTHING;
 -- Work Order Logs
 INSERT INTO work_order_logs (order_id, action, from_status, to_status, operator_id, comment) VALUES
     ('20000000-0000-0000-0000-000000000001', 'created', NULL, 'draft', 'b0000000-0000-0000-0000-000000000001', 'Created by admin'),
-    ('20000000-0000-0000-0000-000000000001', 'transitioned', 'draft', 'pending', 'b0000000-0000-0000-0000-000000000001', NULL),
-    ('20000000-0000-0000-0000-000000000001', 'transitioned', 'pending', 'approved', 'b0000000-0000-0000-0000-000000000001', 'Approved - batteries in stock'),
+    ('20000000-0000-0000-0000-000000000001', 'transitioned', 'draft', 'submitted', 'b0000000-0000-0000-0000-000000000001', NULL),
+    ('20000000-0000-0000-0000-000000000001', 'transitioned', 'submitted', 'approved', 'b0000000-0000-0000-0000-000000000001', 'Approved - batteries in stock'),
     ('20000000-0000-0000-0000-000000000001', 'transitioned', 'approved', 'in_progress', 'b0000000-0000-0000-0000-000000000002', 'Sarah started work'),
     ('20000000-0000-0000-0000-000000000004', 'created', NULL, 'draft', 'b0000000-0000-0000-0000-000000000001', NULL),
     ('20000000-0000-0000-0000-000000000004', 'transitioned', 'draft', 'completed', 'b0000000-0000-0000-0000-000000000002', 'All servers inspected, no issues found')
