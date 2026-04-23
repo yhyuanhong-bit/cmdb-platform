@@ -1,10 +1,10 @@
 # Services — Business Service Entity
 
-**Status**: Draft
-**Author**: Claude (technical draft); awaits business-boundary review from project lead
-**Reviewer**: _TBD_
-**Approved-by**: _TBD_
-**Date**: 2026-04-22
+**Status**: Approved
+**Author**: Claude (technical draft); business boundaries confirmed by project lead
+**Reviewer**: Project lead
+**Approved-by**: Project lead (2026-04-23)
+**Date**: 2026-04-22 (drafted), 2026-04-23 (approved)
 **Related Decision**: [docs/decisions/2026-04-22-day-0.md](../../../docs/decisions/2026-04-22-day-0.md) §D1
 **Related ROADMAP item**: M1 Wave 2 (Business Service entity)
 
@@ -50,6 +50,7 @@ CREATE TABLE services (
     code            VARCHAR(64) NOT NULL,       -- e.g. "ORDER-API", "PAYMENT"
                                                 -- 业务侧人类可读的引用 ID
                                                 -- unique per tenant
+                                                -- format: ^[A-Z][A-Z0-9_-]{1,63}$ (Q1 sign-off)
     name            VARCHAR(255) NOT NULL,      -- "订单系统", "支付网关"
     description     TEXT,
 
@@ -87,7 +88,8 @@ CREATE TABLE services (
     -- 约束
     UNIQUE (tenant_id, code),
     CHECK (status IN ('active', 'deprecated', 'decommissioned')),
-    CHECK (tier IN ('critical', 'important', 'normal', 'low'))
+    CHECK (tier IN ('critical', 'important', 'normal', 'low')),
+    CHECK (code ~ '^[A-Z][A-Z0-9_-]{1,63}$')
 );
 
 CREATE INDEX idx_services_tenant ON services(tenant_id) WHERE deleted_at IS NULL;
@@ -322,34 +324,74 @@ DROP TABLE IF EXISTS services;
 
 ---
 
-## 7. 开放问题 (sign-off 前必须解决)
+## 7. Sign-off 决策
 
-1. **service.code 格式约束**：要不要加 regex CHECK 限制为 `[A-Z][A-Z0-9_-]+`？
-   - **建议**：YES — 避免中文 / 空格 / 特殊字符污染业务 ID
-   - **等 sign-off**
+全部 5 个开放问题按推荐答案裁决（2026-04-23）。
 
-2. **decommissioned service 的 service_assets 怎么办？**
-   - 选项 A：自动清空（service 下架，关系也清）
-   - 选项 B：保留作为历史（显示但 read-only）
-   - **建议 B**：历史审计需要
-   - **等 sign-off**
+### Q1: service.code 格式约束 ✅ 加
 
-3. **service_assets.role 枚举值够用吗？**
-   - 当前 7 种：primary / replica / cache / proxy / storage / dependency / component
-   - 缺 "load_balancer" / "firewall" / "database" 等？
-   - **建议**：保持精简，不够用时再加。太多枚举值容易产生"差不多的选项选哪个"纠结
-   - **等 sign-off**
+**决策**：`code` 加 regex CHECK：`^[A-Z][A-Z0-9_-]{1,63}$`
 
-4. **BIA 迁移时 1 个 bia_assessment 对应多条 services 的冲突**
-   - 理论上 bia_assessments 里可能有多条同 system_code 的记录（历史评估版本）
-   - **建议**：backfill 时 DISTINCT ON (tenant_id, system_code)，取最新一条
-   - **等 sign-off**
+**含义**：
+- 首字符必须大写英文字母
+- 后续字符限于 `A-Z`, `0-9`, `_`, `-`
+- 总长 2-64 字符（Kubernetes label 兼容）
+- 中文、空格、`@#$` 等均被拒绝
 
-5. **edge 能不能看到 service？**
-   - 已定 No 修改权限。但**读**权限？
-   - **建议**：YES — edge 上的 dashboard 也要能显示 service 聚合
-   - sync_version 机制支持
-   - **等 sign-off**
+**示例合法**：`ORDER-API`, `PAYMENT_GATEWAY`, `CUSTOMER_PORTAL`
+**示例非法**：`order-api` (小写), `订单系统` (中文), `-api` (首字符), `a` (太短)
+
+### Q2: decommissioned service 的 service_assets ✅ 保留
+
+**决策**：选项 B — 保留作为历史
+
+**含义**：
+- `service.status = 'decommissioned'` 时，`service_assets` 行**不自动清空**
+- UI 层显示为 read-only + 灰色
+- 唯一清空方式：DELETE 整个 service（CASCADE 触发）
+- 历史审计：下架后仍能查「当时涉及哪些服务器」
+
+### Q3: service_assets.role 枚举 ✅ 保持 7 种
+
+**决策**：保持精简 — primary / replica / cache / proxy / storage / dependency / component
+
+**候选外但不加的映射**：
+- `load_balancer` → 归入 `proxy`
+- `database` → 归入 `primary` (主库) 或 `storage` (只读副本)
+- `firewall` → 归入 `dependency`
+
+**演进策略**：具体客户需要细分时再加 migration 扩展；用 tags 字段承载临时分类需求。
+
+### Q4: BIA 重复 system_code 迁移 ✅ DISTINCT ON 取最新
+
+**决策**：backfill 用 `DISTINCT ON (tenant_id, system_code) ORDER BY last_assessed DESC`
+
+**SQL**：
+```sql
+INSERT INTO services (tenant_id, code, name, tier, bia_assessment_id, created_at)
+SELECT DISTINCT ON (b.tenant_id, b.system_code)
+    b.tenant_id, b.system_code, b.system_name, b.tier, b.id, b.created_at
+FROM bia_assessments b
+ORDER BY b.tenant_id, b.system_code, b.last_assessed DESC
+ON CONFLICT (tenant_id, code) DO NOTHING;
+```
+
+**含义**：
+- 同一 system_code 的多次评估版本中，最近一次绑定到 service
+- 旧评估记录保留在 bia_assessments，不删
+- `bia_assessments.service_id` FK 反向可达
+
+### Q5: Edge 读 service ✅ Yes (read-only)
+
+**决策**：services + service_assets 加入 SyncLayers 作为可同步实体
+
+**含义**：
+- Edge 节点能查询 service 定义（list、detail、health）
+- Edge 无法创建 / 修改 / 删除 service（central-wins 策略）
+- 解锁 edge-side service-centric 告警聚合（Wave 6 依赖）
+
+**实现**：在 `internal/domain/sync/layers.go` `SyncLayers[0]` 加 `"services"` 和 `"service_assets"`
+
 
 ---
 

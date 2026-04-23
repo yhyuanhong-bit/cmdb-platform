@@ -43,6 +43,7 @@ var knownResources = map[string]struct{}{
 	"monitoring":  {},
 	"prediction":  {},
 	"quality":     {},
+	"services":    {},
 	"sync":        {},
 	"system":      {},
 	"topology":    {},

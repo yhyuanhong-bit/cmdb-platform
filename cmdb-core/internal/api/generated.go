@@ -18,6 +18,39 @@ const (
 	BearerAuthScopes = "BearerAuth.Scopes"
 )
 
+// Defines values for AddServiceAssetRequestRole.
+const (
+	AddServiceAssetRequestRoleCache      AddServiceAssetRequestRole = "cache"
+	AddServiceAssetRequestRoleComponent  AddServiceAssetRequestRole = "component"
+	AddServiceAssetRequestRoleDependency AddServiceAssetRequestRole = "dependency"
+	AddServiceAssetRequestRolePrimary    AddServiceAssetRequestRole = "primary"
+	AddServiceAssetRequestRoleProxy      AddServiceAssetRequestRole = "proxy"
+	AddServiceAssetRequestRoleReplica    AddServiceAssetRequestRole = "replica"
+	AddServiceAssetRequestRoleStorage    AddServiceAssetRequestRole = "storage"
+)
+
+// Valid indicates whether the value is a known member of the AddServiceAssetRequestRole enum.
+func (e AddServiceAssetRequestRole) Valid() bool {
+	switch e {
+	case AddServiceAssetRequestRoleCache:
+		return true
+	case AddServiceAssetRequestRoleComponent:
+		return true
+	case AddServiceAssetRequestRoleDependency:
+		return true
+	case AddServiceAssetRequestRolePrimary:
+		return true
+	case AddServiceAssetRequestRoleProxy:
+		return true
+	case AddServiceAssetRequestRoleReplica:
+		return true
+	case AddServiceAssetRequestRoleStorage:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AssetLifecycleUpgradePriority.
 const (
 	AssetLifecycleUpgradePriorityHigh   AssetLifecycleUpgradePriority = "high"
@@ -44,22 +77,97 @@ func (e AssetLifecycleUpgradePriority) Valid() bool {
 
 // Defines values for AssetLifecycleWarrantyStatus.
 const (
-	Active       AssetLifecycleWarrantyStatus = "active"
-	Expired      AssetLifecycleWarrantyStatus = "expired"
-	ExpiringSoon AssetLifecycleWarrantyStatus = "expiring_soon"
-	Unknown      AssetLifecycleWarrantyStatus = "unknown"
+	AssetLifecycleWarrantyStatusActive       AssetLifecycleWarrantyStatus = "active"
+	AssetLifecycleWarrantyStatusExpired      AssetLifecycleWarrantyStatus = "expired"
+	AssetLifecycleWarrantyStatusExpiringSoon AssetLifecycleWarrantyStatus = "expiring_soon"
+	AssetLifecycleWarrantyStatusUnknown      AssetLifecycleWarrantyStatus = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the AssetLifecycleWarrantyStatus enum.
 func (e AssetLifecycleWarrantyStatus) Valid() bool {
 	switch e {
-	case Active:
+	case AssetLifecycleWarrantyStatusActive:
 		return true
-	case Expired:
+	case AssetLifecycleWarrantyStatusExpired:
 		return true
-	case ExpiringSoon:
+	case AssetLifecycleWarrantyStatusExpiringSoon:
 		return true
-	case Unknown:
+	case AssetLifecycleWarrantyStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AssetServiceMembershipStatus.
+const (
+	AssetServiceMembershipStatusActive         AssetServiceMembershipStatus = "active"
+	AssetServiceMembershipStatusDecommissioned AssetServiceMembershipStatus = "decommissioned"
+	AssetServiceMembershipStatusDeprecated     AssetServiceMembershipStatus = "deprecated"
+)
+
+// Valid indicates whether the value is a known member of the AssetServiceMembershipStatus enum.
+func (e AssetServiceMembershipStatus) Valid() bool {
+	switch e {
+	case AssetServiceMembershipStatusActive:
+		return true
+	case AssetServiceMembershipStatusDecommissioned:
+		return true
+	case AssetServiceMembershipStatusDeprecated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AssetServiceMembershipTier.
+const (
+	AssetServiceMembershipTierCritical  AssetServiceMembershipTier = "critical"
+	AssetServiceMembershipTierImportant AssetServiceMembershipTier = "important"
+	AssetServiceMembershipTierLow       AssetServiceMembershipTier = "low"
+	AssetServiceMembershipTierMinor     AssetServiceMembershipTier = "minor"
+	AssetServiceMembershipTierNormal    AssetServiceMembershipTier = "normal"
+)
+
+// Valid indicates whether the value is a known member of the AssetServiceMembershipTier enum.
+func (e AssetServiceMembershipTier) Valid() bool {
+	switch e {
+	case AssetServiceMembershipTierCritical:
+		return true
+	case AssetServiceMembershipTierImportant:
+		return true
+	case AssetServiceMembershipTierLow:
+		return true
+	case AssetServiceMembershipTierMinor:
+		return true
+	case AssetServiceMembershipTierNormal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateServiceRequestTier.
+const (
+	CreateServiceRequestTierCritical  CreateServiceRequestTier = "critical"
+	CreateServiceRequestTierImportant CreateServiceRequestTier = "important"
+	CreateServiceRequestTierLow       CreateServiceRequestTier = "low"
+	CreateServiceRequestTierMinor     CreateServiceRequestTier = "minor"
+	CreateServiceRequestTierNormal    CreateServiceRequestTier = "normal"
+)
+
+// Valid indicates whether the value is a known member of the CreateServiceRequestTier enum.
+func (e CreateServiceRequestTier) Valid() bool {
+	switch e {
+	case CreateServiceRequestTierCritical:
+		return true
+	case CreateServiceRequestTierImportant:
+		return true
+	case CreateServiceRequestTierLow:
+		return true
+	case CreateServiceRequestTierMinor:
+		return true
+	case CreateServiceRequestTierNormal:
 		return true
 	default:
 		return false
@@ -89,22 +197,22 @@ func (e CreateUpgradeRuleRequestPriority) Valid() bool {
 
 // Defines values for DependencyCategory.
 const (
-	Communication DependencyCategory = "communication"
-	Containment   DependencyCategory = "containment"
-	Custom        DependencyCategory = "custom"
-	Dependency    DependencyCategory = "dependency"
+	DependencyCategoryCommunication DependencyCategory = "communication"
+	DependencyCategoryContainment   DependencyCategory = "containment"
+	DependencyCategoryCustom        DependencyCategory = "custom"
+	DependencyCategoryDependency    DependencyCategory = "dependency"
 )
 
 // Valid indicates whether the value is a known member of the DependencyCategory enum.
 func (e DependencyCategory) Valid() bool {
 	switch e {
-	case Communication:
+	case DependencyCategoryCommunication:
 		return true
-	case Containment:
+	case DependencyCategoryContainment:
 		return true
-	case Custom:
+	case DependencyCategoryCustom:
 		return true
-	case Dependency:
+	case DependencyCategoryDependency:
 		return true
 	default:
 		return false
@@ -396,6 +504,108 @@ func (e QualityFlagResolveStatus) Valid() bool {
 	}
 }
 
+// Defines values for ServiceStatus.
+const (
+	ServiceStatusActive         ServiceStatus = "active"
+	ServiceStatusDecommissioned ServiceStatus = "decommissioned"
+	ServiceStatusDeprecated     ServiceStatus = "deprecated"
+)
+
+// Valid indicates whether the value is a known member of the ServiceStatus enum.
+func (e ServiceStatus) Valid() bool {
+	switch e {
+	case ServiceStatusActive:
+		return true
+	case ServiceStatusDecommissioned:
+		return true
+	case ServiceStatusDeprecated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServiceTier.
+const (
+	ServiceTierCritical  ServiceTier = "critical"
+	ServiceTierImportant ServiceTier = "important"
+	ServiceTierLow       ServiceTier = "low"
+	ServiceTierMinor     ServiceTier = "minor"
+	ServiceTierNormal    ServiceTier = "normal"
+)
+
+// Valid indicates whether the value is a known member of the ServiceTier enum.
+func (e ServiceTier) Valid() bool {
+	switch e {
+	case ServiceTierCritical:
+		return true
+	case ServiceTierImportant:
+		return true
+	case ServiceTierLow:
+		return true
+	case ServiceTierMinor:
+		return true
+	case ServiceTierNormal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServiceAssetMemberRole.
+const (
+	Cache      ServiceAssetMemberRole = "cache"
+	Component  ServiceAssetMemberRole = "component"
+	Dependency ServiceAssetMemberRole = "dependency"
+	Primary    ServiceAssetMemberRole = "primary"
+	Proxy      ServiceAssetMemberRole = "proxy"
+	Replica    ServiceAssetMemberRole = "replica"
+	Storage    ServiceAssetMemberRole = "storage"
+)
+
+// Valid indicates whether the value is a known member of the ServiceAssetMemberRole enum.
+func (e ServiceAssetMemberRole) Valid() bool {
+	switch e {
+	case Cache:
+		return true
+	case Component:
+		return true
+	case Dependency:
+		return true
+	case Primary:
+		return true
+	case Proxy:
+		return true
+	case Replica:
+		return true
+	case Storage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServiceHealthStatus.
+const (
+	Degraded ServiceHealthStatus = "degraded"
+	Healthy  ServiceHealthStatus = "healthy"
+	Unknown  ServiceHealthStatus = "unknown"
+)
+
+// Valid indicates whether the value is a known member of the ServiceHealthStatus enum.
+func (e ServiceHealthStatus) Valid() bool {
+	switch e {
+	case Degraded:
+		return true
+	case Healthy:
+		return true
+	case Unknown:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SyncResolveRequestResolution.
 const (
 	LocalWins  SyncResolveRequestResolution = "local_wins"
@@ -429,6 +639,54 @@ func (e TopologyImpactResponseDirection) Valid() bool {
 	case TopologyImpactResponseDirectionDownstream:
 		return true
 	case TopologyImpactResponseDirectionUpstream:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateServiceRequestStatus.
+const (
+	UpdateServiceRequestStatusActive         UpdateServiceRequestStatus = "active"
+	UpdateServiceRequestStatusDecommissioned UpdateServiceRequestStatus = "decommissioned"
+	UpdateServiceRequestStatusDeprecated     UpdateServiceRequestStatus = "deprecated"
+)
+
+// Valid indicates whether the value is a known member of the UpdateServiceRequestStatus enum.
+func (e UpdateServiceRequestStatus) Valid() bool {
+	switch e {
+	case UpdateServiceRequestStatusActive:
+		return true
+	case UpdateServiceRequestStatusDecommissioned:
+		return true
+	case UpdateServiceRequestStatusDeprecated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateServiceRequestTier.
+const (
+	UpdateServiceRequestTierCritical  UpdateServiceRequestTier = "critical"
+	UpdateServiceRequestTierImportant UpdateServiceRequestTier = "important"
+	UpdateServiceRequestTierLow       UpdateServiceRequestTier = "low"
+	UpdateServiceRequestTierMinor     UpdateServiceRequestTier = "minor"
+	UpdateServiceRequestTierNormal    UpdateServiceRequestTier = "normal"
+)
+
+// Valid indicates whether the value is a known member of the UpdateServiceRequestTier enum.
+func (e UpdateServiceRequestTier) Valid() bool {
+	switch e {
+	case UpdateServiceRequestTierCritical:
+		return true
+	case UpdateServiceRequestTierImportant:
+		return true
+	case UpdateServiceRequestTierLow:
+		return true
+	case UpdateServiceRequestTierMinor:
+		return true
+	case UpdateServiceRequestTierNormal:
 		return true
 	default:
 		return false
@@ -543,6 +801,54 @@ func (e ResolveInventoryDiscrepancyJSONBodyAction) Valid() bool {
 	}
 }
 
+// Defines values for ListServicesParamsTier.
+const (
+	Critical  ListServicesParamsTier = "critical"
+	Important ListServicesParamsTier = "important"
+	Low       ListServicesParamsTier = "low"
+	Minor     ListServicesParamsTier = "minor"
+	Normal    ListServicesParamsTier = "normal"
+)
+
+// Valid indicates whether the value is a known member of the ListServicesParamsTier enum.
+func (e ListServicesParamsTier) Valid() bool {
+	switch e {
+	case Critical:
+		return true
+	case Important:
+		return true
+	case Low:
+		return true
+	case Minor:
+		return true
+	case Normal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListServicesParamsStatus.
+const (
+	Active         ListServicesParamsStatus = "active"
+	Decommissioned ListServicesParamsStatus = "decommissioned"
+	Deprecated     ListServicesParamsStatus = "deprecated"
+)
+
+// Valid indicates whether the value is a known member of the ListServicesParamsStatus enum.
+func (e ListServicesParamsStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Decommissioned:
+		return true
+	case Deprecated:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SyncGetChangesParamsEntityType.
 const (
 	SyncGetChangesParamsEntityTypeAlertEvents    SyncGetChangesParamsEntityType = "alert_events"
@@ -641,6 +947,16 @@ func (e GetTopologyImpactParamsDirection) Valid() bool {
 		return false
 	}
 }
+
+// AddServiceAssetRequest defines model for AddServiceAssetRequest.
+type AddServiceAssetRequest struct {
+	AssetId    openapi_types.UUID          `json:"asset_id"`
+	IsCritical *bool                       `json:"is_critical,omitempty"`
+	Role       *AddServiceAssetRequestRole `json:"role,omitempty"`
+}
+
+// AddServiceAssetRequestRole defines model for AddServiceAssetRequest.Role.
+type AddServiceAssetRequestRole string
 
 // AlertEvent defines model for AlertEvent.
 type AlertEvent struct {
@@ -757,6 +1073,23 @@ type AssetLifecycleUpgradePriority string
 
 // AssetLifecycleWarrantyStatus defines model for AssetLifecycle.WarrantyStatus.
 type AssetLifecycleWarrantyStatus string
+
+// AssetServiceMembership defines model for AssetServiceMembership.
+type AssetServiceMembership struct {
+	Code       string                       `json:"code"`
+	Id         openapi_types.UUID           `json:"id"`
+	IsCritical bool                         `json:"is_critical"`
+	Name       string                       `json:"name"`
+	Role       string                       `json:"role"`
+	Status     AssetServiceMembershipStatus `json:"status"`
+	Tier       AssetServiceMembershipTier   `json:"tier"`
+}
+
+// AssetServiceMembershipStatus defines model for AssetServiceMembership.Status.
+type AssetServiceMembershipStatus string
+
+// AssetServiceMembershipTier defines model for AssetServiceMembership.Tier.
+type AssetServiceMembershipTier string
 
 // AssetSnapshot Point-in-time snapshot of an asset, captured atomically by the assets_snapshot_after_write trigger (D10-P0).
 type AssetSnapshot struct {
@@ -893,6 +1226,22 @@ type CreateQualityRuleRequest struct {
 	RuleType   string                  `json:"rule_type"`
 	Weight     *int                    `json:"weight,omitempty"`
 }
+
+// CreateServiceRequest defines model for CreateServiceRequest.
+type CreateServiceRequest struct {
+	BiaAssessmentId *openapi_types.UUID `json:"bia_assessment_id,omitempty"`
+
+	// Code ^[A-Z][A-Z0-9_-]{1,63}$
+	Code        string                    `json:"code"`
+	Description *string                   `json:"description,omitempty"`
+	Name        string                    `json:"name"`
+	OwnerTeam   *string                   `json:"owner_team,omitempty"`
+	Tags        *[]string                 `json:"tags,omitempty"`
+	Tier        *CreateServiceRequestTier `json:"tier,omitempty"`
+}
+
+// CreateServiceRequestTier defines model for CreateServiceRequest.Tier.
+type CreateServiceRequestTier string
 
 // CreateUpgradeRuleRequest defines model for CreateUpgradeRuleRequest.
 type CreateUpgradeRuleRequest struct {
@@ -1396,6 +1745,62 @@ type Role struct {
 	Permissions map[string][]string `json:"permissions"`
 }
 
+// Service defines model for Service.
+type Service struct {
+	BiaAssessmentId *openapi_types.UUID `json:"bia_assessment_id,omitempty"`
+
+	// Code Business-ID format, ^[A-Z][A-Z0-9_-]{1,63}$
+	Code        string              `json:"code"`
+	CreatedAt   time.Time           `json:"created_at"`
+	CreatedBy   *openapi_types.UUID `json:"created_by,omitempty"`
+	Description *string             `json:"description,omitempty"`
+	Id          openapi_types.UUID  `json:"id"`
+	Name        string              `json:"name"`
+	OwnerTeam   *string             `json:"owner_team,omitempty"`
+	Status      ServiceStatus       `json:"status"`
+	SyncVersion int64               `json:"sync_version"`
+	Tags        []string            `json:"tags"`
+	TenantId    openapi_types.UUID  `json:"tenant_id"`
+	Tier        ServiceTier         `json:"tier"`
+	UpdatedAt   time.Time           `json:"updated_at"`
+}
+
+// ServiceStatus defines model for Service.Status.
+type ServiceStatus string
+
+// ServiceTier defines model for Service.Tier.
+type ServiceTier string
+
+// ServiceAssetMember defines model for ServiceAssetMember.
+type ServiceAssetMember struct {
+	AssetId     openapi_types.UUID     `json:"asset_id"`
+	AssetName   *string                `json:"asset_name,omitempty"`
+	AssetStatus *string                `json:"asset_status,omitempty"`
+	AssetTag    *string                `json:"asset_tag,omitempty"`
+	AssetType   *string                `json:"asset_type,omitempty"`
+	CreatedAt   time.Time              `json:"created_at"`
+	IsCritical  bool                   `json:"is_critical"`
+	Role        ServiceAssetMemberRole `json:"role"`
+	ServiceId   openapi_types.UUID     `json:"service_id"`
+}
+
+// ServiceAssetMemberRole defines model for ServiceAssetMember.Role.
+type ServiceAssetMemberRole string
+
+// ServiceHealth defines model for ServiceHealth.
+type ServiceHealth struct {
+	// CriticalTotal Count of is_critical=true assets in the service
+	CriticalTotal int `json:"critical_total"`
+
+	// CriticalUnhealthy Of those, how many are in a non-operational status
+	CriticalUnhealthy int                 `json:"critical_unhealthy"`
+	ServiceId         openapi_types.UUID  `json:"service_id"`
+	Status            ServiceHealthStatus `json:"status"`
+}
+
+// ServiceHealthStatus defines model for ServiceHealth.Status.
+type ServiceHealthStatus string
+
 // SyncChangeSet defines model for SyncChangeSet.
 type SyncChangeSet struct {
 	Changes       []map[string]interface{} `json:"changes"`
@@ -1477,6 +1882,23 @@ type TopologyImpactResponse struct {
 
 // TopologyImpactResponseDirection defines model for TopologyImpactResponse.Direction.
 type TopologyImpactResponseDirection string
+
+// UpdateServiceRequest defines model for UpdateServiceRequest.
+type UpdateServiceRequest struct {
+	BiaAssessmentId *openapi_types.UUID         `json:"bia_assessment_id,omitempty"`
+	Description     *string                     `json:"description,omitempty"`
+	Name            *string                     `json:"name,omitempty"`
+	OwnerTeam       *string                     `json:"owner_team,omitempty"`
+	Status          *UpdateServiceRequestStatus `json:"status,omitempty"`
+	Tags            *[]string                   `json:"tags,omitempty"`
+	Tier            *UpdateServiceRequestTier   `json:"tier,omitempty"`
+}
+
+// UpdateServiceRequestStatus defines model for UpdateServiceRequest.Status.
+type UpdateServiceRequestStatus string
+
+// UpdateServiceRequestTier defines model for UpdateServiceRequest.Tier.
+type UpdateServiceRequestTier string
 
 // UpdateUpgradeRuleRequest defines model for UpdateUpgradeRuleRequest.
 type UpdateUpgradeRuleRequest struct {
@@ -1580,6 +2002,9 @@ type PageSize = int
 
 // BadRequest defines model for BadRequest.
 type BadRequest = ErrorResponse
+
+// Conflict defines model for Conflict.
+type Conflict = ErrorResponse
 
 // NotFound defines model for NotFound.
 type NotFound = ErrorResponse
@@ -2077,6 +2502,21 @@ type ListSensorsParams struct {
 // CreateSensorJSONBody defines parameters for CreateSensor.
 type CreateSensorJSONBody = map[string]interface{}
 
+// ListServicesParams defines parameters for ListServices.
+type ListServicesParams struct {
+	Tier      *ListServicesParamsTier   `form:"tier,omitempty" json:"tier,omitempty"`
+	Status    *ListServicesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	OwnerTeam *string                   `form:"owner_team,omitempty" json:"owner_team,omitempty"`
+	Page      *Page                     `form:"page,omitempty" json:"page,omitempty"`
+	PageSize  *PageSize                 `form:"page_size,omitempty" json:"page_size,omitempty"`
+}
+
+// ListServicesParamsTier defines parameters for ListServices.
+type ListServicesParamsTier string
+
+// ListServicesParamsStatus defines parameters for ListServices.
+type ListServicesParamsStatus string
+
 // SyncGetChangesParams defines parameters for SyncGetChanges.
 type SyncGetChangesParams struct {
 	EntityType   SyncGetChangesParamsEntityType `form:"entity_type" json:"entity_type"`
@@ -2275,6 +2715,15 @@ type UpdateRoleJSONRequestBody UpdateRoleJSONBody
 
 // CreateSensorJSONRequestBody defines body for CreateSensor for application/json ContentType.
 type CreateSensorJSONRequestBody = CreateSensorJSONBody
+
+// CreateServiceJSONRequestBody defines body for CreateService for application/json ContentType.
+type CreateServiceJSONRequestBody = CreateServiceRequest
+
+// UpdateServiceJSONRequestBody defines body for UpdateService for application/json ContentType.
+type UpdateServiceJSONRequestBody = UpdateServiceRequest
+
+// AddServiceAssetJSONRequestBody defines body for AddServiceAsset for application/json ContentType.
+type AddServiceAssetJSONRequestBody = AddServiceAssetRequest
 
 // SyncResolveConflictJSONRequestBody defines body for SyncResolveConflict for application/json ContentType.
 type SyncResolveConflictJSONRequestBody = SyncResolveRequest
@@ -3181,6 +3630,9 @@ type ServerInterface interface {
 	// Return asset payload to encode into a QR code
 	// (GET /assets/{id}/qr-data)
 	GetAssetQRData(c *gin.Context, id IdPath)
+	// Reverse lookup — which services this asset supports
+	// (GET /assets/{id}/services)
+	ListServicesForAsset(c *gin.Context, id IdPath)
 	// List asset snapshot timeline (D10-P0)
 	// (GET /assets/{id}/snapshots)
 	ListAssetSnapshots(c *gin.Context, id IdPath, params ListAssetSnapshotsParams)
@@ -3598,6 +4050,33 @@ type ServerInterface interface {
 	// Send sensor heartbeat
 	// (POST /sensors/{id}/heartbeat)
 	SensorHeartbeat(c *gin.Context, id IdPath)
+	// List business services
+	// (GET /services)
+	ListServices(c *gin.Context, params ListServicesParams)
+	// Create a business service
+	// (POST /services)
+	CreateService(c *gin.Context)
+	// Soft-delete a service
+	// (DELETE /services/{id})
+	DeleteService(c *gin.Context, id IdPath)
+	// Get a service by ID
+	// (GET /services/{id})
+	GetService(c *gin.Context, id IdPath)
+	// Update a service
+	// (PUT /services/{id})
+	UpdateService(c *gin.Context, id IdPath)
+	// List assets attached to a service
+	// (GET /services/{id}/assets)
+	ListServiceAssets(c *gin.Context, id IdPath)
+	// Attach an asset to a service
+	// (POST /services/{id}/assets)
+	AddServiceAsset(c *gin.Context, id IdPath)
+	// Detach an asset from a service
+	// (DELETE /services/{id}/assets/{assetId})
+	RemoveServiceAsset(c *gin.Context, id IdPath, assetId openapi_types.UUID)
+	// Aggregate health of a service based on critical assets
+	// (GET /services/{id}/health)
+	GetServiceHealth(c *gin.Context, id IdPath)
 	// Incremental changes for a given entity type since a version
 	// (GET /sync/changes)
 	SyncGetChanges(c *gin.Context, params SyncGetChangesParams)
@@ -4110,6 +4589,32 @@ func (siw *ServerInterfaceWrapper) GetAssetQRData(c *gin.Context) {
 	}
 
 	siw.Handler.GetAssetQRData(c, id)
+}
+
+// ListServicesForAsset operation middleware
+func (siw *ServerInterfaceWrapper) ListServicesForAsset(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListServicesForAsset(c, id)
 }
 
 // ListAssetSnapshots operation middleware
@@ -7619,6 +8124,272 @@ func (siw *ServerInterfaceWrapper) SensorHeartbeat(c *gin.Context) {
 	siw.Handler.SensorHeartbeat(c, id)
 }
 
+// ListServices operation middleware
+func (siw *ServerInterfaceWrapper) ListServices(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListServicesParams
+
+	// ------------- Optional query parameter "tier" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "tier", c.Request.URL.Query(), &params.Tier, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter tier: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "owner_team" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "owner_team", c.Request.URL.Query(), &params.OwnerTeam, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter owner_team: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_size", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page_size: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListServices(c, params)
+}
+
+// CreateService operation middleware
+func (siw *ServerInterfaceWrapper) CreateService(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateService(c)
+}
+
+// DeleteService operation middleware
+func (siw *ServerInterfaceWrapper) DeleteService(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteService(c, id)
+}
+
+// GetService operation middleware
+func (siw *ServerInterfaceWrapper) GetService(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetService(c, id)
+}
+
+// UpdateService operation middleware
+func (siw *ServerInterfaceWrapper) UpdateService(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateService(c, id)
+}
+
+// ListServiceAssets operation middleware
+func (siw *ServerInterfaceWrapper) ListServiceAssets(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListServiceAssets(c, id)
+}
+
+// AddServiceAsset operation middleware
+func (siw *ServerInterfaceWrapper) AddServiceAsset(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AddServiceAsset(c, id)
+}
+
+// RemoveServiceAsset operation middleware
+func (siw *ServerInterfaceWrapper) RemoveServiceAsset(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", c.Param("assetId"), &assetId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter assetId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RemoveServiceAsset(c, id, assetId)
+}
+
+// GetServiceHealth operation middleware
+func (siw *ServerInterfaceWrapper) GetServiceHealth(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetServiceHealth(c, id)
+}
+
 // SyncGetChanges operation middleware
 func (siw *ServerInterfaceWrapper) SyncGetChanges(c *gin.Context) {
 
@@ -8319,6 +9090,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/assets/:id/lifecycle", wrapper.GetAssetLifecycle)
 	router.GET(options.BaseURL+"/assets/:id/location-history", wrapper.GetAssetLocationHistory)
 	router.GET(options.BaseURL+"/assets/:id/qr-data", wrapper.GetAssetQRData)
+	router.GET(options.BaseURL+"/assets/:id/services", wrapper.ListServicesForAsset)
 	router.GET(options.BaseURL+"/assets/:id/snapshots", wrapper.ListAssetSnapshots)
 	router.GET(options.BaseURL+"/assets/:id/state-at", wrapper.GetAssetStateAt)
 	router.GET(options.BaseURL+"/assets/:id/upgrade-recommendations", wrapper.GetAssetUpgradeRecommendations)
@@ -8458,6 +9230,15 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/sensors/:id", wrapper.DeleteSensor)
 	router.PUT(options.BaseURL+"/sensors/:id", wrapper.UpdateSensor)
 	router.POST(options.BaseURL+"/sensors/:id/heartbeat", wrapper.SensorHeartbeat)
+	router.GET(options.BaseURL+"/services", wrapper.ListServices)
+	router.POST(options.BaseURL+"/services", wrapper.CreateService)
+	router.DELETE(options.BaseURL+"/services/:id", wrapper.DeleteService)
+	router.GET(options.BaseURL+"/services/:id", wrapper.GetService)
+	router.PUT(options.BaseURL+"/services/:id", wrapper.UpdateService)
+	router.GET(options.BaseURL+"/services/:id/assets", wrapper.ListServiceAssets)
+	router.POST(options.BaseURL+"/services/:id/assets", wrapper.AddServiceAsset)
+	router.DELETE(options.BaseURL+"/services/:id/assets/:assetId", wrapper.RemoveServiceAsset)
+	router.GET(options.BaseURL+"/services/:id/health", wrapper.GetServiceHealth)
 	router.GET(options.BaseURL+"/sync/changes", wrapper.SyncGetChanges)
 	router.GET(options.BaseURL+"/sync/conflicts", wrapper.SyncGetConflicts)
 	router.POST(options.BaseURL+"/sync/conflicts/:id/resolve", wrapper.SyncResolveConflict)

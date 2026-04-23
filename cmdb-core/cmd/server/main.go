@@ -34,6 +34,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
+	svcdomain "github.com/cmdb-platform/cmdb-core/internal/domain/service"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/sync"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/workflows"
@@ -421,12 +422,16 @@ func main() {
 		}
 	}
 
+	// Business Service entity (Wave 2). Domain service depends on the
+	// sqlc Queries surface + the event bus for CRUD fan-out.
+	serviceSvc := svcdomain.New(pool, queries, bus)
+
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
-		cipher, netGuard,
+		serviceSvc, cipher, netGuard,
 	)
 
 	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)

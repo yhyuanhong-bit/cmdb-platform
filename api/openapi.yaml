@@ -2617,6 +2617,268 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  # ── Business Services (Wave 2) ──────────────────────────────────────────
+  /services:
+    get:
+      operationId: listServices
+      tags: [services]
+      summary: List business services
+      parameters:
+        - name: tier
+          in: query
+          schema:
+            type: string
+            enum: [critical, important, normal, low, minor]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, deprecated, decommissioned]
+        - name: owner_team
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated service list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Service'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      operationId: createService
+      tags: [services]
+      summary: Create a business service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Service'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /services/{id}:
+    get:
+      operationId: getService
+      tags: [services]
+      summary: Get a service by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Service detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Service'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateService
+      tags: [services]
+      summary: Update a service
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateServiceRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Service'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteService
+      tags: [services]
+      summary: Soft-delete a service
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /services/{id}/assets:
+    get:
+      operationId: listServiceAssets
+      tags: [services]
+      summary: List assets attached to a service
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Service members
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ServiceAssetMember'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: addServiceAsset
+      tags: [services]
+      summary: Attach an asset to a service
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddServiceAssetRequest'
+      responses:
+        '201':
+          description: Attached
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ServiceAssetMember'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /services/{id}/assets/{assetId}:
+    delete:
+      operationId: removeServiceAsset
+      tags: [services]
+      summary: Detach an asset from a service
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: assetId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Detached
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /services/{id}/health:
+    get:
+      operationId: getServiceHealth
+      tags: [services]
+      summary: Aggregate health of a service based on critical assets
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Service health
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ServiceHealth'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /assets/{id}/services:
+    get:
+      operationId: listServicesForAsset
+      tags: [services]
+      summary: Reverse lookup — which services this asset supports
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Services the asset belongs to
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AssetServiceMembership'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # ── Identity ────────────────────────────────────────────────────────────
   /users:
     get:
@@ -4626,6 +4888,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflict with existing resource (e.g. duplicate code)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
 
   schemas:
     # ── Response wrappers ─────────────────────────────────────────────────
@@ -5463,6 +5731,185 @@ components:
         - total_racks
         - critical_alerts
         - avg_occupancy
+
+    # ── Services (Wave 2) ─────────────────────────────────────────────────
+    Service:
+      type: object
+      required: [id, tenant_id, code, name, tier, status, tags, created_at, updated_at, sync_version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          description: Business-ID format, ^[A-Z][A-Z0-9_-]{1,63}$
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        tier:
+          type: string
+          enum: [critical, important, normal, low, minor]
+        owner_team:
+          type: string
+          nullable: true
+        bia_assessment_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [active, deprecated, decommissioned]
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        sync_version:
+          type: integer
+          format: int64
+
+    CreateServiceRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          description: ^[A-Z][A-Z0-9_-]{1,63}$
+        name:
+          type: string
+        description:
+          type: string
+        tier:
+          type: string
+          enum: [critical, important, normal, low, minor]
+          default: normal
+        owner_team:
+          type: string
+        bia_assessment_id:
+          type: string
+          format: uuid
+        tags:
+          type: array
+          items:
+            type: string
+
+    UpdateServiceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        tier:
+          type: string
+          enum: [critical, important, normal, low, minor]
+        owner_team:
+          type: string
+        bia_assessment_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, deprecated, decommissioned]
+        tags:
+          type: array
+          items:
+            type: string
+
+    ServiceAssetMember:
+      type: object
+      required: [service_id, asset_id, role, is_critical, created_at]
+      properties:
+        service_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        asset_tag:
+          type: string
+        asset_name:
+          type: string
+        asset_status:
+          type: string
+        asset_type:
+          type: string
+        role:
+          type: string
+          enum: [primary, replica, cache, proxy, storage, dependency, component]
+        is_critical:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    AddServiceAssetRequest:
+      type: object
+      required: [asset_id]
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [primary, replica, cache, proxy, storage, dependency, component]
+          default: component
+        is_critical:
+          type: boolean
+          default: false
+
+    ServiceHealth:
+      type: object
+      required: [service_id, status, critical_total, critical_unhealthy]
+      properties:
+        service_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [healthy, degraded, unknown]
+        critical_total:
+          type: integer
+          description: Count of is_critical=true assets in the service
+        critical_unhealthy:
+          type: integer
+          description: Of those, how many are in a non-operational status
+
+    AssetServiceMembership:
+      type: object
+      required: [id, code, name, tier, status, role, is_critical]
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        tier:
+          type: string
+          enum: [critical, important, normal, low, minor]
+        status:
+          type: string
+          enum: [active, deprecated, decommissioned]
+        role:
+          type: string
+        is_critical:
+          type: boolean
 
     # ── DashboardStats ────────────────────────────────────────────────────
     DashboardStats:

@@ -56,4 +56,12 @@ const (
 	// "consecutive_failures"}. Ops-admin notification listeners subscribe
 	// so a human knows to fix the receiver and re-enable.
 	SubjectWebhookDisabled = "webhook.disabled"
+
+	// Business Service entity (Wave 2). Emitted by domain/service on
+	// CRUD; consumed by the sync envelope layer (services replicated to
+	// edge read-only), Wave 6 incident aggregation (service tier drives
+	// severity), and Wave 8 rack heatmap (filtering by service).
+	SubjectServiceCreated = "service.created"
+	SubjectServiceUpdated = "service.updated"
+	SubjectServiceDeleted = "service.deleted"
 )

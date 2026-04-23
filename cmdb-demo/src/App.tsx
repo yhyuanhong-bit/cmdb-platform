@@ -18,6 +18,8 @@ const AssetManagement = lazy(() => import('./pages/AssetManagementUnified'))
 const AssetDetail = lazy(() => import('./pages/asset-detail/AssetDetailUnified'))
 const AssetLifecycle = lazy(() => import('./pages/AssetLifecycle'))
 const AssetLifecycleTimeline = lazy(() => import('./pages/AssetLifecycleTimeline'))
+const Services = lazy(() => import('./pages/Services'))
+const ServiceDetail = lazy(() => import('./pages/ServiceDetail'))
 const AutoDiscovery = lazy(() => import('./pages/AutoDiscovery'))
 const ComponentUpgradeRecommendations = lazy(() => import('./pages/ComponentUpgradeRecommendations'))
 const EquipmentHealthOverview = lazy(() => import('./pages/EquipmentHealthOverview'))
@@ -122,6 +124,10 @@ export default function App() {
           <Route path="/assets/discovery" element={<AutoDiscovery />} />
           <Route path="/assets/upgrades" element={<ComponentUpgradeRecommendations />} />
           <Route path="/assets/equipment-health" element={<EquipmentHealthOverview />} />
+
+          {/* Business Services (Wave 2) */}
+          <Route path="/services" element={<Services />} />
+          <Route path="/services/:id" element={<ServiceDetail />} />
 
           {/* Racks / Locations */}
           <Route path="/racks" element={<RackManagement />} />

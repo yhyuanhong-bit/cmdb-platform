@@ -290,6 +290,7 @@ func TestDefaultYAML_MatchesHistoricalMaps(t *testing.T) {
 		"notifications":     "system",
 		"capacity-planning": "assets",
 		"fleet-metrics":     "monitoring",
+		"services":          "services",
 	}
 	if len(cfg.ResourceMap) != len(expectedResource) {
 		t.Errorf("resourceMap size drift: got %d want %d — update rbac_config.yaml AND this test together", len(cfg.ResourceMap), len(expectedResource))

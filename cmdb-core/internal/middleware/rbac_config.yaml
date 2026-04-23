@@ -68,3 +68,4 @@ resourceMap:
   notifications: system
   capacity-planning: assets
   fleet-metrics: monitoring
+  services: services

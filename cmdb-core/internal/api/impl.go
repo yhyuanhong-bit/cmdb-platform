@@ -16,6 +16,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/service"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/sync"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
@@ -53,6 +54,7 @@ type APIServer struct {
 	discoverySvc      discoveryService
 	syncSvc           *sync.Service
 	locationDetectSvc *location_detect.Service
+	serviceSvc        *service.Service
 	cipher            crypto.Cipher
 	netGuard          *netguard.Guard
 }
@@ -78,6 +80,7 @@ func NewAPIServer(
 	discoverySvc discoveryService,
 	syncSvc *sync.Service,
 	locationDetectSvc *location_detect.Service,
+	serviceSvc *service.Service,
 	cipher crypto.Cipher,
 	netGuard *netguard.Guard,
 ) *APIServer {
@@ -101,6 +104,7 @@ func NewAPIServer(
 		discoverySvc:      discoverySvc,
 		syncSvc:           syncSvc,
 		locationDetectSvc: locationDetectSvc,
+		serviceSvc:        serviceSvc,
 		cipher:            cipher,
 		netGuard:          netGuard,
 	}

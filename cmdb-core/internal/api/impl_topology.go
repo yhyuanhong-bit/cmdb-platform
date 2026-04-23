@@ -131,7 +131,7 @@ func (s *APIServer) CreateAssetDependency(c *gin.Context) {
 		depType = *body.DependencyType
 	}
 
-	category := Dependency
+	category := DependencyCategoryDependency
 	if body.DependencyCategory != nil {
 		if !body.DependencyCategory.Valid() {
 			response.BadRequest(c, "dependency_category must be containment, dependency, communication, or custom")
