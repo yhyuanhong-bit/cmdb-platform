@@ -20,6 +20,10 @@ on:
     paths:
       - 'api/openapi.yaml'
       - 'cmdb-core/cmd/server/main.go'
+      # impl_*.go holds the concrete handlers wired to spec operations.
+      # Renaming / removing a handler can silently break the ServerInterface
+      # contract — include all impl files so the gate catches those changes.
+      - 'cmdb-core/internal/api/impl_**.go'
       - 'cmdb-core/internal/api/generated.go'
       - 'cmdb-core/oapi-codegen.yaml'
       - 'cmdb-core/cmd/check-api-routes/**'

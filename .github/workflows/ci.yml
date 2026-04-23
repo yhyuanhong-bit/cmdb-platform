@@ -120,9 +120,20 @@ jobs:
           # Phase 1: schema up to and including the tenants table.
           migrate -path db/migrations -database "$DATABASE_URL" up 2
           # Pre-seed the primary tenant referenced by later migrations.
-          psql -h localhost -U cmdb -d cmdb -c "INSERT INTO tenants (id, name, slug) VALUES ('a0000000-0000-0000-0000-000000000001', 'Taipei Campus', 'tw') ON CONFLICT (slug) DO NOTHING;"
+          psql -h localhost -U cmdb -d cmdb -c "INSERT INTO tenants (id, name, slug) VALUES ('a0000000-0000-0000-0000-000000000001', 'Primary Tenant', 'tw') ON CONFLICT (slug) DO NOTHING;"
           # Phase 2: the rest.
           migrate -path db/migrations -database "$DATABASE_URL" up
+
+      # Load the test-fixture so integration tests have realistic data:
+      # locations, racks, sample assets, alerts, work orders, BIA rows.
+      # seed.sql already ran via the pre-seed step above; test-fixture
+      # extends it. Both use ON CONFLICT DO NOTHING so re-runs are safe.
+      - name: Load test fixture
+        env:
+          PGPASSWORD: cmdb
+        run: |
+          psql -h localhost -U cmdb -d cmdb -f db/seed/seed.sql
+          psql -h localhost -U cmdb -d cmdb -f db/seed/test-fixture.sql
 
       - name: Integration tests
         env:

@@ -38,6 +38,18 @@ build:
 seed:
 	go run ./cmd/seed
 
+# Load the full demo fixture on top of the bootstrap seed. Intended for
+# development + integration testing, NEVER production.
+# Uses DATABASE_URL (same env var the server reads) so it targets the
+# developer's local docker-compose database by default.
+seed-dev:
+	@if [ -z "$$DATABASE_URL" ]; then \
+	  echo "error: DATABASE_URL must be set (e.g. postgres://cmdb:changeme@localhost:5432/cmdb?sslmode=disable)"; \
+	  exit 1; \
+	fi
+	psql "$$DATABASE_URL" -f db/seed/seed.sql
+	psql "$$DATABASE_URL" -f db/seed/test-fixture.sql
+
 # Deployment targets
 .PHONY: up up-edge down logs grafana jaeger
 

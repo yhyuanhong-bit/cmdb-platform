@@ -443,23 +443,17 @@ func main() {
 		zap.Int("resource_map_entries", len(rbacCfg.ResourceMap)),
 	)
 
-	// 10. Set up Gin router
+	// 10. Set up Gin router. Middleware chain + public routes live in
+	// routes.go to keep main.go focused on process lifecycle. The Wave 1
+	// skeleton only moves infra middleware + /healthz /readyz /metrics;
+	// the /api/v1 group stays here until Wave 11 because it needs
+	// deeper dependency threading.
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
+	infraMiddleware(router, cfg.DeployMode, &initialSyncDone)
 
-	// Tracing middleware first so spans wrap everything
-	router.Use(telemetry.TracingMiddleware("cmdb-core"))
-	router.Use(middleware.Recovery(), middleware.CORS(), middleware.SecurityHeaders(), middleware.RequestID())
-	router.Use(middleware.SyncGateMiddleware(&initialSyncDone, cfg.DeployMode))
-	router.Use(telemetry.PrometheusMiddleware())
-
-	// Health & readiness probes
 	healthHandler := api.NewHealthHandler(pool, redisClient, natsBus)
-	router.GET("/healthz", healthHandler.Liveness)
-	router.GET("/readyz", healthHandler.Readiness)
-
-	// Prometheus metrics endpoint (no auth)
-	router.GET("/metrics", telemetry.MetricsHandler())
+	registerPublicRoutes(router, healthHandler)
 
 	// API v1 group with auth middleware that skips public endpoints.
 	// The blacklist revokes access tokens on logout; PasswordChangedAt
