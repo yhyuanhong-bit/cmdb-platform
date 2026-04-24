@@ -10,6 +10,9 @@ export interface DiscoveredAsset {
   raw_data?: Record<string, unknown>
   status: string
   matched_asset_id?: string | null
+  match_confidence?: number | null
+  match_strategy?: string | null
+  review_reason?: string | null
   diff_details?: Record<string, { old?: unknown; new?: unknown }> | null
   discovered_at: string
   reviewed_by?: string | null
@@ -39,7 +42,9 @@ export interface DiscoveryIngestData {
 export const discoveryApi = {
   list: (params?: Record<string, string>) => apiClient.get<ApiListResponse<DiscoveredAsset>>('/discovery/pending', params),
   ingest: (data: DiscoveryIngestData) => apiClient.post<ApiResponse<DiscoveredAsset>>('/discovery/ingest', data),
-  approve: (id: string) => apiClient.post<ApiResponse<DiscoveredAsset>>(`/discovery/${id}/approve`, {}),
-  ignore: (id: string) => apiClient.post<ApiResponse<DiscoveredAsset>>(`/discovery/${id}/ignore`, {}),
+  approve: (id: string, reason?: string) =>
+    apiClient.post<ApiResponse<DiscoveredAsset>>(`/discovery/${id}/approve`, { reason: reason ?? '' }),
+  ignore: (id: string, reason: string) =>
+    apiClient.post<ApiResponse<DiscoveredAsset>>(`/discovery/${id}/ignore`, { reason }),
   getStats: () => apiClient.get<ApiResponse<DiscoveryStats>>('/discovery/stats'),
 }

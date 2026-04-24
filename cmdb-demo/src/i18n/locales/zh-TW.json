@@ -89,6 +89,7 @@
     "minor": "次要",
     "coming_soon": "即將推出",
     "saving": "儲存中...",
+    "clear": "清除",
     "deleting": "刪除中...",
     "back_to_dashboard": "返回儀表板",
     "empty_no_data_title": "暫無資料",
@@ -1606,7 +1607,19 @@
     "table_details": "詳情",
     "matched_prefix": "匹配",
     "new_asset": "新資產",
-    "empty_state": "未找到發現的資產。"
+    "empty_state": "未找到發現的資產。",
+    "table_confidence": "信心度",
+    "selected_count": "已選 {{count}} 項",
+    "dialog_approve_title": "核准 {{count}} 筆發現？",
+    "dialog_ignore_title": "忽略 {{count}} 筆發現？",
+    "dialog_approve_desc": "此動作會將發現紀錄提升為正式資產。系統會寫入稽核事件。",
+    "dialog_ignore_desc": "忽略後的紀錄會保留在佇列作為參考。必須填寫原因，以便稽核追蹤能回答為何拒絕。",
+    "dialog_reason_required": "原因（必填）",
+    "dialog_reason_optional": "原因（選填）",
+    "dialog_reason_placeholder_approve": "例如：與網路團隊核實，與資產編號一致",
+    "dialog_reason_placeholder_ignore": "例如：誤判 — 測試環境 IP",
+    "dialog_confirm_approve": "核准",
+    "dialog_confirm_ignore": "忽略"
   },
   "component_upgrades": {
     "title": "元件最佳化與升級",

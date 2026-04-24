@@ -18,8 +18,8 @@ import (
 type mockDiscoveryService struct {
 	listFn      func(ctx context.Context, tenantID uuid.UUID, status *string, limit, offset int32) ([]dbgen.DiscoveredAsset, int64, error)
 	ingestFn    func(ctx context.Context, params dbgen.CreateDiscoveredAssetParams) (*dbgen.DiscoveredAsset, error)
-	approveFn   func(ctx context.Context, discoveredID, tenantID, reviewerID uuid.UUID) (*discovery.ApproveResult, error)
-	ignoreFn    func(ctx context.Context, id, reviewerID uuid.UUID) (*dbgen.DiscoveredAsset, error)
+	approveFn   func(ctx context.Context, discoveredID, tenantID, reviewerID uuid.UUID, reviewReason string) (*discovery.ApproveResult, error)
+	ignoreFn    func(ctx context.Context, id, tenantID, reviewerID uuid.UUID, reason string) (*dbgen.DiscoveredAsset, error)
 	getStatsFn  func(ctx context.Context, tenantID uuid.UUID) (*dbgen.GetDiscoveryStatsRow, error)
 	queriesStub *dbgen.Queries
 }
@@ -30,11 +30,11 @@ func (m *mockDiscoveryService) List(ctx context.Context, tenantID uuid.UUID, sta
 func (m *mockDiscoveryService) Ingest(ctx context.Context, params dbgen.CreateDiscoveredAssetParams) (*dbgen.DiscoveredAsset, error) {
 	return m.ingestFn(ctx, params)
 }
-func (m *mockDiscoveryService) ApproveAndCreateAsset(ctx context.Context, discoveredID, tenantID, reviewerID uuid.UUID) (*discovery.ApproveResult, error) {
-	return m.approveFn(ctx, discoveredID, tenantID, reviewerID)
+func (m *mockDiscoveryService) ApproveAndCreateAsset(ctx context.Context, discoveredID, tenantID, reviewerID uuid.UUID, reviewReason string) (*discovery.ApproveResult, error) {
+	return m.approveFn(ctx, discoveredID, tenantID, reviewerID, reviewReason)
 }
-func (m *mockDiscoveryService) Ignore(ctx context.Context, id, reviewerID uuid.UUID) (*dbgen.DiscoveredAsset, error) {
-	return m.ignoreFn(ctx, id, reviewerID)
+func (m *mockDiscoveryService) Ignore(ctx context.Context, id, tenantID, reviewerID uuid.UUID, reason string) (*dbgen.DiscoveredAsset, error) {
+	return m.ignoreFn(ctx, id, tenantID, reviewerID, reason)
 }
 func (m *mockDiscoveryService) GetStats(ctx context.Context, tenantID uuid.UUID) (*dbgen.GetDiscoveryStatsRow, error) {
 	return m.getStatsFn(ctx, tenantID)
@@ -74,7 +74,7 @@ func TestApproveDiscoveredAsset_Success_CreatesAssetAndPublishesEvent(t *testing
 
 	var capturedDisc, capturedTenant, capturedReviewer uuid.UUID
 	svc := &mockDiscoveryService{
-		approveFn: func(_ context.Context, d, t, r uuid.UUID) (*discovery.ApproveResult, error) {
+		approveFn: func(_ context.Context, d, t, r uuid.UUID, _ string) (*discovery.ApproveResult, error) {
 			capturedDisc, capturedTenant, capturedReviewer = d, t, r
 			return &discovery.ApproveResult{
 				Asset: dbgen.Asset{
@@ -147,7 +147,7 @@ func TestApproveDiscoveredAsset_Idempotent_NoEventPublished(t *testing.T) {
 	assetID := uuid.New()
 
 	svc := &mockDiscoveryService{
-		approveFn: func(_ context.Context, _, _, _ uuid.UUID) (*discovery.ApproveResult, error) {
+		approveFn: func(_ context.Context, _, _, _ uuid.UUID, _ string) (*discovery.ApproveResult, error) {
 			return &discovery.ApproveResult{
 				Asset:      dbgen.Asset{ID: assetID, TenantID: tenantID, AssetTag: "DSC-ABCDEF01", Type: "server", Status: "inventoried"},
 				Discovered: dbgen.DiscoveredAsset{ID: discoveredID, TenantID: tenantID, Status: "approved"},
@@ -179,7 +179,7 @@ func TestApproveDiscoveredAsset_NotFound_Returns404(t *testing.T) {
 	discoveredID := uuid.New()
 
 	svc := &mockDiscoveryService{
-		approveFn: func(_ context.Context, _, _, _ uuid.UUID) (*discovery.ApproveResult, error) {
+		approveFn: func(_ context.Context, _, _, _ uuid.UUID, _ string) (*discovery.ApproveResult, error) {
 			return nil, discovery.ErrNotFound
 		},
 	}
@@ -207,7 +207,7 @@ func TestApproveDiscoveredAsset_DuplicateAsset_Returns409(t *testing.T) {
 	discoveredID := uuid.New()
 
 	svc := &mockDiscoveryService{
-		approveFn: func(_ context.Context, _, _, _ uuid.UUID) (*discovery.ApproveResult, error) {
+		approveFn: func(_ context.Context, _, _, _ uuid.UUID, _ string) (*discovery.ApproveResult, error) {
 			return nil, discovery.ErrAssetAlreadyExists
 		},
 	}

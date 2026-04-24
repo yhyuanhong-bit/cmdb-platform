@@ -8,6 +8,7 @@ package dbgen
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -18,9 +19,10 @@ UPDATE discovered_assets
    SET status            = 'approved',
        approved_asset_id = $3,
        reviewed_by       = $4,
-       reviewed_at       = now()
+       reviewed_at       = now(),
+       review_reason     = $5
  WHERE id = $1 AND tenant_id = $2
- RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id
+ RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id, match_confidence, match_strategy, review_reason
 `
 
 type ApproveDiscoveredAssetParams struct {
@@ -28,6 +30,7 @@ type ApproveDiscoveredAssetParams struct {
 	TenantID        uuid.UUID   `json:"tenant_id"`
 	ApprovedAssetID pgtype.UUID `json:"approved_asset_id"`
 	ReviewedBy      pgtype.UUID `json:"reviewed_by"`
+	ReviewReason    pgtype.Text `json:"review_reason"`
 }
 
 // Marks a discovered_asset as approved and links it to the newly-created
@@ -35,12 +38,15 @@ type ApproveDiscoveredAssetParams struct {
 //
 // Tenant-scoped: callers must pass their tenant_id; a row owned by a
 // different tenant will not match and the handler returns 404.
+// reason is required by the Wave-3 review gate — the UI never sends an
+// empty string, it's a mandatory input.
 func (q *Queries) ApproveDiscoveredAsset(ctx context.Context, arg ApproveDiscoveredAssetParams) (DiscoveredAsset, error) {
 	row := q.db.QueryRow(ctx, approveDiscoveredAsset,
 		arg.ID,
 		arg.TenantID,
 		arg.ApprovedAssetID,
 		arg.ReviewedBy,
+		arg.ReviewReason,
 	)
 	var i DiscoveredAsset
 	err := row.Scan(
@@ -58,6 +64,9 @@ func (q *Queries) ApproveDiscoveredAsset(ctx context.Context, arg ApproveDiscove
 		&i.ReviewedBy,
 		&i.ReviewedAt,
 		&i.ApprovedAssetID,
+		&i.MatchConfidence,
+		&i.MatchStrategy,
+		&i.ReviewReason,
 	)
 	return i, err
 }
@@ -81,23 +90,30 @@ func (q *Queries) CountDiscoveredAssets(ctx context.Context, arg CountDiscovered
 }
 
 const createDiscoveredAsset = `-- name: CreateDiscoveredAsset :one
-INSERT INTO discovered_assets (tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id
+INSERT INTO discovered_assets (
+    tenant_id, source, external_id, hostname, ip_address, raw_data,
+    status, matched_asset_id, diff_details, match_confidence, match_strategy
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id, match_confidence, match_strategy, review_reason
 `
 
 type CreateDiscoveredAssetParams struct {
-	TenantID       uuid.UUID       `json:"tenant_id"`
-	Source         string          `json:"source"`
-	ExternalID     pgtype.Text     `json:"external_id"`
-	Hostname       pgtype.Text     `json:"hostname"`
-	IpAddress      pgtype.Text     `json:"ip_address"`
-	RawData        json.RawMessage `json:"raw_data"`
-	Status         string          `json:"status"`
-	MatchedAssetID pgtype.UUID     `json:"matched_asset_id"`
-	DiffDetails    []byte          `json:"diff_details"`
+	TenantID        uuid.UUID       `json:"tenant_id"`
+	Source          string          `json:"source"`
+	ExternalID      pgtype.Text     `json:"external_id"`
+	Hostname        pgtype.Text     `json:"hostname"`
+	IpAddress       pgtype.Text     `json:"ip_address"`
+	RawData         json.RawMessage `json:"raw_data"`
+	Status          string          `json:"status"`
+	MatchedAssetID  pgtype.UUID     `json:"matched_asset_id"`
+	DiffDetails     []byte          `json:"diff_details"`
+	MatchConfidence pgtype.Numeric  `json:"match_confidence"`
+	MatchStrategy   pgtype.Text     `json:"match_strategy"`
 }
 
+// Ingestion pipeline entry point. match_confidence + match_strategy may
+// be NULL when no match was attempted (raw ingest, no known CI yet).
 func (q *Queries) CreateDiscoveredAsset(ctx context.Context, arg CreateDiscoveredAssetParams) (DiscoveredAsset, error) {
 	row := q.db.QueryRow(ctx, createDiscoveredAsset,
 		arg.TenantID,
@@ -109,6 +125,8 @@ func (q *Queries) CreateDiscoveredAsset(ctx context.Context, arg CreateDiscovere
 		arg.Status,
 		arg.MatchedAssetID,
 		arg.DiffDetails,
+		arg.MatchConfidence,
+		arg.MatchStrategy,
 	)
 	var i DiscoveredAsset
 	err := row.Scan(
@@ -126,6 +144,9 @@ func (q *Queries) CreateDiscoveredAsset(ctx context.Context, arg CreateDiscovere
 		&i.ReviewedBy,
 		&i.ReviewedAt,
 		&i.ApprovedAssetID,
+		&i.MatchConfidence,
+		&i.MatchStrategy,
+		&i.ReviewReason,
 	)
 	return i, err
 }
@@ -184,7 +205,7 @@ func (q *Queries) FindAssetByIP(ctx context.Context, arg FindAssetByIPParams) (A
 }
 
 const getDiscoveredAsset = `-- name: GetDiscoveredAsset :one
-SELECT id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id FROM discovered_assets WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id, match_confidence, match_strategy, review_reason FROM discovered_assets WHERE id = $1 AND tenant_id = $2
 `
 
 type GetDiscoveredAssetParams struct {
@@ -210,6 +231,9 @@ func (q *Queries) GetDiscoveredAsset(ctx context.Context, arg GetDiscoveredAsset
 		&i.ReviewedBy,
 		&i.ReviewedAt,
 		&i.ApprovedAssetID,
+		&i.MatchConfidence,
+		&i.MatchStrategy,
+		&i.ReviewReason,
 	)
 	return i, err
 }
@@ -251,17 +275,31 @@ func (q *Queries) GetDiscoveryStats(ctx context.Context, tenantID uuid.UUID) (Ge
 }
 
 const ignoreDiscoveredAsset = `-- name: IgnoreDiscoveredAsset :one
-UPDATE discovered_assets SET status = 'ignored', reviewed_by = $2, reviewed_at = now()
-WHERE id = $1 RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id
+UPDATE discovered_assets
+   SET status        = 'ignored',
+       reviewed_by   = $3,
+       reviewed_at   = now(),
+       review_reason = $4
+ WHERE id = $1 AND tenant_id = $2
+ RETURNING id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id, match_confidence, match_strategy, review_reason
 `
 
 type IgnoreDiscoveredAssetParams struct {
-	ID         uuid.UUID   `json:"id"`
-	ReviewedBy pgtype.UUID `json:"reviewed_by"`
+	ID           uuid.UUID   `json:"id"`
+	TenantID     uuid.UUID   `json:"tenant_id"`
+	ReviewedBy   pgtype.UUID `json:"reviewed_by"`
+	ReviewReason pgtype.Text `json:"review_reason"`
 }
 
+// Tenant-scoped (fixed Wave 3: the pre-3 query only filtered by id,
+// which allowed cross-tenant rejection attacks).
 func (q *Queries) IgnoreDiscoveredAsset(ctx context.Context, arg IgnoreDiscoveredAssetParams) (DiscoveredAsset, error) {
-	row := q.db.QueryRow(ctx, ignoreDiscoveredAsset, arg.ID, arg.ReviewedBy)
+	row := q.db.QueryRow(ctx, ignoreDiscoveredAsset,
+		arg.ID,
+		arg.TenantID,
+		arg.ReviewedBy,
+		arg.ReviewReason,
+	)
 	var i DiscoveredAsset
 	err := row.Scan(
 		&i.ID,
@@ -278,12 +316,15 @@ func (q *Queries) IgnoreDiscoveredAsset(ctx context.Context, arg IgnoreDiscovere
 		&i.ReviewedBy,
 		&i.ReviewedAt,
 		&i.ApprovedAssetID,
+		&i.MatchConfidence,
+		&i.MatchStrategy,
+		&i.ReviewReason,
 	)
 	return i, err
 }
 
 const listDiscoveredAssets = `-- name: ListDiscoveredAssets :many
-SELECT id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id FROM discovered_assets
+SELECT id, tenant_id, source, external_id, hostname, ip_address, raw_data, status, matched_asset_id, diff_details, discovered_at, reviewed_by, reviewed_at, approved_asset_id, match_confidence, match_strategy, review_reason FROM discovered_assets
 WHERE tenant_id = $1
   AND ($4::varchar IS NULL OR status = $4)
 ORDER BY discovered_at DESC
@@ -326,6 +367,65 @@ func (q *Queries) ListDiscoveredAssets(ctx context.Context, arg ListDiscoveredAs
 			&i.ReviewedBy,
 			&i.ReviewedAt,
 			&i.ApprovedAssetID,
+			&i.MatchConfidence,
+			&i.MatchStrategy,
+			&i.ReviewReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnreviewedOverdue = `-- name: ListUnreviewedOverdue :many
+SELECT id, tenant_id, source, hostname, ip_address, status, discovered_at
+FROM discovered_assets
+WHERE status IN ('pending', 'conflict')
+  AND discovered_at < now() - make_interval(hours => $1)
+ORDER BY discovered_at ASC
+LIMIT $2
+`
+
+type ListUnreviewedOverdueParams struct {
+	Hours int32 `json:"hours"`
+	Limit int32 `json:"limit"`
+}
+
+type ListUnreviewedOverdueRow struct {
+	ID           uuid.UUID   `json:"id"`
+	TenantID     uuid.UUID   `json:"tenant_id"`
+	Source       string      `json:"source"`
+	Hostname     pgtype.Text `json:"hostname"`
+	IpAddress    pgtype.Text `json:"ip_address"`
+	Status       string      `json:"status"`
+	DiscoveredAt time.Time   `json:"discovered_at"`
+}
+
+// Wave 3: picks up discovered_assets that have sat in pending/conflict
+// status for > N hours so the governance auto-work-order scheduler can
+// open a ticket. Returns one row per tenant+discovery so the scheduler
+// fans out correctly.
+func (q *Queries) ListUnreviewedOverdue(ctx context.Context, arg ListUnreviewedOverdueParams) ([]ListUnreviewedOverdueRow, error) {
+	rows, err := q.db.Query(ctx, listUnreviewedOverdue, arg.Hours, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnreviewedOverdueRow{}
+	for rows.Next() {
+		var i ListUnreviewedOverdueRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Source,
+			&i.Hostname,
+			&i.IpAddress,
+			&i.Status,
+			&i.DiscoveredAt,
 		); err != nil {
 			return nil, err
 		}

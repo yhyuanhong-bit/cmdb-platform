@@ -372,6 +372,9 @@ type DiscoveredAsset struct {
 	ReviewedBy      pgtype.UUID        `json:"reviewed_by"`
 	ReviewedAt      pgtype.Timestamptz `json:"reviewed_at"`
 	ApprovedAssetID pgtype.UUID        `json:"approved_asset_id"`
+	MatchConfidence pgtype.Numeric     `json:"match_confidence"`
+	MatchStrategy   pgtype.Text        `json:"match_strategy"`
+	ReviewReason    pgtype.Text        `json:"review_reason"`
 }
 
 type Incident struct {

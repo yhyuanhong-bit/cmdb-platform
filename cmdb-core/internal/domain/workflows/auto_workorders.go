@@ -12,8 +12,9 @@ import (
 // scans (Phase 2.15). Keep these in sync with the backfill in
 // 000049_work_order_dedup.up.sql — a typo here silently defeats dedup.
 const (
-	dedupKindShadowIT        = "shadow_it"
-	dedupKindDuplicateSerial = "duplicate_serial"
+	dedupKindShadowIT              = "shadow_it"
+	dedupKindDuplicateSerial       = "duplicate_serial"
+	dedupKindDiscoveryUnreviewed   = "discovery_unreviewed"
 )
 
 // Source labels for telemetry.ErrorsSuppressedTotal emitted from the
@@ -34,6 +35,7 @@ const (
 	sourceScanDiffEventHandler = "workflows.auto_wo.scan_diff_event"
 	sourceBMCDefaultEventParse = "workflows.auto_wo.bmc_default_event"
 	sourceLowQualityCheck      = "workflows.auto_wo.low_quality"
+	sourceDiscoveryUnreviewed  = "workflows.auto_wo.discovery_unreviewed"
 )
 
 // Reason used when maintenanceSvc.Create fails in an auto-WO scan.

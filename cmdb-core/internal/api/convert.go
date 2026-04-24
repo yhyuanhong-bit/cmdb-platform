@@ -902,7 +902,7 @@ func interfaceToFloat32(v interface{}) float32 {
 
 func toAPIDiscoveredAsset(db dbgen.DiscoveredAsset) DiscoveredAsset {
 	src := db.Source
-	status := db.Status
+	status := DiscoveredAssetStatus(db.Status)
 	hostname := pgtextToPtr(db.Hostname)
 	externalID := pgtextToPtr(db.ExternalID)
 	ipAddr := pgtextToPtr(db.IpAddress)
@@ -916,20 +916,42 @@ func toAPIDiscoveredAsset(db dbgen.DiscoveredAsset) DiscoveredAsset {
 		t := db.ReviewedAt.Time
 		reviewedAt = &t
 	}
+	// Wave 3 fields: surface match_confidence / match_strategy /
+	// review_reason so the review UI can render trust signals and the
+	// audit trail captures every approve/ignore decision.
+	var matchConf *float32
+	if db.MatchConfidence.Valid {
+		f := pgnumToFloat32(db.MatchConfidence)
+		matchConf = &f
+	}
+	var matchStrat *DiscoveredAssetMatchStrategy
+	if db.MatchStrategy.Valid {
+		ms := DiscoveredAssetMatchStrategy(db.MatchStrategy.String)
+		matchStrat = &ms
+	}
+	var reviewReason *string
+	if db.ReviewReason.Valid {
+		v := db.ReviewReason.String
+		reviewReason = &v
+	}
+
 	id := openapi_types.UUID(db.ID)
 	return DiscoveredAsset{
-		Id:             &id,
-		Source:         &src,
-		ExternalId:     externalID,
-		Hostname:       hostname,
-		IpAddress:      ipAddr,
-		RawData:        rawData,
-		Status:         &status,
-		MatchedAssetId: matchedAssetID,
-		DiffDetails:    diffDetails,
-		DiscoveredAt:   &discoveredAt,
-		ReviewedBy:     reviewedBy,
-		ReviewedAt:     reviewedAt,
+		Id:              &id,
+		Source:          &src,
+		ExternalId:      externalID,
+		Hostname:        hostname,
+		IpAddress:       ipAddr,
+		RawData:         rawData,
+		Status:          &status,
+		MatchedAssetId:  matchedAssetID,
+		DiffDetails:     diffDetails,
+		DiscoveredAt:    &discoveredAt,
+		ReviewedBy:      reviewedBy,
+		ReviewedAt:      reviewedAt,
+		MatchConfidence: matchConf,
+		MatchStrategy:   matchStrat,
+		ReviewReason:    reviewReason,
 	}
 }
 

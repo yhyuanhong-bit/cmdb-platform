@@ -33,6 +33,15 @@ def _run_async(coro):
 def determine_routing(mode: str, raw: RawAssetData, existing_asset_id) -> str:
     """Determine routing destination for a discovered asset.
 
+    Wave 3 changed the safe default. Modes:
+      - "auto":   always pipeline (auto-merge / auto-create).  Requires
+                  explicit opt-in; a scanner misconfigured here pollutes
+                  the CMDB silently.
+      - "review": always staging (human must approve).  Default.
+      - "smart":  pipeline when a matching CI already exists, staging
+                  when the discovery would create a new CI.  Pre-3
+                  default; kept for back-compat.
+
     Args:
         mode: One of "auto", "review", or "smart"
         raw: The raw asset data (unused in routing logic, reserved for future use)
@@ -49,6 +58,35 @@ def determine_routing(mode: str, raw: RawAssetData, existing_asset_id) -> str:
     if existing_asset_id:
         return "pipeline"
     return "staging"
+
+
+def compute_match_metadata(raw: RawAssetData, existing_asset_id) -> dict:
+    """Derive match_confidence + match_strategy for a staged discovery.
+
+    Wave 3 surfaces these to the review UI so operators can tell whether
+    the dedup step matched on a strong identifier (serial_number, exact
+    asset_tag) versus a weaker signal (hostname / IP only).
+
+    Returns a dict suitable for JSON-posting to /discovery/ingest. Keys
+    are omitted when no match was made — NULL passthrough on the backend.
+    """
+    if existing_asset_id is None:
+        return {}
+
+    # Strategy order mirrors deduplicate.py's lookup preference. We
+    # re-derive the strategy here from the raw fields because the
+    # deduplicate result doesn't currently return which field hit.
+    if raw.fields.get("serial_number"):
+        return {"match_confidence": 0.95, "match_strategy": "serial_number"}
+    if raw.fields.get("asset_tag"):
+        return {"match_confidence": 0.90, "match_strategy": "asset_tag"}
+    if raw.fields.get("name") or raw.fields.get("hostname"):
+        return {"match_confidence": 0.70, "match_strategy": "hostname"}
+    if (raw.attributes or {}).get("ip_address"):
+        return {"match_confidence": 0.60, "match_strategy": "ip"}
+    # Matched by some other path — surface a low score so the reviewer
+    # treats it as "inspect before approving".
+    return {"match_confidence": 0.50, "match_strategy": "hostname"}
 
 
 # Retryable infrastructure errors for process_discovery_task.
@@ -157,7 +195,15 @@ async def _process_discovery(
                             else:
                                 stats["skipped"] += 1
                         else:
-                            await _send_to_staging(tenant_id, raw)
+                            match_meta = compute_match_metadata(
+                                raw, dedup_result.existing_asset_id
+                            )
+                            await _send_to_staging(
+                                tenant_id,
+                                raw,
+                                dedup_result.existing_asset_id,
+                                match_meta,
+                            )
                             stats["staging"] += 1
 
                     except Exception:
@@ -192,14 +238,30 @@ async def _process_discovery(
         await close_nats(nc)
 
 
-async def _send_to_staging(tenant_id: str, raw: RawAssetData) -> None:
-    """POST a discovered asset to cmdb-core /discovery/ingest for human review."""
+async def _send_to_staging(
+    tenant_id: str,
+    raw: RawAssetData,
+    existing_asset_id=None,
+    match_meta: dict | None = None,
+) -> None:
+    """POST a discovered asset to cmdb-core /discovery/ingest for human review.
+
+    Wave 3: when the dedup step found a matching CI, we pass through
+    matched_asset_id plus the confidence/strategy pair so the review UI
+    can show "we think this is asset X with 95% confidence (matched by
+    serial_number)" instead of forcing the reviewer to eyeball the diff.
+    """
     payload = {
         "source": raw.source,
         "hostname": raw.fields.get("name", ""),
         "ip_address": (raw.attributes or {}).get("ip_address", ""),
         "raw_data": {"fields": raw.fields, "attributes": raw.attributes or {}},
     }
+    if existing_asset_id is not None:
+        payload["matched_asset_id"] = str(existing_asset_id)
+    if match_meta:
+        payload.update(match_meta)
+
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{settings.cmdb_core_url}/discovery/ingest",

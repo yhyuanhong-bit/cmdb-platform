@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
@@ -65,8 +66,18 @@ func (s *APIServer) IngestDiscoveredAsset(c *gin.Context) {
 		params.IpAddress = textFromPtr(req.IpAddress)
 	}
 
-	// Auto-match by IP if possible
-	if req.IpAddress != nil && *req.IpAddress != "" {
+	// Wave 3: when the ingestion engine supplies a matched_asset_id (and
+	// optionally match_confidence/strategy), trust those over our
+	// fallback IP match — the engine has full context on the dedup
+	// rule that fired. A missing explicit match is still auto-matched
+	// by IP below for back-compat with collectors that don't set it.
+	if req.MatchedAssetId != nil {
+		params.MatchedAssetID = pgtype.UUID{Bytes: uuid.UUID(*req.MatchedAssetId), Valid: true}
+		// If the engine supplied a match, it has seen actual attributes
+		// — treat this as a conflict requiring review, not an
+		// auto-merge target.
+		params.Status = "conflict"
+	} else if req.IpAddress != nil && *req.IpAddress != "" {
 		matched, matchErr := s.discoverySvc.Queries().FindAssetByIP(c.Request.Context(), dbgen.FindAssetByIPParams{
 			TenantID:  tenantID,
 			IpAddress: pgtype.Text{String: *req.IpAddress, Valid: true},
@@ -74,7 +85,27 @@ func (s *APIServer) IngestDiscoveredAsset(c *gin.Context) {
 		if matchErr == nil {
 			params.MatchedAssetID = pgtype.UUID{Bytes: matched.ID, Valid: true}
 			params.Status = "conflict"
+			// IP-only match is weak — surface a conservative score so
+			// the review UI does not imply we're confident about it.
+			strategy := "ip"
+			params.MatchStrategy = pgtype.Text{String: strategy, Valid: true}
+			if params.MatchConfidence.Int == nil {
+				// Only set a default confidence if the caller didn't.
+				params.MatchConfidence = pgtype.Numeric{Valid: true}
+				_ = params.MatchConfidence.Scan("0.60")
+			}
 		}
+	}
+	// Pass-through engine-supplied match_confidence / strategy. Takes
+	// precedence over the defaults above.
+	if req.MatchConfidence != nil {
+		// pgtype.Numeric has no direct float32 setter; Scan accepts a
+		// string to avoid the float → numeric rounding pitfalls.
+		params.MatchConfidence = pgtype.Numeric{}
+		_ = params.MatchConfidence.Scan(fmt.Sprintf("%.2f", *req.MatchConfidence))
+	}
+	if req.MatchStrategy != nil {
+		params.MatchStrategy = pgtype.Text{String: string(*req.MatchStrategy), Valid: true}
 	}
 
 	item, err := s.discoverySvc.Ingest(c.Request.Context(), params)
@@ -108,7 +139,19 @@ func (s *APIServer) ApproveDiscoveredAsset(c *gin.Context, id IdPath) {
 	tenantID := tenantIDFromContext(c)
 	reviewerID := userIDFromContext(c)
 
-	result, err := s.discoverySvc.ApproveAndCreateAsset(ctx, uuid.UUID(id), tenantID, reviewerID)
+	// Wave 3: approve/ignore now require a reason from the reviewer.
+	// The body is optional to stay backward-compatible with tools that
+	// auto-approve high-confidence matches, but we normalize the missing
+	// case to a deterministic string so the audit trail always has
+	// something searchable.
+	var body ApproveDiscoveredAssetRequest
+	_ = c.ShouldBindJSON(&body)
+	reviewReason := "approved via discovery review gate"
+	if body.Reason != nil && *body.Reason != "" {
+		reviewReason = *body.Reason
+	}
+
+	result, err := s.discoverySvc.ApproveAndCreateAsset(ctx, uuid.UUID(id), tenantID, reviewerID, reviewReason)
 	if err != nil {
 		switch {
 		case errors.Is(err, discovery.ErrNotFound):
@@ -144,10 +187,25 @@ func (s *APIServer) ApproveDiscoveredAsset(c *gin.Context, id IdPath) {
 }
 
 // IgnoreDiscoveredAsset ignores a discovered asset.
+// Wave 3: requires a reason. Also tenant-scopes the UPDATE — pre-3 the
+// SQL only filtered by id, which allowed cross-tenant rejection.
 // (POST /discovery/{id}/ignore)
 func (s *APIServer) IgnoreDiscoveredAsset(c *gin.Context, id IdPath) {
+	tenantID := tenantIDFromContext(c)
 	reviewerID := userIDFromContext(c)
-	item, err := s.discoverySvc.Ignore(c.Request.Context(), uuid.UUID(id), reviewerID)
+
+	var body IgnoreDiscoveredAssetRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.BadRequest(c, "invalid request body: "+err.Error())
+		return
+	}
+	if body.Reason == "" {
+		response.BadRequest(c, "reason is required when ignoring a discovered asset")
+		return
+	}
+	reason := body.Reason
+
+	item, err := s.discoverySvc.Ignore(c.Request.Context(), uuid.UUID(id), tenantID, reviewerID, reason)
 	if err != nil {
 		response.InternalError(c, "failed to ignore discovered asset")
 		return

@@ -219,6 +219,63 @@ func (e DependencyCategory) Valid() bool {
 	}
 }
 
+// Defines values for DiscoveredAssetMatchStrategy.
+const (
+	DiscoveredAssetMatchStrategyAssetTag     DiscoveredAssetMatchStrategy = "asset_tag"
+	DiscoveredAssetMatchStrategyHostname     DiscoveredAssetMatchStrategy = "hostname"
+	DiscoveredAssetMatchStrategyIp           DiscoveredAssetMatchStrategy = "ip"
+	DiscoveredAssetMatchStrategyLegacy       DiscoveredAssetMatchStrategy = "legacy"
+	DiscoveredAssetMatchStrategyManual       DiscoveredAssetMatchStrategy = "manual"
+	DiscoveredAssetMatchStrategySerialNumber DiscoveredAssetMatchStrategy = "serial_number"
+)
+
+// Valid indicates whether the value is a known member of the DiscoveredAssetMatchStrategy enum.
+func (e DiscoveredAssetMatchStrategy) Valid() bool {
+	switch e {
+	case DiscoveredAssetMatchStrategyAssetTag:
+		return true
+	case DiscoveredAssetMatchStrategyHostname:
+		return true
+	case DiscoveredAssetMatchStrategyIp:
+		return true
+	case DiscoveredAssetMatchStrategyLegacy:
+		return true
+	case DiscoveredAssetMatchStrategyManual:
+		return true
+	case DiscoveredAssetMatchStrategySerialNumber:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DiscoveredAssetStatus.
+const (
+	DiscoveredAssetStatusApproved DiscoveredAssetStatus = "approved"
+	DiscoveredAssetStatusConflict DiscoveredAssetStatus = "conflict"
+	DiscoveredAssetStatusIgnored  DiscoveredAssetStatus = "ignored"
+	DiscoveredAssetStatusMatched  DiscoveredAssetStatus = "matched"
+	DiscoveredAssetStatusPending  DiscoveredAssetStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the DiscoveredAssetStatus enum.
+func (e DiscoveredAssetStatus) Valid() bool {
+	switch e {
+	case DiscoveredAssetStatusApproved:
+		return true
+	case DiscoveredAssetStatusConflict:
+		return true
+	case DiscoveredAssetStatusIgnored:
+		return true
+	case DiscoveredAssetStatusMatched:
+		return true
+	case DiscoveredAssetStatusPending:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImpactEdgeDirection.
 const (
 	ImpactEdgeDirectionDownstream ImpactEdgeDirection = "downstream"
@@ -777,6 +834,33 @@ func (e GetDashboardAssetsTrendParamsPeriod) Valid() bool {
 	}
 }
 
+// Defines values for IngestDiscoveredAssetJSONBodyMatchStrategy.
+const (
+	IngestDiscoveredAssetJSONBodyMatchStrategyAssetTag     IngestDiscoveredAssetJSONBodyMatchStrategy = "asset_tag"
+	IngestDiscoveredAssetJSONBodyMatchStrategyHostname     IngestDiscoveredAssetJSONBodyMatchStrategy = "hostname"
+	IngestDiscoveredAssetJSONBodyMatchStrategyIp           IngestDiscoveredAssetJSONBodyMatchStrategy = "ip"
+	IngestDiscoveredAssetJSONBodyMatchStrategyManual       IngestDiscoveredAssetJSONBodyMatchStrategy = "manual"
+	IngestDiscoveredAssetJSONBodyMatchStrategySerialNumber IngestDiscoveredAssetJSONBodyMatchStrategy = "serial_number"
+)
+
+// Valid indicates whether the value is a known member of the IngestDiscoveredAssetJSONBodyMatchStrategy enum.
+func (e IngestDiscoveredAssetJSONBodyMatchStrategy) Valid() bool {
+	switch e {
+	case IngestDiscoveredAssetJSONBodyMatchStrategyAssetTag:
+		return true
+	case IngestDiscoveredAssetJSONBodyMatchStrategyHostname:
+		return true
+	case IngestDiscoveredAssetJSONBodyMatchStrategyIp:
+		return true
+	case IngestDiscoveredAssetJSONBodyMatchStrategyManual:
+		return true
+	case IngestDiscoveredAssetJSONBodyMatchStrategySerialNumber:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ResolveInventoryDiscrepancyJSONBodyAction.
 const (
 	AddFindings ResolveInventoryDiscrepancyJSONBodyAction = "add_findings"
@@ -980,6 +1064,12 @@ type AlertRule struct {
 	MetricName string                 `json:"metric_name"`
 	Name       string                 `json:"name"`
 	Severity   string                 `json:"severity"`
+}
+
+// ApproveDiscoveredAssetRequest defines model for ApproveDiscoveredAssetRequest.
+type ApproveDiscoveredAssetRequest struct {
+	// Reason Optional free-text reason; captured in the audit event.
+	Reason *string `json:"reason,omitempty"`
 }
 
 // Asset defines model for Asset.
@@ -1294,19 +1384,34 @@ type DependencyCategory string
 
 // DiscoveredAsset defines model for DiscoveredAsset.
 type DiscoveredAsset struct {
-	DiffDetails    *map[string]interface{} `json:"diff_details,omitempty"`
-	DiscoveredAt   *time.Time              `json:"discovered_at,omitempty"`
-	ExternalId     *string                 `json:"external_id,omitempty"`
-	Hostname       *string                 `json:"hostname,omitempty"`
-	Id             *openapi_types.UUID     `json:"id,omitempty"`
-	IpAddress      *string                 `json:"ip_address,omitempty"`
-	MatchedAssetId *openapi_types.UUID     `json:"matched_asset_id,omitempty"`
-	RawData        *map[string]interface{} `json:"raw_data,omitempty"`
-	ReviewedAt     *time.Time              `json:"reviewed_at,omitempty"`
-	ReviewedBy     *openapi_types.UUID     `json:"reviewed_by,omitempty"`
-	Source         *string                 `json:"source,omitempty"`
-	Status         *string                 `json:"status,omitempty"`
+	DiffDetails  *map[string]interface{} `json:"diff_details,omitempty"`
+	DiscoveredAt *time.Time              `json:"discovered_at,omitempty"`
+	ExternalId   *string                 `json:"external_id,omitempty"`
+	Hostname     *string                 `json:"hostname,omitempty"`
+	Id           *openapi_types.UUID     `json:"id,omitempty"`
+	IpAddress    *string                 `json:"ip_address,omitempty"`
+
+	// MatchConfidence 0.0 to 1.0 — how sure the pipeline is of the match_strategy result
+	MatchConfidence *float32 `json:"match_confidence,omitempty"`
+
+	// MatchStrategy Which rule picked matched_asset_id. 'legacy' = pre-Wave-3 backfill.
+	MatchStrategy  *DiscoveredAssetMatchStrategy `json:"match_strategy,omitempty"`
+	MatchedAssetId *openapi_types.UUID           `json:"matched_asset_id,omitempty"`
+	RawData        *map[string]interface{}       `json:"raw_data,omitempty"`
+
+	// ReviewReason Reviewer-supplied justification on approve / ignore.
+	ReviewReason *string                `json:"review_reason,omitempty"`
+	ReviewedAt   *time.Time             `json:"reviewed_at,omitempty"`
+	ReviewedBy   *openapi_types.UUID    `json:"reviewed_by,omitempty"`
+	Source       *string                `json:"source,omitempty"`
+	Status       *DiscoveredAssetStatus `json:"status,omitempty"`
 }
+
+// DiscoveredAssetMatchStrategy Which rule picked matched_asset_id. 'legacy' = pre-Wave-3 backfill.
+type DiscoveredAssetMatchStrategy string
+
+// DiscoveredAssetStatus defines model for DiscoveredAsset.Status.
+type DiscoveredAssetStatus string
 
 // DiscoveryStats defines model for DiscoveryStats.
 type DiscoveryStats struct {
@@ -1337,6 +1442,12 @@ type FleetMetrics struct {
 	HealthDistribution   *map[string]int        `json:"health_distribution,omitempty"`
 	TotalAssets          *int                   `json:"total_assets,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// IgnoreDiscoveredAssetRequest defines model for IgnoreDiscoveredAssetRequest.
+type IgnoreDiscoveredAssetRequest struct {
+	// Reason Required — why this discovery is being rejected.
+	Reason string `json:"reason"`
 }
 
 // ImpactEdge A single edge in the transitive impact graph. `path` records the
@@ -2182,12 +2293,20 @@ type GetDashboardStatsParams struct {
 
 // IngestDiscoveredAssetJSONBody defines parameters for IngestDiscoveredAsset.
 type IngestDiscoveredAssetJSONBody struct {
-	ExternalId *string                 `json:"external_id,omitempty"`
-	Hostname   string                  `json:"hostname"`
-	IpAddress  *string                 `json:"ip_address,omitempty"`
-	RawData    *map[string]interface{} `json:"raw_data,omitempty"`
-	Source     string                  `json:"source"`
+	ExternalId      *string                                     `json:"external_id,omitempty"`
+	Hostname        string                                      `json:"hostname"`
+	IpAddress       *string                                     `json:"ip_address,omitempty"`
+	MatchConfidence *float32                                    `json:"match_confidence,omitempty"`
+	MatchStrategy   *IngestDiscoveredAssetJSONBodyMatchStrategy `json:"match_strategy,omitempty"`
+
+	// MatchedAssetId CI the ingestion pipeline believes this row matches
+	MatchedAssetId *openapi_types.UUID     `json:"matched_asset_id,omitempty"`
+	RawData        *map[string]interface{} `json:"raw_data,omitempty"`
+	Source         string                  `json:"source"`
 }
+
+// IngestDiscoveredAssetJSONBodyMatchStrategy defines parameters for IngestDiscoveredAsset.
+type IngestDiscoveredAssetJSONBodyMatchStrategy string
 
 // ListDiscoveredAssetsParams defines parameters for ListDiscoveredAssets.
 type ListDiscoveredAssetsParams struct {
@@ -2625,6 +2744,12 @@ type UpdateBIAScoringRuleJSONRequestBody UpdateBIAScoringRuleJSONBody
 
 // IngestDiscoveredAssetJSONRequestBody defines body for IngestDiscoveredAsset for application/json ContentType.
 type IngestDiscoveredAssetJSONRequestBody IngestDiscoveredAssetJSONBody
+
+// ApproveDiscoveredAssetJSONRequestBody defines body for ApproveDiscoveredAsset for application/json ContentType.
+type ApproveDiscoveredAssetJSONRequestBody = ApproveDiscoveredAssetRequest
+
+// IgnoreDiscoveredAssetJSONRequestBody defines body for IgnoreDiscoveredAsset for application/json ContentType.
+type IgnoreDiscoveredAssetJSONRequestBody = IgnoreDiscoveredAssetRequest
 
 // CreateAdapterJSONRequestBody defines body for CreateAdapter for application/json ContentType.
 type CreateAdapterJSONRequestBody CreateAdapterJSONBody

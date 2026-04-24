@@ -46,6 +46,11 @@ func (w *WorkflowSubscriber) StartAll(ctx context.Context) {
 	// shows up as a gauge dip well before writes start bouncing.
 	w.StartAuditPartitionSampler(ctx)
 	w.StartConflictAndDiscoveryCleanup(ctx)
+	// Wave 3: hourly sweep that opens a governance WO for any
+	// discovered_asset stuck in pending/conflict past the 24h SLA.
+	// Audit: every generated WO goes through dedupKindDiscoveryUnreviewed
+	// so a single discovery only produces one open WO at a time.
+	w.StartDiscoveryReviewChecker(ctx)
 	// Gated behind CMDB_INTEGRATION_DIVERGENCE_CHECK=1; default off.
 	w.StartDivergenceChecker(ctx)
 	w.StartMetricsPuller(ctx)

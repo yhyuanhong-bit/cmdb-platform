@@ -89,6 +89,7 @@
     "minor": "Minor",
     "coming_soon": "Coming Soon",
     "saving": "Saving...",
+    "clear": "Clear",
     "deleting": "Deleting...",
     "back_to_dashboard": "Back to Dashboard",
     "empty_no_data_title": "No data available",
@@ -1606,7 +1607,19 @@
     "table_details": "Details",
     "matched_prefix": "Matched",
     "new_asset": "New asset",
-    "empty_state": "No discovered assets found."
+    "empty_state": "No discovered assets found.",
+    "table_confidence": "Confidence",
+    "selected_count": "{{count}} selected",
+    "dialog_approve_title": "Approve {{count}} discovery(ies)?",
+    "dialog_ignore_title": "Ignore {{count}} discovery(ies)?",
+    "dialog_approve_desc": "This will promote the discovered records into inventoried assets. An audit event will be written.",
+    "dialog_ignore_desc": "Ignored records stay in the queue as reference. A reason is required so the audit trail can answer why this was rejected.",
+    "dialog_reason_required": "Reason (required)",
+    "dialog_reason_optional": "Reason (optional)",
+    "dialog_reason_placeholder_approve": "e.g. verified with network team, matches asset tag",
+    "dialog_reason_placeholder_ignore": "e.g. false positive — test lab IP",
+    "dialog_confirm_approve": "Approve",
+    "dialog_confirm_ignore": "Ignore"
   },
   "component_upgrades": {
     "title": "COMPONENT OPTIMIZATION & UPGRADES",

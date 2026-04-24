@@ -89,6 +89,7 @@
     "minor": "次要",
     "coming_soon": "即将推出",
     "saving": "保存中...",
+    "clear": "清除",
     "deleting": "删除中...",
     "back_to_dashboard": "返回仪表板",
     "empty_no_data_title": "暂无数据",
@@ -1606,7 +1607,19 @@
     "table_details": "详情",
     "matched_prefix": "匹配",
     "new_asset": "新资产",
-    "empty_state": "未找到发现的资产。"
+    "empty_state": "未找到发现的资产。",
+    "table_confidence": "置信度",
+    "selected_count": "已选 {{count}} 项",
+    "dialog_approve_title": "批准 {{count}} 条发现？",
+    "dialog_ignore_title": "忽略 {{count}} 条发现？",
+    "dialog_approve_desc": "这将把发现记录提升为正式资产。系统会写入审计事件。",
+    "dialog_ignore_desc": "忽略后的记录保留在队列中作为参考。必须填写原因，以便审计追踪可以回答为何拒绝。",
+    "dialog_reason_required": "原因（必填）",
+    "dialog_reason_optional": "原因（可选）",
+    "dialog_reason_placeholder_approve": "例如：与网络团队核实，与资产编号匹配",
+    "dialog_reason_placeholder_ignore": "例如：误报 — 测试环境 IP",
+    "dialog_confirm_approve": "批准",
+    "dialog_confirm_ignore": "忽略"
   },
   "component_upgrades": {
     "title": "组件优化与升级",

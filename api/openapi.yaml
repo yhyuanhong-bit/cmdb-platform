@@ -4182,6 +4182,20 @@ paths:
                 hostname: { type: string }
                 ip_address: { type: string }
                 raw_data: { type: object, additionalProperties: true }
+                # Wave 3 — ingestion engine forwards match metadata so the
+                # review UI can show trust signals per discovered row.
+                matched_asset_id:
+                  type: string
+                  format: uuid
+                  description: CI the ingestion pipeline believes this row matches
+                match_confidence:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                match_strategy:
+                  type: string
+                  enum: [serial_number, asset_tag, hostname, ip, manual]
       responses:
         '201':
           description: Asset ingested
@@ -4199,6 +4213,12 @@ paths:
       tags: [discovery]
       parameters:
         - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveDiscoveredAssetRequest'
       responses:
         '200':
           description: Approved
@@ -4216,6 +4236,12 @@ paths:
       tags: [discovery]
       parameters:
         - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IgnoreDiscoveredAssetRequest'
       responses:
         '200':
           description: Ignored
@@ -4226,6 +4252,8 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/DiscoveredAsset' }
                   meta: { $ref: '#/components/schemas/Meta' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /discovery/stats:
     get:
@@ -6455,12 +6483,42 @@ components:
         hostname: { type: string }
         ip_address: { type: string }
         raw_data: { type: object, additionalProperties: true }
-        status: { type: string }
+        status: { type: string, enum: [pending, matched, conflict, approved, ignored] }
         matched_asset_id: { type: string, format: uuid, nullable: true }
         diff_details: { type: object, additionalProperties: true, nullable: true }
         discovered_at: { type: string, format: date-time }
         reviewed_by: { type: string, format: uuid, nullable: true }
         reviewed_at: { type: string, format: date-time, nullable: true }
+        match_confidence:
+          type: number
+          format: float
+          nullable: true
+          description: 0.0 to 1.0 — how sure the pipeline is of the match_strategy result
+        match_strategy:
+          type: string
+          enum: [serial_number, asset_tag, hostname, ip, manual, legacy]
+          nullable: true
+          description: Which rule picked matched_asset_id. 'legacy' = pre-Wave-3 backfill.
+        review_reason:
+          type: string
+          nullable: true
+          description: Reviewer-supplied justification on approve / ignore.
+
+    ApproveDiscoveredAssetRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Optional free-text reason; captured in the audit event.
+
+    IgnoreDiscoveredAssetRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: Required — why this discovery is being rejected.
+          minLength: 1
 
     # ── DiscoveryStats ──────────────────────────────────���────────────
     DiscoveryStats:

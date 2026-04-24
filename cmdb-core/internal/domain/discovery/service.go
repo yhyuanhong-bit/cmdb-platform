@@ -108,6 +108,7 @@ func (s *Service) Ingest(ctx context.Context, params dbgen.CreateDiscoveredAsset
 func (s *Service) ApproveAndCreateAsset(
 	ctx context.Context,
 	discoveredID, tenantID, reviewerID uuid.UUID,
+	reviewReason string,
 ) (*ApproveResult, error) {
 	if s.pool == nil {
 		return nil, fmt.Errorf("discovery: pool not configured")
@@ -221,12 +222,16 @@ func (s *Service) ApproveAndCreateAsset(
 		newAsset.IpAddress = da.IpAddress
 	}
 
-	// 4. Link discovered_asset → asset, flip status.
+	// 4. Link discovered_asset → asset, flip status. review_reason is
+	// Wave 3's mandatory field; ApproveAndCreateAsset's callers always
+	// supply one via the handler (or "auto-approved via new asset
+	// creation" for the non-interactive ingestion → create path).
 	updatedDA, err := qtx.ApproveDiscoveredAsset(ctx, dbgen.ApproveDiscoveredAssetParams{
 		ID:              discoveredID,
 		TenantID:        tenantID,
 		ApprovedAssetID: pgtype.UUID{Bytes: newAsset.ID, Valid: true},
 		ReviewedBy:      pgtype.UUID{Bytes: reviewerID, Valid: true},
+		ReviewReason:    pgtype.Text{String: reviewReason, Valid: true},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("approve discovered: %w", err)
@@ -286,10 +291,57 @@ func (s *Service) Approve(ctx context.Context, id, tenantID, reviewerID uuid.UUI
 	return &item, nil
 }
 
-func (s *Service) Ignore(ctx context.Context, id, reviewerID uuid.UUID) (*dbgen.DiscoveredAsset, error) {
-	item, err := s.queries.IgnoreDiscoveredAsset(ctx, dbgen.IgnoreDiscoveredAssetParams{ID: id, ReviewedBy: pgtype.UUID{Bytes: reviewerID, Valid: true}})
+// Ignore rejects a discovered_asset. Wave 3 added three requirements:
+//   - tenant_id must be passed so a row owned by another tenant does not
+//     silently match (pre-Wave-3 the WHERE clause was id-only);
+//   - reason is required from the reviewer so audit trails can answer
+//     "why did someone reject this discovery";
+//   - an audit_event row is written atomically so the trail is never
+//     missing for a state flip.
+func (s *Service) Ignore(ctx context.Context, id, tenantID, reviewerID uuid.UUID, reason string) (*dbgen.DiscoveredAsset, error) {
+	if reason == "" {
+		return nil, fmt.Errorf("review_reason is required")
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := s.queries.WithTx(tx)
+
+	item, err := qtx.IgnoreDiscoveredAsset(ctx, dbgen.IgnoreDiscoveredAssetParams{
+		ID:            id,
+		TenantID:      tenantID,
+		ReviewedBy:    pgtype.UUID{Bytes: reviewerID, Valid: true},
+		ReviewReason:  pgtype.Text{String: reason, Valid: true},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("ignore discovered: %w", err)
+	}
+
+	diff := map[string]any{
+		"discovered_asset_id": id.String(),
+		"source":              item.Source,
+		"reason":              reason,
+	}
+	diffJSON, _ := json.Marshal(diff)
+	if _, err := qtx.CreateAuditEvent(ctx, dbgen.CreateAuditEventParams{
+		TenantID:     tenantID,
+		Action:       "discovery.ignored",
+		Module:       pgtype.Text{String: "discovery", Valid: true},
+		TargetType:   pgtype.Text{String: "discovered_asset", Valid: true},
+		TargetID:     pgtype.UUID{Bytes: id, Valid: true},
+		OperatorType: dbgen.AuditOperatorTypeUser,
+		OperatorID:   pgtype.UUID{Bytes: reviewerID, Valid: true},
+		Diff:         diffJSON,
+		Source:       "api",
+	}); err != nil {
+		return nil, fmt.Errorf("audit: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
 	}
 	return &item, nil
 }

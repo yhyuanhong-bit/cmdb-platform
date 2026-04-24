@@ -63,7 +63,14 @@ async def trigger_scan(
             collector_type = body.collector_type
             cidrs = body.cidrs
             credential_id = body.credential_id
-            mode = body.mode or "smart"
+            # Wave 3: review-gate default. Pre-3 the default was "smart",
+            # which auto-merged any discovery that matched an existing CI
+            # without operator review — a scanner misconfiguration could
+            # silently poison the CMDB. Default is now "review", which
+            # lands everything in the staging queue; callers who want
+            # the old behaviour must opt in by explicitly setting
+            # mode="auto" or mode="smart".
+            mode = body.mode or "review"
 
         task_id = uuid.uuid4()
         config = {

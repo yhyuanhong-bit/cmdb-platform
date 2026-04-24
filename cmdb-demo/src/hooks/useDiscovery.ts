@@ -18,7 +18,8 @@ export function useDiscoveryStats() {
 export function useApproveAsset() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => discoveryApi.approve(id),
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      discoveryApi.approve(id, reason),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['discoveredAssets'] })
       qc.invalidateQueries({ queryKey: ['discoveryStats'] })
@@ -29,7 +30,8 @@ export function useApproveAsset() {
 export function useIgnoreAsset() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => discoveryApi.ignore(id),
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      discoveryApi.ignore(id, reason),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['discoveredAssets'] })
       qc.invalidateQueries({ queryKey: ['discoveryStats'] })
