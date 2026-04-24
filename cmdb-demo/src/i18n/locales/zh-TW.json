@@ -90,6 +90,7 @@
     "coming_soon": "即將推出",
     "saving": "儲存中...",
     "clear": "清除",
+    "unknown_error": "未知錯誤",
     "deleting": "刪除中...",
     "back_to_dashboard": "返回儀表板",
     "empty_no_data_title": "暫無資料",
@@ -1438,7 +1439,11 @@
     "warranty_expired": "已過保",
     "warranty_days_left": "天剩餘",
     "expected_lifespan": "預計使用年限",
-    "eol_date": "報廢日期"
+    "eol_date": "報廢日期",
+    "section_business_services": "業務服務",
+    "services_empty": "此資產尚未加入任何業務服務。",
+    "services_count": "{{count}} 個服務",
+    "services_critical": "關鍵"
   },
   "asset_lifecycle_timeline": {
     "breadcrumb_asset_lifecycle": "資產生命週期",
@@ -1619,7 +1624,11 @@
     "dialog_reason_placeholder_approve": "例如：與網路團隊核實，與資產編號一致",
     "dialog_reason_placeholder_ignore": "例如：誤判 — 測試環境 IP",
     "dialog_confirm_approve": "核准",
-    "dialog_confirm_ignore": "忽略"
+    "dialog_confirm_ignore": "忽略",
+    "toast_approved_single": "發現已核准，資產已建立。",
+    "toast_approved_bulk": "已核准 {{count}} 筆發現。",
+    "toast_ignored": "已忽略 {{count}} 筆發現。",
+    "toast_view_asset": "檢視資產"
   },
   "component_upgrades": {
     "title": "元件最佳化與升級",

@@ -377,10 +377,7 @@ function TaskDispatch() {
                     {task.title}
                   </span>
                   <span className="text-xs text-on-surface-variant">
-                    — <span
-                      className="cursor-pointer text-primary hover:underline"
-                      onClick={(e) => { e.stopPropagation(); navigate('/assets/detail'); }}
-                    >{task.location}</span>
+                    — {task.location}
                   </span>
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-2">

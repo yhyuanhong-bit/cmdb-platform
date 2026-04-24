@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import SectionLabel from '../components/SectionLabel'
 import DataRow from '../components/DataRow'
 import RackIllustration from '../components/RackIllustration'
+import ServicesPanel from '../components/ServicesPanel'
 import { toSvgPath } from '../components/MetricsChart'
 import { useMetrics } from '../../../hooks/useMetrics'
 
@@ -179,6 +180,9 @@ export default function OverviewTab({ asset, assetId, impactedSystems = [] }: { 
             </button>
           </div>
         </div>
+
+        {/* Business Services membership (Wave 4 cross-page nav) */}
+        <ServicesPanel assetId={assetId} />
 
         {/* BIA Impact */}
         {impactedSystems.length > 0 && (

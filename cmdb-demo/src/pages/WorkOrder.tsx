@@ -20,6 +20,7 @@ interface WorkOrderItem {
   status: DisplayStatus
   requestor: { zh: string; en: string; avatar: string }
   ciName: string
+  assetId?: string
   reason: string
   createdAt: string
   priority: string
@@ -46,10 +47,13 @@ function mapStatus(s: string): DisplayStatus {
 }
 
 // SLA fields are server-side extensions not yet in the generated OpenAPI schema.
+// asset_id is in the CreateWorkOrder request shape but missing from the
+// WorkOrder response schema — widen the type here so the list can deep-link.
 type ApiWorkOrderWithSLA = ApiWorkOrder & {
   sla_deadline?: string
   sla_breached?: boolean
   sla_warning_sent?: boolean
+  asset_id?: string
 }
 
 function toWorkOrderItem(wo: ApiWorkOrderWithSLA): WorkOrderItem {
@@ -61,6 +65,7 @@ function toWorkOrderItem(wo: ApiWorkOrderWithSLA): WorkOrderItem {
     status: mapStatus(wo.status),
     requestor: { zh: wo.assignee_id ?? '', en: wo.assignee_id ?? '', avatar: initials },
     ciName: wo.description?.split(' ')[0] ?? '',
+    assetId: wo.asset_id ?? undefined,
     reason: wo.description ?? '',
     createdAt: wo.scheduled_start?.slice(0, 16).replace('T', ' ') ?? '',
     priority: wo.priority ?? 'MEDIUM',
@@ -170,7 +175,11 @@ function WorkOrderCard({
         </div>
         <div>
           <span className="text-[0.625rem] uppercase tracking-wider text-on-surface-variant block">{t('work_order.label_ci_name')}</span>
-          <span className="cursor-pointer text-primary hover:underline font-mono text-xs" onClick={(e) => { e.stopPropagation(); cardNavigate('/assets/detail'); }}>{order.ciName}</span>
+          {order.assetId ? (
+            <span className="cursor-pointer text-primary hover:underline font-mono text-xs" onClick={(e) => { e.stopPropagation(); cardNavigate(`/assets/${order.assetId}`); }}>{order.ciName}</span>
+          ) : (
+            <span className="text-on-surface font-mono text-xs">{order.ciName}</span>
+          )}
         </div>
         <div>
           <span className="text-[0.625rem] uppercase tracking-wider text-on-surface-variant block">{t('work_order.label_reason')}</span>

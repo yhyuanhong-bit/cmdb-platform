@@ -6503,6 +6503,16 @@ components:
           type: string
           nullable: true
           description: Reviewer-supplied justification on approve / ignore.
+        approved_asset_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            Set after approve — points to the asset in `assets` that was
+            created (or reconciled) from this discovery. Distinct from
+            matched_asset_id, which is set pre-approve by the ingestion
+            pipeline when it finds a likely match. The UI uses this as
+            a deep-link target so "View new asset" works after approve.
 
     ApproveDiscoveredAssetRequest:
       type: object

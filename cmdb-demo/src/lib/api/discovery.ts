@@ -10,6 +10,7 @@ export interface DiscoveredAsset {
   raw_data?: Record<string, unknown>
   status: string
   matched_asset_id?: string | null
+  approved_asset_id?: string | null
   match_confidence?: number | null
   match_strategy?: string | null
   review_reason?: string | null

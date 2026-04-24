@@ -90,6 +90,7 @@
     "coming_soon": "即将推出",
     "saving": "保存中...",
     "clear": "清除",
+    "unknown_error": "未知错误",
     "deleting": "删除中...",
     "back_to_dashboard": "返回仪表板",
     "empty_no_data_title": "暂无数据",
@@ -1438,7 +1439,11 @@
     "warranty_expired": "已过保",
     "warranty_days_left": "天剩余",
     "expected_lifespan": "预计使用年限",
-    "eol_date": "报废日期"
+    "eol_date": "报废日期",
+    "section_business_services": "业务服务",
+    "services_empty": "此资产尚未加入任何业务服务。",
+    "services_count": "{{count}} 个服务",
+    "services_critical": "关键"
   },
   "asset_lifecycle_timeline": {
     "breadcrumb_asset_lifecycle": "资产生命周期",
@@ -1619,7 +1624,11 @@
     "dialog_reason_placeholder_approve": "例如：与网络团队核实，与资产编号匹配",
     "dialog_reason_placeholder_ignore": "例如：误报 — 测试环境 IP",
     "dialog_confirm_approve": "批准",
-    "dialog_confirm_ignore": "忽略"
+    "dialog_confirm_ignore": "忽略",
+    "toast_approved_single": "发现已批准，资产已创建。",
+    "toast_approved_bulk": "已批准 {{count}} 条发现。",
+    "toast_ignored": "已忽略 {{count}} 条发现。",
+    "toast_view_asset": "查看资产"
   },
   "component_upgrades": {
     "title": "组件优化与升级",

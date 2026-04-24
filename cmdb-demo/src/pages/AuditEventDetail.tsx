@@ -187,15 +187,17 @@ export default function AuditEventDetail() {
               <h2 className="text-[10px] font-bold tracking-widest text-on-surface-variant">
                 {t('audit_event_detail.section_target_asset')}
               </h2>
-              <button
-                onClick={() => navigate('/assets/detail')}
-                className="flex items-center gap-1 text-[10px] font-bold tracking-widest text-primary hover:underline cursor-pointer"
-              >
-                {t('audit_event_detail.btn_view_details')}
-                <span className="material-symbols-outlined text-sm">
-                  arrow_forward
-                </span>
-              </button>
+              {event.target.id && event.target.type === 'asset' && (
+                <button
+                  onClick={() => navigate(`/assets/${event.target.id}`)}
+                  className="flex items-center gap-1 text-[10px] font-bold tracking-widest text-primary hover:underline cursor-pointer"
+                >
+                  {t('audit_event_detail.btn_view_details')}
+                  <span className="material-symbols-outlined text-sm">
+                    arrow_forward
+                  </span>
+                </button>
+              )}
             </div>
             <div className="mb-4 flex items-center gap-3">
               <span className="material-symbols-outlined text-2xl text-primary">

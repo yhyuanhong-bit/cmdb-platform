@@ -210,12 +210,19 @@ const InventoryItemDetail = memo(function InventoryItemDetail() {
                 <span className="text-xs text-on-surface-variant font-label uppercase tracking-widest shrink-0 w-40">
                   {t('inventory_detail.serial_number')}
                 </span>
-                <span
-                  className="text-sm text-right font-body text-primary cursor-pointer hover:underline"
-                  onClick={() => navigate('/assets/detail')}
-                >
-                  {ASSET.serialNumber}
-                </span>
+                {linkedAssetId ? (
+                  <span
+                    className="text-sm text-right font-body text-primary cursor-pointer hover:underline"
+                    onClick={() => navigate(`/assets/${linkedAssetId}`)}
+                    title={t('inventory_detail.tooltip_view_asset') ?? ''}
+                  >
+                    {ASSET.serialNumber}
+                  </span>
+                ) : (
+                  <span className="text-sm text-right font-body text-on-surface">
+                    {ASSET.serialNumber}
+                  </span>
+                )}
               </div>
               <InfoRow label={t('inventory_detail.model')} value={ASSET.model} />
               <InfoRow label={t('inventory_detail.manufacturer')} value={ASSET.manufacturer} />

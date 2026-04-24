@@ -711,7 +711,7 @@ function AlertTopologyAnalysis() {
             <div className="flex flex-wrap items-center justify-between mt-4 pt-3 border-t border-surface-container-highest">
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => navigate("/assets/detail")}
+                  onClick={() => navigate(`/assets/${selectedNodeFull.id}`)}
                   className="flex items-center gap-1.5 text-primary text-sm font-medium hover:underline"
                 >
                   <Icon name="dns" className="text-[18px]" />

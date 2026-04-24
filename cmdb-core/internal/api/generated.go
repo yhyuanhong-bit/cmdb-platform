@@ -1384,12 +1384,14 @@ type DependencyCategory string
 
 // DiscoveredAsset defines model for DiscoveredAsset.
 type DiscoveredAsset struct {
-	DiffDetails  *map[string]interface{} `json:"diff_details,omitempty"`
-	DiscoveredAt *time.Time              `json:"discovered_at,omitempty"`
-	ExternalId   *string                 `json:"external_id,omitempty"`
-	Hostname     *string                 `json:"hostname,omitempty"`
-	Id           *openapi_types.UUID     `json:"id,omitempty"`
-	IpAddress    *string                 `json:"ip_address,omitempty"`
+	// ApprovedAssetId Set after approve — points to the asset in `assets` that was created (or reconciled) from this discovery. Distinct from matched_asset_id, which is set pre-approve by the ingestion pipeline when it finds a likely match. The UI uses this as a deep-link target so "View new asset" works after approve.
+	ApprovedAssetId *openapi_types.UUID     `json:"approved_asset_id,omitempty"`
+	DiffDetails     *map[string]interface{} `json:"diff_details,omitempty"`
+	DiscoveredAt    *time.Time              `json:"discovered_at,omitempty"`
+	ExternalId      *string                 `json:"external_id,omitempty"`
+	Hostname        *string                 `json:"hostname,omitempty"`
+	Id              *openapi_types.UUID     `json:"id,omitempty"`
+	IpAddress       *string                 `json:"ip_address,omitempty"`
 
 	// MatchConfidence 0.0 to 1.0 — how sure the pipeline is of the match_strategy result
 	MatchConfidence *float32 `json:"match_confidence,omitempty"`

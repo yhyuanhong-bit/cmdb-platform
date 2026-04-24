@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import Icon from '../components/Icon'
 import { useDiscoveredAssets, useDiscoveryStats, useApproveAsset, useIgnoreAsset } from '../hooks/useDiscovery'
 import { useUrlState } from '../hooks/useUrlState'
@@ -29,6 +30,7 @@ interface DiscoveredAsset {
   raw_data?: Record<string, unknown>
   status: string
   matched_asset_id?: string | null
+  approved_asset_id?: string | null
   match_confidence?: number | null
   match_strategy?: string | null
   review_reason?: string | null
@@ -281,10 +283,30 @@ export default function AutoDiscovery() {
     const trimmed = reason.trim()
     try {
       if (action === 'approve') {
-        await Promise.all(ids.map((id) => approveMutation.mutateAsync({ id, reason: trimmed || undefined })))
+        const results = await Promise.all(
+          ids.map((id) => approveMutation.mutateAsync({ id, reason: trimmed || undefined })),
+        )
+        // Single-row approve: deep-link the newly-created asset. Bulk: just
+        // summarise the count so we don't spam N toasts with long UUIDs.
+        if (results.length === 1) {
+          const assetID = results[0]?.data?.approved_asset_id
+          if (assetID) {
+            toast.success(t('auto_discovery.toast_approved_single'), {
+              action: {
+                label: t('auto_discovery.toast_view_asset'),
+                onClick: () => navigate(`/assets/${assetID}`),
+              },
+            })
+          } else {
+            toast.success(t('auto_discovery.toast_approved_single'))
+          }
+        } else {
+          toast.success(t('auto_discovery.toast_approved_bulk', { count: results.length }))
+        }
       } else {
         if (trimmed === '') return
         await Promise.all(ids.map((id) => ignoreMutation.mutateAsync({ id, reason: trimmed })))
+        toast.success(t('auto_discovery.toast_ignored', { count: ids.length }))
       }
       setSelected((prev) => {
         const next = new Set(prev)
@@ -292,12 +314,12 @@ export default function AutoDiscovery() {
         return next
       })
       setDialog(null)
-    } catch (_e: unknown) {
-      // Mutation errors surface through the mutation hook's error state; the
-      // react-query onSuccess still invalidates queries so the list refreshes.
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : t('common.unknown_error')
+      toast.error(msg)
       setDialog(null)
     }
-  }, [dialog, approveMutation, ignoreMutation])
+  }, [dialog, approveMutation, ignoreMutation, navigate, t])
 
   const submitting = approveMutation.isPending || ignoreMutation.isPending
 

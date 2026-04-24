@@ -908,6 +908,7 @@ func toAPIDiscoveredAsset(db dbgen.DiscoveredAsset) DiscoveredAsset {
 	ipAddr := pgtextToPtr(db.IpAddress)
 	rawData := rawJSONToMap(db.RawData)
 	matchedAssetID := pguuidToOAPIUUIDPtr(db.MatchedAssetID)
+	approvedAssetID := pguuidToOAPIUUIDPtr(db.ApprovedAssetID)
 	diffDetails := bytesToJSON(db.DiffDetails)
 	discoveredAt := db.DiscoveredAt
 	reviewedBy := pguuidToOAPIUUIDPtr(db.ReviewedBy)
@@ -945,6 +946,7 @@ func toAPIDiscoveredAsset(db dbgen.DiscoveredAsset) DiscoveredAsset {
 		RawData:         rawData,
 		Status:          &status,
 		MatchedAssetId:  matchedAssetID,
+		ApprovedAssetId: approvedAssetID,
 		DiffDetails:     diffDetails,
 		DiscoveredAt:    &discoveredAt,
 		ReviewedBy:      reviewedBy,

@@ -245,7 +245,7 @@ export default function MaintenanceTaskView() {
                   <div className="flex items-center justify-between mb-2">
                     <span
                       className="font-mono text-primary text-sm font-semibold cursor-pointer hover:underline"
-                      onClick={() => navigate('/assets/detail')}
+                      onClick={() => navigate(`/assets/${asset.id}`)}
                     >
                       {asset.id}
                     </span>

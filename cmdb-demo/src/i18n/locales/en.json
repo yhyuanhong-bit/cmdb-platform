@@ -90,6 +90,7 @@
     "coming_soon": "Coming Soon",
     "saving": "Saving...",
     "clear": "Clear",
+    "unknown_error": "Unknown error",
     "deleting": "Deleting...",
     "back_to_dashboard": "Back to Dashboard",
     "empty_no_data_title": "No data available",
@@ -1438,7 +1439,11 @@
     "warranty_expired": "Expired",
     "warranty_days_left": "days remaining",
     "expected_lifespan": "Expected Lifespan",
-    "eol_date": "End of Life"
+    "eol_date": "End of Life",
+    "section_business_services": "Business Services",
+    "services_empty": "This asset is not a member of any business service yet.",
+    "services_count": "{{count}} service(s)",
+    "services_critical": "Critical"
   },
   "asset_lifecycle_timeline": {
     "breadcrumb_asset_lifecycle": "ASSET LIFECYCLE",
@@ -1619,7 +1624,11 @@
     "dialog_reason_placeholder_approve": "e.g. verified with network team, matches asset tag",
     "dialog_reason_placeholder_ignore": "e.g. false positive — test lab IP",
     "dialog_confirm_approve": "Approve",
-    "dialog_confirm_ignore": "Ignore"
+    "dialog_confirm_ignore": "Ignore",
+    "toast_approved_single": "Discovery approved. New asset created.",
+    "toast_approved_bulk": "{{count}} discoveries approved.",
+    "toast_ignored": "{{count}} discovery(ies) ignored.",
+    "toast_view_asset": "View asset"
   },
   "component_upgrades": {
     "title": "COMPONENT OPTIMIZATION & UPGRADES",
