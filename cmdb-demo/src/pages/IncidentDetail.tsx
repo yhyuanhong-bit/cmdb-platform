@@ -13,6 +13,12 @@ import {
   useReopenIncident,
   useAddIncidentComment,
 } from '../hooks/useMonitoring'
+import {
+  useProblemsForIncident,
+  useProblems,
+  useLinkIncidentToProblem,
+  useUnlinkIncidentFromProblem,
+} from '../hooks/useProblems'
 import type { IncidentStatus } from '../lib/api/monitoring'
 
 /* ------------------------------------------------------------------ */
@@ -426,6 +432,10 @@ export default function IncidentDetail() {
               />
             </div>
           </section>
+
+          {/* Wave 5.2b: Linked Problems (M:N — an incident may map to multiple
+              underlying problems and vice versa). */}
+          <LinkedProblems incidentId={id} />
         </div>
       </div>
 
@@ -481,6 +491,176 @@ function LinkedRow({
       ) : (
         <span className="text-xs text-on-surface-variant italic">{emptyText}</span>
       )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  LinkedProblems — Wave 5.2b cross-link panel                        */
+/* ------------------------------------------------------------------ */
+
+function LinkedProblems({ incidentId }: { incidentId: string }) {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { data, isLoading } = useProblemsForIncident(incidentId)
+  const link = useLinkIncidentToProblem()
+  const unlink = useUnlinkIncidentFromProblem()
+  const [picking, setPicking] = useState(false)
+  const linked = data?.data ?? []
+
+  const onUnlink = (problemId: string) => {
+    if (!window.confirm(t('incident_detail.confirm_unlink_problem'))) return
+    unlink.mutate({ incidentId, problemId }, {
+      onSuccess: () => toast.success(t('incident_detail.toast_problem_unlinked')),
+      onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t('common.unknown_error')),
+    })
+  }
+
+  const onLink = (problemId: string) => {
+    link.mutate({ incidentId, problemId }, {
+      onSuccess: () => {
+        toast.success(t('incident_detail.toast_problem_linked'))
+        setPicking(false)
+      },
+      onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t('common.unknown_error')),
+    })
+  }
+
+  return (
+    <section className="bg-surface-container rounded-lg p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-label text-[0.6875rem] uppercase tracking-[0.08em] text-on-surface-variant">
+          {t('incident_detail.section_linked_problems')}
+        </h2>
+        <button
+          onClick={() => setPicking(true)}
+          className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+        >
+          <Icon name="add_link" className="text-[16px]" />
+          {t('incident_detail.btn_link_problem')}
+        </button>
+      </div>
+
+      {isLoading && (
+        <div className="py-4 flex justify-center">
+          <div className="animate-spin rounded-full h-5 w-5 border-2 border-sky-400 border-t-transparent" />
+        </div>
+      )}
+      {!isLoading && linked.length === 0 && (
+        <p className="text-xs text-on-surface-variant italic">{t('incident_detail.no_linked_problems')}</p>
+      )}
+      {linked.length > 0 && (
+        <ul className="space-y-2">
+          {linked.map((p) => (
+            <li key={p.id} className="flex items-center justify-between rounded-lg bg-surface-container-low p-3">
+              <button
+                onClick={() => navigate(`/monitoring/problems/${p.id}`)}
+                className="min-w-0 flex-1 text-left"
+              >
+                <p className="text-sm font-semibold text-primary truncate hover:underline">{p.title}</p>
+                <p className="text-xs text-on-surface-variant">
+                  {p.status} · {p.severity}
+                </p>
+              </button>
+              <button
+                onClick={() => onUnlink(p.id)}
+                disabled={unlink.isPending}
+                className="ml-2 p-1.5 rounded-md hover:bg-error-container/40 transition-colors disabled:opacity-40"
+                aria-label={t('incident_detail.btn_unlink')}
+              >
+                <Icon name="link_off" className="text-[18px] text-error" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {picking && (
+        <ProblemPickerDialog
+          incidentId={incidentId}
+          alreadyLinkedIds={new Set(linked.map((p) => p.id))}
+          onClose={() => setPicking(false)}
+          onPick={onLink}
+          submitting={link.isPending}
+        />
+      )}
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  ProblemPickerDialog — pick a problem to link from open/active set  */
+/* ------------------------------------------------------------------ */
+
+function ProblemPickerDialog({
+  alreadyLinkedIds,
+  onClose,
+  onPick,
+  submitting,
+}: {
+  incidentId: string
+  alreadyLinkedIds: Set<string>
+  onClose: () => void
+  onPick: (problemId: string) => void
+  submitting: boolean
+}) {
+  const { t } = useTranslation()
+  // Show non-closed problems only — linking to a post-mortem'd problem
+  // is rarely what the operator wants; if they do, the list page can
+  // be extended to filter closed in.
+  const { data, isLoading } = useProblems({ page_size: 50 })
+  const problems = (data?.data ?? []).filter((p) => p.status !== 'closed' && !alreadyLinkedIds.has(p.id))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
+      <div className="bg-surface-container rounded-lg max-w-lg w-full p-6 shadow-xl max-h-[80vh] flex flex-col">
+        <h2 className="font-headline font-bold text-lg text-on-surface mb-2">
+          {t('incident_detail.dialog_pick_problem_title')}
+        </h2>
+        <p className="text-sm text-on-surface-variant mb-4">
+          {t('incident_detail.dialog_pick_problem_desc')}
+        </p>
+
+        <div className="flex-1 overflow-y-auto -mx-2 px-2">
+          {isLoading && (
+            <div className="py-6 flex justify-center">
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-sky-400 border-t-transparent" />
+            </div>
+          )}
+          {!isLoading && problems.length === 0 && (
+            <p className="text-sm text-on-surface-variant italic py-4 text-center">
+              {t('incident_detail.dialog_pick_problem_empty')}
+            </p>
+          )}
+          <ul className="space-y-2">
+            {problems.map((p) => (
+              <li key={p.id}>
+                <button
+                  onClick={() => onPick(p.id)}
+                  disabled={submitting}
+                  className="w-full text-left rounded-lg bg-surface-container-low p-3 hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <p className="text-sm font-semibold text-primary">{p.title}</p>
+                  <p className="text-xs text-on-surface-variant">
+                    {p.status} · {p.severity}
+                    {p.priority && <> · {p.priority.toUpperCase()}</>}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            className="px-4 py-2 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high"
+          >
+            {t('common.cancel')}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
