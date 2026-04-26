@@ -294,6 +294,75 @@ func (e ImpactEdgeDirection) Valid() bool {
 	}
 }
 
+// Defines values for IncidentPriority.
+const (
+	P1 IncidentPriority = "p1"
+	P2 IncidentPriority = "p2"
+	P3 IncidentPriority = "p3"
+	P4 IncidentPriority = "p4"
+)
+
+// Valid indicates whether the value is a known member of the IncidentPriority enum.
+func (e IncidentPriority) Valid() bool {
+	switch e {
+	case P1:
+		return true
+	case P2:
+		return true
+	case P3:
+		return true
+	case P4:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for IncidentStatus.
+const (
+	IncidentStatusAcknowledged  IncidentStatus = "acknowledged"
+	IncidentStatusClosed        IncidentStatus = "closed"
+	IncidentStatusInvestigating IncidentStatus = "investigating"
+	IncidentStatusOpen          IncidentStatus = "open"
+	IncidentStatusResolved      IncidentStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the IncidentStatus enum.
+func (e IncidentStatus) Valid() bool {
+	switch e {
+	case IncidentStatusAcknowledged:
+		return true
+	case IncidentStatusClosed:
+		return true
+	case IncidentStatusInvestigating:
+		return true
+	case IncidentStatusOpen:
+		return true
+	case IncidentStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for IncidentCommentKind.
+const (
+	IncidentCommentKindHuman  IncidentCommentKind = "human"
+	IncidentCommentKindSystem IncidentCommentKind = "system"
+)
+
+// Valid indicates whether the value is a known member of the IncidentCommentKind enum.
+func (e IncidentCommentKind) Valid() bool {
+	switch e {
+	case IncidentCommentKindHuman:
+		return true
+	case IncidentCommentKindSystem:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LocationAnomalySeverity.
 const (
 	LocationAnomalySeverityCritical LocationAnomalySeverity = "critical"
@@ -542,19 +611,19 @@ func (e QualityFlagListItemStatus) Valid() bool {
 
 // Defines values for QualityFlagResolveStatus.
 const (
-	Acknowledged QualityFlagResolveStatus = "acknowledged"
-	Rejected     QualityFlagResolveStatus = "rejected"
-	Resolved     QualityFlagResolveStatus = "resolved"
+	QualityFlagResolveStatusAcknowledged QualityFlagResolveStatus = "acknowledged"
+	QualityFlagResolveStatusRejected     QualityFlagResolveStatus = "rejected"
+	QualityFlagResolveStatusResolved     QualityFlagResolveStatus = "resolved"
 )
 
 // Valid indicates whether the value is a known member of the QualityFlagResolveStatus enum.
 func (e QualityFlagResolveStatus) Valid() bool {
 	switch e {
-	case Acknowledged:
+	case QualityFlagResolveStatusAcknowledged:
 		return true
-	case Rejected:
+	case QualityFlagResolveStatusRejected:
 		return true
-	case Resolved:
+	case QualityFlagResolveStatusResolved:
 		return true
 	default:
 		return false
@@ -1013,19 +1082,19 @@ func (e SyncSnapshotParamsEntityType) Valid() bool {
 
 // Defines values for GetTopologyImpactParamsDirection.
 const (
-	GetTopologyImpactParamsDirectionBoth       GetTopologyImpactParamsDirection = "both"
-	GetTopologyImpactParamsDirectionDownstream GetTopologyImpactParamsDirection = "downstream"
-	GetTopologyImpactParamsDirectionUpstream   GetTopologyImpactParamsDirection = "upstream"
+	Both       GetTopologyImpactParamsDirection = "both"
+	Downstream GetTopologyImpactParamsDirection = "downstream"
+	Upstream   GetTopologyImpactParamsDirection = "upstream"
 )
 
 // Valid indicates whether the value is a known member of the GetTopologyImpactParamsDirection enum.
 func (e GetTopologyImpactParamsDirection) Valid() bool {
 	switch e {
-	case GetTopologyImpactParamsDirectionBoth:
+	case Both:
 		return true
-	case GetTopologyImpactParamsDirectionDownstream:
+	case Downstream:
 		return true
-	case GetTopologyImpactParamsDirectionUpstream:
+	case Upstream:
 		return true
 	default:
 		return false
@@ -1478,13 +1547,50 @@ type ImpactEdgeDirection string
 
 // Incident defines model for Incident.
 type Incident struct {
-	Id         openapi_types.UUID `json:"id"`
-	ResolvedAt *time.Time         `json:"resolved_at,omitempty"`
-	Severity   string             `json:"severity"`
-	StartedAt  time.Time          `json:"started_at"`
-	Status     string             `json:"status"`
-	Title      string             `json:"title"`
+	AcknowledgedAt *time.Time          `json:"acknowledged_at,omitempty"`
+	AcknowledgedBy *openapi_types.UUID `json:"acknowledged_by,omitempty"`
+
+	// AffectedAssetId Asset this incident targets. UI uses it to deep-link into Asset detail; tenant scope is enforced at the domain layer.
+	AffectedAssetId *openapi_types.UUID `json:"affected_asset_id,omitempty"`
+
+	// AffectedServiceId Business service this incident affects (Wave 2 Services).
+	AffectedServiceId *openapi_types.UUID `json:"affected_service_id,omitempty"`
+	AssigneeUserId    *openapi_types.UUID `json:"assignee_user_id,omitempty"`
+	Description       *string             `json:"description,omitempty"`
+	Id                openapi_types.UUID  `json:"id"`
+	Impact            *string             `json:"impact,omitempty"`
+	Priority          *IncidentPriority   `json:"priority,omitempty"`
+	ResolvedAt        *time.Time          `json:"resolved_at,omitempty"`
+	ResolvedBy        *openapi_types.UUID `json:"resolved_by,omitempty"`
+	RootCause         *string             `json:"root_cause,omitempty"`
+	Severity          string              `json:"severity"`
+	StartedAt         time.Time           `json:"started_at"`
+	Status            IncidentStatus      `json:"status"`
+	Title             string              `json:"title"`
+	UpdatedAt         *time.Time          `json:"updated_at,omitempty"`
 }
+
+// IncidentPriority defines model for Incident.Priority.
+type IncidentPriority string
+
+// IncidentStatus defines model for Incident.Status.
+type IncidentStatus string
+
+// IncidentComment Activity-feed entry on an incident. `kind=system` entries are generated by lifecycle transitions (acknowledge/resolve/etc) in the same tx as the status change; `kind=human` entries are operator-authored.
+type IncidentComment struct {
+	AuthorId *openapi_types.UUID `json:"author_id,omitempty"`
+
+	// AuthorUsername Denormalised author login for UI rendering.
+	AuthorUsername *string             `json:"author_username,omitempty"`
+	Body           string              `json:"body"`
+	CreatedAt      time.Time           `json:"created_at"`
+	Id             openapi_types.UUID  `json:"id"`
+	IncidentId     openapi_types.UUID  `json:"incident_id"`
+	Kind           IncidentCommentKind `json:"kind"`
+}
+
+// IncidentCommentKind defines model for IncidentComment.Kind.
+type IncidentCommentKind string
 
 // IntegrationAdapter defines model for IntegrationAdapter.
 type IntegrationAdapter struct {
@@ -2529,6 +2635,27 @@ type UpdateIncidentJSONBody struct {
 	Title      *string    `json:"title,omitempty"`
 }
 
+// AcknowledgeIncidentJSONBody defines parameters for AcknowledgeIncident.
+type AcknowledgeIncidentJSONBody struct {
+	Note *string `json:"note,omitempty"`
+}
+
+// CreateIncidentCommentJSONBody defines parameters for CreateIncidentComment.
+type CreateIncidentCommentJSONBody struct {
+	Body string `json:"body"`
+}
+
+// ReopenIncidentJSONBody defines parameters for ReopenIncident.
+type ReopenIncidentJSONBody struct {
+	Reason *string `json:"reason,omitempty"`
+}
+
+// ResolveIncidentJSONBody defines parameters for ResolveIncident.
+type ResolveIncidentJSONBody struct {
+	Note      *string `json:"note,omitempty"`
+	RootCause *string `json:"root_cause,omitempty"`
+}
+
 // QueryMetricsParams defines parameters for QueryMetrics.
 type QueryMetricsParams struct {
 	AssetId    openapi_types.UUID `form:"asset_id" json:"asset_id"`
@@ -2803,6 +2930,18 @@ type CreateIncidentJSONRequestBody CreateIncidentJSONBody
 
 // UpdateIncidentJSONRequestBody defines body for UpdateIncident for application/json ContentType.
 type UpdateIncidentJSONRequestBody UpdateIncidentJSONBody
+
+// AcknowledgeIncidentJSONRequestBody defines body for AcknowledgeIncident for application/json ContentType.
+type AcknowledgeIncidentJSONRequestBody AcknowledgeIncidentJSONBody
+
+// CreateIncidentCommentJSONRequestBody defines body for CreateIncidentComment for application/json ContentType.
+type CreateIncidentCommentJSONRequestBody CreateIncidentCommentJSONBody
+
+// ReopenIncidentJSONRequestBody defines body for ReopenIncident for application/json ContentType.
+type ReopenIncidentJSONRequestBody ReopenIncidentJSONBody
+
+// ResolveIncidentJSONRequestBody defines body for ResolveIncident for application/json ContentType.
+type ResolveIncidentJSONRequestBody ResolveIncidentJSONBody
 
 // CreateAlertRuleJSONRequestBody defines body for CreateAlertRule for application/json ContentType.
 type CreateAlertRuleJSONRequestBody CreateAlertRuleJSONBody
@@ -4042,6 +4181,27 @@ type ServerInterface interface {
 	// Update an incident
 	// (PUT /monitoring/incidents/{id})
 	UpdateIncident(c *gin.Context, id IdPath)
+	// Acknowledge an open incident
+	// (POST /monitoring/incidents/{id}/acknowledge)
+	AcknowledgeIncident(c *gin.Context, id IdPath)
+	// Close a resolved incident (post-mortem lock)
+	// (POST /monitoring/incidents/{id}/close)
+	CloseIncident(c *gin.Context, id IdPath)
+	// Activity timeline for an incident
+	// (GET /monitoring/incidents/{id}/comments)
+	ListIncidentComments(c *gin.Context, id IdPath)
+	// Append a human comment to the timeline
+	// (POST /monitoring/incidents/{id}/comments)
+	CreateIncidentComment(c *gin.Context, id IdPath)
+	// Reopen a resolved incident
+	// (POST /monitoring/incidents/{id}/reopen)
+	ReopenIncident(c *gin.Context, id IdPath)
+	// Resolve an incident (requires non-closed source state)
+	// (POST /monitoring/incidents/{id}/resolve)
+	ResolveIncident(c *gin.Context, id IdPath)
+	// Transition an acknowledged incident to investigating
+	// (POST /monitoring/incidents/{id}/start-investigating)
+	StartInvestigatingIncident(c *gin.Context, id IdPath)
 	// Query time-series metrics for an asset
 	// (GET /monitoring/metrics)
 	QueryMetrics(c *gin.Context, params QueryMetricsParams)
@@ -7221,6 +7381,188 @@ func (siw *ServerInterfaceWrapper) UpdateIncident(c *gin.Context) {
 	siw.Handler.UpdateIncident(c, id)
 }
 
+// AcknowledgeIncident operation middleware
+func (siw *ServerInterfaceWrapper) AcknowledgeIncident(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AcknowledgeIncident(c, id)
+}
+
+// CloseIncident operation middleware
+func (siw *ServerInterfaceWrapper) CloseIncident(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CloseIncident(c, id)
+}
+
+// ListIncidentComments operation middleware
+func (siw *ServerInterfaceWrapper) ListIncidentComments(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListIncidentComments(c, id)
+}
+
+// CreateIncidentComment operation middleware
+func (siw *ServerInterfaceWrapper) CreateIncidentComment(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateIncidentComment(c, id)
+}
+
+// ReopenIncident operation middleware
+func (siw *ServerInterfaceWrapper) ReopenIncident(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReopenIncident(c, id)
+}
+
+// ResolveIncident operation middleware
+func (siw *ServerInterfaceWrapper) ResolveIncident(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResolveIncident(c, id)
+}
+
+// StartInvestigatingIncident operation middleware
+func (siw *ServerInterfaceWrapper) StartInvestigatingIncident(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.StartInvestigatingIncident(c, id)
+}
+
 // QueryMetrics operation middleware
 func (siw *ServerInterfaceWrapper) QueryMetrics(c *gin.Context) {
 
@@ -9312,6 +9654,13 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/monitoring/incidents", wrapper.CreateIncident)
 	router.GET(options.BaseURL+"/monitoring/incidents/:id", wrapper.GetIncident)
 	router.PUT(options.BaseURL+"/monitoring/incidents/:id", wrapper.UpdateIncident)
+	router.POST(options.BaseURL+"/monitoring/incidents/:id/acknowledge", wrapper.AcknowledgeIncident)
+	router.POST(options.BaseURL+"/monitoring/incidents/:id/close", wrapper.CloseIncident)
+	router.GET(options.BaseURL+"/monitoring/incidents/:id/comments", wrapper.ListIncidentComments)
+	router.POST(options.BaseURL+"/monitoring/incidents/:id/comments", wrapper.CreateIncidentComment)
+	router.POST(options.BaseURL+"/monitoring/incidents/:id/reopen", wrapper.ReopenIncident)
+	router.POST(options.BaseURL+"/monitoring/incidents/:id/resolve", wrapper.ResolveIncident)
+	router.POST(options.BaseURL+"/monitoring/incidents/:id/start-investigating", wrapper.StartInvestigatingIncident)
 	router.GET(options.BaseURL+"/monitoring/metrics", wrapper.QueryMetrics)
 	router.GET(options.BaseURL+"/monitoring/rules", wrapper.ListAlertRules)
 	router.POST(options.BaseURL+"/monitoring/rules", wrapper.CreateAlertRule)

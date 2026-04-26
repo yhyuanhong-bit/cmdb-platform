@@ -3,23 +3,35 @@ package monitoring
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// ErrInvalidStateTransition is returned when an incident lifecycle call
+// tries to flip the status from a state the guard doesn't allow (e.g.
+// resolve on an already-closed incident). The handler maps this to 409.
+var ErrInvalidStateTransition = errors.New("invalid state transition")
 
 // Service provides alert monitoring operations.
 type Service struct {
 	queries *dbgen.Queries
 	bus     eventbus.Bus
+	pool    *pgxpool.Pool
 }
 
 // NewService creates a new monitoring Service.
-func NewService(queries *dbgen.Queries, bus eventbus.Bus) *Service {
-	return &Service{queries: queries, bus: bus}
+// The pool may be nil when only the non-transactional read paths are
+// exercised (unit tests, old callers); lifecycle helpers that need an
+// UPDATE + timeline INSERT in the same tx will reject a nil pool.
+func NewService(queries *dbgen.Queries, bus eventbus.Bus, pool *pgxpool.Pool) *Service {
+	return &Service{queries: queries, bus: bus, pool: pool}
 }
 
 // ListAlerts returns a paginated, filtered list of alerts and the total count.
@@ -162,6 +174,225 @@ func (s *Service) UpdateIncident(ctx context.Context, params dbgen.UpdateInciden
 		return nil, fmt.Errorf("update incident: %w", err)
 	}
 	return &incident, nil
+}
+
+// ---------------------------------------------------------------------------
+// Wave 5.1: incident lifecycle transitions.
+//
+// Each transition wraps the UPDATE and a system comment insert in a single
+// tx so the timeline never drifts from row state. If the UPDATE's WHERE
+// clause hits zero rows (meaning the status wasn't in the allowed source
+// state), we translate that into ErrInvalidStateTransition at the domain
+// layer — the caller doesn't need to know the SQL contract.
+// ---------------------------------------------------------------------------
+
+// withIncidentTx runs fn inside a pgx tx. Rolled back on error; committed
+// otherwise. Tests that don't need lifecycle transitions may pass a nil
+// pool to NewService, in which case this errors fast.
+func (s *Service) withIncidentTx(ctx context.Context, fn func(qtx *dbgen.Queries) error) error {
+	if s.pool == nil {
+		return errors.New("monitoring service: pool is required for this operation")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := s.queries.WithTx(tx)
+	if err := fn(qtx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// mapNoRows turns the "no rows returned" case from a WHERE-guarded UPDATE
+// into ErrInvalidStateTransition. Every lifecycle helper reuses this.
+func mapNoRows(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrInvalidStateTransition
+	}
+	return err
+}
+
+// systemComment builds a deterministic activity-feed string for a transition.
+// A free-form note from the caller is appended on a new line so the UI can
+// render it verbatim. Empty notes collapse cleanly.
+func systemCommentBody(action, note string) string {
+	if note == "" {
+		return action
+	}
+	return action + "\n" + note
+}
+
+func (s *Service) AcknowledgeIncident(ctx context.Context, tenantID, id, userID uuid.UUID, note string) (*dbgen.Incident, error) {
+	var out dbgen.Incident
+	err := s.withIncidentTx(ctx, func(qtx *dbgen.Queries) error {
+		updated, err := qtx.AcknowledgeIncident(ctx, dbgen.AcknowledgeIncidentParams{
+			ID: id, TenantID: tenantID, UserID: pgtype.UUID{Bytes: userID, Valid: userID != uuid.Nil},
+		})
+		if err != nil {
+			return mapNoRows(err)
+		}
+		_, err = qtx.CreateIncidentComment(ctx, dbgen.CreateIncidentCommentParams{
+			TenantID:    tenantID,
+			IncidentID:  id,
+			AuthorID:    pgtype.UUID{Bytes: userID, Valid: userID != uuid.Nil},
+			Kind:        "system",
+			Body:        systemCommentBody("acknowledged", note),
+		})
+		if err != nil {
+			return fmt.Errorf("write ack comment: %w", err)
+		}
+		out = updated
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (s *Service) StartInvestigatingIncident(ctx context.Context, tenantID, id, userID uuid.UUID) (*dbgen.Incident, error) {
+	var out dbgen.Incident
+	err := s.withIncidentTx(ctx, func(qtx *dbgen.Queries) error {
+		updated, err := qtx.StartInvestigatingIncident(ctx, dbgen.StartInvestigatingIncidentParams{
+			ID: id, TenantID: tenantID,
+		})
+		if err != nil {
+			return mapNoRows(err)
+		}
+		_, err = qtx.CreateIncidentComment(ctx, dbgen.CreateIncidentCommentParams{
+			TenantID:   tenantID,
+			IncidentID: id,
+			AuthorID:   pgtype.UUID{Bytes: userID, Valid: userID != uuid.Nil},
+			Kind:       "system",
+			Body:       "investigation started",
+		})
+		if err != nil {
+			return fmt.Errorf("write investigating comment: %w", err)
+		}
+		out = updated
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (s *Service) ResolveIncident(ctx context.Context, tenantID, id, userID uuid.UUID, rootCause, note string) (*dbgen.Incident, error) {
+	var out dbgen.Incident
+	err := s.withIncidentTx(ctx, func(qtx *dbgen.Queries) error {
+		params := dbgen.ResolveIncidentParams{
+			ID: id, TenantID: tenantID,
+			UserID: pgtype.UUID{Bytes: userID, Valid: userID != uuid.Nil},
+		}
+		if rootCause != "" {
+			params.RootCause = pgtype.Text{String: rootCause, Valid: true}
+		}
+		updated, err := qtx.ResolveIncident(ctx, params)
+		if err != nil {
+			return mapNoRows(err)
+		}
+		body := "resolved"
+		if rootCause != "" {
+			body = "resolved\nroot cause: " + rootCause
+		}
+		if note != "" {
+			body = body + "\n" + note
+		}
+		_, err = qtx.CreateIncidentComment(ctx, dbgen.CreateIncidentCommentParams{
+			TenantID:   tenantID,
+			IncidentID: id,
+			AuthorID:   pgtype.UUID{Bytes: userID, Valid: userID != uuid.Nil},
+			Kind:       "system",
+			Body:       body,
+		})
+		if err != nil {
+			return fmt.Errorf("write resolve comment: %w", err)
+		}
+		out = updated
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (s *Service) CloseIncident(ctx context.Context, tenantID, id, userID uuid.UUID) (*dbgen.Incident, error) {
+	var out dbgen.Incident
+	err := s.withIncidentTx(ctx, func(qtx *dbgen.Queries) error {
+		updated, err := qtx.CloseIncident(ctx, dbgen.CloseIncidentParams{ID: id, TenantID: tenantID})
+		if err != nil {
+			return mapNoRows(err)
+		}
+		_, err = qtx.CreateIncidentComment(ctx, dbgen.CreateIncidentCommentParams{
+			TenantID:   tenantID,
+			IncidentID: id,
+			AuthorID:   pgtype.UUID{Bytes: userID, Valid: userID != uuid.Nil},
+			Kind:       "system",
+			Body:       "closed",
+		})
+		if err != nil {
+			return fmt.Errorf("write close comment: %w", err)
+		}
+		out = updated
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (s *Service) ReopenIncident(ctx context.Context, tenantID, id, userID uuid.UUID, reason string) (*dbgen.Incident, error) {
+	var out dbgen.Incident
+	err := s.withIncidentTx(ctx, func(qtx *dbgen.Queries) error {
+		updated, err := qtx.ReopenIncident(ctx, dbgen.ReopenIncidentParams{ID: id, TenantID: tenantID})
+		if err != nil {
+			return mapNoRows(err)
+		}
+		_, err = qtx.CreateIncidentComment(ctx, dbgen.CreateIncidentCommentParams{
+			TenantID:   tenantID,
+			IncidentID: id,
+			AuthorID:   pgtype.UUID{Bytes: userID, Valid: userID != uuid.Nil},
+			Kind:       "system",
+			Body:       systemCommentBody("reopened", reason),
+		})
+		if err != nil {
+			return fmt.Errorf("write reopen comment: %w", err)
+		}
+		out = updated
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListIncidentComments returns the timeline for an incident.
+func (s *Service) ListIncidentComments(ctx context.Context, tenantID, incidentID uuid.UUID) ([]dbgen.ListIncidentCommentsRow, error) {
+	return s.queries.ListIncidentComments(ctx, dbgen.ListIncidentCommentsParams{
+		TenantID: tenantID, IncidentID: incidentID,
+	})
+}
+
+// AddIncidentComment appends a human comment. System comments come from the
+// lifecycle methods above.
+func (s *Service) AddIncidentComment(ctx context.Context, tenantID, incidentID, authorID uuid.UUID, kind, body string) (*dbgen.IncidentComment, error) {
+	row, err := s.queries.CreateIncidentComment(ctx, dbgen.CreateIncidentCommentParams{
+		TenantID:   tenantID,
+		IncidentID: incidentID,
+		AuthorID:   pgtype.UUID{Bytes: authorID, Valid: authorID != uuid.Nil},
+		Kind:       kind,
+		Body:       body,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create comment: %w", err)
+	}
+	return &row, nil
 }
 
 // Acknowledge marks a firing alert as acknowledged, scoped to the given tenant.

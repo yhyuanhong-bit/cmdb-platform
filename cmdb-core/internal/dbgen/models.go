@@ -378,13 +378,34 @@ type DiscoveredAsset struct {
 }
 
 type Incident struct {
-	ID         uuid.UUID          `json:"id"`
-	TenantID   uuid.UUID          `json:"tenant_id"`
-	Title      string             `json:"title"`
-	Status     string             `json:"status"`
-	Severity   string             `json:"severity"`
-	StartedAt  time.Time          `json:"started_at"`
-	ResolvedAt pgtype.Timestamptz `json:"resolved_at"`
+	ID                uuid.UUID          `json:"id"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	Title             string             `json:"title"`
+	Status            string             `json:"status"`
+	Severity          string             `json:"severity"`
+	StartedAt         time.Time          `json:"started_at"`
+	ResolvedAt        pgtype.Timestamptz `json:"resolved_at"`
+	Description       pgtype.Text        `json:"description"`
+	Priority          pgtype.Text        `json:"priority"`
+	AssigneeUserID    pgtype.UUID        `json:"assignee_user_id"`
+	AffectedAssetID   pgtype.UUID        `json:"affected_asset_id"`
+	AffectedServiceID pgtype.UUID        `json:"affected_service_id"`
+	AcknowledgedAt    pgtype.Timestamptz `json:"acknowledged_at"`
+	AcknowledgedBy    pgtype.UUID        `json:"acknowledged_by"`
+	ResolvedBy        pgtype.UUID        `json:"resolved_by"`
+	RootCause         pgtype.Text        `json:"root_cause"`
+	Impact            pgtype.Text        `json:"impact"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+}
+
+type IncidentComment struct {
+	ID         uuid.UUID   `json:"id"`
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	IncidentID uuid.UUID   `json:"incident_id"`
+	AuthorID   pgtype.UUID `json:"author_id"`
+	Kind       string      `json:"kind"`
+	Body       string      `json:"body"`
+	CreatedAt  time.Time   `json:"created_at"`
 }
 
 type IntegrationAdapter struct {

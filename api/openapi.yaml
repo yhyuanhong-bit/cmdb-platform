@@ -1819,6 +1819,184 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # --------------------------------------------------------------------------
+  # Wave 5.1 incident lifecycle endpoints. Each transition has its own URL so
+  # the state-machine contract is visible at the route level; the domain
+  # layer enforces the guard and returns 409 on invalid transitions.
+  # --------------------------------------------------------------------------
+  /monitoring/incidents/{id}/acknowledge:
+    post:
+      operationId: acknowledgeIncident
+      tags: [monitoring]
+      summary: Acknowledge an open incident
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '200':
+          description: Incident acknowledged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Incident' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /monitoring/incidents/{id}/start-investigating:
+    post:
+      operationId: startInvestigatingIncident
+      tags: [monitoring]
+      summary: Transition an acknowledged incident to investigating
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Incident now investigating
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Incident' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /monitoring/incidents/{id}/resolve:
+    post:
+      operationId: resolveIncident
+      tags: [monitoring]
+      summary: Resolve an incident (requires non-closed source state)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                root_cause: { type: string }
+                note: { type: string }
+      responses:
+        '200':
+          description: Incident resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Incident' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /monitoring/incidents/{id}/close:
+    post:
+      operationId: closeIncident
+      tags: [monitoring]
+      summary: Close a resolved incident (post-mortem lock)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Incident closed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Incident' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /monitoring/incidents/{id}/reopen:
+    post:
+      operationId: reopenIncident
+      tags: [monitoring]
+      summary: Reopen a resolved incident
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: Incident reopened
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Incident' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /monitoring/incidents/{id}/comments:
+    get:
+      operationId: listIncidentComments
+      tags: [monitoring]
+      summary: Activity timeline for an incident
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Comments, ordered oldest-first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/IncidentComment' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createIncidentComment
+      tags: [monitoring]
+      summary: Append a human comment to the timeline
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/IncidentComment' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /monitoring/metrics:
     get:
       operationId: queryMetrics
@@ -5468,8 +5646,50 @@ components:
           type: string
         status:
           type: string
+          enum: [open, acknowledged, investigating, resolved, closed]
         severity:
           type: string
+        priority:
+          type: string
+          nullable: true
+          enum: [p1, p2, p3, p4]
+        description:
+          type: string
+          nullable: true
+        impact:
+          type: string
+          nullable: true
+        root_cause:
+          type: string
+          nullable: true
+        assignee_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        affected_asset_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: >
+            Asset this incident targets. UI uses it to deep-link into Asset
+            detail; tenant scope is enforced at the domain layer.
+        affected_service_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Business service this incident affects (Wave 2 Services).
+        acknowledged_at:
+          type: string
+          format: date-time
+          nullable: true
+        acknowledged_by:
+          type: string
+          format: uuid
+          nullable: true
+        resolved_by:
+          type: string
+          format: uuid
+          nullable: true
         started_at:
           type: string
           format: date-time
@@ -5477,12 +5697,39 @@ components:
           type: string
           nullable: true
           format: date-time
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
       required:
         - id
         - title
         - status
         - severity
         - started_at
+
+    # ── IncidentComment ───────────────────────────────────────────────
+    IncidentComment:
+      type: object
+      description: >
+        Activity-feed entry on an incident. `kind=system` entries are
+        generated by lifecycle transitions (acknowledge/resolve/etc) in
+        the same tx as the status change; `kind=human` entries are
+        operator-authored.
+      properties:
+        id:           { type: string, format: uuid }
+        incident_id:  { type: string, format: uuid }
+        author_id:    { type: string, format: uuid, nullable: true }
+        author_username:
+          type: string
+          nullable: true
+          description: Denormalised author login for UI rendering.
+        kind:
+          type: string
+          enum: [human, system]
+        body:         { type: string }
+        created_at:   { type: string, format: date-time }
+      required: [id, incident_id, kind, body, created_at]
 
     # ── InventoryTask ─────────────────────────────────────────────────────
     InventoryTask:

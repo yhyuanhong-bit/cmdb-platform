@@ -305,7 +305,7 @@ func main() {
 	topologySvc := topology.NewService(queries, pool)
 	assetSvc := asset.NewService(queries, bus, pool)
 	maintenanceSvc := maintenance.NewService(queries, bus, pool)
-	monitoringSvc := monitoring.NewService(queries, bus)
+	monitoringSvc := monitoring.NewService(queries, bus, pool)
 
 	// Alert Rule Evaluator (Phase 2.1 — REMEDIATION-ROADMAP.md). Scans
 	// alert_rules every 60s, aggregates TimescaleDB metrics, and emits

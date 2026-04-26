@@ -16,17 +16,101 @@ WHERE tenant_id = $1
 SELECT * FROM incidents WHERE id = $1 AND tenant_id = $2;
 
 -- name: CreateIncident :one
-INSERT INTO incidents (tenant_id, title, status, severity, started_at)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO incidents (
+    tenant_id, title, status, severity, started_at,
+    description, priority, assignee_user_id, affected_asset_id,
+    affected_service_id, impact
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING *;
 
 -- name: UpdateIncident :one
+-- Partial update. Title/severity/priority/description/assignee/links/impact
+-- are free to change at any time; *status* changes route through dedicated
+-- queries below so the state-machine guard lives in one place.
 UPDATE incidents SET
-    title       = COALESCE(sqlc.narg('title'), title),
-    status      = COALESCE(sqlc.narg('status'), status),
-    severity    = COALESCE(sqlc.narg('severity'), severity),
-    resolved_at = COALESCE(sqlc.narg('resolved_at'), resolved_at)
+    title               = COALESCE(sqlc.narg('title'), title),
+    severity            = COALESCE(sqlc.narg('severity'), severity),
+    priority            = COALESCE(sqlc.narg('priority'), priority),
+    description         = COALESCE(sqlc.narg('description'), description),
+    impact              = COALESCE(sqlc.narg('impact'), impact),
+    assignee_user_id    = COALESCE(sqlc.narg('assignee_user_id'), assignee_user_id),
+    affected_asset_id   = COALESCE(sqlc.narg('affected_asset_id'), affected_asset_id),
+    affected_service_id = COALESCE(sqlc.narg('affected_service_id'), affected_service_id)
+WHERE id = sqlc.arg('id') AND tenant_id = sqlc.arg('tenant_id')
+RETURNING *;
+
+-- name: AcknowledgeIncident :one
+-- Status change: open → acknowledged. We apply the transition in SQL with
+-- a WHERE on current status so concurrent acks can't double-stamp the
+-- acknowledged_at/by. The caller receives 0 rows if the guard fails.
+UPDATE incidents SET
+    status          = 'acknowledged',
+    acknowledged_at = now(),
+    acknowledged_by = sqlc.arg('user_id')
 WHERE id = sqlc.arg('id')
+  AND tenant_id = sqlc.arg('tenant_id')
+  AND status = 'open'
+RETURNING *;
+
+-- name: StartInvestigatingIncident :one
+-- acknowledged → investigating. Same optimistic guard as acknowledge.
+UPDATE incidents SET
+    status = 'investigating'
+WHERE id = sqlc.arg('id')
+  AND tenant_id = sqlc.arg('tenant_id')
+  AND status = 'acknowledged'
+RETURNING *;
+
+-- name: ResolveIncident :one
+-- * → resolved. Allowed from any non-closed status because an operator may
+-- resolve a still-open incident (e.g. false alarm) or a mid-investigation
+-- one. Blocked once status='closed' so post-mortem is immutable.
+UPDATE incidents SET
+    status      = 'resolved',
+    resolved_at = now(),
+    resolved_by = sqlc.arg('user_id'),
+    root_cause  = COALESCE(sqlc.narg('root_cause'), root_cause)
+WHERE id = sqlc.arg('id')
+  AND tenant_id = sqlc.arg('tenant_id')
+  AND status <> 'closed'
+RETURNING *;
+
+-- name: CloseIncident :one
+-- resolved → closed. Post-mortem lock: once closed, no transitions out.
+UPDATE incidents SET status = 'closed'
+WHERE id = sqlc.arg('id')
+  AND tenant_id = sqlc.arg('tenant_id')
+  AND status = 'resolved'
+RETURNING *;
+
+-- name: ReopenIncident :one
+-- resolved → open. Investigation surfaced a regression — flip back to open
+-- and clear the resolution fields so downstream reports don't show a ghost
+-- 'resolved_at' on an active incident. 'closed' is immutable.
+UPDATE incidents SET
+    status      = 'open',
+    resolved_at = NULL,
+    resolved_by = NULL
+WHERE id = sqlc.arg('id')
+  AND tenant_id = sqlc.arg('tenant_id')
+  AND status = 'resolved'
+RETURNING *;
+
+-- name: ListIncidentComments :many
+-- Timeline view: newest-first by default would break visual reading order,
+-- so we sort ascending. UI can reverse client-side if needed.
+SELECT c.id, c.tenant_id, c.incident_id, c.author_id, c.kind, c.body, c.created_at,
+       u.username AS author_username
+FROM incident_comments c
+LEFT JOIN users u ON u.id = c.author_id
+WHERE c.incident_id = sqlc.arg('incident_id')
+  AND c.tenant_id = sqlc.arg('tenant_id')
+ORDER BY c.created_at ASC;
+
+-- name: CreateIncidentComment :one
+INSERT INTO incident_comments (tenant_id, incident_id, author_id, kind, body)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: ListAlertEventsByIncident :many

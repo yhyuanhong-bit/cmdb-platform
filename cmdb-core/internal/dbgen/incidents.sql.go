@@ -13,6 +13,92 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acknowledgeIncident = `-- name: AcknowledgeIncident :one
+UPDATE incidents SET
+    status          = 'acknowledged',
+    acknowledged_at = now(),
+    acknowledged_by = $1
+WHERE id = $2
+  AND tenant_id = $3
+  AND status = 'open'
+RETURNING id, tenant_id, title, status, severity, started_at, resolved_at, description, priority, assignee_user_id, affected_asset_id, affected_service_id, acknowledged_at, acknowledged_by, resolved_by, root_cause, impact, updated_at
+`
+
+type AcknowledgeIncidentParams struct {
+	UserID   pgtype.UUID `json:"user_id"`
+	ID       uuid.UUID   `json:"id"`
+	TenantID uuid.UUID   `json:"tenant_id"`
+}
+
+// Status change: open → acknowledged. We apply the transition in SQL with
+// a WHERE on current status so concurrent acks can't double-stamp the
+// acknowledged_at/by. The caller receives 0 rows if the guard fails.
+func (q *Queries) AcknowledgeIncident(ctx context.Context, arg AcknowledgeIncidentParams) (Incident, error) {
+	row := q.db.QueryRow(ctx, acknowledgeIncident, arg.UserID, arg.ID, arg.TenantID)
+	var i Incident
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Title,
+		&i.Status,
+		&i.Severity,
+		&i.StartedAt,
+		&i.ResolvedAt,
+		&i.Description,
+		&i.Priority,
+		&i.AssigneeUserID,
+		&i.AffectedAssetID,
+		&i.AffectedServiceID,
+		&i.AcknowledgedAt,
+		&i.AcknowledgedBy,
+		&i.ResolvedBy,
+		&i.RootCause,
+		&i.Impact,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const closeIncident = `-- name: CloseIncident :one
+UPDATE incidents SET status = 'closed'
+WHERE id = $1
+  AND tenant_id = $2
+  AND status = 'resolved'
+RETURNING id, tenant_id, title, status, severity, started_at, resolved_at, description, priority, assignee_user_id, affected_asset_id, affected_service_id, acknowledged_at, acknowledged_by, resolved_by, root_cause, impact, updated_at
+`
+
+type CloseIncidentParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+// resolved → closed. Post-mortem lock: once closed, no transitions out.
+func (q *Queries) CloseIncident(ctx context.Context, arg CloseIncidentParams) (Incident, error) {
+	row := q.db.QueryRow(ctx, closeIncident, arg.ID, arg.TenantID)
+	var i Incident
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Title,
+		&i.Status,
+		&i.Severity,
+		&i.StartedAt,
+		&i.ResolvedAt,
+		&i.Description,
+		&i.Priority,
+		&i.AssigneeUserID,
+		&i.AffectedAssetID,
+		&i.AffectedServiceID,
+		&i.AcknowledgedAt,
+		&i.AcknowledgedBy,
+		&i.ResolvedBy,
+		&i.RootCause,
+		&i.Impact,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const countIncidents = `-- name: CountIncidents :one
 SELECT count(*) FROM incidents
 WHERE tenant_id = $1
@@ -34,17 +120,27 @@ func (q *Queries) CountIncidents(ctx context.Context, arg CountIncidentsParams) 
 }
 
 const createIncident = `-- name: CreateIncident :one
-INSERT INTO incidents (tenant_id, title, status, severity, started_at)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, tenant_id, title, status, severity, started_at, resolved_at
+INSERT INTO incidents (
+    tenant_id, title, status, severity, started_at,
+    description, priority, assignee_user_id, affected_asset_id,
+    affected_service_id, impact
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, tenant_id, title, status, severity, started_at, resolved_at, description, priority, assignee_user_id, affected_asset_id, affected_service_id, acknowledged_at, acknowledged_by, resolved_by, root_cause, impact, updated_at
 `
 
 type CreateIncidentParams struct {
-	TenantID  uuid.UUID `json:"tenant_id"`
-	Title     string    `json:"title"`
-	Status    string    `json:"status"`
-	Severity  string    `json:"severity"`
-	StartedAt time.Time `json:"started_at"`
+	TenantID          uuid.UUID   `json:"tenant_id"`
+	Title             string      `json:"title"`
+	Status            string      `json:"status"`
+	Severity          string      `json:"severity"`
+	StartedAt         time.Time   `json:"started_at"`
+	Description       pgtype.Text `json:"description"`
+	Priority          pgtype.Text `json:"priority"`
+	AssigneeUserID    pgtype.UUID `json:"assignee_user_id"`
+	AffectedAssetID   pgtype.UUID `json:"affected_asset_id"`
+	AffectedServiceID pgtype.UUID `json:"affected_service_id"`
+	Impact            pgtype.Text `json:"impact"`
 }
 
 func (q *Queries) CreateIncident(ctx context.Context, arg CreateIncidentParams) (Incident, error) {
@@ -54,6 +150,12 @@ func (q *Queries) CreateIncident(ctx context.Context, arg CreateIncidentParams) 
 		arg.Status,
 		arg.Severity,
 		arg.StartedAt,
+		arg.Description,
+		arg.Priority,
+		arg.AssigneeUserID,
+		arg.AffectedAssetID,
+		arg.AffectedServiceID,
+		arg.Impact,
 	)
 	var i Incident
 	err := row.Scan(
@@ -64,12 +166,58 @@ func (q *Queries) CreateIncident(ctx context.Context, arg CreateIncidentParams) 
 		&i.Severity,
 		&i.StartedAt,
 		&i.ResolvedAt,
+		&i.Description,
+		&i.Priority,
+		&i.AssigneeUserID,
+		&i.AffectedAssetID,
+		&i.AffectedServiceID,
+		&i.AcknowledgedAt,
+		&i.AcknowledgedBy,
+		&i.ResolvedBy,
+		&i.RootCause,
+		&i.Impact,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createIncidentComment = `-- name: CreateIncidentComment :one
+INSERT INTO incident_comments (tenant_id, incident_id, author_id, kind, body)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, tenant_id, incident_id, author_id, kind, body, created_at
+`
+
+type CreateIncidentCommentParams struct {
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	IncidentID uuid.UUID   `json:"incident_id"`
+	AuthorID   pgtype.UUID `json:"author_id"`
+	Kind       string      `json:"kind"`
+	Body       string      `json:"body"`
+}
+
+func (q *Queries) CreateIncidentComment(ctx context.Context, arg CreateIncidentCommentParams) (IncidentComment, error) {
+	row := q.db.QueryRow(ctx, createIncidentComment,
+		arg.TenantID,
+		arg.IncidentID,
+		arg.AuthorID,
+		arg.Kind,
+		arg.Body,
+	)
+	var i IncidentComment
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.IncidentID,
+		&i.AuthorID,
+		&i.Kind,
+		&i.Body,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getIncident = `-- name: GetIncident :one
-SELECT id, tenant_id, title, status, severity, started_at, resolved_at FROM incidents WHERE id = $1 AND tenant_id = $2
+SELECT id, tenant_id, title, status, severity, started_at, resolved_at, description, priority, assignee_user_id, affected_asset_id, affected_service_id, acknowledged_at, acknowledged_by, resolved_by, root_cause, impact, updated_at FROM incidents WHERE id = $1 AND tenant_id = $2
 `
 
 type GetIncidentParams struct {
@@ -88,6 +236,17 @@ func (q *Queries) GetIncident(ctx context.Context, arg GetIncidentParams) (Incid
 		&i.Severity,
 		&i.StartedAt,
 		&i.ResolvedAt,
+		&i.Description,
+		&i.Priority,
+		&i.AssigneeUserID,
+		&i.AffectedAssetID,
+		&i.AffectedServiceID,
+		&i.AcknowledgedAt,
+		&i.AcknowledgedBy,
+		&i.ResolvedBy,
+		&i.RootCause,
+		&i.Impact,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -264,8 +423,65 @@ func (q *Queries) ListAssetsForIncident(ctx context.Context, arg ListAssetsForIn
 	return items, nil
 }
 
+const listIncidentComments = `-- name: ListIncidentComments :many
+SELECT c.id, c.tenant_id, c.incident_id, c.author_id, c.kind, c.body, c.created_at,
+       u.username AS author_username
+FROM incident_comments c
+LEFT JOIN users u ON u.id = c.author_id
+WHERE c.incident_id = $1
+  AND c.tenant_id = $2
+ORDER BY c.created_at ASC
+`
+
+type ListIncidentCommentsParams struct {
+	IncidentID uuid.UUID `json:"incident_id"`
+	TenantID   uuid.UUID `json:"tenant_id"`
+}
+
+type ListIncidentCommentsRow struct {
+	ID             uuid.UUID   `json:"id"`
+	TenantID       uuid.UUID   `json:"tenant_id"`
+	IncidentID     uuid.UUID   `json:"incident_id"`
+	AuthorID       pgtype.UUID `json:"author_id"`
+	Kind           string      `json:"kind"`
+	Body           string      `json:"body"`
+	CreatedAt      time.Time   `json:"created_at"`
+	AuthorUsername pgtype.Text `json:"author_username"`
+}
+
+// Timeline view: newest-first by default would break visual reading order,
+// so we sort ascending. UI can reverse client-side if needed.
+func (q *Queries) ListIncidentComments(ctx context.Context, arg ListIncidentCommentsParams) ([]ListIncidentCommentsRow, error) {
+	rows, err := q.db.Query(ctx, listIncidentComments, arg.IncidentID, arg.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIncidentCommentsRow{}
+	for rows.Next() {
+		var i ListIncidentCommentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.IncidentID,
+			&i.AuthorID,
+			&i.Kind,
+			&i.Body,
+			&i.CreatedAt,
+			&i.AuthorUsername,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listIncidents = `-- name: ListIncidents :many
-SELECT id, tenant_id, title, status, severity, started_at, resolved_at FROM incidents
+SELECT id, tenant_id, title, status, severity, started_at, resolved_at, description, priority, assignee_user_id, affected_asset_id, affected_service_id, acknowledged_at, acknowledged_by, resolved_by, root_cause, impact, updated_at FROM incidents
 WHERE tenant_id = $1
   AND ($4::varchar IS NULL OR status = $4)
   AND ($5::varchar IS NULL OR severity = $5)
@@ -304,6 +520,17 @@ func (q *Queries) ListIncidents(ctx context.Context, arg ListIncidentsParams) ([
 			&i.Severity,
 			&i.StartedAt,
 			&i.ResolvedAt,
+			&i.Description,
+			&i.Priority,
+			&i.AssigneeUserID,
+			&i.AffectedAssetID,
+			&i.AffectedServiceID,
+			&i.AcknowledgedAt,
+			&i.AcknowledgedBy,
+			&i.ResolvedBy,
+			&i.RootCause,
+			&i.Impact,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -315,31 +542,79 @@ func (q *Queries) ListIncidents(ctx context.Context, arg ListIncidentsParams) ([
 	return items, nil
 }
 
-const updateIncident = `-- name: UpdateIncident :one
+const reopenIncident = `-- name: ReopenIncident :one
 UPDATE incidents SET
-    title       = COALESCE($1, title),
-    status      = COALESCE($2, status),
-    severity    = COALESCE($3, severity),
-    resolved_at = COALESCE($4, resolved_at)
-WHERE id = $5
-RETURNING id, tenant_id, title, status, severity, started_at, resolved_at
+    status      = 'open',
+    resolved_at = NULL,
+    resolved_by = NULL
+WHERE id = $1
+  AND tenant_id = $2
+  AND status = 'resolved'
+RETURNING id, tenant_id, title, status, severity, started_at, resolved_at, description, priority, assignee_user_id, affected_asset_id, affected_service_id, acknowledged_at, acknowledged_by, resolved_by, root_cause, impact, updated_at
 `
 
-type UpdateIncidentParams struct {
-	Title      pgtype.Text        `json:"title"`
-	Status     pgtype.Text        `json:"status"`
-	Severity   pgtype.Text        `json:"severity"`
-	ResolvedAt pgtype.Timestamptz `json:"resolved_at"`
-	ID         uuid.UUID          `json:"id"`
+type ReopenIncidentParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
 }
 
-func (q *Queries) UpdateIncident(ctx context.Context, arg UpdateIncidentParams) (Incident, error) {
-	row := q.db.QueryRow(ctx, updateIncident,
-		arg.Title,
-		arg.Status,
-		arg.Severity,
-		arg.ResolvedAt,
+// resolved → open. Investigation surfaced a regression — flip back to open
+// and clear the resolution fields so downstream reports don't show a ghost
+// 'resolved_at' on an active incident. 'closed' is immutable.
+func (q *Queries) ReopenIncident(ctx context.Context, arg ReopenIncidentParams) (Incident, error) {
+	row := q.db.QueryRow(ctx, reopenIncident, arg.ID, arg.TenantID)
+	var i Incident
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Title,
+		&i.Status,
+		&i.Severity,
+		&i.StartedAt,
+		&i.ResolvedAt,
+		&i.Description,
+		&i.Priority,
+		&i.AssigneeUserID,
+		&i.AffectedAssetID,
+		&i.AffectedServiceID,
+		&i.AcknowledgedAt,
+		&i.AcknowledgedBy,
+		&i.ResolvedBy,
+		&i.RootCause,
+		&i.Impact,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const resolveIncident = `-- name: ResolveIncident :one
+UPDATE incidents SET
+    status      = 'resolved',
+    resolved_at = now(),
+    resolved_by = $1,
+    root_cause  = COALESCE($2, root_cause)
+WHERE id = $3
+  AND tenant_id = $4
+  AND status <> 'closed'
+RETURNING id, tenant_id, title, status, severity, started_at, resolved_at, description, priority, assignee_user_id, affected_asset_id, affected_service_id, acknowledged_at, acknowledged_by, resolved_by, root_cause, impact, updated_at
+`
+
+type ResolveIncidentParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	RootCause pgtype.Text `json:"root_cause"`
+	ID        uuid.UUID   `json:"id"`
+	TenantID  uuid.UUID   `json:"tenant_id"`
+}
+
+// * → resolved. Allowed from any non-closed status because an operator may
+// resolve a still-open incident (e.g. false alarm) or a mid-investigation
+// one. Blocked once status='closed' so post-mortem is immutable.
+func (q *Queries) ResolveIncident(ctx context.Context, arg ResolveIncidentParams) (Incident, error) {
+	row := q.db.QueryRow(ctx, resolveIncident,
+		arg.UserID,
+		arg.RootCause,
 		arg.ID,
+		arg.TenantID,
 	)
 	var i Incident
 	err := row.Scan(
@@ -350,6 +625,125 @@ func (q *Queries) UpdateIncident(ctx context.Context, arg UpdateIncidentParams) 
 		&i.Severity,
 		&i.StartedAt,
 		&i.ResolvedAt,
+		&i.Description,
+		&i.Priority,
+		&i.AssigneeUserID,
+		&i.AffectedAssetID,
+		&i.AffectedServiceID,
+		&i.AcknowledgedAt,
+		&i.AcknowledgedBy,
+		&i.ResolvedBy,
+		&i.RootCause,
+		&i.Impact,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const startInvestigatingIncident = `-- name: StartInvestigatingIncident :one
+UPDATE incidents SET
+    status = 'investigating'
+WHERE id = $1
+  AND tenant_id = $2
+  AND status = 'acknowledged'
+RETURNING id, tenant_id, title, status, severity, started_at, resolved_at, description, priority, assignee_user_id, affected_asset_id, affected_service_id, acknowledged_at, acknowledged_by, resolved_by, root_cause, impact, updated_at
+`
+
+type StartInvestigatingIncidentParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+// acknowledged → investigating. Same optimistic guard as acknowledge.
+func (q *Queries) StartInvestigatingIncident(ctx context.Context, arg StartInvestigatingIncidentParams) (Incident, error) {
+	row := q.db.QueryRow(ctx, startInvestigatingIncident, arg.ID, arg.TenantID)
+	var i Incident
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Title,
+		&i.Status,
+		&i.Severity,
+		&i.StartedAt,
+		&i.ResolvedAt,
+		&i.Description,
+		&i.Priority,
+		&i.AssigneeUserID,
+		&i.AffectedAssetID,
+		&i.AffectedServiceID,
+		&i.AcknowledgedAt,
+		&i.AcknowledgedBy,
+		&i.ResolvedBy,
+		&i.RootCause,
+		&i.Impact,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateIncident = `-- name: UpdateIncident :one
+UPDATE incidents SET
+    title               = COALESCE($1, title),
+    severity            = COALESCE($2, severity),
+    priority            = COALESCE($3, priority),
+    description         = COALESCE($4, description),
+    impact              = COALESCE($5, impact),
+    assignee_user_id    = COALESCE($6, assignee_user_id),
+    affected_asset_id   = COALESCE($7, affected_asset_id),
+    affected_service_id = COALESCE($8, affected_service_id)
+WHERE id = $9 AND tenant_id = $10
+RETURNING id, tenant_id, title, status, severity, started_at, resolved_at, description, priority, assignee_user_id, affected_asset_id, affected_service_id, acknowledged_at, acknowledged_by, resolved_by, root_cause, impact, updated_at
+`
+
+type UpdateIncidentParams struct {
+	Title             pgtype.Text `json:"title"`
+	Severity          pgtype.Text `json:"severity"`
+	Priority          pgtype.Text `json:"priority"`
+	Description       pgtype.Text `json:"description"`
+	Impact            pgtype.Text `json:"impact"`
+	AssigneeUserID    pgtype.UUID `json:"assignee_user_id"`
+	AffectedAssetID   pgtype.UUID `json:"affected_asset_id"`
+	AffectedServiceID pgtype.UUID `json:"affected_service_id"`
+	ID                uuid.UUID   `json:"id"`
+	TenantID          uuid.UUID   `json:"tenant_id"`
+}
+
+// Partial update. Title/severity/priority/description/assignee/links/impact
+// are free to change at any time; *status* changes route through dedicated
+// queries below so the state-machine guard lives in one place.
+func (q *Queries) UpdateIncident(ctx context.Context, arg UpdateIncidentParams) (Incident, error) {
+	row := q.db.QueryRow(ctx, updateIncident,
+		arg.Title,
+		arg.Severity,
+		arg.Priority,
+		arg.Description,
+		arg.Impact,
+		arg.AssigneeUserID,
+		arg.AffectedAssetID,
+		arg.AffectedServiceID,
+		arg.ID,
+		arg.TenantID,
+	)
+	var i Incident
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Title,
+		&i.Status,
+		&i.Severity,
+		&i.StartedAt,
+		&i.ResolvedAt,
+		&i.Description,
+		&i.Priority,
+		&i.AssigneeUserID,
+		&i.AffectedAssetID,
+		&i.AffectedServiceID,
+		&i.AcknowledgedAt,
+		&i.AcknowledgedBy,
+		&i.ResolvedBy,
+		&i.RootCause,
+		&i.Impact,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

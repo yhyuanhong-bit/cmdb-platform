@@ -566,14 +566,98 @@ func toAPIAlertRule(db dbgen.AlertRule) AlertRule {
 // ---------------------------------------------------------------------------
 
 func toAPIIncident(db dbgen.Incident) Incident {
-	return Incident{
+	inc := Incident{
 		Id:         db.ID,
 		Title:      db.Title,
-		Status:     db.Status,
+		Status:     IncidentStatus(db.Status),
 		Severity:   db.Severity,
 		StartedAt:  db.StartedAt,
 		ResolvedAt: pgtsToTimePtr(db.ResolvedAt),
 	}
+	if db.Priority.Valid {
+		p := IncidentPriority(db.Priority.String)
+		inc.Priority = &p
+	}
+	if db.Description.Valid {
+		s := db.Description.String
+		inc.Description = &s
+	}
+	if db.Impact.Valid {
+		s := db.Impact.String
+		inc.Impact = &s
+	}
+	if db.RootCause.Valid {
+		s := db.RootCause.String
+		inc.RootCause = &s
+	}
+	if db.AssigneeUserID.Valid {
+		u := uuid.UUID(db.AssigneeUserID.Bytes)
+		inc.AssigneeUserId = &u
+	}
+	if db.AffectedAssetID.Valid {
+		u := uuid.UUID(db.AffectedAssetID.Bytes)
+		inc.AffectedAssetId = &u
+	}
+	if db.AffectedServiceID.Valid {
+		u := uuid.UUID(db.AffectedServiceID.Bytes)
+		inc.AffectedServiceId = &u
+	}
+	if db.AcknowledgedAt.Valid {
+		t := db.AcknowledgedAt.Time
+		inc.AcknowledgedAt = &t
+	}
+	if db.AcknowledgedBy.Valid {
+		u := uuid.UUID(db.AcknowledgedBy.Bytes)
+		inc.AcknowledgedBy = &u
+	}
+	if db.ResolvedBy.Valid {
+		u := uuid.UUID(db.ResolvedBy.Bytes)
+		inc.ResolvedBy = &u
+	}
+	if !db.UpdatedAt.IsZero() {
+		t := db.UpdatedAt
+		inc.UpdatedAt = &t
+	}
+	return inc
+}
+
+// toAPIIncidentComment converts a list-row (has author_username denormalised)
+// to the API shape.
+func toAPIIncidentComment(db dbgen.ListIncidentCommentsRow) IncidentComment {
+	out := IncidentComment{
+		Id:         db.ID,
+		IncidentId: db.IncidentID,
+		Kind:       IncidentCommentKind(db.Kind),
+		Body:       db.Body,
+		CreatedAt:  db.CreatedAt,
+	}
+	if db.AuthorID.Valid {
+		u := uuid.UUID(db.AuthorID.Bytes)
+		out.AuthorId = &u
+	}
+	if db.AuthorUsername.Valid {
+		s := db.AuthorUsername.String
+		out.AuthorUsername = &s
+	}
+	return out
+}
+
+// toAPIIncidentCommentFromRecord is the create-path variant that doesn't
+// have author_username joined in. The UI re-fetches the list after a POST
+// anyway, so leaving username empty on the 201 response is fine.
+func toAPIIncidentCommentFromRecord(db dbgen.IncidentComment) IncidentComment {
+	out := IncidentComment{
+		Id:         db.ID,
+		IncidentId: db.IncidentID,
+		Kind:       IncidentCommentKind(db.Kind),
+		Body:       db.Body,
+		CreatedAt:  db.CreatedAt,
+	}
+	if db.AuthorID.Valid {
+		u := uuid.UUID(db.AuthorID.Bytes)
+		out.AuthorId = &u
+	}
+	return out
 }
 
 func toAPIWebhookDelivery(db dbgen.WebhookDelivery) WebhookDelivery {
