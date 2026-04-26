@@ -33,6 +33,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/problem"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	svcdomain "github.com/cmdb-platform/cmdb-core/internal/domain/service"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/sync"
@@ -426,12 +427,17 @@ func main() {
 	// sqlc Queries surface + the event bus for CRUD fan-out.
 	serviceSvc := svcdomain.New(pool, queries, bus)
 
+	// Problem (ITIL) entity (Wave 5.2). Pool needed for tx-scoped
+	// lifecycle helpers that write a system comment alongside each
+	// status flip.
+	problemSvc := problem.NewService(queries, pool)
+
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
-		serviceSvc, cipher, netGuard,
+		serviceSvc, problemSvc, cipher, netGuard,
 	)
 
 	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)

@@ -642,6 +642,99 @@ func toAPIIncidentComment(db dbgen.ListIncidentCommentsRow) IncidentComment {
 	return out
 }
 
+// ---------------------------------------------------------------------------
+// Wave 5.2: Problem + ProblemComment converters.
+// ---------------------------------------------------------------------------
+
+func toAPIProblem(db dbgen.Problem) Problem {
+	out := Problem{
+		Id:        db.ID,
+		Title:     db.Title,
+		Status:    ProblemStatus(db.Status),
+		Severity:  db.Severity,
+		CreatedAt: db.CreatedAt,
+	}
+	if db.Description.Valid {
+		s := db.Description.String
+		out.Description = &s
+	}
+	if db.Priority.Valid {
+		p := ProblemPriority(db.Priority.String)
+		out.Priority = &p
+	}
+	if db.RootCause.Valid {
+		s := db.RootCause.String
+		out.RootCause = &s
+	}
+	if db.Workaround.Valid {
+		s := db.Workaround.String
+		out.Workaround = &s
+	}
+	if db.Resolution.Valid {
+		s := db.Resolution.String
+		out.Resolution = &s
+	}
+	if db.AssigneeUserID.Valid {
+		u := uuid.UUID(db.AssigneeUserID.Bytes)
+		out.AssigneeUserId = &u
+	}
+	if db.CreatedBy.Valid {
+		u := uuid.UUID(db.CreatedBy.Bytes)
+		out.CreatedBy = &u
+	}
+	if !db.UpdatedAt.IsZero() {
+		t := db.UpdatedAt
+		out.UpdatedAt = &t
+	}
+	if db.ResolvedAt.Valid {
+		t := db.ResolvedAt.Time
+		out.ResolvedAt = &t
+	}
+	if db.ResolvedBy.Valid {
+		u := uuid.UUID(db.ResolvedBy.Bytes)
+		out.ResolvedBy = &u
+	}
+	if db.ClosedAt.Valid {
+		t := db.ClosedAt.Time
+		out.ClosedAt = &t
+	}
+	return out
+}
+
+func toAPIProblemComment(db dbgen.ListProblemCommentsRow) ProblemComment {
+	out := ProblemComment{
+		Id:        db.ID,
+		ProblemId: db.ProblemID,
+		Kind:      ProblemCommentKind(db.Kind),
+		Body:      db.Body,
+		CreatedAt: db.CreatedAt,
+	}
+	if db.AuthorID.Valid {
+		u := uuid.UUID(db.AuthorID.Bytes)
+		out.AuthorId = &u
+	}
+	if db.AuthorUsername.Valid {
+		s := db.AuthorUsername.String
+		out.AuthorUsername = &s
+	}
+	return out
+}
+
+func toAPIProblemCommentFromRecord(db dbgen.ProblemComment) ProblemComment {
+	out := ProblemComment{
+		Id:        db.ID,
+		ProblemId: db.ProblemID,
+		Kind:      ProblemCommentKind(db.Kind),
+		Body:      db.Body,
+		CreatedAt: db.CreatedAt,
+	}
+	if db.AuthorID.Valid {
+		u := uuid.UUID(db.AuthorID.Bytes)
+		out.AuthorId = &u
+	}
+	return out
+}
+
 // toAPIIncidentCommentFromRecord is the create-path variant that doesn't
 // have author_username joined in. The UI re-fetches the list after a POST
 // anyway, so leaving username empty on the 201 response is fine.

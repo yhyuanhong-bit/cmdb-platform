@@ -408,6 +408,14 @@ type IncidentComment struct {
 	CreatedAt  time.Time   `json:"created_at"`
 }
 
+type IncidentProblemLink struct {
+	IncidentID uuid.UUID   `json:"incident_id"`
+	ProblemID  uuid.UUID   `json:"problem_id"`
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	CreatedAt  time.Time   `json:"created_at"`
+	CreatedBy  pgtype.UUID `json:"created_by"`
+}
+
 type IntegrationAdapter struct {
 	ID                  uuid.UUID          `json:"id"`
 	TenantID            uuid.UUID          `json:"tenant_id"`
@@ -569,6 +577,36 @@ type PredictionResult struct {
 	RecommendedAction pgtype.Text        `json:"recommended_action"`
 	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt         time.Time          `json:"created_at"`
+}
+
+type Problem struct {
+	ID             uuid.UUID          `json:"id"`
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	Title          string             `json:"title"`
+	Description    pgtype.Text        `json:"description"`
+	Status         string             `json:"status"`
+	Priority       pgtype.Text        `json:"priority"`
+	Severity       string             `json:"severity"`
+	RootCause      pgtype.Text        `json:"root_cause"`
+	Workaround     pgtype.Text        `json:"workaround"`
+	Resolution     pgtype.Text        `json:"resolution"`
+	AssigneeUserID pgtype.UUID        `json:"assignee_user_id"`
+	CreatedBy      pgtype.UUID        `json:"created_by"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	ResolvedAt     pgtype.Timestamptz `json:"resolved_at"`
+	ResolvedBy     pgtype.UUID        `json:"resolved_by"`
+	ClosedAt       pgtype.Timestamptz `json:"closed_at"`
+}
+
+type ProblemComment struct {
+	ID        uuid.UUID   `json:"id"`
+	TenantID  uuid.UUID   `json:"tenant_id"`
+	ProblemID uuid.UUID   `json:"problem_id"`
+	AuthorID  pgtype.UUID `json:"author_id"`
+	Kind      string      `json:"kind"`
+	Body      string      `json:"body"`
+	CreatedAt time.Time   `json:"created_at"`
 }
 
 type QualityFlag struct {

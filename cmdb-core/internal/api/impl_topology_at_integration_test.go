@@ -226,7 +226,7 @@ func TestIntegration_TopologyAt_Impact(t *testing.T) {
 		c, rec := newDepCtx(t, http.MethodGet, "/topology/impact",
 			fix.tenantID, fix.userID, nil)
 		rootID := openapi_types.UUID(fix.assetA)
-		dir := Downstream
+		dir := GetTopologyImpactParamsDirectionDownstream
 		params := GetTopologyImpactParams{
 			RootAssetId: rootID,
 			Direction:   &dir,

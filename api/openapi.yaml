@@ -1997,6 +1997,378 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # --------------------------------------------------------------------------
+  # Wave 5.2: Problems (ITIL Problem Management).
+  # A Problem is the underlying root cause of one-or-more Incidents. M:N
+  # linkage with incidents, separate lifecycle (open → investigating →
+  # known_error → resolved → closed).
+  # --------------------------------------------------------------------------
+
+  /problems:
+    get:
+      operationId: listProblems
+      tags: [problems]
+      summary: List problems
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: priority
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated problem list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Problem' }
+                  pagination: { $ref: '#/components/schemas/Pagination' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+    post:
+      operationId: createProblem
+      tags: [problems]
+      summary: Create a problem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:        { type: string }
+                description:  { type: string }
+                severity:     { type: string }
+                priority:     { type: string }
+                workaround:   { type: string }
+                assignee_user_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Problem created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Problem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /problems/{id}:
+    get:
+      operationId: getProblem
+      tags: [problems]
+      summary: Get a problem by ID
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Problem detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Problem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateProblem
+      tags: [problems]
+      summary: Update non-status fields on a problem
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:        { type: string }
+                description:  { type: string }
+                severity:     { type: string }
+                priority:     { type: string }
+                workaround:   { type: string }
+                root_cause:   { type: string }
+                resolution:   { type: string }
+                assignee_user_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Problem updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Problem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /problems/{id}/start-investigating:
+    post:
+      operationId: startInvestigatingProblem
+      tags: [problems]
+      summary: open → investigating
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '200':
+          description: Problem now investigating
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Problem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /problems/{id}/known-error:
+    post:
+      operationId: markProblemKnownError
+      tags: [problems]
+      summary: investigating → known_error (workaround required)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workaround]
+              properties:
+                workaround: { type: string }
+                note:       { type: string }
+      responses:
+        '200':
+          description: Problem marked as known error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Problem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /problems/{id}/resolve:
+    post:
+      operationId: resolveProblem
+      tags: [problems]
+      summary: investigating|known_error → resolved
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                root_cause: { type: string }
+                resolution: { type: string }
+                note:       { type: string }
+      responses:
+        '200':
+          description: Problem resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Problem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /problems/{id}/close:
+    post:
+      operationId: closeProblem
+      tags: [problems]
+      summary: resolved → closed (post-mortem lock)
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Problem closed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Problem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /problems/{id}/reopen:
+    post:
+      operationId: reopenProblem
+      tags: [problems]
+      summary: resolved → investigating
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: Problem reopened
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Problem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /problems/{id}/comments:
+    get:
+      operationId: listProblemComments
+      tags: [problems]
+      summary: Activity timeline for a problem
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Comments oldest-first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ProblemComment' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+    post:
+      operationId: createProblemComment
+      tags: [problems]
+      summary: Append a human comment
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ProblemComment' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /problems/{id}/incidents:
+    get:
+      operationId: listIncidentsForProblem
+      tags: [problems]
+      summary: Incidents this problem covers
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Linked incidents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Incident' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /monitoring/incidents/{id}/problems:
+    get:
+      operationId: listProblemsForIncident
+      tags: [monitoring]
+      summary: Problems linked to this incident
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Linked problems
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Problem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /monitoring/incidents/{id}/problems/{problemId}:
+    post:
+      operationId: linkIncidentToProblem
+      tags: [monitoring]
+      summary: Attach an incident to a problem
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: problemId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Linked
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: unlinkIncidentFromProblem
+      tags: [monitoring]
+      summary: Detach an incident from a problem
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: problemId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Unlinked
+
   /monitoring/metrics:
     get:
       operationId: queryMetrics
@@ -5707,6 +6079,54 @@ components:
         - status
         - severity
         - started_at
+
+    # ── Problem ───────────────────────────────────────────────────────
+    Problem:
+      type: object
+      description: >
+        ITIL Problem entity — the underlying root cause of one or more
+        Incidents. Separate lifecycle: open → investigating → known_error
+        (optional) → resolved → closed.
+      properties:
+        id:               { type: string, format: uuid }
+        title:            { type: string }
+        description:      { type: string, nullable: true }
+        status:
+          type: string
+          enum: [open, investigating, known_error, resolved, closed]
+        priority:
+          type: string
+          nullable: true
+          enum: [p1, p2, p3, p4]
+        severity:         { type: string }
+        root_cause:       { type: string, nullable: true }
+        workaround:       { type: string, nullable: true }
+        resolution:       { type: string, nullable: true }
+        assignee_user_id: { type: string, format: uuid, nullable: true }
+        created_by:       { type: string, format: uuid, nullable: true }
+        created_at:       { type: string, format: date-time }
+        updated_at:       { type: string, format: date-time, nullable: true }
+        resolved_at:      { type: string, format: date-time, nullable: true }
+        resolved_by:      { type: string, format: uuid, nullable: true }
+        closed_at:        { type: string, format: date-time, nullable: true }
+      required: [id, title, status, severity, created_at]
+
+    # ── ProblemComment ────────────────────────────────────────────────
+    ProblemComment:
+      type: object
+      description: >
+        Activity-feed entry on a problem. Same shape as IncidentComment.
+      properties:
+        id:           { type: string, format: uuid }
+        problem_id:   { type: string, format: uuid }
+        author_id:    { type: string, format: uuid, nullable: true }
+        author_username: { type: string, nullable: true }
+        kind:
+          type: string
+          enum: [human, system]
+        body:         { type: string }
+        created_at:   { type: string, format: date-time }
+      required: [id, problem_id, kind, body, created_at]
 
     # ── IncidentComment ───────────────────────────────────────────────
     IncidentComment:

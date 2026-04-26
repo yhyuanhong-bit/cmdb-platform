@@ -296,22 +296,22 @@ func (e ImpactEdgeDirection) Valid() bool {
 
 // Defines values for IncidentPriority.
 const (
-	P1 IncidentPriority = "p1"
-	P2 IncidentPriority = "p2"
-	P3 IncidentPriority = "p3"
-	P4 IncidentPriority = "p4"
+	IncidentPriorityP1 IncidentPriority = "p1"
+	IncidentPriorityP2 IncidentPriority = "p2"
+	IncidentPriorityP3 IncidentPriority = "p3"
+	IncidentPriorityP4 IncidentPriority = "p4"
 )
 
 // Valid indicates whether the value is a known member of the IncidentPriority enum.
 func (e IncidentPriority) Valid() bool {
 	switch e {
-	case P1:
+	case IncidentPriorityP1:
 		return true
-	case P2:
+	case IncidentPriorityP2:
 		return true
-	case P3:
+	case IncidentPriorityP3:
 		return true
-	case P4:
+	case IncidentPriorityP4:
 		return true
 	default:
 		return false
@@ -381,6 +381,75 @@ func (e LocationAnomalySeverity) Valid() bool {
 	case LocationAnomalySeverityLow:
 		return true
 	case LocationAnomalySeverityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProblemPriority.
+const (
+	ProblemPriorityP1 ProblemPriority = "p1"
+	ProblemPriorityP2 ProblemPriority = "p2"
+	ProblemPriorityP3 ProblemPriority = "p3"
+	ProblemPriorityP4 ProblemPriority = "p4"
+)
+
+// Valid indicates whether the value is a known member of the ProblemPriority enum.
+func (e ProblemPriority) Valid() bool {
+	switch e {
+	case ProblemPriorityP1:
+		return true
+	case ProblemPriorityP2:
+		return true
+	case ProblemPriorityP3:
+		return true
+	case ProblemPriorityP4:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProblemStatus.
+const (
+	ProblemStatusClosed        ProblemStatus = "closed"
+	ProblemStatusInvestigating ProblemStatus = "investigating"
+	ProblemStatusKnownError    ProblemStatus = "known_error"
+	ProblemStatusOpen          ProblemStatus = "open"
+	ProblemStatusResolved      ProblemStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the ProblemStatus enum.
+func (e ProblemStatus) Valid() bool {
+	switch e {
+	case ProblemStatusClosed:
+		return true
+	case ProblemStatusInvestigating:
+		return true
+	case ProblemStatusKnownError:
+		return true
+	case ProblemStatusOpen:
+		return true
+	case ProblemStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProblemCommentKind.
+const (
+	ProblemCommentKindHuman  ProblemCommentKind = "human"
+	ProblemCommentKindSystem ProblemCommentKind = "system"
+)
+
+// Valid indicates whether the value is a known member of the ProblemCommentKind enum.
+func (e ProblemCommentKind) Valid() bool {
+	switch e {
+	case ProblemCommentKindHuman:
+		return true
+	case ProblemCommentKindSystem:
 		return true
 	default:
 		return false
@@ -611,19 +680,19 @@ func (e QualityFlagListItemStatus) Valid() bool {
 
 // Defines values for QualityFlagResolveStatus.
 const (
-	QualityFlagResolveStatusAcknowledged QualityFlagResolveStatus = "acknowledged"
-	QualityFlagResolveStatusRejected     QualityFlagResolveStatus = "rejected"
-	QualityFlagResolveStatusResolved     QualityFlagResolveStatus = "resolved"
+	Acknowledged QualityFlagResolveStatus = "acknowledged"
+	Rejected     QualityFlagResolveStatus = "rejected"
+	Resolved     QualityFlagResolveStatus = "resolved"
 )
 
 // Valid indicates whether the value is a known member of the QualityFlagResolveStatus enum.
 func (e QualityFlagResolveStatus) Valid() bool {
 	switch e {
-	case QualityFlagResolveStatusAcknowledged:
+	case Acknowledged:
 		return true
-	case QualityFlagResolveStatusRejected:
+	case Rejected:
 		return true
-	case QualityFlagResolveStatusResolved:
+	case Resolved:
 		return true
 	default:
 		return false
@@ -1082,19 +1151,19 @@ func (e SyncSnapshotParamsEntityType) Valid() bool {
 
 // Defines values for GetTopologyImpactParamsDirection.
 const (
-	Both       GetTopologyImpactParamsDirection = "both"
-	Downstream GetTopologyImpactParamsDirection = "downstream"
-	Upstream   GetTopologyImpactParamsDirection = "upstream"
+	GetTopologyImpactParamsDirectionBoth       GetTopologyImpactParamsDirection = "both"
+	GetTopologyImpactParamsDirectionDownstream GetTopologyImpactParamsDirection = "downstream"
+	GetTopologyImpactParamsDirectionUpstream   GetTopologyImpactParamsDirection = "upstream"
 )
 
 // Valid indicates whether the value is a known member of the GetTopologyImpactParamsDirection enum.
 func (e GetTopologyImpactParamsDirection) Valid() bool {
 	switch e {
-	case Both:
+	case GetTopologyImpactParamsDirectionBoth:
 		return true
-	case Downstream:
+	case GetTopologyImpactParamsDirectionDownstream:
 		return true
-	case Upstream:
+	case GetTopologyImpactParamsDirectionUpstream:
 		return true
 	default:
 		return false
@@ -1770,6 +1839,46 @@ type PredictionModel struct {
 	Provider string                 `json:"provider"`
 	Type     string                 `json:"type"`
 }
+
+// Problem ITIL Problem entity — the underlying root cause of one or more Incidents. Separate lifecycle: open → investigating → known_error (optional) → resolved → closed.
+type Problem struct {
+	AssigneeUserId *openapi_types.UUID `json:"assignee_user_id,omitempty"`
+	ClosedAt       *time.Time          `json:"closed_at,omitempty"`
+	CreatedAt      time.Time           `json:"created_at"`
+	CreatedBy      *openapi_types.UUID `json:"created_by,omitempty"`
+	Description    *string             `json:"description,omitempty"`
+	Id             openapi_types.UUID  `json:"id"`
+	Priority       *ProblemPriority    `json:"priority,omitempty"`
+	Resolution     *string             `json:"resolution,omitempty"`
+	ResolvedAt     *time.Time          `json:"resolved_at,omitempty"`
+	ResolvedBy     *openapi_types.UUID `json:"resolved_by,omitempty"`
+	RootCause      *string             `json:"root_cause,omitempty"`
+	Severity       string              `json:"severity"`
+	Status         ProblemStatus       `json:"status"`
+	Title          string              `json:"title"`
+	UpdatedAt      *time.Time          `json:"updated_at,omitempty"`
+	Workaround     *string             `json:"workaround,omitempty"`
+}
+
+// ProblemPriority defines model for Problem.Priority.
+type ProblemPriority string
+
+// ProblemStatus defines model for Problem.Status.
+type ProblemStatus string
+
+// ProblemComment Activity-feed entry on a problem. Same shape as IncidentComment.
+type ProblemComment struct {
+	AuthorId       *openapi_types.UUID `json:"author_id,omitempty"`
+	AuthorUsername *string             `json:"author_username,omitempty"`
+	Body           string              `json:"body"`
+	CreatedAt      time.Time           `json:"created_at"`
+	Id             openapi_types.UUID  `json:"id"`
+	Kind           ProblemCommentKind  `json:"kind"`
+	ProblemId      openapi_types.UUID  `json:"problem_id"`
+}
+
+// ProblemCommentKind defines model for ProblemComment.Kind.
+type ProblemCommentKind string
 
 // QRAssetPayload defines model for QRAssetPayload.
 type QRAssetPayload struct {
@@ -2699,6 +2808,64 @@ type VerifyRCAJSONBody struct {
 	VerifiedBy openapi_types.UUID `json:"verified_by"`
 }
 
+// ListProblemsParams defines parameters for ListProblems.
+type ListProblemsParams struct {
+	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *PageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
+	Status   *string   `form:"status,omitempty" json:"status,omitempty"`
+	Priority *string   `form:"priority,omitempty" json:"priority,omitempty"`
+}
+
+// CreateProblemJSONBody defines parameters for CreateProblem.
+type CreateProblemJSONBody struct {
+	AssigneeUserId *openapi_types.UUID `json:"assignee_user_id,omitempty"`
+	Description    *string             `json:"description,omitempty"`
+	Priority       *string             `json:"priority,omitempty"`
+	Severity       *string             `json:"severity,omitempty"`
+	Title          string              `json:"title"`
+	Workaround     *string             `json:"workaround,omitempty"`
+}
+
+// UpdateProblemJSONBody defines parameters for UpdateProblem.
+type UpdateProblemJSONBody struct {
+	AssigneeUserId *openapi_types.UUID `json:"assignee_user_id,omitempty"`
+	Description    *string             `json:"description,omitempty"`
+	Priority       *string             `json:"priority,omitempty"`
+	Resolution     *string             `json:"resolution,omitempty"`
+	RootCause      *string             `json:"root_cause,omitempty"`
+	Severity       *string             `json:"severity,omitempty"`
+	Title          *string             `json:"title,omitempty"`
+	Workaround     *string             `json:"workaround,omitempty"`
+}
+
+// CreateProblemCommentJSONBody defines parameters for CreateProblemComment.
+type CreateProblemCommentJSONBody struct {
+	Body string `json:"body"`
+}
+
+// MarkProblemKnownErrorJSONBody defines parameters for MarkProblemKnownError.
+type MarkProblemKnownErrorJSONBody struct {
+	Note       *string `json:"note,omitempty"`
+	Workaround string  `json:"workaround"`
+}
+
+// ReopenProblemJSONBody defines parameters for ReopenProblem.
+type ReopenProblemJSONBody struct {
+	Reason *string `json:"reason,omitempty"`
+}
+
+// ResolveProblemJSONBody defines parameters for ResolveProblem.
+type ResolveProblemJSONBody struct {
+	Note       *string `json:"note,omitempty"`
+	Resolution *string `json:"resolution,omitempty"`
+	RootCause  *string `json:"root_cause,omitempty"`
+}
+
+// StartInvestigatingProblemJSONBody defines parameters for StartInvestigatingProblem.
+type StartInvestigatingProblemJSONBody struct {
+	Note *string `json:"note,omitempty"`
+}
+
 // CreateRackJSONBody defines parameters for CreateRack.
 type CreateRackJSONBody struct {
 	LocationId      openapi_types.UUID `json:"location_id"`
@@ -2954,6 +3121,27 @@ type CreateRCAJSONRequestBody CreateRCAJSONBody
 
 // VerifyRCAJSONRequestBody defines body for VerifyRCA for application/json ContentType.
 type VerifyRCAJSONRequestBody VerifyRCAJSONBody
+
+// CreateProblemJSONRequestBody defines body for CreateProblem for application/json ContentType.
+type CreateProblemJSONRequestBody CreateProblemJSONBody
+
+// UpdateProblemJSONRequestBody defines body for UpdateProblem for application/json ContentType.
+type UpdateProblemJSONRequestBody UpdateProblemJSONBody
+
+// CreateProblemCommentJSONRequestBody defines body for CreateProblemComment for application/json ContentType.
+type CreateProblemCommentJSONRequestBody CreateProblemCommentJSONBody
+
+// MarkProblemKnownErrorJSONRequestBody defines body for MarkProblemKnownError for application/json ContentType.
+type MarkProblemKnownErrorJSONRequestBody MarkProblemKnownErrorJSONBody
+
+// ReopenProblemJSONRequestBody defines body for ReopenProblem for application/json ContentType.
+type ReopenProblemJSONRequestBody ReopenProblemJSONBody
+
+// ResolveProblemJSONRequestBody defines body for ResolveProblem for application/json ContentType.
+type ResolveProblemJSONRequestBody ResolveProblemJSONBody
+
+// StartInvestigatingProblemJSONRequestBody defines body for StartInvestigatingProblem for application/json ContentType.
+type StartInvestigatingProblemJSONRequestBody StartInvestigatingProblemJSONBody
 
 // FlagQualityIssueJSONRequestBody defines body for FlagQualityIssue for application/json ContentType.
 type FlagQualityIssueJSONRequestBody = QualityFlagCreate
@@ -4193,6 +4381,15 @@ type ServerInterface interface {
 	// Append a human comment to the timeline
 	// (POST /monitoring/incidents/{id}/comments)
 	CreateIncidentComment(c *gin.Context, id IdPath)
+	// Problems linked to this incident
+	// (GET /monitoring/incidents/{id}/problems)
+	ListProblemsForIncident(c *gin.Context, id IdPath)
+	// Detach an incident from a problem
+	// (DELETE /monitoring/incidents/{id}/problems/{problemId})
+	UnlinkIncidentFromProblem(c *gin.Context, id IdPath, problemId openapi_types.UUID)
+	// Attach an incident to a problem
+	// (POST /monitoring/incidents/{id}/problems/{problemId})
+	LinkIncidentToProblem(c *gin.Context, id IdPath, problemId openapi_types.UUID)
 	// Reopen a resolved incident
 	// (POST /monitoring/incidents/{id}/reopen)
 	ReopenIncident(c *gin.Context, id IdPath)
@@ -4241,6 +4438,42 @@ type ServerInterface interface {
 	// Get remaining useful life for an asset
 	// (GET /prediction/rul/{id})
 	GetAssetRUL(c *gin.Context, id IdPath)
+	// List problems
+	// (GET /problems)
+	ListProblems(c *gin.Context, params ListProblemsParams)
+	// Create a problem
+	// (POST /problems)
+	CreateProblem(c *gin.Context)
+	// Get a problem by ID
+	// (GET /problems/{id})
+	GetProblem(c *gin.Context, id IdPath)
+	// Update non-status fields on a problem
+	// (PUT /problems/{id})
+	UpdateProblem(c *gin.Context, id IdPath)
+	// resolved → closed (post-mortem lock)
+	// (POST /problems/{id}/close)
+	CloseProblem(c *gin.Context, id IdPath)
+	// Activity timeline for a problem
+	// (GET /problems/{id}/comments)
+	ListProblemComments(c *gin.Context, id IdPath)
+	// Append a human comment
+	// (POST /problems/{id}/comments)
+	CreateProblemComment(c *gin.Context, id IdPath)
+	// Incidents this problem covers
+	// (GET /problems/{id}/incidents)
+	ListIncidentsForProblem(c *gin.Context, id IdPath)
+	// investigating → known_error (workaround required)
+	// (POST /problems/{id}/known-error)
+	MarkProblemKnownError(c *gin.Context, id IdPath)
+	// resolved → investigating
+	// (POST /problems/{id}/reopen)
+	ReopenProblem(c *gin.Context, id IdPath)
+	// investigating|known_error → resolved
+	// (POST /problems/{id}/resolve)
+	ResolveProblem(c *gin.Context, id IdPath)
+	// open → investigating
+	// (POST /problems/{id}/start-investigating)
+	StartInvestigatingProblem(c *gin.Context, id IdPath)
 	// Get quality dashboard with aggregate scores
 	// (GET /quality/dashboard)
 	GetQualityDashboard(c *gin.Context)
@@ -7485,6 +7718,102 @@ func (siw *ServerInterfaceWrapper) CreateIncidentComment(c *gin.Context) {
 	siw.Handler.CreateIncidentComment(c, id)
 }
 
+// ListProblemsForIncident operation middleware
+func (siw *ServerInterfaceWrapper) ListProblemsForIncident(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListProblemsForIncident(c, id)
+}
+
+// UnlinkIncidentFromProblem operation middleware
+func (siw *ServerInterfaceWrapper) UnlinkIncidentFromProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "problemId" -------------
+	var problemId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "problemId", c.Param("problemId"), &problemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter problemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UnlinkIncidentFromProblem(c, id, problemId)
+}
+
+// LinkIncidentToProblem operation middleware
+func (siw *ServerInterfaceWrapper) LinkIncidentToProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "problemId" -------------
+	var problemId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "problemId", c.Param("problemId"), &problemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter problemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LinkIncidentToProblem(c, id, problemId)
+}
+
 // ReopenIncident operation middleware
 func (siw *ServerInterfaceWrapper) ReopenIncident(c *gin.Context) {
 
@@ -7871,6 +8200,333 @@ func (siw *ServerInterfaceWrapper) GetAssetRUL(c *gin.Context) {
 	}
 
 	siw.Handler.GetAssetRUL(c, id)
+}
+
+// ListProblems operation middleware
+func (siw *ServerInterfaceWrapper) ListProblems(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListProblemsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_size", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page_size: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "priority" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "priority", c.Request.URL.Query(), &params.Priority, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter priority: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListProblems(c, params)
+}
+
+// CreateProblem operation middleware
+func (siw *ServerInterfaceWrapper) CreateProblem(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateProblem(c)
+}
+
+// GetProblem operation middleware
+func (siw *ServerInterfaceWrapper) GetProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetProblem(c, id)
+}
+
+// UpdateProblem operation middleware
+func (siw *ServerInterfaceWrapper) UpdateProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateProblem(c, id)
+}
+
+// CloseProblem operation middleware
+func (siw *ServerInterfaceWrapper) CloseProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CloseProblem(c, id)
+}
+
+// ListProblemComments operation middleware
+func (siw *ServerInterfaceWrapper) ListProblemComments(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListProblemComments(c, id)
+}
+
+// CreateProblemComment operation middleware
+func (siw *ServerInterfaceWrapper) CreateProblemComment(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateProblemComment(c, id)
+}
+
+// ListIncidentsForProblem operation middleware
+func (siw *ServerInterfaceWrapper) ListIncidentsForProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListIncidentsForProblem(c, id)
+}
+
+// MarkProblemKnownError operation middleware
+func (siw *ServerInterfaceWrapper) MarkProblemKnownError(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkProblemKnownError(c, id)
+}
+
+// ReopenProblem operation middleware
+func (siw *ServerInterfaceWrapper) ReopenProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReopenProblem(c, id)
+}
+
+// ResolveProblem operation middleware
+func (siw *ServerInterfaceWrapper) ResolveProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResolveProblem(c, id)
+}
+
+// StartInvestigatingProblem operation middleware
+func (siw *ServerInterfaceWrapper) StartInvestigatingProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.StartInvestigatingProblem(c, id)
 }
 
 // GetQualityDashboard operation middleware
@@ -9658,6 +10314,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/monitoring/incidents/:id/close", wrapper.CloseIncident)
 	router.GET(options.BaseURL+"/monitoring/incidents/:id/comments", wrapper.ListIncidentComments)
 	router.POST(options.BaseURL+"/monitoring/incidents/:id/comments", wrapper.CreateIncidentComment)
+	router.GET(options.BaseURL+"/monitoring/incidents/:id/problems", wrapper.ListProblemsForIncident)
+	router.DELETE(options.BaseURL+"/monitoring/incidents/:id/problems/:problemId", wrapper.UnlinkIncidentFromProblem)
+	router.POST(options.BaseURL+"/monitoring/incidents/:id/problems/:problemId", wrapper.LinkIncidentToProblem)
 	router.POST(options.BaseURL+"/monitoring/incidents/:id/reopen", wrapper.ReopenIncident)
 	router.POST(options.BaseURL+"/monitoring/incidents/:id/resolve", wrapper.ResolveIncident)
 	router.POST(options.BaseURL+"/monitoring/incidents/:id/start-investigating", wrapper.StartInvestigatingIncident)
@@ -9674,6 +10333,18 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)
 	router.GET(options.BaseURL+"/prediction/rul/:id", wrapper.GetAssetRUL)
+	router.GET(options.BaseURL+"/problems", wrapper.ListProblems)
+	router.POST(options.BaseURL+"/problems", wrapper.CreateProblem)
+	router.GET(options.BaseURL+"/problems/:id", wrapper.GetProblem)
+	router.PUT(options.BaseURL+"/problems/:id", wrapper.UpdateProblem)
+	router.POST(options.BaseURL+"/problems/:id/close", wrapper.CloseProblem)
+	router.GET(options.BaseURL+"/problems/:id/comments", wrapper.ListProblemComments)
+	router.POST(options.BaseURL+"/problems/:id/comments", wrapper.CreateProblemComment)
+	router.GET(options.BaseURL+"/problems/:id/incidents", wrapper.ListIncidentsForProblem)
+	router.POST(options.BaseURL+"/problems/:id/known-error", wrapper.MarkProblemKnownError)
+	router.POST(options.BaseURL+"/problems/:id/reopen", wrapper.ReopenProblem)
+	router.POST(options.BaseURL+"/problems/:id/resolve", wrapper.ResolveProblem)
+	router.POST(options.BaseURL+"/problems/:id/start-investigating", wrapper.StartInvestigatingProblem)
 	router.GET(options.BaseURL+"/quality/dashboard", wrapper.GetQualityDashboard)
 	router.POST(options.BaseURL+"/quality/flag-issue", wrapper.FlagQualityIssue)
 	router.GET(options.BaseURL+"/quality/flags", wrapper.ListOpenQualityFlags)
