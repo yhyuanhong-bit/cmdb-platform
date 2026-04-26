@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import Icon from "../components/Icon";
 import StatusBadge from "../components/StatusBadge";
-import { useAlerts, useAcknowledgeAlert, useResolveAlert } from "../hooks/useMonitoring";
+import { useAlerts, useAcknowledgeAlert, useResolveAlert, useIncidents } from "../hooks/useMonitoring";
 import { useUrlState } from "../hooks/useUrlState";
 import { apiClient } from "../lib/api/client";
 
@@ -76,6 +76,14 @@ function MonitoringAlerts() {
   const acknowledgeAlert = useAcknowledgeAlert();
   const resolveAlert = useResolveAlert();
   const alerts = alertsResponse?.data ?? [];
+
+  // Wave 5.1b: Active incidents panel — surface incidents that are not yet
+  // closed so the operator can pivot to the new IncidentDetail page. We do
+  // a single fetch (no status filter) and gate client-side because the
+  // count is small and the API doesn't support `status NOT closed`.
+  const { data: incidentsResponse } = useIncidents();
+  const allIncidents = incidentsResponse?.data ?? [];
+  const activeIncidents = allIncidents.filter((i) => i.status !== 'closed').slice(0, 5);
 
   const { data: trendData } = useQuery({
     queryKey: ['alertsTrend'],
@@ -210,6 +218,56 @@ function MonitoringAlerts() {
         />
         <SummaryCard label={t('common.info')} count={alerts.filter(a => a.severity?.toLowerCase() === 'info').length} color="text-primary" icon="info" />
       </div>
+
+      {/* ── Active incidents (Wave 5.1b cross-page nav) ── */}
+      {activeIncidents.length > 0 && (
+        <section className="rounded-lg bg-surface-container p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-label text-[0.6875rem] uppercase tracking-[0.08em] text-on-surface-variant">
+              {t('monitoring.section_active_incidents', 'Active Incidents')}
+            </h2>
+            <span className="text-xs text-on-surface-variant">
+              {t('monitoring.active_incidents_count', { defaultValue: '{{count}} of {{total}}', count: activeIncidents.length, total: allIncidents.length })}
+            </span>
+          </div>
+          <ul className="space-y-2">
+            {activeIncidents.map((inc) => {
+              const statusColor =
+                inc.status === 'open' ? 'bg-red-500/20 text-red-400' :
+                inc.status === 'acknowledged' ? 'bg-blue-500/20 text-blue-400' :
+                inc.status === 'investigating' ? 'bg-amber-500/20 text-amber-400' :
+                inc.status === 'resolved' ? 'bg-emerald-500/20 text-emerald-400' :
+                'bg-surface-container-highest text-on-surface-variant'
+              return (
+                <li key={inc.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/monitoring/incidents/${inc.id}`)}
+                    className="w-full flex items-center justify-between rounded-lg bg-surface-container-low p-3 hover:bg-surface-container-high transition-colors text-left"
+                    aria-label={`Open incident ${inc.title}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-primary truncate">{inc.title}</p>
+                      <p className="text-xs text-on-surface-variant">
+                        {new Date(inc.started_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`px-2 py-0.5 rounded text-[0.625rem] font-semibold uppercase tracking-wider ${statusColor}`}>
+                        {inc.status}
+                      </span>
+                      <span className="text-[0.625rem] text-on-surface-variant uppercase tracking-wider">
+                        {inc.severity}
+                      </span>
+                      <Icon name="chevron_right" className="text-[18px] text-on-surface-variant" />
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* ── Alert Table ── */}
       <div className="overflow-x-auto rounded-lg bg-surface-container">

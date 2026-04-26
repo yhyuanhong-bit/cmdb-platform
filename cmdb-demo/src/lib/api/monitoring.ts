@@ -15,13 +15,46 @@ export interface AlertRule {
   created_at?: string
 }
 
+/** Incident lifecycle status — matches the DB CHECK constraint and the
+ *  state machine enforced in monitoring.Service. The UI uses this to
+ *  decide which lifecycle actions are reachable from the current state. */
+export type IncidentStatus =
+  | 'open'
+  | 'acknowledged'
+  | 'investigating'
+  | 'resolved'
+  | 'closed'
+
+export type IncidentPriority = 'p1' | 'p2' | 'p3' | 'p4'
+
 export interface Incident {
   id: string
   title: string
-  status: string
+  status: IncidentStatus
   severity: string
+  priority?: IncidentPriority | null
+  description?: string | null
+  impact?: string | null
+  root_cause?: string | null
+  assignee_user_id?: string | null
+  affected_asset_id?: string | null
+  affected_service_id?: string | null
+  acknowledged_at?: string | null
+  acknowledged_by?: string | null
+  resolved_by?: string | null
   started_at: string
   resolved_at: string | null
+  updated_at?: string | null
+}
+
+export interface IncidentComment {
+  id: string
+  incident_id: string
+  author_id?: string | null
+  author_username?: string | null
+  kind: 'human' | 'system'
+  body: string
+  created_at: string
 }
 
 export interface FleetMetrics {
@@ -74,6 +107,27 @@ export const monitoringApi = {
     apiClient.get<ApiResponse<Incident>>(`/monitoring/incidents/${id}`),
   updateIncident: (id: string, data: UpdateIncidentInput) =>
     apiClient.put<ApiResponse<Incident>>(`/monitoring/incidents/${id}`, data),
+
+  // Wave 5.1: lifecycle transitions. Each is a dedicated POST so the
+  // state-machine guard is visible at the URL level; the backend returns
+  // 409 INCIDENT_INVALID_TRANSITION if the source state isn't allowed.
+  acknowledgeIncident: (id: string, note?: string) =>
+    apiClient.post<ApiResponse<Incident>>(`/monitoring/incidents/${id}/acknowledge`, { note: note ?? '' }),
+  startInvestigatingIncident: (id: string) =>
+    apiClient.post<ApiResponse<Incident>>(`/monitoring/incidents/${id}/start-investigating`),
+  resolveIncident: (id: string, rootCause?: string, note?: string) =>
+    apiClient.post<ApiResponse<Incident>>(`/monitoring/incidents/${id}/resolve`, { root_cause: rootCause ?? '', note: note ?? '' }),
+  closeIncident: (id: string) =>
+    apiClient.post<ApiResponse<Incident>>(`/monitoring/incidents/${id}/close`),
+  reopenIncident: (id: string, reason?: string) =>
+    apiClient.post<ApiResponse<Incident>>(`/monitoring/incidents/${id}/reopen`, { reason: reason ?? '' }),
+
+  // Activity timeline (system + human comments).
+  listIncidentComments: (id: string) =>
+    apiClient.get<ApiResponse<IncidentComment[]>>(`/monitoring/incidents/${id}/comments`),
+  createIncidentComment: (id: string, body: string) =>
+    apiClient.post<ApiResponse<IncidentComment>>(`/monitoring/incidents/${id}/comments`, { body }),
+
   updateAlertRule: (id: string, data: Partial<CreateAlertRuleInput>) =>
     apiClient.put<ApiResponse<AlertRule>>(`/monitoring/rules/${id}`, data),
   deleteAlertRule: (id: string) =>

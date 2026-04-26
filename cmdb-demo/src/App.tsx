@@ -37,6 +37,7 @@ const InventoryItemDetail = lazy(() => import('./pages/InventoryItemDetail'))
 
 // Monitoring (unified energy)
 const MonitoringAlerts = lazy(() => import('./pages/MonitoringAlerts'))
+const IncidentDetail = lazy(() => import('./pages/IncidentDetail'))
 const SystemHealth = lazy(() => import('./pages/SystemHealth'))
 const SensorConfiguration = lazy(() => import('./pages/SensorConfiguration'))
 const EnergyMonitor = lazy(() => import('./pages/EnergyMonitor'))
@@ -143,6 +144,7 @@ export default function App() {
 
           {/* Monitoring */}
           <Route path="/monitoring" element={<MonitoringAlerts />} />
+          <Route path="/monitoring/incidents/:id" element={<IncidentDetail />} />
           <Route path="/monitoring/health" element={<SystemHealth />} />
           <Route path="/monitoring/sensors" element={<SensorConfiguration />} />
           <Route path="/monitoring/energy" element={<EnergyMonitor />} />
