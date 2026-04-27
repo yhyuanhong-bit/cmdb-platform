@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -189,9 +190,9 @@ func (s *Service) UpdateTariff(ctx context.Context, p UpdateTariffParams) (*dbge
 		// pgtype.Date zero value is invalid, so passing it through
 		// COALESCE keeps the existing value. Direct UPDATE for the
 		// clear-to-NULL case:
-		if _, err := s.pool.Exec(ctx,
-			`UPDATE energy_tariffs SET effective_to = NULL, updated_at = now() WHERE id = $1 AND tenant_id = $2`,
-			p.ID, p.TenantID,
+		if _, err := database.Scope(s.pool, p.TenantID).Exec(ctx,
+			`UPDATE energy_tariffs SET effective_to = NULL, updated_at = now() WHERE tenant_id = $1 AND id = $2`,
+			p.ID,
 		); err != nil {
 			return nil, fmt.Errorf("clear effective_to: %w", err)
 		}
@@ -317,14 +318,14 @@ func (s *Service) AggregateRange(ctx context.Context, tenantID uuid.UUID, dayFro
 	if to.Before(from) {
 		return 0, ErrInvalidRange
 	}
-	rows, err := s.pool.Query(ctx, `
+	rows, err := database.Scope(s.pool, tenantID).Query(ctx, `
 		SELECT DISTINCT m.asset_id
 		FROM metrics m
 		WHERE m.tenant_id = $1
 		  AND m.name = 'power_kw'
 		  AND m.time >= $2::date
 		  AND m.time <  ($3::date + INTERVAL '1 day')
-	`, tenantID, from, to)
+	`, from, to)
 	if err != nil {
 		return 0, fmt.Errorf("scan assets: %w", err)
 	}

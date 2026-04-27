@@ -33,6 +33,7 @@ import (
 	"fmt"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -532,9 +533,9 @@ func (s *Service) LinkAsset(ctx context.Context, tenantID, changeID, assetID uui
 	// direct GetAsset that respects tenant + soft-delete in queries.sql,
 	// so a count via SELECT is the simplest correct check).
 	var n int
-	row := s.pool.QueryRow(ctx,
-		`SELECT count(*) FROM assets WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
-		assetID, tenantID,
+	row := database.Scope(s.pool, tenantID).QueryRow(ctx,
+		`SELECT count(*) FROM assets WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+		assetID,
 	)
 	if err := row.Scan(&n); err != nil {
 		return fmt.Errorf("verify asset: %w", err)
@@ -564,9 +565,9 @@ func (s *Service) LinkService(ctx context.Context, tenantID, changeID, serviceID
 		return err
 	}
 	var n int
-	if err := s.pool.QueryRow(ctx,
-		`SELECT count(*) FROM services WHERE id = $1 AND tenant_id = $2`,
-		serviceID, tenantID,
+	if err := database.Scope(s.pool, tenantID).QueryRow(ctx,
+		`SELECT count(*) FROM services WHERE tenant_id = $1 AND id = $2`,
+		serviceID,
 	).Scan(&n); err != nil {
 		return fmt.Errorf("verify service: %w", err)
 	}

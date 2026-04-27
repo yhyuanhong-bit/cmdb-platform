@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -276,9 +277,9 @@ func (s *Service) RunDailyTick(ctx context.Context, anomalyCfg AnomalyConfig) Sc
 		// Best-effort count via re-querying — if this errors we still log
 		// the tick result; the count is informational.
 		var nLoc int
-		_ = s.pool.QueryRow(ctx,
+		_ = database.Scope(s.pool, tenantID).QueryRow(ctx,
 			`SELECT count(*) FROM energy_location_daily WHERE tenant_id=$1 AND day=$2`,
-			tenantID, yesterday,
+			yesterday,
 		).Scan(&nLoc)
 		res.LocationsRolled += nLoc
 

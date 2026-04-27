@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -195,11 +196,12 @@ func (b *incidentBridge) linkOrCreate(
 // the underlying problem is fixed (e.g. a flapping CPU spike); the
 // operator decides when to flip the incident.
 func (b *incidentBridge) commentOnResolved(ctx context.Context, tenantID, alertID uuid.UUID, message string) error {
+	scoped := database.Scope(b.pool, tenantID)
 	var incidentID *uuid.UUID
-	if err := b.pool.QueryRow(ctx, `
+	if err := scoped.QueryRow(ctx, `
 		SELECT incident_id FROM alert_events
-		WHERE id = $1 AND tenant_id = $2
-	`, alertID, tenantID).Scan(&incidentID); err != nil {
+		WHERE tenant_id = $1 AND id = $2
+	`, alertID).Scan(&incidentID); err != nil {
 		return fmt.Errorf("look up alert linkage: %w", err)
 	}
 	if incidentID == nil {
@@ -207,10 +209,10 @@ func (b *incidentBridge) commentOnResolved(ctx context.Context, tenantID, alertI
 		return nil
 	}
 
-	if _, err := b.pool.Exec(ctx, `
+	if _, err := scoped.Exec(ctx, `
 		INSERT INTO incident_comments (tenant_id, incident_id, author_id, kind, body)
 		VALUES ($1, $2, NULL, 'system', $3)
-	`, tenantID, *incidentID, "alert resolved: "+message); err != nil {
+	`, *incidentID, "alert resolved: "+message); err != nil {
 		return fmt.Errorf("write resolved comment: %w", err)
 	}
 	return nil
