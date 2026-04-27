@@ -196,9 +196,24 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
+      # W11: lockfile freshness gate. requirements.txt and requirements-dev.txt
+      # are pip-compile'd from pyproject.toml with --generate-hashes; if a
+      # contributor edits pyproject.toml without re-running pip-compile, the
+      # diff below is non-empty and CI fails before any test runs.
+      - name: Install pip-tools
+        run: pip install pip-tools
+
+      - name: Verify lockfile freshness
         run: |
-          pip install -e ".[dev]"
+          pip-compile --quiet --no-header --strip-extras --generate-hashes --output-file=/tmp/requirements.txt pyproject.toml
+          pip-compile --quiet --no-header --strip-extras --extra=dev --generate-hashes --output-file=/tmp/requirements-dev.txt pyproject.toml
+          diff -u requirements.txt /tmp/requirements.txt
+          diff -u requirements-dev.txt /tmp/requirements-dev.txt
+
+      - name: Install dependencies (from lockfile)
+        run: |
+          pip install --require-hashes -r requirements-dev.txt
+          pip install -e . --no-deps
 
       - name: Test (with coverage)
         run: pytest tests/ -v --tb=short --cov --cov-report=term --cov-report=xml --cov-report=html
