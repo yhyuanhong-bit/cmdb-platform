@@ -6,23 +6,53 @@ import openpyxl
 from openpyxl.styles import Alignment, Font, PatternFill
 
 ASSET_HEADERS: list[tuple[str, str, str]] = [
+    # --- Identity (required + basic identification) ---
     ("asset_tag", "Asset Tag", "SVR-001"),
     ("name", "Name", "web-server-01"),
     ("type", "Type", "server"),
     ("sub_type", "Sub Type", "rack-mount"),
     ("status", "Status", "inventoried"),
     ("bia_level", "BIA Level", "normal"),
+    # --- Hardware ---
     ("vendor", "Vendor", "Dell"),
     ("model", "Model", "PowerEdge R740"),
     ("serial_number", "Serial Number", "SN123456789"),
+    # --- Asset numbers (financial / property tracking) ---
     ("property_number", "Property Number", "PROP-2024-001"),
     ("control_number", "Control Number", "CTRL-2024-001"),
+    # --- Network ---
+    ("ip_address", "IP Address", "10.0.1.5"),
+    # --- Physical placement ---
+    ("location", "Location", "DC1-Room A"),
+    ("rack", "Rack", "R12"),
+    ("tags", "Tags", "production,critical"),
+    # --- BMC / out-of-band management ---
+    ("bmc_ip", "BMC IP", "10.0.2.5"),
+    ("bmc_type", "BMC Type", "idrac"),
+    ("bmc_firmware", "BMC Firmware", "4.40.00.00"),
+    # --- Lifecycle (drives PredictiveCapex backlog) ---
+    ("purchase_date", "Purchase Date", "2024-01-15"),
+    ("purchase_cost", "Purchase Cost", "150000.00"),
+    ("warranty_start", "Warranty Start", "2024-01-15"),
+    ("warranty_end", "Warranty End", "2027-01-15"),
+    ("warranty_vendor", "Warranty Vendor", "Dell ProSupport"),
+    ("warranty_contract", "Warranty Contract", "SVC-2024-001"),
+    ("expected_lifespan_months", "Expected Lifespan (months)", "60"),
+    ("eol_date", "EOL Date", "2029-01-15"),
 ]
 
 VALID_VALUES = {
     "type": "server, network, storage, power",
     "status": "inventoried, deployed, operational, maintenance, decommissioned",
     "bia_level": "critical, important, normal, minor",
+    "bmc_type": "idrac (Dell), ilo (HP), ipmi (generic), xclarity (Lenovo)",
+    "purchase_date": "ISO date YYYY-MM-DD",
+    "warranty_start": "ISO date YYYY-MM-DD",
+    "warranty_end": "ISO date YYYY-MM-DD",
+    "eol_date": "ISO date YYYY-MM-DD",
+    "expected_lifespan_months": "integer, e.g. 60 = 5-year lifespan",
+    "purchase_cost": "decimal, currency-agnostic",
+    "tags": "comma-separated, e.g. production,critical",
 }
 
 
