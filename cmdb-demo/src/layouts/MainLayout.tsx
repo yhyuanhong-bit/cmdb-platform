@@ -61,6 +61,8 @@ const navSections: NavSection[] = [
       { labelKey: 'nav.sub.problems', to: '/monitoring/problems' },
       { labelKey: 'nav.sub.changes', to: '/monitoring/changes' },
       { labelKey: 'nav.sub.energy_bill', to: '/monitoring/energy/bill' },
+      { labelKey: 'nav.sub.energy_pue', to: '/monitoring/energy/pue' },
+      { labelKey: 'nav.sub.energy_anomalies', to: '/monitoring/energy/anomalies' },
       { labelKey: 'nav.sub.energy_tariffs', to: '/monitoring/energy/tariffs' },
       { labelKey: 'nav.sub.sys_health', to: '/monitoring/health' },
       { labelKey: 'nav.sub.topology', to: '/monitoring/topology' },
