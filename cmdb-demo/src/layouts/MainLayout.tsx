@@ -59,6 +59,7 @@ const navSections: NavSection[] = [
     children: [
       { labelKey: 'nav.sub.alert_list', to: '/monitoring' },
       { labelKey: 'nav.sub.problems', to: '/monitoring/problems' },
+      { labelKey: 'nav.sub.changes', to: '/monitoring/changes' },
       { labelKey: 'nav.sub.sys_health', to: '/monitoring/health' },
       { labelKey: 'nav.sub.topology', to: '/monitoring/topology' },
       { labelKey: 'nav.sub.sensor_config', to: '/monitoring/sensors' },

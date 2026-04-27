@@ -40,6 +40,8 @@ const MonitoringAlerts = lazy(() => import('./pages/MonitoringAlerts'))
 const IncidentDetail = lazy(() => import('./pages/IncidentDetail'))
 const Problems = lazy(() => import('./pages/Problems'))
 const ProblemDetail = lazy(() => import('./pages/ProblemDetail'))
+const Changes = lazy(() => import('./pages/Changes'))
+const ChangeDetail = lazy(() => import('./pages/ChangeDetail'))
 const SystemHealth = lazy(() => import('./pages/SystemHealth'))
 const SensorConfiguration = lazy(() => import('./pages/SensorConfiguration'))
 const EnergyMonitor = lazy(() => import('./pages/EnergyMonitor'))
@@ -149,6 +151,8 @@ export default function App() {
           <Route path="/monitoring/incidents/:id" element={<IncidentDetail />} />
           <Route path="/monitoring/problems" element={<Problems />} />
           <Route path="/monitoring/problems/:id" element={<ProblemDetail />} />
+          <Route path="/monitoring/changes" element={<Changes />} />
+          <Route path="/monitoring/changes/:id" element={<ChangeDetail />} />
           <Route path="/monitoring/health" element={<SystemHealth />} />
           <Route path="/monitoring/sensors" element={<SensorConfiguration />} />
           <Route path="/monitoring/energy" element={<EnergyMonitor />} />
