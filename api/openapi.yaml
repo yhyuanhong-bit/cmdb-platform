@@ -3123,6 +3123,117 @@ paths:
                     items: { $ref: '#/components/schemas/EnergyDailyKwh' }
                   meta: { $ref: '#/components/schemas/Meta' }
 
+  # ----------------------------------------------------------------------
+  # Wave 6.2: PUE per location + asset anomaly review.
+  # ----------------------------------------------------------------------
+
+  /energy/pue:
+    get:
+      operationId: listEnergyPue
+      tags: [energy]
+      summary: Per-location daily PUE
+      description: >
+        Returns per-(location, day) rows with IT vs non-IT kWh split and
+        the computed PUE. PUE = total_kwh / it_kwh, NULL when it_kwh = 0
+        (operator should treat NULL as "no IT load recorded" rather
+        than ∞).
+      parameters:
+        - name: day_from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: day_to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: location_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: PUE rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/EnergyLocationPue' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /energy/anomalies:
+    get:
+      operationId: listEnergyAnomalies
+      tags: [energy]
+      summary: Asset-day anomalies flagged by the detector
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, ack, resolved]
+        - name: day_from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: day_to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Paginated anomaly list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/EnergyAnomaly' }
+                  pagination: { $ref: '#/components/schemas/Pagination' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /energy/anomalies/{assetId}/{day}/transition:
+    post:
+      operationId: transitionEnergyAnomaly
+      tags: [energy]
+      summary: Transition an anomaly's status (open/ack/resolved)
+      parameters:
+        - name: assetId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: day
+          in: path
+          required: true
+          schema: { type: string, format: date }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [open, ack, resolved] }
+                note:   { type: string }
+      responses:
+        '200':
+          description: Anomaly updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/EnergyAnomaly' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /energy/billing/bill:
     get:
       operationId: getEnergyBill
@@ -6812,6 +6923,46 @@ components:
         cost:         { type: string }
         currency:     { type: string }
       required: [asset_id, kwh, rate_per_kwh, cost, currency]
+
+    EnergyLocationPue:
+      type: object
+      description: Per-(location, day) IT/non-IT kWh + computed PUE.
+      properties:
+        location_id:        { type: string, format: uuid }
+        location_name:      { type: string, nullable: true }
+        location_level:     { type: string, nullable: true }
+        day:                { type: string, format: date }
+        it_kwh:             { type: string }
+        non_it_kwh:         { type: string }
+        total_kwh:          { type: string }
+        it_asset_count:     { type: integer }
+        non_it_asset_count: { type: integer }
+        pue:
+          type: string
+          nullable: true
+          description: total / IT, NULL when IT kWh is zero
+        computed_at:        { type: string, format: date-time }
+      required: [location_id, day, it_kwh, non_it_kwh, total_kwh, it_asset_count, non_it_asset_count]
+
+    EnergyAnomaly:
+      type: object
+      description: One asset-day flagged by the rule-based detector.
+      properties:
+        asset_id:        { type: string, format: uuid }
+        asset_tag:       { type: string, nullable: true }
+        asset_name:      { type: string, nullable: true }
+        location_id:     { type: string, format: uuid, nullable: true }
+        day:             { type: string, format: date }
+        kind:            { type: string, enum: [high, low] }
+        baseline_median: { type: string }
+        observed_kwh:    { type: string }
+        score:           { type: string }
+        status:          { type: string, enum: [open, ack, resolved] }
+        detected_at:     { type: string, format: date-time }
+        reviewed_by:     { type: string, format: uuid, nullable: true }
+        reviewed_at:     { type: string, format: date-time, nullable: true }
+        note:            { type: string, nullable: true }
+      required: [asset_id, day, kind, baseline_median, observed_kwh, score, status, detected_at]
 
     EnergyBill:
       type: object

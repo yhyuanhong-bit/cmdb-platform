@@ -396,6 +396,45 @@ func (e DiscoveredAssetStatus) Valid() bool {
 	}
 }
 
+// Defines values for EnergyAnomalyKind.
+const (
+	EnergyAnomalyKindHigh EnergyAnomalyKind = "high"
+	EnergyAnomalyKindLow  EnergyAnomalyKind = "low"
+)
+
+// Valid indicates whether the value is a known member of the EnergyAnomalyKind enum.
+func (e EnergyAnomalyKind) Valid() bool {
+	switch e {
+	case EnergyAnomalyKindHigh:
+		return true
+	case EnergyAnomalyKindLow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EnergyAnomalyStatus.
+const (
+	EnergyAnomalyStatusAck      EnergyAnomalyStatus = "ack"
+	EnergyAnomalyStatusOpen     EnergyAnomalyStatus = "open"
+	EnergyAnomalyStatusResolved EnergyAnomalyStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the EnergyAnomalyStatus enum.
+func (e EnergyAnomalyStatus) Valid() bool {
+	switch e {
+	case EnergyAnomalyStatusAck:
+		return true
+	case EnergyAnomalyStatusOpen:
+		return true
+	case EnergyAnomalyStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImpactEdgeDirection.
 const (
 	ImpactEdgeDirectionDownstream ImpactEdgeDirection = "downstream"
@@ -800,19 +839,19 @@ func (e QualityFlagListItemStatus) Valid() bool {
 
 // Defines values for QualityFlagResolveStatus.
 const (
-	Acknowledged QualityFlagResolveStatus = "acknowledged"
-	Rejected     QualityFlagResolveStatus = "rejected"
-	Resolved     QualityFlagResolveStatus = "resolved"
+	QualityFlagResolveStatusAcknowledged QualityFlagResolveStatus = "acknowledged"
+	QualityFlagResolveStatusRejected     QualityFlagResolveStatus = "rejected"
+	QualityFlagResolveStatusResolved     QualityFlagResolveStatus = "resolved"
 )
 
 // Valid indicates whether the value is a known member of the QualityFlagResolveStatus enum.
 func (e QualityFlagResolveStatus) Valid() bool {
 	switch e {
-	case Acknowledged:
+	case QualityFlagResolveStatusAcknowledged:
 		return true
-	case Rejected:
+	case QualityFlagResolveStatusRejected:
 		return true
-	case Resolved:
+	case QualityFlagResolveStatusResolved:
 		return true
 	default:
 		return false
@@ -1097,19 +1136,19 @@ func (e CreateChangeJSONBodyRisk) Valid() bool {
 
 // Defines values for CreateChangeJSONBodyType.
 const (
-	Emergency CreateChangeJSONBodyType = "emergency"
-	Normal    CreateChangeJSONBodyType = "normal"
-	Standard  CreateChangeJSONBodyType = "standard"
+	CreateChangeJSONBodyTypeEmergency CreateChangeJSONBodyType = "emergency"
+	CreateChangeJSONBodyTypeNormal    CreateChangeJSONBodyType = "normal"
+	CreateChangeJSONBodyTypeStandard  CreateChangeJSONBodyType = "standard"
 )
 
 // Valid indicates whether the value is a known member of the CreateChangeJSONBodyType enum.
 func (e CreateChangeJSONBodyType) Valid() bool {
 	switch e {
-	case Emergency:
+	case CreateChangeJSONBodyTypeEmergency:
 		return true
-	case Normal:
+	case CreateChangeJSONBodyTypeNormal:
 		return true
-	case Standard:
+	case CreateChangeJSONBodyTypeStandard:
 		return true
 	default:
 		return false
@@ -1179,6 +1218,48 @@ func (e IngestDiscoveredAssetJSONBodyMatchStrategy) Valid() bool {
 	case IngestDiscoveredAssetJSONBodyMatchStrategyManual:
 		return true
 	case IngestDiscoveredAssetJSONBodyMatchStrategySerialNumber:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListEnergyAnomaliesParamsStatus.
+const (
+	ListEnergyAnomaliesParamsStatusAck      ListEnergyAnomaliesParamsStatus = "ack"
+	ListEnergyAnomaliesParamsStatusOpen     ListEnergyAnomaliesParamsStatus = "open"
+	ListEnergyAnomaliesParamsStatusResolved ListEnergyAnomaliesParamsStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the ListEnergyAnomaliesParamsStatus enum.
+func (e ListEnergyAnomaliesParamsStatus) Valid() bool {
+	switch e {
+	case ListEnergyAnomaliesParamsStatusAck:
+		return true
+	case ListEnergyAnomaliesParamsStatusOpen:
+		return true
+	case ListEnergyAnomaliesParamsStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TransitionEnergyAnomalyJSONBodyStatus.
+const (
+	TransitionEnergyAnomalyJSONBodyStatusAck      TransitionEnergyAnomalyJSONBodyStatus = "ack"
+	TransitionEnergyAnomalyJSONBodyStatusOpen     TransitionEnergyAnomalyJSONBodyStatus = "open"
+	TransitionEnergyAnomalyJSONBodyStatusResolved TransitionEnergyAnomalyJSONBodyStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the TransitionEnergyAnomalyJSONBodyStatus enum.
+func (e TransitionEnergyAnomalyJSONBodyStatus) Valid() bool {
+	switch e {
+	case TransitionEnergyAnomalyJSONBodyStatusAck:
+		return true
+	case TransitionEnergyAnomalyJSONBodyStatusOpen:
+		return true
+	case TransitionEnergyAnomalyJSONBodyStatusResolved:
 		return true
 	default:
 		return false
@@ -1812,6 +1893,30 @@ type DiscoveryStats struct {
 	Total    *int `json:"total,omitempty"`
 }
 
+// EnergyAnomaly One asset-day flagged by the rule-based detector.
+type EnergyAnomaly struct {
+	AssetId        openapi_types.UUID  `json:"asset_id"`
+	AssetName      *string             `json:"asset_name,omitempty"`
+	AssetTag       *string             `json:"asset_tag,omitempty"`
+	BaselineMedian string              `json:"baseline_median"`
+	Day            openapi_types.Date  `json:"day"`
+	DetectedAt     time.Time           `json:"detected_at"`
+	Kind           EnergyAnomalyKind   `json:"kind"`
+	LocationId     *openapi_types.UUID `json:"location_id,omitempty"`
+	Note           *string             `json:"note,omitempty"`
+	ObservedKwh    string              `json:"observed_kwh"`
+	ReviewedAt     *time.Time          `json:"reviewed_at,omitempty"`
+	ReviewedBy     *openapi_types.UUID `json:"reviewed_by,omitempty"`
+	Score          string              `json:"score"`
+	Status         EnergyAnomalyStatus `json:"status"`
+}
+
+// EnergyAnomalyKind defines model for EnergyAnomaly.Kind.
+type EnergyAnomalyKind string
+
+// EnergyAnomalyStatus defines model for EnergyAnomaly.Status.
+type EnergyAnomalyStatus string
+
 // EnergyBill defines model for EnergyBill.
 type EnergyBill struct {
 	// Currency tariff currency, or 'MIXED' when assets span multiple currencies
@@ -1848,6 +1953,23 @@ type EnergyDailyKwh struct {
 	KwhTotal    string              `json:"kwh_total"`
 	LocationId  *openapi_types.UUID `json:"location_id,omitempty"`
 	SampleCount int                 `json:"sample_count"`
+}
+
+// EnergyLocationPue Per-(location, day) IT/non-IT kWh + computed PUE.
+type EnergyLocationPue struct {
+	ComputedAt      *time.Time         `json:"computed_at,omitempty"`
+	Day             openapi_types.Date `json:"day"`
+	ItAssetCount    int                `json:"it_asset_count"`
+	ItKwh           string             `json:"it_kwh"`
+	LocationId      openapi_types.UUID `json:"location_id"`
+	LocationLevel   *string            `json:"location_level,omitempty"`
+	LocationName    *string            `json:"location_name,omitempty"`
+	NonItAssetCount int                `json:"non_it_asset_count"`
+	NonItKwh        string             `json:"non_it_kwh"`
+
+	// Pue total / IT, NULL when IT kWh is zero
+	Pue      *string `json:"pue,omitempty"`
+	TotalKwh string  `json:"total_kwh"`
 }
 
 // EnergyTariff Per-location $/kWh rate valid in a date range.
@@ -2906,6 +3028,27 @@ type ListDiscoveredAssetsParams struct {
 	Status   *string   `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// ListEnergyAnomaliesParams defines parameters for ListEnergyAnomalies.
+type ListEnergyAnomaliesParams struct {
+	Page     *Page                            `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *PageSize                        `form:"page_size,omitempty" json:"page_size,omitempty"`
+	Status   *ListEnergyAnomaliesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	DayFrom  openapi_types.Date               `form:"day_from" json:"day_from"`
+	DayTo    openapi_types.Date               `form:"day_to" json:"day_to"`
+}
+
+// ListEnergyAnomaliesParamsStatus defines parameters for ListEnergyAnomalies.
+type ListEnergyAnomaliesParamsStatus string
+
+// TransitionEnergyAnomalyJSONBody defines parameters for TransitionEnergyAnomaly.
+type TransitionEnergyAnomalyJSONBody struct {
+	Note   *string                               `json:"note,omitempty"`
+	Status TransitionEnergyAnomalyJSONBodyStatus `json:"status"`
+}
+
+// TransitionEnergyAnomalyJSONBodyStatus defines parameters for TransitionEnergyAnomaly.
+type TransitionEnergyAnomalyJSONBodyStatus string
+
 // AggregateEnergyDailyJSONBody defines parameters for AggregateEnergyDaily.
 type AggregateEnergyDailyJSONBody struct {
 	DayFrom openapi_types.Date `json:"day_from"`
@@ -2949,6 +3092,13 @@ type UpdateEnergyTariffJSONBody struct {
 
 // GetEnergyBreakdownParams defines parameters for GetEnergyBreakdown.
 type GetEnergyBreakdownParams struct {
+	LocationId *openapi_types.UUID `form:"location_id,omitempty" json:"location_id,omitempty"`
+}
+
+// ListEnergyPueParams defines parameters for ListEnergyPue.
+type ListEnergyPueParams struct {
+	DayFrom    openapi_types.Date  `form:"day_from" json:"day_from"`
+	DayTo      openapi_types.Date  `form:"day_to" json:"day_to"`
 	LocationId *openapi_types.UUID `form:"location_id,omitempty" json:"location_id,omitempty"`
 }
 
@@ -3482,6 +3632,9 @@ type ApproveDiscoveredAssetJSONRequestBody = ApproveDiscoveredAssetRequest
 
 // IgnoreDiscoveredAssetJSONRequestBody defines body for IgnoreDiscoveredAsset for application/json ContentType.
 type IgnoreDiscoveredAssetJSONRequestBody = IgnoreDiscoveredAssetRequest
+
+// TransitionEnergyAnomalyJSONRequestBody defines body for TransitionEnergyAnomaly for application/json ContentType.
+type TransitionEnergyAnomalyJSONRequestBody TransitionEnergyAnomalyJSONBody
 
 // AggregateEnergyDailyJSONRequestBody defines body for AggregateEnergyDaily for application/json ContentType.
 type AggregateEnergyDailyJSONRequestBody AggregateEnergyDailyJSONBody
@@ -4694,6 +4847,12 @@ type ServerInterface interface {
 
 	// (POST /discovery/{id}/ignore)
 	IgnoreDiscoveredAsset(c *gin.Context, id IdPath)
+	// Asset-day anomalies flagged by the detector
+	// (GET /energy/anomalies)
+	ListEnergyAnomalies(c *gin.Context, params ListEnergyAnomaliesParams)
+	// Transition an anomaly's status (open/ack/resolved)
+	// (POST /energy/anomalies/{assetId}/{day}/transition)
+	TransitionEnergyAnomaly(c *gin.Context, assetId openapi_types.UUID, day openapi_types.Date)
 	// Backfill daily kWh rollups for a date range
 	// (POST /energy/billing/aggregate)
 	AggregateEnergyDaily(c *gin.Context)
@@ -4721,6 +4880,9 @@ type ServerInterface interface {
 	// Get energy breakdown by category
 	// (GET /energy/breakdown)
 	GetEnergyBreakdown(c *gin.Context, params GetEnergyBreakdownParams)
+	// Per-location daily PUE
+	// (GET /energy/pue)
+	ListEnergyPue(c *gin.Context, params ListEnergyPueParams)
 	// Get energy summary metrics
 	// (GET /energy/summary)
 	GetEnergySummary(c *gin.Context)
@@ -7153,6 +7315,115 @@ func (siw *ServerInterfaceWrapper) IgnoreDiscoveredAsset(c *gin.Context) {
 	siw.Handler.IgnoreDiscoveredAsset(c, id)
 }
 
+// ListEnergyAnomalies operation middleware
+func (siw *ServerInterfaceWrapper) ListEnergyAnomalies(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListEnergyAnomaliesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_size", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page_size: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "day_from" -------------
+
+	if paramValue := c.Query("day_from"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument day_from is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "day_from", c.Request.URL.Query(), &params.DayFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter day_from: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "day_to" -------------
+
+	if paramValue := c.Query("day_to"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument day_to is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "day_to", c.Request.URL.Query(), &params.DayTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter day_to: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListEnergyAnomalies(c, params)
+}
+
+// TransitionEnergyAnomaly operation middleware
+func (siw *ServerInterfaceWrapper) TransitionEnergyAnomaly(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", c.Param("assetId"), &assetId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter assetId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "day" -------------
+	var day openapi_types.Date
+
+	err = runtime.BindStyledParameterWithOptions("simple", "day", c.Param("day"), &day, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter day: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.TransitionEnergyAnomaly(c, assetId, day)
+}
+
 // AggregateEnergyDaily operation middleware
 func (siw *ServerInterfaceWrapper) AggregateEnergyDaily(c *gin.Context) {
 
@@ -7402,6 +7673,64 @@ func (siw *ServerInterfaceWrapper) GetEnergyBreakdown(c *gin.Context) {
 	}
 
 	siw.Handler.GetEnergyBreakdown(c, params)
+}
+
+// ListEnergyPue operation middleware
+func (siw *ServerInterfaceWrapper) ListEnergyPue(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListEnergyPueParams
+
+	// ------------- Required query parameter "day_from" -------------
+
+	if paramValue := c.Query("day_from"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument day_from is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "day_from", c.Request.URL.Query(), &params.DayFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter day_from: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "day_to" -------------
+
+	if paramValue := c.Query("day_to"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument day_to is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "day_to", c.Request.URL.Query(), &params.DayTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter day_to: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "location_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location_id", c.Request.URL.Query(), &params.LocationId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter location_id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListEnergyPue(c, params)
 }
 
 // GetEnergySummary operation middleware
@@ -11706,6 +12035,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/discovery/stats", wrapper.GetDiscoveryStats)
 	router.POST(options.BaseURL+"/discovery/:id/approve", wrapper.ApproveDiscoveredAsset)
 	router.POST(options.BaseURL+"/discovery/:id/ignore", wrapper.IgnoreDiscoveredAsset)
+	router.GET(options.BaseURL+"/energy/anomalies", wrapper.ListEnergyAnomalies)
+	router.POST(options.BaseURL+"/energy/anomalies/:assetId/:day/transition", wrapper.TransitionEnergyAnomaly)
 	router.POST(options.BaseURL+"/energy/billing/aggregate", wrapper.AggregateEnergyDaily)
 	router.GET(options.BaseURL+"/energy/billing/bill", wrapper.GetEnergyBill)
 	router.GET(options.BaseURL+"/energy/billing/daily", wrapper.ListEnergyDailyKwh)
@@ -11715,6 +12046,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/energy/billing/tariffs/:id", wrapper.GetEnergyTariff)
 	router.PUT(options.BaseURL+"/energy/billing/tariffs/:id", wrapper.UpdateEnergyTariff)
 	router.GET(options.BaseURL+"/energy/breakdown", wrapper.GetEnergyBreakdown)
+	router.GET(options.BaseURL+"/energy/pue", wrapper.ListEnergyPue)
 	router.GET(options.BaseURL+"/energy/summary", wrapper.GetEnergySummary)
 	router.GET(options.BaseURL+"/energy/trend", wrapper.GetEnergyTrend)
 	router.GET(options.BaseURL+"/fleet-metrics", wrapper.GetFleetMetricsSummary)

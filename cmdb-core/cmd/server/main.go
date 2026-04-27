@@ -446,6 +446,12 @@ func main() {
 	// daily kWh aggregator, monthly bill computation.
 	energySvc := energy.NewService(queries, pool)
 
+	// Wave 6.2: nightly PUE rollup + anomaly detector. One tick per hour
+	// is overkill for a daily job but means a startup right after midnight
+	// catches up within ~60 minutes; the underlying upserts are idempotent
+	// so the duplicate ticks are no-ops.
+	go runEnergyScheduler(ctx, energySvc)
+
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
@@ -738,4 +744,47 @@ func envIntOr(envKey string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// runEnergyScheduler runs the Wave 6.2 nightly aggregator on a 1h
+// ticker. The tick processes "yesterday" UTC for every tenant with
+// recent power_kw metrics. Three steps per tenant — daily kWh rollup,
+// per-location PUE rollup, anomaly detection — each idempotent so a
+// crash + restart mid-tick recovers cleanly.
+//
+// Logged with zap; ctx cancellation stops the loop within one
+// interval. If a tick errors per-tenant, we log and continue rather
+// than aborting the whole tick.
+func runEnergyScheduler(ctx context.Context, svc *energy.Service) {
+	const interval = time.Hour
+	cfg := energy.DefaultAnomalyConfig()
+	zap.L().Info("energy scheduler started", zap.Duration("interval", interval))
+
+	tick := func() {
+		res := svc.RunDailyTick(ctx, cfg)
+		zap.L().Info("energy scheduler tick",
+			zap.Int("tenants_scanned", res.TenantsScanned),
+			zap.Int("asset_days_aggregated", res.AssetDaysAggregated),
+			zap.Int("locations_rolled", res.LocationsRolled),
+			zap.Int("anomalies_flagged", res.AnomaliesFlagged),
+			zap.Int("errors", len(res.Errors)),
+		)
+		for _, err := range res.Errors {
+			zap.L().Warn("energy scheduler tick error", zap.Error(err))
+		}
+	}
+
+	tick() // run immediately on startup
+
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			zap.L().Info("energy scheduler stopped")
+			return
+		case <-t.C:
+			tick()
+		}
+	}
 }

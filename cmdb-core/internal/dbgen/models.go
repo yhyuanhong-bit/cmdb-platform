@@ -443,6 +443,21 @@ type DiscoveredAsset struct {
 	ReviewReason    pgtype.Text        `json:"review_reason"`
 }
 
+type EnergyAnomaly struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	AssetID        uuid.UUID          `json:"asset_id"`
+	Day            pgtype.Date        `json:"day"`
+	Kind           string             `json:"kind"`
+	BaselineMedian pgtype.Numeric     `json:"baseline_median"`
+	ObservedKwh    pgtype.Numeric     `json:"observed_kwh"`
+	Score          pgtype.Numeric     `json:"score"`
+	Status         string             `json:"status"`
+	DetectedAt     time.Time          `json:"detected_at"`
+	ReviewedBy     pgtype.UUID        `json:"reviewed_by"`
+	ReviewedAt     pgtype.Timestamptz `json:"reviewed_at"`
+	Note           pgtype.Text        `json:"note"`
+}
+
 type EnergyDailyKwh struct {
 	TenantID    uuid.UUID      `json:"tenant_id"`
 	AssetID     uuid.UUID      `json:"asset_id"`
@@ -452,6 +467,18 @@ type EnergyDailyKwh struct {
 	KwAvg       pgtype.Numeric `json:"kw_avg"`
 	SampleCount int32          `json:"sample_count"`
 	ComputedAt  time.Time      `json:"computed_at"`
+}
+
+type EnergyLocationDaily struct {
+	TenantID        uuid.UUID      `json:"tenant_id"`
+	LocationID      uuid.UUID      `json:"location_id"`
+	Day             pgtype.Date    `json:"day"`
+	ItKwh           pgtype.Numeric `json:"it_kwh"`
+	NonItKwh        pgtype.Numeric `json:"non_it_kwh"`
+	TotalKwh        pgtype.Numeric `json:"total_kwh"`
+	ItAssetCount    int32          `json:"it_asset_count"`
+	NonItAssetCount int32          `json:"non_it_asset_count"`
+	ComputedAt      time.Time      `json:"computed_at"`
 }
 
 type EnergyTariff struct {
