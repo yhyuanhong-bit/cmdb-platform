@@ -36,9 +36,6 @@ const (
 
 	SubjectNotificationCreated = "notification.created"
 
-	// Sync subjects
-	SubjectSyncEnvelope = "sync.envelope"
-
 	SubjectAlertRuleCreated = "alert_rule.created"
 	SubjectAlertRuleUpdated = "alert_rule.updated"
 	SubjectAlertRuleDeleted = "alert_rule.deleted"
@@ -58,9 +55,8 @@ const (
 	SubjectWebhookDisabled = "webhook.disabled"
 
 	// Business Service entity (Wave 2). Emitted by domain/service on
-	// CRUD; consumed by the sync envelope layer (services replicated to
-	// edge read-only), Wave 6 incident aggregation (service tier drives
-	// severity), and Wave 8 rack heatmap (filtering by service).
+	// CRUD; consumed by Wave 6 incident aggregation (service tier drives
+	// severity) and Wave 8 rack heatmap (filtering by service).
 	SubjectServiceCreated = "service.created"
 	SubjectServiceUpdated = "service.updated"
 	SubjectServiceDeleted = "service.deleted"

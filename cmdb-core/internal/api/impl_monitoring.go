@@ -90,11 +90,6 @@ func (s *APIServer) ListAlertRules(c *gin.Context, params ListAlertRulesParams) 
 // CreateAlertRule creates a new alert rule.
 // (POST /monitoring/rules)
 func (s *APIServer) CreateAlertRule(c *gin.Context) {
-	if s.cfg.EdgeNodeID != "" {
-		response.Forbidden(c, "alert rules are managed by Central, read-only on Edge")
-		return
-	}
-
 	var req CreateAlertRuleJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request body")
@@ -144,11 +139,6 @@ func (s *APIServer) CreateAlertRule(c *gin.Context) {
 // UpdateAlertRule updates an existing alert rule.
 // (PUT /monitoring/rules/{id})
 func (s *APIServer) UpdateAlertRule(c *gin.Context, id IdPath) {
-	if s.cfg.EdgeNodeID != "" {
-		response.Forbidden(c, "alert rules are managed by Central, read-only on Edge")
-		return
-	}
-
 	var req UpdateAlertRuleJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request body")

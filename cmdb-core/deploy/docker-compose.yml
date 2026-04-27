@@ -10,7 +10,6 @@ services:
       NATS_URL: nats://nats:4222
       JWT_SECRET: ${JWT_SECRET:-changeme}
       CMDB_SECRET_KEY: ${CMDB_SECRET_KEY:?set CMDB_SECRET_KEY to a 64-char hex AES-256 key (generate with crypto.GenerateKeyHex)}
-      DEPLOY_MODE: central
       MCP_ENABLED: "true"
       MCP_PORT: "3001"
       WS_ENABLED: "true"

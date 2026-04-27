@@ -14,7 +14,6 @@ type Config struct {
 	RedisURL    string
 	NatsURL     string
 	JWTSecret   string
-	DeployMode  string
 	TenantID    string
 	LogLevel    string
 	MCPEnabled   bool
@@ -23,9 +22,6 @@ type Config struct {
 	OTELEndpoint string
 	MCPApiKey            string
 	CarbonEmissionFactor  float64
-	SyncEnabled           bool
-	SyncSnapshotBatchSize int
-	EdgeNodeID            string
 	RateLimitEnabled      bool
 	RateLimitRPS          float64
 	RateLimitBurst        int
@@ -38,7 +34,6 @@ type Config struct {
 }
 
 // Load reads configuration from environment variables with sensible defaults.
-// In edge mode, TenantID is required.
 func Load() (*Config, error) {
 	port := 8080
 	if v := os.Getenv("PORT"); v != "" {
@@ -55,7 +50,6 @@ func Load() (*Config, error) {
 		RedisURL:    envOrDefault("REDIS_URL", "redis://localhost:6379/0"),
 		NatsURL:     envOrDefault("NATS_URL", "nats://localhost:4222"),
 		JWTSecret:   envOrDefault("JWT_SECRET", "dev-secret-change-me"),
-		DeployMode:  envOrDefault("DEPLOY_MODE", "cloud"),
 		TenantID:    os.Getenv("TENANT_ID"),
 		LogLevel:    envOrDefault("LOG_LEVEL", "info"),
 	}
@@ -72,9 +66,6 @@ func Load() (*Config, error) {
 	cfg.OTELEndpoint = os.Getenv("OTEL_ENDPOINT")
 	cfg.MCPApiKey = os.Getenv("MCP_API_KEY")
 	cfg.CarbonEmissionFactor = envOrDefaultFloat("CARBON_EMISSION_FACTOR", 0.0005)
-	cfg.SyncEnabled = envOrDefault("SYNC_ENABLED", "true") == "true"
-	cfg.SyncSnapshotBatchSize = envOrDefaultInt("SYNC_SNAPSHOT_BATCH_SIZE", 500)
-	cfg.EdgeNodeID = envOrDefault("EDGE_NODE_ID", "")
 	cfg.RateLimitEnabled = envOrDefault("RATE_LIMIT_ENABLED", "true") == "true"
 	cfg.RateLimitRPS = envOrDefaultFloat("RATE_LIMIT_RPS", 100)
 	cfg.RateLimitBurst = envOrDefaultInt("RATE_LIMIT_BURST", 200)
@@ -89,20 +80,17 @@ func Load() (*Config, error) {
 		}
 	}
 
-	if cfg.DeployMode == "edge" && cfg.TenantID == "" {
-		return nil, fmt.Errorf("TENANT_ID is required in edge deploy mode")
-	}
-
-	// Enforce secure credentials in production (cloud) mode.
-	// Edge mode allows defaults for development convenience.
+	// Treat default-password DB URL as the dev signal. In dev (default
+	// JWT secret + default DB password) we warn and continue so local
+	// `docker-compose up` works out of the box. As soon as the operator
+	// flips to a real DB URL the secret check turns fatal — this prevents
+	// a forgotten "dev-secret-change-me" from reaching prod.
+	devDB := strings.Contains(cfg.DatabaseURL, "changeme")
 	if cfg.JWTSecret == "dev-secret-change-me" || len(cfg.JWTSecret) < 32 {
-		if cfg.DeployMode == "cloud" {
+		if !devDB {
 			return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters and not the default value for production deployment")
 		}
 		fmt.Fprintf(os.Stderr, "WARNING: JWT_SECRET is insecure (default or shorter than 32 chars) — set a strong secret before production use\n")
-	}
-	if cfg.DeployMode == "cloud" && strings.Contains(cfg.DatabaseURL, "changeme") {
-		return nil, fmt.Errorf("DATABASE_URL contains default password 'changeme' — set a secure password for production")
 	}
 
 	return cfg, nil

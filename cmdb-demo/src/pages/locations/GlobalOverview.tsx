@@ -7,7 +7,6 @@ import { useRootLocations, useLocationAssetCounts } from '../../hooks/useTopolog
 import { useDashboardStats } from '../../hooks/useDashboard';
 import { useAlerts } from '../../hooks/useMonitoring';
 import type { AlertEvent as BaseAlertEvent } from '../../lib/api/monitoring';
-import { useSyncState } from '../../hooks/useSync';
 import CreateLocationModal from '../../components/CreateLocationModal';
 import type { Location } from '../../lib/api/topology';
 
@@ -171,15 +170,6 @@ function Sparkline({ data, color = '#9ecaff', width = 80, height = 24 }: { data:
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function PulsingDot({ color = 'bg-green-400', size = 'h-2.5 w-2.5' }: { color?: string; size?: string }) {
-  return (
-    <span className="relative flex">
-      <span className={`absolute inline-flex ${size} rounded-full ${color} opacity-75 animate-ping`} />
-      <span className={`relative inline-flex ${size} rounded-full ${color}`} />
-    </span>
-  );
-}
-
 function KpiCard({ icon, label, value, accent }: { icon: string; label: string; value: string | number; accent?: string }) {
   return (
     <div className="bg-surface-container rounded-lg p-4 flex items-center gap-4">
@@ -291,16 +281,7 @@ const GlobalOverview: React.FC = () => {
   const dashStatsQ = useDashboardStats();
   const alertsQ = useAlerts({ status: 'firing' });
   const assetCountsQ = useLocationAssetCounts();
-  const syncStateQ = useSyncState();
   const stats = dashStatsQ.data?.data;
-
-  // Derive last sync time from sync state API (most recent sync_at across all entities)
-  const lastSyncAt = useMemo(() => {
-    const states = (syncStateQ.data as { data?: Array<{ last_sync_at: string }> })?.data ?? [];
-    if (states.length === 0) return null;
-    return states.reduce((latest, s) =>
-      s.last_sync_at > latest ? s.last_sync_at : latest, states[0].last_sync_at);
-  }, [syncStateQ.data]);
 
   // Convert API alerts to display format
   const ALERTS: AlertData[] = useMemo(() => {
@@ -328,13 +309,6 @@ const GlobalOverview: React.FC = () => {
     idcs: TERRITORIES.reduce((s, c) => s + c.idcCount, 0),
     totalAssets: stats?.total_assets ?? TERRITORIES.reduce((s, c) => s + c.totalAssets, 0),
   }), [TERRITORIES, stats]);
-
-  const syncTimeStr = lastSyncAt
-    ? new Date(lastSyncAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
-    : '—';
-  const syncDateStr = lastSyncAt
-    ? new Date(lastSyncAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-    : '—';
 
   if (rootLocationsQ.isLoading) {
     return (
@@ -377,10 +351,6 @@ const GlobalOverview: React.FC = () => {
             <span className="material-symbols-outlined text-[16px]">add</span>
             {t('locations.btn_add_location')}
           </button>
-          <PulsingDot />
-          <span className="text-xs text-on-surface-variant font-body">
-            {t('locations.last_sync')}: {syncDateStr} {syncTimeStr}
-          </span>
         </div>
       </header>
 

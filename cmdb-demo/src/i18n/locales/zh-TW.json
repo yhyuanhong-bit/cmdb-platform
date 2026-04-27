@@ -184,7 +184,6 @@
       "troubleshoot": "故障排除",
       "video_lib": "影片庫",
       "user_profile": "個人檔案",
-      "sync_management": "同步管理",
       "metric_sources": "指標來源",
       "metrics_freshness": "資料新鮮度",
       "scheduler_health": "排程器健康"
@@ -1580,7 +1579,6 @@
     "toast_resolved": "建議已解決。",
     "toast_scan_done": "掃描完成 —— 共更新 {{count}} 筆紀錄。"
   },
-
   "metric_sources": {
     "title": "指標來源",
     "subtitle": "註冊向 metrics 時序表推送樣本的代理與輪詢器。每個來源的心跳為「資料新鮮度」面板提供輸入。",
@@ -1616,7 +1614,6 @@
     "toast_deleted": "指標來源已刪除。",
     "toast_duplicate": "本租戶內已存在同名指標來源。"
   },
-
   "ops_overview": {
     "title": "維運總覽",
     "subtitle": "維運人員可處置之所有資訊面單頁彙總 —— 事件、問題、變更、能源、資本支出、資料平面、排程器。",
@@ -1642,7 +1639,6 @@
     "tile_schedulers_ok_hint": "所有排程器按時執行。",
     "tile_schedulers_unhealthy_hint": "存在排程器逾期或從未執行。"
   },
-
   "scheduler_health": {
     "title": "排程器健康",
     "subtitle": "平台背景排程任務的最近一次執行時間戳。卡住的迴圈在 /readyz 上是看不出來的 —— 此頁是操作員發現靜默失效資料的最後一道防線。",
@@ -1665,7 +1661,6 @@
     "legend_stale": "最近執行超過 2 倍週期。就緒探針應在此處失敗。",
     "legend_never": "已註冊但從未執行。重新啟動後常見；超過第一個週期後視為不健康。"
   },
-
   "metrics_freshness": {
     "title": "資料新鮮度",
     "subtitle": "心跳逾期的指標來源。每 60 秒自動重新整理。",
@@ -1683,7 +1678,6 @@
     "last_seen": "最近上報於 {{ago}} 前",
     "expected_every": "預期每 {{interval}} 上報"
   },
-
   "predictive_capex": {
     "title": "資本支出預算",
     "subtitle": "依目標日期分組的待處理建議，協助規劃資本支出節奏。",
@@ -1699,7 +1693,6 @@
     "col_breakdown": "類型分佈",
     "col_top": "重點資產"
   },
-
   "energy_pue": {
     "title": "能源 PUE",
     "subtitle": "依位置的能源使用效率（PUE = 總耗電 / IT 耗電），數值越低越好。",
@@ -1729,7 +1722,6 @@
     "empty_state": "此區間內無位置 PUE 資料。背景排程每小時整點執行 —— 稍候片刻，或在「能源帳單」頁手動執行彙總。",
     "unknown_location": "未知位置"
   },
-
   "energy_anomalies": {
     "title": "能源異常",
     "subtitle": "每日 kWh 較過去 7 天中位數偏離 ≥ 2 倍（高）或 ≤ 0.3 倍（低）的資產日。",
@@ -1762,7 +1754,6 @@
     "toast_ack": "異常已確認。",
     "toast_resolved": "異常已解決。"
   },
-
   "energy_tariffs": {
     "title": "電價管理",
     "subtitle": "為每個位置設定生效日期範圍內的 $/kWh 電價，供能源帳單計算使用。",
@@ -1796,7 +1787,6 @@
     "toast_deleted": "電價已刪除。",
     "toast_overlap": "此日期範圍與同位置的現有電價重疊。"
   },
-
   "energy_bill": {
     "title": "能源帳單",
     "subtitle": "按資產在指定時間範圍內的成本，由每日 kWh 彙總 × 適用電價計算得出。",
@@ -1824,7 +1814,6 @@
     "confirm_aggregate": "彙總從 {{from}} 到 {{to}} 的每日 kWh？此操作冪等，既有列會被覆寫。",
     "toast_aggregated": "已彙總 {{count}} 個 (資產, 日期) 列。"
   },
-
   "changes": {
     "title": "變更（Changes）",
     "subtitle": "對組態項目的計劃性修改，伴隨 CAB 核准流程。",
@@ -1859,7 +1848,6 @@
     "standard_threshold_note": "標準變更提交後自動核准 —— 核准門檻會被忽略。",
     "toast_created": "變更已建立。"
   },
-
   "change_detail": {
     "back_to_changes": "返回變更列表",
     "created_at": "建立於",
@@ -1920,7 +1908,6 @@
     "toast_invalid_transition": "目前狀態不允許此操作。",
     "load_failed": "變更載入失敗。"
   },
-
   "problems": {
     "title": "Problems",
     "subtitle": "貫穿一個或多個事件的根本原因。",
@@ -1947,7 +1934,6 @@
     "placeholder_description": "選填：什麼在反覆出現、何時開始、誰受影響",
     "toast_created": "Problem 已建立。"
   },
-
   "problem_detail": {
     "back_to_problems": "返回 Problem 列表",
     "created_at": "建立於",
@@ -1998,7 +1984,6 @@
     "toast_invalid_transition": "當前狀態不允許此操作。",
     "load_failed": "Problem 載入失敗。"
   },
-
   "incident_detail": {
     "back_to_monitoring": "返回監控",
     "started_at": "開始於",
@@ -2052,7 +2037,6 @@
     "dialog_pick_problem_desc": "選擇一個活躍 Problem 與該事件關聯。僅顯示未關閉的 Problem。",
     "dialog_pick_problem_empty": "沒有可用的活躍 Problem。"
   },
-
   "audit_event_detail": {
     "breadcrumb_audit_logs": "稽核日誌",
     "breadcrumb_event_details": "事件詳情",
@@ -2870,32 +2854,6 @@
     "datadog": "Datadog（即將推出）",
     "nagios": "Nagios/Icinga（即將推出）",
     "dify": "Dify（AI 工作流）"
-  },
-  "sync": {
-    "title": "同步管理",
-    "tab_status": "同步狀態",
-    "tab_conflicts": "衝突",
-    "total_nodes": "節點總數",
-    "sync_health": "同步健康",
-    "pending": "待處理",
-    "version_gap_title": "各實體類型版本差距",
-    "all_up_to_date": "所有節點均為最新 — 無版本差距",
-    "sync_errors": "同步錯誤",
-    "no_nodes": "尚未註冊任何同步節點",
-    "no_conflicts": "無待處理衝突，同步運行順暢。",
-    "col_entity": "實體",
-    "col_version": "版本",
-    "col_last_sync": "上次同步",
-    "col_status": "狀態",
-    "all_types": "所有類型",
-    "local_wins": "本地優先",
-    "remote_wins": "遠端優先",
-    "select_all": "全選",
-    "view_details": "查看詳情",
-    "local": "本地",
-    "remote": "遠端",
-    "conflict_resolved": "衝突已解決",
-    "batch_resolved": "已將 {{count}} 個衝突解析為 {{resolution}}"
   },
   "adapter_config": {
     "api_token": "API Token",

@@ -8,8 +8,8 @@ package main
 //
 // Today this file houses:
 //   - infraMiddleware: the ordered middleware chain that runs on every
-//     request (tracing → recovery → CORS → security headers → sync gate
-//     → prometheus).
+//     request (tracing → recovery → CORS → security headers → request
+//     id → prometheus).
 //   - registerPublicRoutes: /healthz, /readyz, /metrics — routes that
 //     must be reachable without auth for probes and scrapers.
 //
@@ -18,8 +18,6 @@ package main
 // dependency threading.
 
 import (
-	"sync/atomic"
-
 	"github.com/cmdb-platform/cmdb-core/internal/api"
 	"github.com/cmdb-platform/cmdb-core/internal/middleware"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
@@ -30,10 +28,9 @@ import (
 // through, in dependency order. Tracing comes first so spans wrap every
 // subsequent middleware. Recovery is next so a panic in any later middleware
 // (CORS, security, etc.) still produces a 500 instead of crashing the
-// process. Sync gate blocks edge-node writes during initial sync. Prometheus
-// middleware comes last so it measures the fully-wrapped request duration,
-// not partial.
-func infraMiddleware(router *gin.Engine, deployMode string, initialSyncDone *atomic.Bool) {
+// process. Prometheus middleware comes last so it measures the fully-wrapped
+// request duration, not partial.
+func infraMiddleware(router *gin.Engine) {
 	router.Use(telemetry.TracingMiddleware("cmdb-core"))
 	router.Use(
 		middleware.Recovery(),
@@ -41,7 +38,6 @@ func infraMiddleware(router *gin.Engine, deployMode string, initialSyncDone *ato
 		middleware.SecurityHeaders(),
 		middleware.RequestID(),
 	)
-	router.Use(middleware.SyncGateMiddleware(initialSyncDone, deployMode))
 	router.Use(telemetry.PrometheusMiddleware())
 }
 

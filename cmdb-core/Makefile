@@ -51,13 +51,10 @@ seed-dev:
 	psql "$$DATABASE_URL" -f db/seed/test-fixture.sql
 
 # Deployment targets
-.PHONY: up up-edge down logs grafana jaeger
+.PHONY: up down logs grafana jaeger
 
 up:
 	cd deploy && docker compose up -d
-
-up-edge:
-	cd deploy && docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d
 
 down:
 	cd deploy && docker compose down

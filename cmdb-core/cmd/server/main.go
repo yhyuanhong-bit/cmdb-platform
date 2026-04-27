@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -40,7 +39,6 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/problem"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	svcdomain "github.com/cmdb-platform/cmdb-core/internal/domain/service"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/sync"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/workflows"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
@@ -405,43 +403,6 @@ func main() {
 	// Prediction
 	predictionSvc := prediction.NewService(queries, aiRegistry)
 
-	// 8b. Sync service
-	var syncSvc *sync.Service
-	var initialSyncDone atomic.Bool
-	initialSyncDone.Store(true) // default: don't block (Central mode)
-
-	if cfg.SyncEnabled && bus != nil {
-		// Install the HMAC keyring BEFORE RegisterSubscribers / NewAgent
-		// so the first envelope published / received is already covered
-		// by the signing path. Unset env = no-op (rollout grace); a
-		// misconfigured env (too-short key) is fatal at startup.
-		keyRing, keyRingErr := sync.LoadKeyRingFromEnv()
-		if keyRingErr != nil {
-			zap.L().Fatal("sync HMAC keyring load failed", zap.Error(keyRingErr))
-		}
-		sync.ConfigureKeyRing(keyRing)
-		if keyRing == nil {
-			zap.L().Warn("sync HMAC signing disabled — CMDB_SYNC_HMAC_KEY not set; envelopes flow under checksum protection only")
-		} else {
-			zap.L().Info("sync HMAC signing enabled",
-				zap.String("primary_kid", keyRing.PrimaryKID()),
-				zap.Strings("previous_kids", keyRing.PreviousKIDs()))
-		}
-
-		syncSvc = sync.NewService(pool, bus, cfg)
-		syncSvc.RegisterSubscribers()
-		syncSvc.StartReconciliation(ctx)
-		zap.L().Info("Sync service started")
-
-		if cfg.DeployMode == "edge" && cfg.EdgeNodeID != "" {
-			initialSyncDone.Store(false) // Edge: block until sync completes
-			agent := sync.NewAgent(pool, bus, cfg)
-			agent.InitialSyncDone = &initialSyncDone
-			go agent.Start(ctx)
-			zap.L().Info("Sync agent started", zap.String("node_id", cfg.EdgeNodeID))
-		}
-	}
-
 	// Business Service entity (Wave 2). Domain service depends on the
 	// sqlc Queries surface + the event bus for CRUD fan-out.
 	serviceSvc := svcdomain.New(pool, queries, bus)
@@ -485,7 +446,7 @@ func main() {
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
-		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
+		integrationSvc, biaSvc, qualitySvc, discoverySvc, locationDetectSvc,
 		serviceSvc, problemSvc, changeSvc, energySvc, predictiveSvc, metricSourceSvc, schedTracker, cipher, netGuard,
 	)
 
@@ -510,7 +471,7 @@ func main() {
 	// deeper dependency threading.
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-	infraMiddleware(router, cfg.DeployMode, &initialSyncDone)
+	infraMiddleware(router)
 
 	healthHandler := api.NewHealthHandler(pool, redisClient, natsBus)
 	registerPublicRoutes(router, healthHandler)
@@ -728,7 +689,7 @@ func main() {
 	}
 
 	go func() {
-		zap.L().Info("starting cmdb-core", zap.String("addr", addr), zap.String("deploy_mode", cfg.DeployMode))
+		zap.L().Info("starting cmdb-core", zap.String("addr", addr))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			zap.L().Fatal("server error", zap.Error(err))
 		}

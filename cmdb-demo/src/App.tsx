@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import MainLayout from './layouts/MainLayout'
 import AuthGuard from './components/AuthGuard'
-import SyncingOverlay from './components/SyncingOverlay'
 
 // Location hierarchy
 const GlobalOverview = lazy(() => import('./pages/locations/GlobalOverview'))
@@ -77,7 +76,6 @@ const QualityDashboard = lazy(() => import('./pages/QualityDashboard'))
 // System
 const RolesPermissions = lazy(() => import('./pages/RolesPermissions'))
 const SystemSettings = lazy(() => import('./pages/SystemSettings'))
-const SyncManagement = lazy(() => import('./pages/SyncManagement'))
 const TaskDispatch = lazy(() => import('./pages/TaskDispatch'))
 const UserProfile = lazy(() => import('./pages/UserProfile'))
 
@@ -112,7 +110,6 @@ function Loading() {
 export default function App() {
   return (
     <>
-      <SyncingOverlay />
       <Suspense fallback={<Loading />}>
         <Routes>
         {/* Public routes */}
@@ -198,7 +195,6 @@ export default function App() {
           <Route path="/system" element={<RolesPermissions />} />
           <Route path="/system/settings" element={<SystemSettings />} />
           <Route path="/system/profile" element={<UserProfile />} />
-          <Route path="/system/sync" element={<SyncManagement />} />
           <Route path="/system/metrics-sources" element={<MetricSourcesPage />} />
           <Route path="/system/metrics-freshness" element={<MetricsFreshnessPage />} />
           <Route path="/system/scheduler-health" element={<SchedulerHealthPage />} />

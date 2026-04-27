@@ -1,6 +1,6 @@
 # CMDB Platform
 
-> Industrial-grade Configuration Management Database with Edge offline sync, BIA modeling, predictive AI, and SNMP location detection.
+> Industrial-grade Configuration Management Database with BIA modeling, predictive AI, and SNMP location detection.
 
 ---
 
@@ -46,9 +46,9 @@ psql cmdb -f db/migrations/*.up.sql   # or let auto-migration handle it
 # Seed data (optional, auto-runs on first startup if DB is empty)
 psql cmdb -f db/seed/seed.sql
 
-# Start
+# Start (default DB password 'changeme' triggers dev-mode JWT warning,
+# real DATABASE_URL forces a strong JWT_SECRET)
 export DATABASE_URL="postgres://cmdb:changeme@localhost:5432/cmdb?sslmode=disable"
-export DEPLOY_MODE=edge   # allows default JWT secret for dev
 export TENANT_ID=a0000000-0000-0000-0000-000000000001
 go run ./cmd/server/
 ```
@@ -108,17 +108,6 @@ Frontend runs on `http://localhost:5175`
 - Alert monitoring with acknowledge/resolve workflow
 - Sensor configuration and alert rule management
 
-### Edge Sync (v1.2)
-- Edge nodes with bidirectional sync and central failover
-- Bidirectional sync for assets, work orders, inventory, alerts
-- Conflict resolution UI
-- Sync envelope retention: 14 days (NATS JetStream MaxAge)
-
-> **Scope note**: Edge nodes require connectivity to central for writes. The
-> `SyncGateMiddleware` returns HTTP 503 with `Retry-After` while initial sync
-> is in progress. True offline-write buffering is not currently implemented.
-> See [docs/ROADMAP.md](docs/ROADMAP.md).
-
 ### Intelligence
 - BIA (Business Impact Analysis) modeling
 - Asset health scoring + LLM-assisted root cause analysis (beta)
@@ -134,7 +123,7 @@ Frontend runs on `http://localhost:5175`
 
 ### Observability
 - Prometheus metrics pull from adapters
-- Sync monitoring dashboard
+- SLO dashboard with multi-window burn-rate alerts
 - Audit trail (append-only, immutable)
 - 15 Playwright E2E tests
 
@@ -176,24 +165,17 @@ docker compose -f docker-compose.yml -f docker-compose.registry.yml up -d
 
 See [Private Registry Guide](docs/private-registry-guide.md)
 
-### Edge Node
-
-See [Edge Deployment Guide](docs/edge-deployment-guide.md)
-
 ---
 
 ## Configuration
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DEPLOY_MODE` | yes | `cloud` | `cloud` (production) or `edge` |
-| `JWT_SECRET` | yes (cloud) | `dev-secret-change-me` | 64+ char random string |
-| `DATABASE_URL` | yes | `postgres://cmdb:changeme@...` | PostgreSQL connection |
+| `JWT_SECRET` | yes | `dev-secret-change-me` | 32+ char random string. Default value rejected unless `DATABASE_URL` is the dev placeholder. |
+| `DATABASE_URL` | yes | `postgres://cmdb:changeme@...` | PostgreSQL connection. `changeme` is the dev signal — replace for prod. |
 | `REDIS_URL` | yes | `redis://localhost:6379/0` | Redis connection |
 | `NATS_URL` | yes | `nats://localhost:4222` | NATS connection |
-| `TENANT_ID` | edge only | — | Tenant UUID |
-| `EDGE_NODE_ID` | edge only | — | Unique node ID |
-| `SYNC_ENABLED` | no | `true` | Enable Edge sync |
+| `TENANT_ID` | no | — | Tenant UUID for cross-tenant tools / dev convenience. |
 
 Full reference: [.env.example](cmdb-core/deploy/.env.example)
 
@@ -206,9 +188,7 @@ Full reference: [.env.example](cmdb-core/deploy/.env.example)
 | [Production Deployment Guide](docs/production-deployment-guide.md) | Setup, TLS, scaling, monitoring |
 | [Security Hardening Checklist](docs/security-hardening-checklist.md) | Pre-production security checklist |
 | [Backup & Recovery](docs/backup-recovery.md) | Backup scripts, disaster recovery |
-| [Edge Deployment Guide](docs/edge-deployment-guide.md) | Edge node setup and operations |
 | [Private Registry Guide](docs/private-registry-guide.md) | Docker Registry for internal deployment |
-| [Edge Sync RFC](docs/design/edge-offline-sync-rfc.md) | Architecture design document |
 | [Page Audit Report](docs/page-audit-report.md) | Page-by-page functionality assessment |
 | [CHANGELOG](CHANGELOG.md) | Version history |
 
@@ -219,7 +199,6 @@ Full reference: [.env.example](cmdb-core/deploy/.env.example)
 | Script | Usage |
 |--------|-------|
 | `scripts/start-central.sh` | Start Central stack (Docker Compose) |
-| `scripts/start-edge.sh` | Start Edge stack |
 | `scripts/build-offline-package.sh` | Build offline installer |
 | `scripts/push-to-registry.sh` | Push images to private registry |
 | `scripts/setup-registry.sh` | Setup Docker Registry |
@@ -234,8 +213,9 @@ Full reference: [.env.example](cmdb-core/deploy/.env.example)
 # Backend unit tests
 cd cmdb-core && go test ./... -count=1
 
-# Stress test (needs running server)
-TEST_API_TOKEN=<token> go test -tags integration ./tests/ -run TestSyncStress -short -v
+# Backend integration tests (needs running Postgres)
+TEST_DATABASE_URL=postgres://cmdb:changeme@localhost:5432/cmdb?sslmode=disable \
+  go test -tags integration -race -count=1 ./internal/...
 
 # Chaos test (needs Docker Compose stack)
 ./scripts/chaos-test.sh --dry-run --rounds 3

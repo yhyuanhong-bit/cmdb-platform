@@ -99,9 +99,6 @@ Items marked **CRITICAL** will cause data exposure or unauthorized access if ski
 - [ ] Enable NATS TLS for leafnode connections (port 7422) and client connections (port 4222).
   Configure in `cmdb-core/deploy/nats/nats-central.conf`. See NATS docs for TLS block syntax.
 
-- [ ] For Edge deployments: restrict Edge nodes to only outbound TCP to Central on port 7422.
-  Inbound connections from Edge to Central API should not be required.
-
 - [ ] Remove or restrict the NATS monitoring port (8222) from external access.
   It exposes server statistics and connection details without authentication by default.
 
@@ -112,8 +109,9 @@ Items marked **CRITICAL** will cause data exposure or unauthorized access if ski
 
 ## Application
 
-- [ ] **CRITICAL** — Set `DEPLOY_MODE=cloud` in production. This mode enforces all credential
-  validation checks at startup. The application will not start with insecure defaults.
+- [ ] **CRITICAL** — Replace the default `DATABASE_URL` (`changeme` placeholder) with a real
+  connection string in production. Once it's real, the startup check rejects the default
+  `JWT_SECRET` (`dev-secret-change-me`) and any < 32 char value.
 
 - [ ] Set `MCP_API_KEY` to a strong random key if `MCP_ENABLED=true`.
   Without this, the MCP server (port 3001) accepts unauthenticated connections.
@@ -125,9 +123,6 @@ Items marked **CRITICAL** will cause data exposure or unauthorized access if ski
   curl -s http://localhost:8080/api/v1/assets
   # Expected: 401 Unauthorized
   ```
-
-- [ ] Review which Edge nodes are authorized to sync and which `TENANT_ID` values are registered.
-  Unauthorized Edge nodes should not receive snapshot data.
 
 - [ ] Enable rate limiting on authentication endpoints to prevent brute-force attacks.
   Verify the configured rate limit middleware is active in the router.

@@ -1,7 +1,6 @@
 # Production Deployment Guide
 
-This guide covers deploying CMDB Platform in Central (cloud) mode for production environments.
-For Edge Node deployment, see [edge-deployment-guide.md](./edge-deployment-guide.md).
+This guide covers deploying CMDB Platform for production environments.
 
 ---
 
@@ -11,10 +10,8 @@ For Edge Node deployment, see [edge-deployment-guide.md](./edge-deployment-guide
 
 | Tier | CPU | RAM | Disk |
 |------|-----|-----|------|
-| Central (minimum) | 4 vCPU | 8 GB | 100 GB SSD |
-| Central (recommended) | 8 vCPU | 16 GB | 500 GB SSD |
-| Edge Node (minimum) | 2 vCPU | 2 GB | 20 GB |
-| Edge Node (recommended) | 4 vCPU | 4 GB | 40 GB |
+| Minimum | 4 vCPU | 8 GB | 100 GB SSD |
+| Recommended | 8 vCPU | 16 GB | 500 GB SSD |
 
 ### Software Requirements
 
@@ -60,9 +57,6 @@ JWT_SECRET=$(openssl rand -hex 32)
 # Set a strong database password
 DB_PASS=$(openssl rand -hex 16)
 
-# Set deployment mode
-DEPLOY_MODE=central
-
 # Set Grafana admin password
 GRAFANA_PASS=$(openssl rand -hex 12)
 
@@ -71,8 +65,10 @@ CORE_REPLICAS=2
 WORKER_REPLICAS=4
 ```
 
-The application refuses to start in `cloud` mode if `JWT_SECRET` or `DATABASE_URL` contain
-the default `changeme` value. This is enforced at startup in `config.go`.
+The application refuses to start with the default `JWT_SECRET` (`dev-secret-change-me`)
+once `DATABASE_URL` no longer contains `changeme`. This is enforced at startup in
+`internal/config/config.go` — the dev-vs-prod signal is "is your DB still using the
+placeholder password".
 
 ### Step 4 — Start the stack
 
@@ -130,19 +126,15 @@ All variables are read at startup by `cmdb-core/internal/config/config.go`.
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PORT` | no | `8080` | HTTP server listen port |
-| `DATABASE_URL` | yes | `postgres://cmdb:changeme@localhost:5432/cmdb?sslmode=disable` | PostgreSQL connection string. Must not contain `changeme` in cloud mode. |
+| `DATABASE_URL` | yes | `postgres://cmdb:changeme@localhost:5432/cmdb?sslmode=disable` | PostgreSQL connection string. The `changeme` placeholder triggers dev-mode JWT defaults; replace it for prod. |
 | `REDIS_URL` | yes | `redis://localhost:6379/0` | Redis connection string |
 | `NATS_URL` | yes | `nats://localhost:4222` | NATS broker address |
-| `JWT_SECRET` | yes | `dev-secret-change-me` | JWT signing secret. Must be changed from default in cloud mode. Recommend 64+ hex chars. |
-| `DEPLOY_MODE` | yes | `cloud` | Deployment mode: `cloud` (Central) or `edge`. Cloud mode enforces credential validation. |
-| `TENANT_ID` | edge only | — | Tenant UUID. Required when `DEPLOY_MODE=edge`. |
-| `EDGE_NODE_ID` | edge only | — | Unique identifier for this Edge node (e.g. `edge-taipei-01`). |
-| `SYNC_ENABLED` | no | `true` | Enable Edge sync subsystem. Set to `false` on Central to disable outbound sync. |
-| `SYNC_SNAPSHOT_BATCH_SIZE` | no | `500` | Records per batch during initial Edge snapshot. Tune for network bandwidth. |
+| `JWT_SECRET` | yes | `dev-secret-change-me` | JWT signing secret. Default value rejected once `DATABASE_URL` is real. Recommend 64+ hex chars. |
+| `TENANT_ID` | no | — | Tenant UUID for cross-tenant tooling / dev convenience. |
 | `MCP_ENABLED` | no | `true` | Enable the Model Context Protocol server (AI integration). |
 | `MCP_PORT` | no | `3001` | MCP server listen port. |
 | `MCP_API_KEY` | no | — | API key for authenticating MCP clients. Strongly recommended in production. |
-| `WS_ENABLED` | no | `true` | Enable WebSocket support for real-time updates. Disabled on Edge by default. |
+| `WS_ENABLED` | no | `true` | Enable WebSocket support for real-time updates. |
 | `OTEL_ENDPOINT` | no | — | OpenTelemetry Collector gRPC endpoint (e.g. `otel-collector:4317`). |
 | `LOG_LEVEL` | no | `info` | Log verbosity: `debug`, `info`, `warn`, `error`. |
 | `CARBON_EMISSION_FACTOR` | no | `0.0005` | kg CO₂ per watt-hour for carbon footprint calculations. |

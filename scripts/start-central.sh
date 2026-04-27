@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$SCRIPT_DIR/../cmdb-core/deploy"
 
-echo "=== CMDB Platform - Central Mode ==="
+echo "=== CMDB Platform ==="
 echo ""
 
 # Create .env from .env.example if missing
@@ -14,8 +14,6 @@ if [ ! -f "$DEPLOY_DIR/.env" ]; then
   echo "  -> Edit deploy/.env to set passwords before production use."
   echo ""
 fi
-
-export DEPLOY_MODE=central
 
 # Start storage services first
 echo "Starting storage services (postgres, redis, nats)..."
@@ -29,7 +27,7 @@ echo "Starting all services..."
 docker compose up -d
 
 echo ""
-echo "=== Central Stack URLs ==="
+echo "=== Stack URLs ==="
 echo "  Frontend:   http://localhost:80"
 echo "  API:        http://localhost:8080"
 echo "  MCP:        http://localhost:3001"

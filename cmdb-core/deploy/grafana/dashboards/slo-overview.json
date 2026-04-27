@@ -23,7 +23,7 @@
         "title": "Availability — 30m (target 99.9%)",
         "description": "1 − (5xx / total) over the last 30 minutes. Pages on slo:http_errors fast burn (>14.4× of 0.001 over 1h+5m).",
         "type": "gauge",
-        "gridPos": { "h": 7, "w": 8, "x": 0, "y": 1 },
+        "gridPos": { "h": 7, "w": 12, "x": 0, "y": 1 },
         "targets": [
           {
             "expr": "sli:http_availability:ratio_30m",
@@ -55,7 +55,7 @@
         "title": "Latency (<1s) — 30m (target 99%)",
         "description": "Share of requests served under 1s in the last 30 minutes. Pages on slo:http_slow fast burn (>14.4× of 0.01 over 1h+5m).",
         "type": "gauge",
-        "gridPos": { "h": 7, "w": 8, "x": 8, "y": 1 },
+        "gridPos": { "h": 7, "w": 12, "x": 12, "y": 1 },
         "targets": [
           {
             "expr": "sli:http_latency:ratio_30m",
@@ -84,38 +84,6 @@
       },
       {
         "id": 4,
-        "title": "Sync Apply Success — 30m (target 99%)",
-        "description": "applied / (applied + failed + rejected) over 30m. Pages on slo:sync_bad fast burn (>14.4× of 0.01 over 1h+5m).",
-        "type": "gauge",
-        "gridPos": { "h": 7, "w": 8, "x": 16, "y": 1 },
-        "targets": [
-          {
-            "expr": "sli:sync_success:ratio_30m",
-            "refId": "A",
-            "legendFormat": "success"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "percentunit",
-            "min": 0.9,
-            "max": 1,
-            "decimals": 3,
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "red", "value": null },
-                { "color": "orange", "value": 0.99 },
-                { "color": "green", "value": 0.995 }
-              ]
-            }
-          },
-          "overrides": []
-        },
-        "options": { "showThresholdLabels": false, "showThresholdMarkers": true }
-      },
-      {
-        "id": 5,
         "type": "row",
         "title": "Burn rate (1h short window)",
         "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
@@ -123,11 +91,11 @@
         "panels": []
       },
       {
-        "id": 6,
+        "id": 5,
         "title": "Availability burn — 1h",
         "description": "Current 1h error ratio expressed as multiples of the 30d budget burn (0.001). >14.4× over 1h consumes 2% of budget per hour.",
         "type": "stat",
-        "gridPos": { "h": 6, "w": 8, "x": 0, "y": 9 },
+        "gridPos": { "h": 6, "w": 12, "x": 0, "y": 9 },
         "targets": [
           {
             "expr": "slo:http_errors:ratio_1h / 0.001",
@@ -158,11 +126,11 @@
         }
       },
       {
-        "id": 7,
+        "id": 6,
         "title": "Latency burn — 1h",
         "description": "Current 1h slow ratio as multiples of the 30d budget burn (0.01).",
         "type": "stat",
-        "gridPos": { "h": 6, "w": 8, "x": 8, "y": 9 },
+        "gridPos": { "h": 6, "w": 12, "x": 12, "y": 9 },
         "targets": [
           {
             "expr": "slo:http_slow:ratio_1h / 0.01",
@@ -193,42 +161,7 @@
         }
       },
       {
-        "id": 8,
-        "title": "Sync apply burn — 1h",
-        "description": "Current 1h bad-envelope ratio as multiples of the 7d budget burn (0.01).",
-        "type": "stat",
-        "gridPos": { "h": 6, "w": 8, "x": 16, "y": 9 },
-        "targets": [
-          {
-            "expr": "slo:sync_bad:ratio_1h / 0.01",
-            "refId": "A",
-            "legendFormat": "burn"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "none",
-            "decimals": 2,
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "color": "green", "value": null },
-                { "color": "yellow", "value": 1 },
-                { "color": "orange", "value": 6 },
-                { "color": "red", "value": 14.4 }
-              ]
-            }
-          },
-          "overrides": []
-        },
-        "options": {
-          "graphMode": "area",
-          "colorMode": "background",
-          "reduceOptions": { "calcs": ["lastNotNull"] }
-        }
-      },
-      {
-        "id": 9,
+        "id": 7,
         "type": "row",
         "title": "Bad-event ratio (multi-window)",
         "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
@@ -236,7 +169,7 @@
         "panels": []
       },
       {
-        "id": 10,
+        "id": 8,
         "title": "HTTP 5xx ratio",
         "description": "slo:http_errors:ratio_5m / 30m / 1h / 6h. Persistent spread between short and long windows = noisy intermittent burst; spread that converges high = sustained outage.",
         "type": "timeseries",
@@ -253,7 +186,7 @@
         }
       },
       {
-        "id": 11,
+        "id": 9,
         "title": "HTTP slow (>1s) ratio",
         "description": "slo:http_slow:ratio_5m / 30m / 1h / 6h. Same multi-window read as 5xx ratio.",
         "type": "timeseries",
@@ -270,54 +203,19 @@
         }
       },
       {
-        "id": 12,
-        "title": "Sync bad-envelope ratio",
-        "description": "slo:sync_bad:ratio_5m / 30m / 1h / 6h. failed + rejected / observed.",
-        "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
-        "targets": [
-          { "expr": "slo:sync_bad:ratio_5m", "legendFormat": "5m", "refId": "A" },
-          { "expr": "slo:sync_bad:ratio_30m", "legendFormat": "30m", "refId": "B" },
-          { "expr": "slo:sync_bad:ratio_1h", "legendFormat": "1h", "refId": "C" },
-          { "expr": "slo:sync_bad:ratio_6h", "legendFormat": "6h", "refId": "D" }
-        ],
-        "fieldConfig": {
-          "defaults": { "unit": "percentunit", "decimals": 4 },
-          "overrides": []
-        }
-      },
-      {
-        "id": 13,
-        "title": "Sync rejected envelopes by reason",
-        "description": "rate(cmdb_sync_envelope_rejected_total[5m]) by reason. Surfaces tenant_mismatch / hmac_mismatch / checksum_mismatch separately so the cause of a sync burn alert is one click away.",
-        "type": "timeseries",
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
-        "targets": [
-          {
-            "expr": "sum by (reason) (rate(cmdb_sync_envelope_rejected_total[5m]))",
-            "legendFormat": "{{reason}}",
-            "refId": "A"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": { "unit": "ops" },
-          "overrides": []
-        }
-      },
-      {
-        "id": 14,
+        "id": 10,
         "type": "row",
         "title": "Active SLO alerts",
-        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
         "collapsed": false,
         "panels": []
       },
       {
-        "id": 15,
+        "id": 11,
         "title": "Firing alerts (slo label)",
         "description": "ALERTS{slo!=\"\"} — fast/slow burn pages and tickets sourced from slo.yml. severity=page → on-call. severity=ticket → next business day.",
         "type": "table",
-        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 33 },
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 25 },
         "targets": [
           {
             "expr": "ALERTS{slo!=\"\"}",

@@ -22,7 +22,6 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/problem"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/service"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/sync"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
@@ -58,7 +57,6 @@ type APIServer struct {
 	biaSvc            *bia.Service
 	qualitySvc        *quality.Service
 	discoverySvc      discoveryService
-	syncSvc           *sync.Service
 	locationDetectSvc *location_detect.Service
 	serviceSvc        *service.Service
 	problemSvc        *problem.Service
@@ -90,7 +88,6 @@ func NewAPIServer(
 	biaSvc *bia.Service,
 	qualitySvc *quality.Service,
 	discoverySvc discoveryService,
-	syncSvc *sync.Service,
 	locationDetectSvc *location_detect.Service,
 	serviceSvc *service.Service,
 	problemSvc *problem.Service,
@@ -120,7 +117,6 @@ func NewAPIServer(
 		biaSvc:            biaSvc,
 		qualitySvc:        qualitySvc,
 		discoverySvc:      discoverySvc,
-		syncSvc:           syncSvc,
 		locationDetectSvc: locationDetectSvc,
 		serviceSvc:        serviceSvc,
 		problemSvc:        problemSvc,
