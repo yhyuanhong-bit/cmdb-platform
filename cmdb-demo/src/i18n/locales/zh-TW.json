@@ -182,7 +182,9 @@
       "troubleshoot": "故障排除",
       "video_lib": "影片庫",
       "user_profile": "個人檔案",
-      "sync_management": "同步管理"
+      "sync_management": "同步管理",
+      "metric_sources": "指標來源",
+      "metrics_freshness": "資料新鮮度"
     },
     "help": "幫助"
   },
@@ -1574,6 +1576,60 @@
     "toast_ack": "建議已確認。",
     "toast_resolved": "建議已解決。",
     "toast_scan_done": "掃描完成 —— 共更新 {{count}} 筆紀錄。"
+  },
+
+  "metric_sources": {
+    "title": "指標來源",
+    "subtitle": "註冊向 metrics 時序表推送樣本的代理與輪詢器。每個來源的心跳為「資料新鮮度」面板提供輸入。",
+    "breadcrumb_system": "系統",
+    "btn_new": "新增來源",
+    "btn_freshness": "資料新鮮度",
+    "filter_all_statuses": "全部狀態",
+    "filter_all_kinds": "全部類型",
+    "results_count": "{{count}} 個來源",
+    "col_name": "名稱",
+    "col_kind": "類型",
+    "col_interval": "週期",
+    "col_last_heartbeat": "最近心跳",
+    "col_lifetime_samples": "累計樣本",
+    "load_failed": "來源清單載入失敗。",
+    "empty_state": "尚未註冊任何來源 —— 代理需先在此宣告，才會出現在新鮮度面板上。",
+    "never_heartbeated": "從未上報",
+    "dialog_create_title": "註冊指標來源",
+    "dialog_edit_title": "編輯指標來源",
+    "dialog_desc": "每個來源代表一個邏輯指標推送器。同租戶內名稱必須唯一。",
+    "field_name": "名稱",
+    "field_kind": "類型",
+    "field_interval": "預期週期（秒）",
+    "field_status": "狀態",
+    "field_notes": "備註",
+    "interval_hint": "心跳超過此值的 2 倍即觸發新鮮度警告。",
+    "status_hint": "停用的來源仍保留註冊資訊，但不納入新鮮度檢查。",
+    "placeholder_name": "例如 switch-a3-snmp",
+    "placeholder_notes": "此來源推送什麼？由誰維護？",
+    "confirm_delete": "刪除指標來源「{{name}}」？歷史樣本仍會引用此名稱。",
+    "toast_created": "指標來源已註冊。",
+    "toast_updated": "指標來源已更新。",
+    "toast_deleted": "指標來源已刪除。",
+    "toast_duplicate": "本租戶內已存在同名指標來源。"
+  },
+
+  "metrics_freshness": {
+    "title": "資料新鮮度",
+    "subtitle": "心跳逾期的指標來源。每 60 秒自動重新整理。",
+    "breadcrumb_system": "系統",
+    "btn_manage_sources": "管理來源",
+    "tier_never": "從未上報",
+    "tier_critical": "嚴重",
+    "tier_alert": "警報",
+    "tier_warning": "警告",
+    "auto_refresh_hint": "每 60 秒自動重新整理。",
+    "load_failed": "新鮮度載入失敗。",
+    "all_healthy": "所有來源皆按時上報。",
+    "all_healthy_hint": "無來源超過預期週期 2 倍。已停用的來源不納入此檢查。",
+    "never_heartbeated_hint": "從未收到心跳。預期週期 {{interval}}。",
+    "last_seen": "最近上報於 {{ago}} 前",
+    "expected_every": "預期每 {{interval}} 上報"
   },
 
   "predictive_capex": {

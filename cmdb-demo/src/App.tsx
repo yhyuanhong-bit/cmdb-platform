@@ -62,6 +62,8 @@ const AddMaintenanceTask = lazy(() => import('./pages/AddMaintenanceTask'))
 const PredictiveHub = lazy(() => import('./pages/PredictiveHub'))
 const PredictiveRefreshPage = lazy(() => import('./pages/PredictiveRefresh'))
 const PredictiveCapex = lazy(() => import('./pages/PredictiveCapex'))
+const MetricSourcesPage = lazy(() => import('./pages/MetricSources'))
+const MetricsFreshnessPage = lazy(() => import('./pages/MetricsFreshness'))
 
 // Audit
 const AuditHistory = lazy(() => import('./pages/AuditHistory'))
@@ -194,6 +196,8 @@ export default function App() {
           <Route path="/system/settings" element={<SystemSettings />} />
           <Route path="/system/profile" element={<UserProfile />} />
           <Route path="/system/sync" element={<SyncManagement />} />
+          <Route path="/system/metrics-sources" element={<MetricSourcesPage />} />
+          <Route path="/system/metrics-freshness" element={<MetricsFreshnessPage />} />
 
           {/* BIA */}
           <Route path="/bia" element={<BIAOverview />} />

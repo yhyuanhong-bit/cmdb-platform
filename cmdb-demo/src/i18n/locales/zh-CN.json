@@ -182,7 +182,9 @@
       "troubleshoot": "故障排除",
       "video_lib": "视频库",
       "user_profile": "个人档案",
-      "sync_management": "同步管理"
+      "sync_management": "同步管理",
+      "metric_sources": "指标源",
+      "metrics_freshness": "数据新鲜度"
     },
     "help": "帮助"
   },
@@ -1574,6 +1576,60 @@
     "toast_ack": "建议已确认。",
     "toast_resolved": "建议已解决。",
     "toast_scan_done": "扫描完成 —— 共更新 {{count}} 条记录。"
+  },
+
+  "metric_sources": {
+    "title": "指标源",
+    "subtitle": "注册向 metrics 时序表推送样本的代理与采集器。每个源的心跳为「数据新鲜度」面板提供输入。",
+    "breadcrumb_system": "系统",
+    "btn_new": "新增源",
+    "btn_freshness": "数据新鲜度",
+    "filter_all_statuses": "全部状态",
+    "filter_all_kinds": "全部类型",
+    "results_count": "{{count}} 个源",
+    "col_name": "名称",
+    "col_kind": "类型",
+    "col_interval": "周期",
+    "col_last_heartbeat": "最近心跳",
+    "col_lifetime_samples": "累计样本",
+    "load_failed": "源列表加载失败。",
+    "empty_state": "尚未注册任何源 —— 代理需先在此声明，才能出现在新鲜度面板上。",
+    "never_heartbeated": "从未上报",
+    "dialog_create_title": "注册指标源",
+    "dialog_edit_title": "编辑指标源",
+    "dialog_desc": "每个源代表一个逻辑指标推送器。同租户内名称必须唯一。",
+    "field_name": "名称",
+    "field_kind": "类型",
+    "field_interval": "预期周期（秒）",
+    "field_status": "状态",
+    "field_notes": "备注",
+    "interval_hint": "心跳超过该值的 2 倍即触发新鲜度告警。",
+    "status_hint": "已停用的源仍保留注册信息，但不参与新鲜度检查。",
+    "placeholder_name": "例如 switch-a3-snmp",
+    "placeholder_notes": "此源推送什么？由谁维护？",
+    "confirm_delete": "删除指标源「{{name}}」？历史样本仍会引用此名称。",
+    "toast_created": "指标源已注册。",
+    "toast_updated": "指标源已更新。",
+    "toast_deleted": "指标源已删除。",
+    "toast_duplicate": "本租户内已存在同名指标源。"
+  },
+
+  "metrics_freshness": {
+    "title": "数据新鲜度",
+    "subtitle": "心跳过期的指标源。每 60 秒自动刷新。",
+    "breadcrumb_system": "系统",
+    "btn_manage_sources": "管理源",
+    "tier_never": "从未上报",
+    "tier_critical": "严重",
+    "tier_alert": "警报",
+    "tier_warning": "警告",
+    "auto_refresh_hint": "每 60 秒自动刷新。",
+    "load_failed": "新鲜度加载失败。",
+    "all_healthy": "所有源均按时上报。",
+    "all_healthy_hint": "无源超过预期周期 2 倍。已停用的源不计入此检查。",
+    "never_heartbeated_hint": "从未收到心跳。预期周期 {{interval}}。",
+    "last_seen": "最近上报于 {{ago}} 前",
+    "expected_every": "预期每 {{interval}} 上报"
   },
 
   "predictive_capex": {

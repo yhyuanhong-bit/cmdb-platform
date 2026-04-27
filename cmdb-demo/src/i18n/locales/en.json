@@ -182,7 +182,9 @@
       "troubleshoot": "Troubleshooting",
       "video_lib": "Video Library",
       "user_profile": "Profile",
-      "sync_management": "Sync"
+      "sync_management": "Sync",
+      "metric_sources": "Metric Sources",
+      "metrics_freshness": "Data Freshness"
     },
     "help": "Help"
   },
@@ -1574,6 +1576,60 @@
     "toast_ack": "Recommendation acknowledged.",
     "toast_resolved": "Recommendation resolved.",
     "toast_scan_done": "Scan complete — {{count}} rows upserted."
+  },
+
+  "metric_sources": {
+    "title": "Metric Sources",
+    "subtitle": "Register the agents and pollers that push samples into the metrics hypertable. Heartbeats from each source feed the freshness dashboard.",
+    "breadcrumb_system": "System",
+    "btn_new": "New Source",
+    "btn_freshness": "Data Freshness",
+    "filter_all_statuses": "All statuses",
+    "filter_all_kinds": "All kinds",
+    "results_count": "{{count}} source(s)",
+    "col_name": "Name",
+    "col_kind": "Kind",
+    "col_interval": "Interval",
+    "col_last_heartbeat": "Last heartbeat",
+    "col_lifetime_samples": "Lifetime samples",
+    "load_failed": "Failed to load sources.",
+    "empty_state": "No sources registered yet — agents won't appear on the freshness dashboard until they're declared here.",
+    "never_heartbeated": "never",
+    "dialog_create_title": "Register Metric Source",
+    "dialog_edit_title": "Edit Metric Source",
+    "dialog_desc": "Each source represents one logical pusher of metrics. Names must be unique within the tenant.",
+    "field_name": "Name",
+    "field_kind": "Kind",
+    "field_interval": "Expected interval (seconds)",
+    "field_status": "Status",
+    "field_notes": "Notes",
+    "interval_hint": "Heartbeats older than 2× this trigger a freshness alert.",
+    "status_hint": "Disabled sources stay registered but are excluded from freshness checks.",
+    "placeholder_name": "e.g. switch-a3-snmp",
+    "placeholder_notes": "What does this source push? Who owns it?",
+    "confirm_delete": "Delete metric source \"{{name}}\"? Historic metrics will keep referencing the name.",
+    "toast_created": "Metric source registered.",
+    "toast_updated": "Metric source updated.",
+    "toast_deleted": "Metric source deleted.",
+    "toast_duplicate": "A source with this name already exists in this tenant."
+  },
+
+  "metrics_freshness": {
+    "title": "Data Freshness",
+    "subtitle": "Sources whose last heartbeat is overdue. Auto-refreshes every 60 seconds.",
+    "breadcrumb_system": "System",
+    "btn_manage_sources": "Manage Sources",
+    "tier_never": "Never seen",
+    "tier_critical": "Critical",
+    "tier_alert": "Alert",
+    "tier_warning": "Warning",
+    "auto_refresh_hint": "Auto-refreshes every 60 seconds.",
+    "load_failed": "Failed to load freshness.",
+    "all_healthy": "All sources are reporting on schedule.",
+    "all_healthy_hint": "No source is more than 2× its expected interval behind. Disabled sources are excluded from this check.",
+    "never_heartbeated_hint": "Never received a heartbeat. Expected every {{interval}}.",
+    "last_seen": "Last seen {{ago}} ago",
+    "expected_every": "expected every {{interval}}"
   },
 
   "predictive_capex": {
