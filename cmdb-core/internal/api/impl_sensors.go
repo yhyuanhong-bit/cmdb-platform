@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
@@ -213,7 +214,11 @@ func (s *APIServer) UpdateSensor(c *gin.Context, id IdPath) {
 
 	for _, col := range []string{"asset_id", "name", "type", "location", "polling_interval", "enabled", "status"} {
 		if val, ok := body[col]; ok && allowed[col] {
-			setClauses = append(setClauses, fmt.Sprintf("%s = $%d", col, idx))
+			// pgx.Identifier double-quotes + escapes the column name. The col
+			// values here are from a hardcoded slice so injection isn't
+			// possible today, but using Sanitize keeps this consistent with
+			// the rest of the codebase and survives future allow-list edits.
+			setClauses = append(setClauses, fmt.Sprintf("%s = $%d", pgx.Identifier{col}.Sanitize(), idx))
 			args = append(args, val)
 			idx++
 		}
@@ -228,8 +233,8 @@ func (s *APIServer) UpdateSensor(c *gin.Context, id IdPath) {
 	args = append(args, sensorID)
 	idIdx := idx
 
-	query := fmt.Sprintf("UPDATE sensors SET %s WHERE id = $%d AND tenant_id = $1",
-		strings.Join(setClauses, ", "), idIdx)
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE id = $%d AND tenant_id = $1",
+		pgx.Identifier{"sensors"}.Sanitize(), strings.Join(setClauses, ", "), idIdx)
 
 	sc := database.Scope(s.pool, tenantID)
 	result, err := sc.Exec(c.Request.Context(), query, args...)

@@ -566,7 +566,10 @@ func (s *APIServer) SyncSnapshot(c *gin.Context, params SyncSnapshotParams) {
 	case "audit_events":
 		query = "SELECT row_to_json(t) FROM audit_events t WHERE t.tenant_id = $1 ORDER BY t.created_at"
 	default:
-		query = fmt.Sprintf("SELECT row_to_json(t) FROM %s t WHERE t.tenant_id = $1 ORDER BY t.sync_version", entityType)
+		// entityType already passed the allowedTables map above; pgx.Identifier
+		// is a defence-in-depth quote+escape so a future allow-list edit can't
+		// silently introduce SQL injection.
+		query = fmt.Sprintf("SELECT row_to_json(t) FROM %s t WHERE t.tenant_id = $1 ORDER BY t.sync_version", pgx.Identifier{entityType}.Sanitize())
 	}
 	sc2 := database.Scope(s.pool, tenantID)
 	rows, err := sc2.Query(c.Request.Context(), query)
