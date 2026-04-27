@@ -546,6 +546,51 @@ func (e LocationAnomalySeverity) Valid() bool {
 	}
 }
 
+// Defines values for MetricSourceKind.
+const (
+	MetricSourceKindAgent    MetricSourceKind = "agent"
+	MetricSourceKindIpmi     MetricSourceKind = "ipmi"
+	MetricSourceKindManual   MetricSourceKind = "manual"
+	MetricSourceKindPipeline MetricSourceKind = "pipeline"
+	MetricSourceKindSnmp     MetricSourceKind = "snmp"
+)
+
+// Valid indicates whether the value is a known member of the MetricSourceKind enum.
+func (e MetricSourceKind) Valid() bool {
+	switch e {
+	case MetricSourceKindAgent:
+		return true
+	case MetricSourceKindIpmi:
+		return true
+	case MetricSourceKindManual:
+		return true
+	case MetricSourceKindPipeline:
+		return true
+	case MetricSourceKindSnmp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MetricSourceStatus.
+const (
+	MetricSourceStatusActive   MetricSourceStatus = "active"
+	MetricSourceStatusDisabled MetricSourceStatus = "disabled"
+)
+
+// Valid indicates whether the value is a known member of the MetricSourceStatus enum.
+func (e MetricSourceStatus) Valid() bool {
+	switch e {
+	case MetricSourceStatusActive:
+		return true
+	case MetricSourceStatusDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PredictiveRefreshKind.
 const (
 	PredictiveRefreshKindAgedOut          PredictiveRefreshKind = "aged_out"
@@ -1332,6 +1377,114 @@ func (e ResolveInventoryDiscrepancyJSONBodyAction) Valid() bool {
 	case Register:
 		return true
 	case Verify:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListMetricSourcesParamsStatus.
+const (
+	ListMetricSourcesParamsStatusActive   ListMetricSourcesParamsStatus = "active"
+	ListMetricSourcesParamsStatusDisabled ListMetricSourcesParamsStatus = "disabled"
+)
+
+// Valid indicates whether the value is a known member of the ListMetricSourcesParamsStatus enum.
+func (e ListMetricSourcesParamsStatus) Valid() bool {
+	switch e {
+	case ListMetricSourcesParamsStatusActive:
+		return true
+	case ListMetricSourcesParamsStatusDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateMetricSourceJSONBodyKind.
+const (
+	CreateMetricSourceJSONBodyKindAgent    CreateMetricSourceJSONBodyKind = "agent"
+	CreateMetricSourceJSONBodyKindIpmi     CreateMetricSourceJSONBodyKind = "ipmi"
+	CreateMetricSourceJSONBodyKindManual   CreateMetricSourceJSONBodyKind = "manual"
+	CreateMetricSourceJSONBodyKindPipeline CreateMetricSourceJSONBodyKind = "pipeline"
+	CreateMetricSourceJSONBodyKindSnmp     CreateMetricSourceJSONBodyKind = "snmp"
+)
+
+// Valid indicates whether the value is a known member of the CreateMetricSourceJSONBodyKind enum.
+func (e CreateMetricSourceJSONBodyKind) Valid() bool {
+	switch e {
+	case CreateMetricSourceJSONBodyKindAgent:
+		return true
+	case CreateMetricSourceJSONBodyKindIpmi:
+		return true
+	case CreateMetricSourceJSONBodyKindManual:
+		return true
+	case CreateMetricSourceJSONBodyKindPipeline:
+		return true
+	case CreateMetricSourceJSONBodyKindSnmp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateMetricSourceJSONBodyStatus.
+const (
+	CreateMetricSourceJSONBodyStatusActive   CreateMetricSourceJSONBodyStatus = "active"
+	CreateMetricSourceJSONBodyStatusDisabled CreateMetricSourceJSONBodyStatus = "disabled"
+)
+
+// Valid indicates whether the value is a known member of the CreateMetricSourceJSONBodyStatus enum.
+func (e CreateMetricSourceJSONBodyStatus) Valid() bool {
+	switch e {
+	case CreateMetricSourceJSONBodyStatusActive:
+		return true
+	case CreateMetricSourceJSONBodyStatusDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateMetricSourceJSONBodyKind.
+const (
+	Agent    UpdateMetricSourceJSONBodyKind = "agent"
+	Ipmi     UpdateMetricSourceJSONBodyKind = "ipmi"
+	Manual   UpdateMetricSourceJSONBodyKind = "manual"
+	Pipeline UpdateMetricSourceJSONBodyKind = "pipeline"
+	Snmp     UpdateMetricSourceJSONBodyKind = "snmp"
+)
+
+// Valid indicates whether the value is a known member of the UpdateMetricSourceJSONBodyKind enum.
+func (e UpdateMetricSourceJSONBodyKind) Valid() bool {
+	switch e {
+	case Agent:
+		return true
+	case Ipmi:
+		return true
+	case Manual:
+		return true
+	case Pipeline:
+		return true
+	case Snmp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateMetricSourceJSONBodyStatus.
+const (
+	UpdateMetricSourceJSONBodyStatusActive   UpdateMetricSourceJSONBodyStatus = "active"
+	UpdateMetricSourceJSONBodyStatusDisabled UpdateMetricSourceJSONBodyStatus = "disabled"
+)
+
+// Valid indicates whether the value is a known member of the UpdateMetricSourceJSONBodyStatus enum.
+func (e UpdateMetricSourceJSONBodyStatus) Valid() bool {
+	switch e {
+	case UpdateMetricSourceJSONBodyStatusActive:
+		return true
+	case UpdateMetricSourceJSONBodyStatusDisabled:
 		return true
 	default:
 		return false
@@ -2376,6 +2529,39 @@ type MetricPoint struct {
 	Name  string    `json:"name"`
 	Time  time.Time `json:"time"`
 	Value float64   `json:"value"`
+}
+
+// MetricSource A logical pusher of metrics — an SNMP poller, an IPMI agent, etc.
+type MetricSource struct {
+	CreatedAt               time.Time          `json:"created_at"`
+	ExpectedIntervalSeconds int                `json:"expected_interval_seconds"`
+	Id                      openapi_types.UUID `json:"id"`
+	Kind                    MetricSourceKind   `json:"kind"`
+	LastHeartbeatAt         *time.Time         `json:"last_heartbeat_at,omitempty"`
+	LastSampleCount         int64              `json:"last_sample_count"`
+	Name                    string             `json:"name"`
+	Notes                   *string            `json:"notes,omitempty"`
+	Status                  MetricSourceStatus `json:"status"`
+	UpdatedAt               *time.Time         `json:"updated_at,omitempty"`
+}
+
+// MetricSourceKind defines model for MetricSource.Kind.
+type MetricSourceKind string
+
+// MetricSourceStatus defines model for MetricSource.Status.
+type MetricSourceStatus string
+
+// MetricSourceFreshness A stale source returned by the freshness check.
+type MetricSourceFreshness struct {
+	ExpectedIntervalSeconds int                `json:"expected_interval_seconds"`
+	Id                      openapi_types.UUID `json:"id"`
+	Kind                    string             `json:"kind"`
+	LastHeartbeatAt         *time.Time         `json:"last_heartbeat_at,omitempty"`
+	Name                    string             `json:"name"`
+
+	// SecondsSinceHeartbeat NULL when the source has never heartbeated.
+	SecondsSinceHeartbeat *int   `json:"seconds_since_heartbeat,omitempty"`
+	Status                string `json:"status"`
 }
 
 // Notification defines model for Notification.
@@ -3451,6 +3637,50 @@ type TransitionWorkOrderJSONBody struct {
 	Status  string  `json:"status"`
 }
 
+// ListMetricSourcesParams defines parameters for ListMetricSources.
+type ListMetricSourcesParams struct {
+	Status *ListMetricSourcesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Kind   *string                        `form:"kind,omitempty" json:"kind,omitempty"`
+}
+
+// ListMetricSourcesParamsStatus defines parameters for ListMetricSources.
+type ListMetricSourcesParamsStatus string
+
+// CreateMetricSourceJSONBody defines parameters for CreateMetricSource.
+type CreateMetricSourceJSONBody struct {
+	ExpectedIntervalSeconds int                               `json:"expected_interval_seconds"`
+	Kind                    CreateMetricSourceJSONBodyKind    `json:"kind"`
+	Name                    string                            `json:"name"`
+	Notes                   *string                           `json:"notes,omitempty"`
+	Status                  *CreateMetricSourceJSONBodyStatus `json:"status,omitempty"`
+}
+
+// CreateMetricSourceJSONBodyKind defines parameters for CreateMetricSource.
+type CreateMetricSourceJSONBodyKind string
+
+// CreateMetricSourceJSONBodyStatus defines parameters for CreateMetricSource.
+type CreateMetricSourceJSONBodyStatus string
+
+// UpdateMetricSourceJSONBody defines parameters for UpdateMetricSource.
+type UpdateMetricSourceJSONBody struct {
+	ExpectedIntervalSeconds *int                              `json:"expected_interval_seconds,omitempty"`
+	Kind                    *UpdateMetricSourceJSONBodyKind   `json:"kind,omitempty"`
+	Name                    *string                           `json:"name,omitempty"`
+	Notes                   *string                           `json:"notes,omitempty"`
+	Status                  *UpdateMetricSourceJSONBodyStatus `json:"status,omitempty"`
+}
+
+// UpdateMetricSourceJSONBodyKind defines parameters for UpdateMetricSource.
+type UpdateMetricSourceJSONBodyKind string
+
+// UpdateMetricSourceJSONBodyStatus defines parameters for UpdateMetricSource.
+type UpdateMetricSourceJSONBodyStatus string
+
+// HeartbeatMetricSourceJSONBody defines parameters for HeartbeatMetricSource.
+type HeartbeatMetricSourceJSONBody struct {
+	SampleDelta *int64 `json:"sample_delta,omitempty"`
+}
+
 // ListAlertsParams defines parameters for ListAlerts.
 type ListAlertsParams struct {
 	Page     *Page               `form:"page,omitempty" json:"page,omitempty"`
@@ -3889,6 +4119,15 @@ type CreateWorkOrderCommentJSONRequestBody CreateWorkOrderCommentJSONBody
 
 // TransitionWorkOrderJSONRequestBody defines body for TransitionWorkOrder for application/json ContentType.
 type TransitionWorkOrderJSONRequestBody TransitionWorkOrderJSONBody
+
+// CreateMetricSourceJSONRequestBody defines body for CreateMetricSource for application/json ContentType.
+type CreateMetricSourceJSONRequestBody CreateMetricSourceJSONBody
+
+// UpdateMetricSourceJSONRequestBody defines body for UpdateMetricSource for application/json ContentType.
+type UpdateMetricSourceJSONRequestBody UpdateMetricSourceJSONBody
+
+// HeartbeatMetricSourceJSONRequestBody defines body for HeartbeatMetricSource for application/json ContentType.
+type HeartbeatMetricSourceJSONRequestBody HeartbeatMetricSourceJSONBody
 
 // CreateIncidentJSONRequestBody defines body for CreateIncident for application/json ContentType.
 type CreateIncidentJSONRequestBody CreateIncidentJSONBody
@@ -5245,6 +5484,27 @@ type ServerInterface interface {
 	// Transition work order status
 	// (POST /maintenance/orders/{id}/transition)
 	TransitionWorkOrder(c *gin.Context, id IdPath)
+	// List metric sources for the caller's tenant
+	// (GET /metrics/sources)
+	ListMetricSources(c *gin.Context, params ListMetricSourcesParams)
+	// Register a metric source
+	// (POST /metrics/sources)
+	CreateMetricSource(c *gin.Context)
+	// Sources whose last heartbeat is overdue
+	// (GET /metrics/sources/freshness)
+	ListStaleMetricSources(c *gin.Context)
+	// Remove a metric source from the registry
+	// (DELETE /metrics/sources/{id})
+	DeleteMetricSource(c *gin.Context, id IdPath)
+	// Get a metric source
+	// (GET /metrics/sources/{id})
+	GetMetricSource(c *gin.Context, id IdPath)
+	// Update a metric source
+	// (PUT /metrics/sources/{id})
+	UpdateMetricSource(c *gin.Context, id IdPath)
+	// Bump the last_heartbeat_at on a source
+	// (POST /metrics/sources/{id}/heartbeat)
+	HeartbeatMetricSource(c *gin.Context, id IdPath)
 	// List alert events
 	// (GET /monitoring/alerts)
 	ListAlerts(c *gin.Context, params ListAlertsParams)
@@ -9319,6 +9579,176 @@ func (siw *ServerInterfaceWrapper) TransitionWorkOrder(c *gin.Context) {
 	siw.Handler.TransitionWorkOrder(c, id)
 }
 
+// ListMetricSources operation middleware
+func (siw *ServerInterfaceWrapper) ListMetricSources(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMetricSourcesParams
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kind", c.Request.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kind: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListMetricSources(c, params)
+}
+
+// CreateMetricSource operation middleware
+func (siw *ServerInterfaceWrapper) CreateMetricSource(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateMetricSource(c)
+}
+
+// ListStaleMetricSources operation middleware
+func (siw *ServerInterfaceWrapper) ListStaleMetricSources(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListStaleMetricSources(c)
+}
+
+// DeleteMetricSource operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMetricSource(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteMetricSource(c, id)
+}
+
+// GetMetricSource operation middleware
+func (siw *ServerInterfaceWrapper) GetMetricSource(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetMetricSource(c, id)
+}
+
+// UpdateMetricSource operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMetricSource(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateMetricSource(c, id)
+}
+
+// HeartbeatMetricSource operation middleware
+func (siw *ServerInterfaceWrapper) HeartbeatMetricSource(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.HeartbeatMetricSource(c, id)
+}
+
 // ListAlerts operation middleware
 func (siw *ServerInterfaceWrapper) ListAlerts(c *gin.Context) {
 
@@ -12414,6 +12844,13 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/maintenance/orders/:id/comments", wrapper.CreateWorkOrderComment)
 	router.GET(options.BaseURL+"/maintenance/orders/:id/logs", wrapper.ListWorkOrderLogs)
 	router.POST(options.BaseURL+"/maintenance/orders/:id/transition", wrapper.TransitionWorkOrder)
+	router.GET(options.BaseURL+"/metrics/sources", wrapper.ListMetricSources)
+	router.POST(options.BaseURL+"/metrics/sources", wrapper.CreateMetricSource)
+	router.GET(options.BaseURL+"/metrics/sources/freshness", wrapper.ListStaleMetricSources)
+	router.DELETE(options.BaseURL+"/metrics/sources/:id", wrapper.DeleteMetricSource)
+	router.GET(options.BaseURL+"/metrics/sources/:id", wrapper.GetMetricSource)
+	router.PUT(options.BaseURL+"/metrics/sources/:id", wrapper.UpdateMetricSource)
+	router.POST(options.BaseURL+"/metrics/sources/:id/heartbeat", wrapper.HeartbeatMetricSource)
 	router.GET(options.BaseURL+"/monitoring/alerts", wrapper.ListAlerts)
 	router.GET(options.BaseURL+"/monitoring/alerts/trend", wrapper.GetAlertsTrend)
 	router.POST(options.BaseURL+"/monitoring/alerts/:id/ack", wrapper.AcknowledgeAlert)

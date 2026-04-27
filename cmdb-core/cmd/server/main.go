@@ -31,6 +31,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/metricsource"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/predictive"
@@ -459,12 +460,16 @@ func main() {
 	predictiveSvc := predictive.NewService(queries, pool)
 	go runPredictiveScheduler(ctx, predictiveSvc)
 
+	// Wave 8.1: metric-source registry. CRUD + heartbeat + freshness.
+	// No background scheduler needed — freshness is computed on read.
+	metricSourceSvc := metricsource.NewService(queries, pool)
+
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
-		serviceSvc, problemSvc, changeSvc, energySvc, predictiveSvc, cipher, netGuard,
+		serviceSvc, problemSvc, changeSvc, energySvc, predictiveSvc, metricSourceSvc, cipher, netGuard,
 	)
 
 	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)

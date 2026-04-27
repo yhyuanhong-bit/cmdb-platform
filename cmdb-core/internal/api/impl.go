@@ -16,6 +16,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
 	location_detect "github.com/cmdb-platform/cmdb-core/internal/domain/location_detect"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/metricsource"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/problem"
@@ -63,6 +64,7 @@ type APIServer struct {
 	changeSvc         *change.Service
 	energySvc         *energy.Service
 	predictiveSvc     *predictive.Service
+	metricSourceSvc   *metricsource.Service
 	cipher            crypto.Cipher
 	netGuard          *netguard.Guard
 }
@@ -93,6 +95,7 @@ func NewAPIServer(
 	changeSvc *change.Service,
 	energySvc *energy.Service,
 	predictiveSvc *predictive.Service,
+	metricSourceSvc *metricsource.Service,
 	cipher crypto.Cipher,
 	netGuard *netguard.Guard,
 ) *APIServer {
@@ -121,6 +124,7 @@ func NewAPIServer(
 		changeSvc:         changeSvc,
 		energySvc:         energySvc,
 		predictiveSvc:     predictiveSvc,
+		metricSourceSvc:   metricSourceSvc,
 		cipher:            cipher,
 		netGuard:          netGuard,
 	}

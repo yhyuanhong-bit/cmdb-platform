@@ -3337,6 +3337,172 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # --------------------------------------------------------------------------
+  # Wave 8.1: Metrics-pipeline source registry.
+  # --------------------------------------------------------------------------
+
+  /metrics/sources:
+    get:
+      operationId: listMetricSources
+      tags: [metrics]
+      summary: List metric sources for the caller's tenant
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, disabled] }
+        - name: kind
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Sources ordered by oldest heartbeat first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/MetricSource' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+    post:
+      operationId: createMetricSource
+      tags: [metrics]
+      summary: Register a metric source
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, kind, expected_interval_seconds]
+              properties:
+                name:                      { type: string }
+                kind:                      { type: string, enum: [snmp, ipmi, agent, pipeline, manual] }
+                expected_interval_seconds: { type: integer, minimum: 1 }
+                status:                    { type: string, enum: [active, disabled] }
+                notes:                     { type: string }
+      responses:
+        '201':
+          description: Source created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/MetricSource' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /metrics/sources/freshness:
+    get:
+      operationId: listStaleMetricSources
+      tags: [metrics]
+      summary: Sources whose last heartbeat is overdue
+      description: >
+        Returns active sources whose last_heartbeat_at is older than
+        2× expected_interval_seconds, or have never heartbeated. The
+        2× factor tolerates routine jitter without flapping.
+      responses:
+        '200':
+          description: Stale sources ordered by oldest heartbeat
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/MetricSourceFreshness' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /metrics/sources/{id}:
+    get:
+      operationId: getMetricSource
+      tags: [metrics]
+      summary: Get a metric source
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Source detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/MetricSource' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateMetricSource
+      tags: [metrics]
+      summary: Update a metric source
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:                      { type: string }
+                kind:                      { type: string, enum: [snmp, ipmi, agent, pipeline, manual] }
+                expected_interval_seconds: { type: integer, minimum: 1 }
+                status:                    { type: string, enum: [active, disabled] }
+                notes:                     { type: string }
+      responses:
+        '200':
+          description: Source updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/MetricSource' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteMetricSource
+      tags: [metrics]
+      summary: Remove a metric source from the registry
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '204': { description: Deleted }
+
+  /metrics/sources/{id}/heartbeat:
+    post:
+      operationId: heartbeatMetricSource
+      tags: [metrics]
+      summary: Bump the last_heartbeat_at on a source
+      description: >
+        Called by the agent (or the ingestion endpoint relaying its
+        data) on every successful flush. sample_delta is the number
+        of metric rows the call wrote; pass 0 for a "still alive"
+        ping that carries no data.
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sample_delta: { type: integer, format: int64, minimum: 0 }
+      responses:
+        '200':
+          description: Heartbeat recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/MetricSource' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /energy/billing/bill:
     get:
       operationId: getEnergyBill
@@ -7026,6 +7192,40 @@ components:
         cost:         { type: string }
         currency:     { type: string }
       required: [asset_id, kwh, rate_per_kwh, cost, currency]
+
+    MetricSource:
+      type: object
+      description: A logical pusher of metrics — an SNMP poller, an IPMI agent, etc.
+      properties:
+        id:                        { type: string, format: uuid }
+        name:                      { type: string }
+        kind:
+          type: string
+          enum: [snmp, ipmi, agent, pipeline, manual]
+        expected_interval_seconds: { type: integer }
+        status:                    { type: string, enum: [active, disabled] }
+        last_heartbeat_at:         { type: string, format: date-time, nullable: true }
+        last_sample_count:         { type: integer, format: int64 }
+        notes:                     { type: string, nullable: true }
+        created_at:                { type: string, format: date-time }
+        updated_at:                { type: string, format: date-time, nullable: true }
+      required: [id, name, kind, expected_interval_seconds, status, last_sample_count, created_at]
+
+    MetricSourceFreshness:
+      type: object
+      description: A stale source returned by the freshness check.
+      properties:
+        id:                        { type: string, format: uuid }
+        name:                      { type: string }
+        kind:                      { type: string }
+        expected_interval_seconds: { type: integer }
+        status:                    { type: string }
+        last_heartbeat_at:         { type: string, format: date-time, nullable: true }
+        seconds_since_heartbeat:
+          type: integer
+          nullable: true
+          description: NULL when the source has never heartbeated.
+      required: [id, name, kind, expected_interval_seconds, status]
 
     PredictiveRefresh:
       type: object

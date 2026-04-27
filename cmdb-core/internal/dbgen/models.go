@@ -640,6 +640,20 @@ type Metric struct {
 	Labels   []byte        `json:"labels"`
 }
 
+type MetricSource struct {
+	ID                      uuid.UUID          `json:"id"`
+	TenantID                uuid.UUID          `json:"tenant_id"`
+	Name                    string             `json:"name"`
+	Kind                    string             `json:"kind"`
+	ExpectedIntervalSeconds int32              `json:"expected_interval_seconds"`
+	Status                  string             `json:"status"`
+	LastHeartbeatAt         pgtype.Timestamptz `json:"last_heartbeat_at"`
+	LastSampleCount         int64              `json:"last_sample_count"`
+	Notes                   pgtype.Text        `json:"notes"`
+	CreatedAt               time.Time          `json:"created_at"`
+	UpdatedAt               time.Time          `json:"updated_at"`
+}
+
 type Metrics1hour struct {
 	Bucket   interface{} `json:"bucket"`
 	AssetID  pgtype.UUID `json:"asset_id"`
