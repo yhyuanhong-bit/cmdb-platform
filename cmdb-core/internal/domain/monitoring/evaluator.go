@@ -152,8 +152,21 @@ type Evaluator struct {
 	// about ITSM, deployments that haven't migrated to 000068).
 	bridge *incidentBridge
 
+	// tracker records last-tick timestamps for the Wave 9.1 readiness
+	// dashboard. May be nil — tests that don't care about scheduler
+	// health pass nothing.
+	tracker     schedHealthRecorder
+	trackerName string
+
 	mu    sync.Mutex
 	state map[stateKey]*ruleState
+}
+
+// schedHealthRecorder is the narrow interface the evaluator needs from
+// schedhealth.Tracker. Defining it locally keeps this package decoupled
+// from the platform/schedhealth import.
+type schedHealthRecorder interface {
+	Record(name string)
 }
 
 // Option is a functional option for NewEvaluator.
@@ -175,6 +188,16 @@ func WithLogger(l *zap.Logger) Option {
 // time.Now.
 func WithClock(now func() time.Time) Option {
 	return func(e *Evaluator) { e.now = now }
+}
+
+// WithSchedHealth wires the Wave 9.1 scheduler-health tracker. The
+// evaluator calls tracker.Record(name) at the top of each tick so the
+// readiness dashboard can detect a stuck loop. nil tracker is a no-op.
+func WithSchedHealth(tracker schedHealthRecorder, name string) Option {
+	return func(e *Evaluator) {
+		e.tracker = tracker
+		e.trackerName = name
+	}
 }
 
 // NewEvaluator constructs an Evaluator. The pool MUST have the alert_events
@@ -224,6 +247,12 @@ func (e *Evaluator) Start(ctx context.Context) {
 // runTick is one full scan of enabled rules. A panic inside this function
 // must NOT kill the goroutine — deferred recover + telemetry counter bump.
 func (e *Evaluator) runTick(ctx context.Context) {
+	if e.tracker != nil && e.trackerName != "" {
+		// Record at the top of the tick so a stuck-mid-tick scheduler
+		// still appears stale (the recorded timestamp is the start
+		// of the LAST tick, not the most recent finish).
+		e.tracker.Record(e.trackerName)
+	}
 	outcome := "ok"
 	defer func() {
 		if r := recover(); r != nil {

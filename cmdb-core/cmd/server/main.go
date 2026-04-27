@@ -50,6 +50,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/schedhealth"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	cmdbws "github.com/cmdb-platform/cmdb-core/internal/websocket"
 	"github.com/gin-gonic/gin"
@@ -317,6 +318,14 @@ func main() {
 	// alert_events rows on threshold breach. Strictly tenant-scoped per
 	// rule. Launched as a background goroutine off the server context so
 	// SIGTERM stops it within one interval.
+	// schedTracker is created later (right before the goroutine
+	// launches), so register the alert evaluator with the
+	// once-resolvable forwarder. WithSchedHealth tolerates a nil
+	// recorder, but here we know the tracker will exist at startup
+	// time — the forwarder pattern just keeps the evaluator
+	// constructor argument-stable across waves that change the
+	// startup ordering. See Wave 9.1.
+	alertEvalTrackerForwarder := &lateBoundRecorder{}
 	alertEvaluator := monitoring.NewEvaluator(
 		queries,
 		monitoring.NewPoolAdapter(pool),
@@ -326,6 +335,8 @@ func main() {
 		// known asset auto-spawn or attach to an open incident so
 		// operators get a single coordination surface.
 		monitoring.WithIncidentBridge(pool),
+		// Wave 9.1: scheduler heartbeat for the readiness dashboard.
+		monitoring.WithSchedHealth(alertEvalTrackerForwarder, "alert_evaluator"),
 	)
 	inventorySvc := inventory.NewService(queries, bus)
 	auditSvc := audit.NewService(queries)
@@ -448,17 +459,23 @@ func main() {
 	// daily kWh aggregator, monthly bill computation.
 	energySvc := energy.NewService(queries, pool)
 
+	// Wave 9.1: scheduler-health tracker. Schedulers Record() at the top
+	// of each tick so /admin/scheduler-health can detect a stuck loop.
+	schedTracker := schedhealth.New()
+	schedTracker.Register("alert_evaluator", monitoring.DefaultEvaluatorInterval)
+	alertEvalTrackerForwarder.target = schedTracker
+
 	// Wave 6.2: nightly PUE rollup + anomaly detector. One tick per hour
 	// is overkill for a daily job but means a startup right after midnight
 	// catches up within ~60 minutes; the underlying upserts are idempotent
 	// so the duplicate ticks are no-ops.
-	go runEnergyScheduler(ctx, energySvc)
+	go runEnergyScheduler(ctx, energySvc, schedTracker)
 
 	// Wave 7.1: predictive refresh recommendations. Hourly tick scans
 	// every tenant's lifecycle-bearing assets. Idempotent — duplicate
 	// ticks are no-ops on top of UPSERT semantics.
 	predictiveSvc := predictive.NewService(queries, pool)
-	go runPredictiveScheduler(ctx, predictiveSvc)
+	go runPredictiveScheduler(ctx, predictiveSvc, schedTracker)
 
 	// Wave 8.1: metric-source registry. CRUD + heartbeat + freshness.
 	// No background scheduler needed — freshness is computed on read.
@@ -469,7 +486,7 @@ func main() {
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
-		serviceSvc, problemSvc, changeSvc, energySvc, predictiveSvc, metricSourceSvc, cipher, netGuard,
+		serviceSvc, problemSvc, changeSvc, energySvc, predictiveSvc, metricSourceSvc, schedTracker, cipher, netGuard,
 	)
 
 	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)
@@ -767,12 +784,19 @@ func envIntOr(envKey string, fallback int) int {
 // Logged with zap; ctx cancellation stops the loop within one
 // interval. If a tick errors per-tenant, we log and continue rather
 // than aborting the whole tick.
-func runEnergyScheduler(ctx context.Context, svc *energy.Service) {
+func runEnergyScheduler(ctx context.Context, svc *energy.Service, tracker *schedhealth.Tracker) {
 	const interval = time.Hour
+	const trackerName = "energy"
 	cfg := energy.DefaultAnomalyConfig()
+	if tracker != nil {
+		tracker.Register(trackerName, interval)
+	}
 	zap.L().Info("energy scheduler started", zap.Duration("interval", interval))
 
 	tick := func() {
+		if tracker != nil {
+			tracker.Record(trackerName)
+		}
 		res := svc.RunDailyTick(ctx, cfg)
 		zap.L().Info("energy scheduler tick",
 			zap.Int("tenants_scanned", res.TenantsScanned),
@@ -804,12 +828,19 @@ func runEnergyScheduler(ctx context.Context, svc *energy.Service) {
 // runPredictiveScheduler runs the Wave 7.1 hardware-refresh rule engine
 // on a 1h ticker. Idempotent on each pass; per-tenant errors don't
 // abort the tick.
-func runPredictiveScheduler(ctx context.Context, svc *predictive.Service) {
+func runPredictiveScheduler(ctx context.Context, svc *predictive.Service, tracker *schedhealth.Tracker) {
 	const interval = time.Hour
+	const trackerName = "predictive_refresh"
 	cfg := predictive.DefaultRuleConfig()
+	if tracker != nil {
+		tracker.Register(trackerName, interval)
+	}
 	zap.L().Info("predictive refresh scheduler started", zap.Duration("interval", interval))
 
 	tick := func() {
+		if tracker != nil {
+			tracker.Record(trackerName)
+		}
 		res := svc.RunScanTick(ctx, cfg)
 		zap.L().Info("predictive refresh tick",
 			zap.Int("tenants_scanned", res.TenantsScanned),
@@ -833,5 +864,21 @@ func runPredictiveScheduler(ctx context.Context, svc *predictive.Service) {
 		case <-t.C:
 			tick()
 		}
+	}
+}
+
+// lateBoundRecorder forwards Record() to a target tracker that may not
+// exist yet at the moment the evaluator is constructed. Wave 9.1 needs
+// the alert evaluator (built early in main) to share a tracker that's
+// only created later in main, after the rest of the schedulers are
+// known. The forwarder keeps the evaluator constructor signature stable
+// while letting startup wire-up happen in any order.
+type lateBoundRecorder struct {
+	target *schedhealth.Tracker
+}
+
+func (r *lateBoundRecorder) Record(name string) {
+	if r.target != nil {
+		r.target.Record(name)
 	}
 }

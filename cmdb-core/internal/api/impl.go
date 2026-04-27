@@ -26,6 +26,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
+	"github.com/cmdb-platform/cmdb-core/internal/platform/schedhealth"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -65,6 +66,7 @@ type APIServer struct {
 	energySvc         *energy.Service
 	predictiveSvc     *predictive.Service
 	metricSourceSvc   *metricsource.Service
+	schedTracker      *schedhealth.Tracker
 	cipher            crypto.Cipher
 	netGuard          *netguard.Guard
 }
@@ -96,6 +98,7 @@ func NewAPIServer(
 	energySvc *energy.Service,
 	predictiveSvc *predictive.Service,
 	metricSourceSvc *metricsource.Service,
+	schedTracker *schedhealth.Tracker,
 	cipher crypto.Cipher,
 	netGuard *netguard.Guard,
 ) *APIServer {
@@ -125,6 +128,7 @@ func NewAPIServer(
 		energySvc:         energySvc,
 		predictiveSvc:     predictiveSvc,
 		metricSourceSvc:   metricSourceSvc,
+		schedTracker:      schedTracker,
 		cipher:            cipher,
 		netGuard:          netGuard,
 	}

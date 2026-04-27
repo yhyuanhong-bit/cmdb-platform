@@ -951,6 +951,30 @@ func (e QualityFlagResolveStatus) Valid() bool {
 	}
 }
 
+// Defines values for SchedulerHealthStatus.
+const (
+	Lagging     SchedulerHealthStatus = "lagging"
+	NeverTicked SchedulerHealthStatus = "never_ticked"
+	Ok          SchedulerHealthStatus = "ok"
+	Stale       SchedulerHealthStatus = "stale"
+)
+
+// Valid indicates whether the value is a known member of the SchedulerHealthStatus enum.
+func (e SchedulerHealthStatus) Valid() bool {
+	switch e {
+	case Lagging:
+		return true
+	case NeverTicked:
+		return true
+	case Ok:
+		return true
+	case Stale:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ServiceStatus.
 const (
 	ServiceStatusActive         ServiceStatus = "active"
@@ -2856,6 +2880,18 @@ type Role struct {
 	Name        string              `json:"name"`
 	Permissions map[string][]string `json:"permissions"`
 }
+
+// SchedulerHealth One scheduler's last-tick + status (Wave 9.1).
+type SchedulerHealth struct {
+	ExpectedIntervalSeconds *int64                `json:"expected_interval_seconds,omitempty"`
+	LastTickAt              *time.Time            `json:"last_tick_at,omitempty"`
+	Name                    string                `json:"name"`
+	SecondsSinceTick        *int64                `json:"seconds_since_tick,omitempty"`
+	Status                  SchedulerHealthStatus `json:"status"`
+}
+
+// SchedulerHealthStatus defines model for SchedulerHealth.Status.
+type SchedulerHealthStatus string
 
 // Service defines model for Service.
 type Service struct {
@@ -5088,6 +5124,9 @@ type ServerInterface interface {
 	// Get activity feed for a target (rack, asset, or location)
 	// (GET /activity-feed)
 	GetActivityFeed(c *gin.Context, params GetActivityFeedParams)
+	// Last-tick timestamp + status for every background scheduler
+	// (GET /admin/scheduler-health)
+	GetSchedulerHealth(c *gin.Context)
 	// List assets with pagination and filters
 	// (GET /assets)
 	ListAssets(c *gin.Context, params ListAssetsParams)
@@ -5903,6 +5942,21 @@ func (siw *ServerInterfaceWrapper) GetActivityFeed(c *gin.Context) {
 	}
 
 	siw.Handler.GetActivityFeed(c, params)
+}
+
+// GetSchedulerHealth operation middleware
+func (siw *ServerInterfaceWrapper) GetSchedulerHealth(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSchedulerHealth(c)
 }
 
 // ListAssets operation middleware
@@ -12712,6 +12766,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	}
 
 	router.GET(options.BaseURL+"/activity-feed", wrapper.GetActivityFeed)
+	router.GET(options.BaseURL+"/admin/scheduler-health", wrapper.GetSchedulerHealth)
 	router.GET(options.BaseURL+"/assets", wrapper.ListAssets)
 	router.POST(options.BaseURL+"/assets", wrapper.CreateAsset)
 	router.GET(options.BaseURL+"/assets/import-template", wrapper.DownloadImportTemplate)

@@ -3338,6 +3338,38 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   # --------------------------------------------------------------------------
+  # Wave 9.1: Background-scheduler health.
+  # --------------------------------------------------------------------------
+
+  /admin/scheduler-health:
+    get:
+      operationId: getSchedulerHealth
+      tags: [admin]
+      summary: Last-tick timestamp + status for every background scheduler
+      description: >
+        Returns one row per registered scheduler (alert evaluator,
+        energy aggregator, predictive scanner) with the time it last
+        ticked and a status verdict. Used by external readiness
+        monitors to detect a stuck loop that wouldn't show up in
+        /readyz (which only checks DB / Redis / NATS).
+      responses:
+        '200':
+          description: Scheduler health report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      all_healthy: { type: boolean }
+                      schedulers:
+                        type: array
+                        items: { $ref: '#/components/schemas/SchedulerHealth' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  # --------------------------------------------------------------------------
   # Wave 8.1: Metrics-pipeline source registry.
   # --------------------------------------------------------------------------
 
@@ -7192,6 +7224,19 @@ components:
         cost:         { type: string }
         currency:     { type: string }
       required: [asset_id, kwh, rate_per_kwh, cost, currency]
+
+    SchedulerHealth:
+      type: object
+      description: One scheduler's last-tick + status (Wave 9.1).
+      properties:
+        name: { type: string }
+        expected_interval_seconds: { type: integer, format: int64 }
+        last_tick_at: { type: string, format: date-time, nullable: true }
+        seconds_since_tick: { type: integer, format: int64, nullable: true }
+        status:
+          type: string
+          enum: [ok, lagging, stale, never_ticked]
+      required: [name, status]
 
     MetricSource:
       type: object
