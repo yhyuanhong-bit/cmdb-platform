@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["scan-targets"])
 
-VALID_COLLECTOR_TYPES = {"snmp", "ssh", "ipmi"}
+VALID_COLLECTOR_TYPES = {"snmp", "ssh", "ipmi", "oneview", "dell_ome"}
 VALID_MODES = {"auto", "review", "smart"}
 
 

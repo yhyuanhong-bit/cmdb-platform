@@ -22,15 +22,19 @@ import CreateScanTargetModal from './CreateScanTargetModal'
 /* ------------------------------------------------------------------ */
 
 const typeIcon: Record<string, string> = {
-  snmp: 'router',
-  ssh:  'terminal',
-  ipmi: 'developer_board',
+  snmp:     'router',
+  ssh:      'terminal',
+  ipmi:     'developer_board',
+  oneview:  'hub',
+  dell_ome: 'view_module',
 }
 
 const typeBg: Record<string, string> = {
-  snmp: 'bg-[#064e3b]',
-  ssh:  'bg-[#1a365d]',
-  ipmi: 'bg-[#92400e]',
+  snmp:     'bg-[#064e3b]',
+  ssh:      'bg-[#1a365d]',
+  ipmi:     'bg-[#92400e]',
+  oneview:  'bg-[#0e7490]',  // HPE teal
+  dell_ome: 'bg-[#5b21b6]',  // Dell purple
 }
 
 /* ------------------------------------------------------------------ */

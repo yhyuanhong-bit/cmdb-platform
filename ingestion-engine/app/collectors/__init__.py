@@ -7,5 +7,8 @@ from app.collectors.snmp import SNMPCollector
 # Import them to trigger registration, then register SNMP.
 import app.collectors.ssh  # noqa: F401
 import app.collectors.ipmi  # noqa: F401
+# OneView + Dell OME also self-register on import.
+import app.collectors.oneview  # noqa: F401
+import app.collectors.dell_ome  # noqa: F401
 
 registry.register(SNMPCollector())

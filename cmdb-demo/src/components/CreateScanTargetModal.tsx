@@ -27,9 +27,15 @@ interface Props {
 }
 
 const CREDENTIAL_TYPE_MAP: Record<string, string[]> = {
-  snmp:  ['snmp_v2c', 'snmp_v3'],
-  ssh:   ['ssh_password', 'ssh_key'],
-  ipmi:  ['ipmi'],
+  snmp:     ['snmp_v2c', 'snmp_v3'],
+  ssh:      ['ssh_password', 'ssh_key'],
+  ipmi:     ['ipmi'],
+  // OneView and OME both authenticate via username/password (or pre-issued
+  // API token in OneView's case). Reuse the generic basic-auth credential
+  // shape; the collectors consume creds.username + creds.password (and
+  // optional creds.api_token for OneView).
+  oneview:  ['basic_auth', 'api_token'],
+  dell_ome: ['basic_auth'],
 }
 
 const initial = {
@@ -136,6 +142,8 @@ export default function CreateScanTargetModal({ open, onClose, editing }: Props)
             <option value="snmp">SNMP</option>
             <option value="ssh">SSH</option>
             <option value="ipmi">IPMI</option>
+            <option value="oneview">HPE OneView</option>
+            <option value="dell_ome">Dell OpenManage Enterprise</option>
           </select>
         </div>
 
