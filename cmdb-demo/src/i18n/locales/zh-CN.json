@@ -184,7 +184,8 @@
       "user_profile": "个人档案",
       "sync_management": "同步管理",
       "metric_sources": "指标源",
-      "metrics_freshness": "数据新鲜度"
+      "metrics_freshness": "数据新鲜度",
+      "scheduler_health": "调度器健康"
     },
     "help": "帮助"
   },
@@ -1612,6 +1613,29 @@
     "toast_updated": "指标源已更新。",
     "toast_deleted": "指标源已删除。",
     "toast_duplicate": "本租户内已存在同名指标源。"
+  },
+
+  "scheduler_health": {
+    "title": "调度器健康",
+    "subtitle": "平台后台调度任务的最近一次执行时间戳。卡住的循环在 /readyz 上是看不出来的 —— 此页是操作员发现静默失效数据的最后一道防线。",
+    "breadcrumb_system": "系统",
+    "auto_refresh_hint": "每 30 秒自动刷新。",
+    "banner_ok": "所有调度器均按时执行。",
+    "banner_unhealthy": "存在调度器过期或从未执行。",
+    "section_schedulers": "调度器",
+    "no_schedulers": "尚未注册任何调度器。Tracker 还没收到 Register() 调用 —— 通常重启进程即可解决。",
+    "load_failed": "调度器健康加载失败。",
+    "last_tick": "最近执行",
+    "last_tick_at": "时间戳",
+    "interval": "预期周期",
+    "overdue_ratio": "逾期倍率",
+    "ago": "前",
+    "never": "从未",
+    "legend_title": "状态含义",
+    "legend_ok": "最近执行在 1 倍周期以内。健康。",
+    "legend_lagging": "最近执行介于 1 倍至 2 倍周期之间。可能是抖动，也可能是问题前兆。",
+    "legend_stale": "最近执行超过 2 倍周期。就绪探针应在此处失败。",
+    "legend_never": "已注册但从未执行。重启后常见；超过第一个周期后视为不健康。"
   },
 
   "metrics_freshness": {

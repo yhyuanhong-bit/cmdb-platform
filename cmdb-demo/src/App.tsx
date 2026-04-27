@@ -64,6 +64,7 @@ const PredictiveRefreshPage = lazy(() => import('./pages/PredictiveRefresh'))
 const PredictiveCapex = lazy(() => import('./pages/PredictiveCapex'))
 const MetricSourcesPage = lazy(() => import('./pages/MetricSources'))
 const MetricsFreshnessPage = lazy(() => import('./pages/MetricsFreshness'))
+const SchedulerHealthPage = lazy(() => import('./pages/SchedulerHealth'))
 
 // Audit
 const AuditHistory = lazy(() => import('./pages/AuditHistory'))
@@ -198,6 +199,7 @@ export default function App() {
           <Route path="/system/sync" element={<SyncManagement />} />
           <Route path="/system/metrics-sources" element={<MetricSourcesPage />} />
           <Route path="/system/metrics-freshness" element={<MetricsFreshnessPage />} />
+          <Route path="/system/scheduler-health" element={<SchedulerHealthPage />} />
 
           {/* BIA */}
           <Route path="/bia" element={<BIAOverview />} />

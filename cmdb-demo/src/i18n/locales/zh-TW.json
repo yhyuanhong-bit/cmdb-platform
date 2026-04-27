@@ -184,7 +184,8 @@
       "user_profile": "個人檔案",
       "sync_management": "同步管理",
       "metric_sources": "指標來源",
-      "metrics_freshness": "資料新鮮度"
+      "metrics_freshness": "資料新鮮度",
+      "scheduler_health": "排程器健康"
     },
     "help": "幫助"
   },
@@ -1612,6 +1613,29 @@
     "toast_updated": "指標來源已更新。",
     "toast_deleted": "指標來源已刪除。",
     "toast_duplicate": "本租戶內已存在同名指標來源。"
+  },
+
+  "scheduler_health": {
+    "title": "排程器健康",
+    "subtitle": "平台背景排程任務的最近一次執行時間戳。卡住的迴圈在 /readyz 上是看不出來的 —— 此頁是操作員發現靜默失效資料的最後一道防線。",
+    "breadcrumb_system": "系統",
+    "auto_refresh_hint": "每 30 秒自動重新整理。",
+    "banner_ok": "所有排程器皆按時執行。",
+    "banner_unhealthy": "存在排程器過期或從未執行。",
+    "section_schedulers": "排程器",
+    "no_schedulers": "尚未註冊任何排程器。Tracker 還沒收到 Register() 呼叫 —— 通常重新啟動進程即可解決。",
+    "load_failed": "排程器健康載入失敗。",
+    "last_tick": "最近執行",
+    "last_tick_at": "時間戳",
+    "interval": "預期週期",
+    "overdue_ratio": "逾期倍率",
+    "ago": "前",
+    "never": "從未",
+    "legend_title": "狀態說明",
+    "legend_ok": "最近執行在 1 倍週期以內。健康。",
+    "legend_lagging": "最近執行介於 1 倍至 2 倍週期之間。可能是抖動，也可能是問題前兆。",
+    "legend_stale": "最近執行超過 2 倍週期。就緒探針應在此處失敗。",
+    "legend_never": "已註冊但從未執行。重新啟動後常見；超過第一個週期後視為不健康。"
   },
 
   "metrics_freshness": {

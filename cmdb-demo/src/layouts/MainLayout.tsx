@@ -114,6 +114,7 @@ const navSections: NavSection[] = [
       { labelKey: 'nav.sub.sync_management', to: '/system/sync' },
       { labelKey: 'nav.sub.metric_sources', to: '/system/metrics-sources' },
       { labelKey: 'nav.sub.metrics_freshness', to: '/system/metrics-freshness' },
+      { labelKey: 'nav.sub.scheduler_health', to: '/system/scheduler-health' },
     ],
   },
   {

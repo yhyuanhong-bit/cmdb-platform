@@ -184,7 +184,8 @@
       "user_profile": "Profile",
       "sync_management": "Sync",
       "metric_sources": "Metric Sources",
-      "metrics_freshness": "Data Freshness"
+      "metrics_freshness": "Data Freshness",
+      "scheduler_health": "Scheduler Health"
     },
     "help": "Help"
   },
@@ -1612,6 +1613,29 @@
     "toast_updated": "Metric source updated.",
     "toast_deleted": "Metric source deleted.",
     "toast_duplicate": "A source with this name already exists in this tenant."
+  },
+
+  "scheduler_health": {
+    "title": "Scheduler Health",
+    "subtitle": "Last-tick timestamps for the platform's background jobs. A stuck loop here is invisible from /readyz, so this view is the operator's last line of defence against silently stale data.",
+    "breadcrumb_system": "System",
+    "auto_refresh_hint": "Auto-refreshes every 30 seconds.",
+    "banner_ok": "All schedulers are ticking on schedule.",
+    "banner_unhealthy": "One or more schedulers are stale or have never ticked.",
+    "section_schedulers": "Schedulers",
+    "no_schedulers": "No schedulers registered. The tracker hasn't received any Register() calls yet — usually fixed by a process restart.",
+    "load_failed": "Failed to load scheduler health.",
+    "last_tick": "Last tick",
+    "last_tick_at": "Timestamp",
+    "interval": "Expected interval",
+    "overdue_ratio": "Overdue ratio",
+    "ago": "ago",
+    "never": "never",
+    "legend_title": "Status meaning",
+    "legend_ok": "Last tick within 1× the expected interval. Healthy.",
+    "legend_lagging": "Last tick between 1× and 2× the interval. Could be jitter, could be the start of a problem.",
+    "legend_stale": "Last tick over 2× the interval. Readiness probe should fail this.",
+    "legend_never": "Registered but has never recorded a tick. Common right after a restart; treated as not-healthy after the first interval."
   },
 
   "metrics_freshness": {
