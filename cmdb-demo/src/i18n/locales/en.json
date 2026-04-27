@@ -1923,7 +1923,11 @@
     "btn_create": "Create",
     "btn_update": "Save",
     "btn_creating": "Creating...",
-    "btn_saving": "Saving..."
+    "btn_saving": "Saving...",
+    "type_basic_auth": "Basic Auth (HPE OneView / Dell OME)",
+    "type_api_token": "API Token (HPE OneView)",
+    "label_api_token": "API Token",
+    "placeholder_api_token": "Pre-issued OneView session ID or vendor API key"
   },
   "scan_management": {
     "section_scan_targets": "Scan Targets",

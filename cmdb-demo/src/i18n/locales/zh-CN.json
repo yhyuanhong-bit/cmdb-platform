@@ -1923,7 +1923,11 @@
     "btn_create": "创建",
     "btn_update": "保存",
     "btn_creating": "创建中...",
-    "btn_saving": "保存中..."
+    "btn_saving": "保存中...",
+    "type_basic_auth": "基本认证 (HPE OneView / Dell OME)",
+    "type_api_token": "API 令牌 (HPE OneView)",
+    "label_api_token": "API 令牌",
+    "placeholder_api_token": "预先发放的 OneView session ID 或厂商 API key"
   },
   "scan_management": {
     "section_scan_targets": "扫描目标",

@@ -34,6 +34,8 @@ const initial = {
   priv_proto: 'DES',
   private_key: '',
   passphrase: '',
+  // basic_auth / api_token (HPE OneView, Dell OME)
+  api_token: '',
 }
 
 export default function CreateCredentialModal({ open, onClose, editing }: Props) {
@@ -49,6 +51,8 @@ export default function CreateCredentialModal({ open, onClose, editing }: Props)
     { value: 'ssh_password', label: t('credential_modal.type_ssh_password') },
     { value: 'ssh_key', label: t('credential_modal.type_ssh_key') },
     { value: 'ipmi', label: t('credential_modal.type_ipmi') },
+    { value: 'basic_auth', label: t('credential_modal.type_basic_auth') },
+    { value: 'api_token', label: t('credential_modal.type_api_token') },
   ]
 
   useEffect(() => {
@@ -100,6 +104,13 @@ export default function CreateCredentialModal({ open, onClose, editing }: Props)
     } else if (tp === 'ipmi') {
       params.username = formData.username
       if (formData.password) params.password = formData.password
+    } else if (tp === 'basic_auth') {
+      // Username + password for HPE OneView, Dell OME, future REST integrations.
+      params.username = formData.username
+      if (formData.password) params.password = formData.password
+    } else if (tp === 'api_token') {
+      // Pre-issued token (OneView session ID, vendor API key). No username.
+      if (formData.api_token) params.api_token = formData.api_token
     }
 
     return params
@@ -237,8 +248,8 @@ export default function CreateCredentialModal({ open, onClose, editing }: Props)
           </>
         )}
 
-        {/* Dynamic fields: ssh_password / ipmi */}
-        {(formData.type === 'ssh_password' || formData.type === 'ipmi') && (
+        {/* Dynamic fields: ssh_password / ipmi / basic_auth (HTTP) */}
+        {(formData.type === 'ssh_password' || formData.type === 'ipmi' || formData.type === 'basic_auth') && (
           <>
             <div>
               <label className="block text-sm text-gray-400 mb-1">{t('credential_modal.label_username')} *</label>
@@ -262,6 +273,22 @@ export default function CreateCredentialModal({ open, onClose, editing }: Props)
               />
             </div>
           </>
+        )}
+
+        {/* Dynamic fields: api_token */}
+        {formData.type === 'api_token' && (
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">
+              {t('credential_modal.label_api_token')}{isEdit && ` ${t('credential_modal.hint_leave_blank')}`} *
+            </label>
+            <textarea
+              value={formData.api_token}
+              onChange={e => set('api_token', e.target.value)}
+              rows={3}
+              className="w-full p-2 bg-[#0d1117] rounded border border-gray-700 text-white text-sm font-mono resize-y"
+              placeholder={isEdit ? '••••••••' : t('credential_modal.placeholder_api_token')}
+            />
+          </div>
         )}
 
         {/* Dynamic fields: ssh_key */}

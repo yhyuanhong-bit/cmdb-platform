@@ -16,7 +16,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["credentials"])
 
-VALID_CREDENTIAL_TYPES = {"snmp_v2c", "snmp_v3", "ssh_password", "ssh_key", "ipmi"}
+VALID_CREDENTIAL_TYPES = {
+    "snmp_v2c",
+    "snmp_v3",
+    "ssh_password",
+    "ssh_key",
+    "ipmi",
+    # basic_auth: username + password for HTTP-based collectors (HPE OneView,
+    # Dell OME, future generic REST integrations).
+    "basic_auth",
+    # api_token: pre-issued token, no login roundtrip needed (e.g. OneView
+    # issues one via POST /rest/login-sessions; admins can paste it here
+    # to avoid storing user passwords for service accounts).
+    "api_token",
+}
 
 
 class CredentialCreate(BaseModel):
