@@ -147,6 +147,11 @@ type Evaluator struct {
 	// now is overridable for deterministic tests. Production passes time.Now.
 	now func() time.Time
 
+	// bridge translates emitted alerts into incidents (Wave 5.4). May be
+	// nil — the evaluator works without it (unit tests that don't care
+	// about ITSM, deployments that haven't migrated to 000068).
+	bridge *incidentBridge
+
 	mu    sync.Mutex
 	state map[stateKey]*ruleState
 }
@@ -466,6 +471,10 @@ RETURNING id, (xmax = 0) AS inserted`
 	telemetry.MonitoringAlertsEmittedTotal.
 		WithLabelValues(status, rule.Severity, action).
 		Inc()
+
+	// Wave 5.4: bridge to ITSM. Best-effort — failures here log and
+	// continue, the alert row is already committed.
+	e.bridge.onAlertEmitted(ctx, rule.TenantID, alertID, sample.AssetID, rule.Severity, status, message)
 
 	if e.bus == nil {
 		return

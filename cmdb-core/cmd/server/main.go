@@ -319,6 +319,10 @@ func main() {
 		monitoring.NewPoolAdapter(pool),
 		bus,
 		monitoring.WithInterval(monitoring.DefaultEvaluatorInterval),
+		// Wave 5.4: high-signal alerts (critical/high/warning) on a
+		// known asset auto-spawn or attach to an open incident so
+		// operators get a single coordination surface.
+		monitoring.WithIncidentBridge(pool),
 	)
 	inventorySvc := inventory.NewService(queries, bus)
 	auditSvc := audit.NewService(queries)
