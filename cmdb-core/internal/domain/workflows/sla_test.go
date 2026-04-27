@@ -202,6 +202,94 @@ func TestCheckSLABreaches_SkipsNonEligibleStatuses(t *testing.T) {
 	}
 }
 
+// insertWOApproved seeds a work order with explicit approved_at +
+// sla_warning_sent so the SLA-warning predicate
+// `sla_deadline - (sla_deadline - approved_at) * 0.25 < now()` is
+// satisfiable in a controlled way. approvedAt + deadline together
+// determine whether 75% of the window has elapsed.
+func insertWOApproved(t *testing.T, pool *pgxpool.Pool, fix slaFixture, status string, approvedAt, deadline time.Time, warningSent bool) uuid.UUID {
+	t.Helper()
+	ctx := context.Background()
+	id := uuid.New()
+	code := fmt.Sprintf("WO-%s", id.String()[:8])
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO work_orders
+			(id, tenant_id, code, title, type, status, priority,
+			 assignee_id, requestor_id, approved_at, sla_deadline,
+			 sla_warning_sent)
+		VALUES ($1, $2, $3, 'SLA warn test', 'maintenance', $4, 'high',
+		        $5, $5, $6, $7, $8)`,
+		id, fix.tenantID, code, status, fix.userID, approvedAt, deadline, warningSent,
+	); err != nil {
+		t.Fatalf("insert approved work_order: %v", err)
+	}
+	return id
+}
+
+// TestCheckSLAWarnings_ConcurrentRace is the W13 regression guard for
+// the analogous TOCTOU bug in the warning path. Pre-W13 the scanner did
+// SELECT-then-per-row-UPDATE, so two scheduler instances both saw
+// `sla_warning_sent = false` and double-notified. Post-W13 the predicate
+// lives inside an `UPDATE … WHERE NOT sla_warning_sent RETURNING …`, so
+// exactly one goroutine ever sees the row.
+func TestCheckSLAWarnings_ConcurrentRace(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupSLAFixture(t, pool)
+	ctx := context.Background()
+
+	// approved 8h ago, deadline 1h from now → 90% of the window has
+	// elapsed, so the 75% warning threshold has been crossed.
+	approvedAt := time.Now().Add(-8 * time.Hour)
+	deadline := time.Now().Add(1 * time.Hour)
+	woID := insertWOApproved(t, pool, fix, "in_progress", approvedAt, deadline, false)
+
+	// Decoy rows that must NOT be picked up — proves the predicate is
+	// still selective under concurrent contention.
+	_ = insertWOApproved(t, pool, fix, "in_progress", approvedAt, deadline, true)                            // already warned
+	_ = insertWOApproved(t, pool, fix, "draft", approvedAt, deadline, false)                                 // wrong status
+	_ = insertWOApproved(t, pool, fix, "in_progress", time.Now().Add(-1*time.Minute), deadline.Add(99*time.Hour), false) // window not crossed
+
+	const parallel = 8
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	wg.Add(parallel)
+	for i := 0; i < parallel; i++ {
+		go func() {
+			defer wg.Done()
+			w := newSubscriber(pool)
+			<-start
+			w.checkSLAWarnings(ctx)
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	// Database: exactly one notification row for the target WO.
+	var notifCount int64
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM notifications
+		 WHERE tenant_id = $1 AND resource_id = $2 AND type = 'sla_warning'`,
+		fix.tenantID, woID,
+	).Scan(&notifCount); err != nil {
+		t.Fatalf("count notifications: %v", err)
+	}
+	if notifCount != 1 {
+		t.Fatalf("concurrent race: expected exactly 1 sla_warning notification, got %d", notifCount)
+	}
+
+	// Database: target row's flag is now flipped.
+	var warned bool
+	if err := pool.QueryRow(ctx,
+		`SELECT sla_warning_sent FROM work_orders WHERE id = $1`, woID,
+	).Scan(&warned); err != nil {
+		t.Fatalf("readback: %v", err)
+	}
+	if !warned {
+		t.Fatalf("concurrent race: row should be sla_warning_sent after sweep")
+	}
+}
+
 // TestCheckSLABreaches_ConcurrentRace spins up N goroutines that all
 // call checkSLABreaches simultaneously against the SAME pre-breach
 // row. Because the `NOT sla_breached` guard lives inside the UPDATE's

@@ -119,47 +119,61 @@ func (w *WorkflowSubscriber) checkSLABreaches(ctx context.Context) {
 	}
 }
 
+// checkSLAWarnings atomically flips sla_warning_sent=true for every
+// work order whose remaining time has dropped below 25% of the original
+// approved-to-deadline window, returning the rows that actually
+// transitioned. Same TOCTOU-safe pattern as checkSLABreaches above —
+// the row-level lock Postgres takes during the UPDATE plus the
+// `NOT sla_warning_sent` guard ensure exactly one tick ever sees a
+// given row in RETURNING. Replaces the previous SELECT-then-per-row-
+// UPDATE flow which let two scheduler instances (or a restart mid-loop)
+// double-publish the same warning notification.
 func (w *WorkflowSubscriber) checkSLAWarnings(ctx context.Context) {
-	rows, err := w.pool.Query(ctx,
-		"SELECT id, tenant_id, code, assignee_id FROM work_orders WHERE status IN ('approved','in_progress') AND sla_deadline IS NOT NULL AND sla_warning_sent = false AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now() AND approved_at IS NOT NULL AND deleted_at IS NULL")
+	rows, err := w.pool.Query(ctx, `
+		UPDATE work_orders
+		SET sla_warning_sent = true, updated_at = now()
+		WHERE status IN ('approved','in_progress')
+		  AND sla_deadline IS NOT NULL
+		  AND approved_at IS NOT NULL
+		  AND NOT sla_warning_sent
+		  AND sla_deadline - (sla_deadline - approved_at) * 0.25 < now()
+		  AND deleted_at IS NULL
+		RETURNING id, tenant_id, code, assignee_id
+	`)
 	if err != nil {
-		zap.L().Warn("checkSLAWarnings: query failed", zap.Error(err))
-		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSLAWarning, telemetry.ReasonDBQueryFailed).Inc()
+		zap.L().Warn("checkSLAWarnings: update failed", zap.Error(err))
+		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSLAWarning, telemetry.ReasonDBExecFailed).Inc()
 		return
 	}
-	defer rows.Close()
 
+	// Drain the RETURNING cursor into a slice before fanning out
+	// notifications so the connection isn't held during the side-effects.
+	warned := make([]breachedRow, 0, 16)
 	for rows.Next() {
-		var id, tenantID uuid.UUID
-		var code string
-		var assigneeID pgtype.UUID
-		if scanErr := rows.Scan(&id, &tenantID, &code, &assigneeID); scanErr != nil {
+		var r breachedRow
+		if scanErr := rows.Scan(&r.id, &r.tenantID, &r.code, &r.assigneeID); scanErr != nil {
 			zap.L().Warn("checkSLAWarnings: scan failed", zap.Error(scanErr))
 			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSLAWarning, telemetry.ReasonRowScanFailed).Inc()
 			continue
 		}
-		if _, execErr := w.pool.Exec(ctx,
-			"UPDATE work_orders SET sla_warning_sent = true WHERE id = $1 AND tenant_id = $2",
-			id, tenantID,
-		); execErr != nil {
-			// The warning-sent flag failing to flip means we'll
-			// re-notify the same assignee next tick — annoying,
-			// not catastrophic, so keep advancing through the
-			// result set.
-			zap.L().Warn("checkSLAWarnings: warning-sent flag update failed",
-				zap.String("order_id", id.String()), zap.Error(execErr))
-			telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSLAWarning, telemetry.ReasonDBExecFailed).Inc()
-		}
-		if assigneeID.Valid {
-			w.warnNotify(ctx, sourceSLAWarning, tenantID, uuid.UUID(assigneeID.Bytes),
-				"sla_warning",
-				fmt.Sprintf("SLA Warning: %s", code),
-				fmt.Sprintf("Work order %s is approaching its SLA deadline.", code),
-				"work_order", id)
-		}
+		warned = append(warned, r)
 	}
-	if iterErr := rows.Err(); iterErr != nil {
-		zap.L().Warn("checkSLAWarnings: rows iter failed", zap.Error(iterErr))
+	rowsErr := rows.Err()
+	rows.Close()
+	if rowsErr != nil {
+		zap.L().Warn("checkSLAWarnings: rows iter failed", zap.Error(rowsErr))
 		telemetry.ErrorsSuppressedTotal.WithLabelValues(sourceSLAWarning, telemetry.ReasonRowsIterFailed).Inc()
+		// still fan out whatever we successfully scanned — the UPDATE
+		// committed, so DB state is consistent.
+	}
+
+	for _, r := range warned {
+		if r.assigneeID.Valid {
+			w.warnNotify(ctx, sourceSLAWarning, r.tenantID, uuid.UUID(r.assigneeID.Bytes),
+				"sla_warning",
+				fmt.Sprintf("SLA Warning: %s", r.code),
+				fmt.Sprintf("Work order %s is approaching its SLA deadline.", r.code),
+				"work_order", r.id)
+		}
 	}
 }

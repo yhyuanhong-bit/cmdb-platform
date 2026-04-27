@@ -13,9 +13,11 @@ import (
 
 // TestCheckSLAWarnings_WarnsAndCountsOnQueryFailure confirms that
 // the sla-warning scanner emits a Warn + counter increment when its
-// outer SELECT fails, instead of the pre-fix silent return. This
-// the pre-fix scanner masked a corrupted work_orders table for
-// weeks; the regression guard here keeps us honest.
+// outer UPDATE…RETURNING fails, instead of the pre-fix silent return.
+// The pre-fix scanner masked a corrupted work_orders table for weeks;
+// the regression guard here keeps us honest. The label is
+// ReasonDBExecFailed because the scanner is now a single
+// UPDATE…RETURNING (W13 TOCTOU fix), not the original SELECT-then-Exec.
 func TestCheckSLAWarnings_WarnsAndCountsOnQueryFailure(t *testing.T) {
 	core, logs := observer.New(zap.WarnLevel)
 	prev := zap.ReplaceGlobals(zap.New(core))
@@ -23,7 +25,7 @@ func TestCheckSLAWarnings_WarnsAndCountsOnQueryFailure(t *testing.T) {
 
 	before := testutil.ToFloat64(
 		telemetry.ErrorsSuppressedTotal.WithLabelValues(
-			sourceSLAWarning, telemetry.ReasonDBQueryFailed,
+			sourceSLAWarning, telemetry.ReasonDBExecFailed,
 		),
 	)
 
@@ -37,7 +39,7 @@ func TestCheckSLAWarnings_WarnsAndCountsOnQueryFailure(t *testing.T) {
 
 	after := testutil.ToFloat64(
 		telemetry.ErrorsSuppressedTotal.WithLabelValues(
-			sourceSLAWarning, telemetry.ReasonDBQueryFailed,
+			sourceSLAWarning, telemetry.ReasonDBExecFailed,
 		),
 	)
 	if after <= before {
