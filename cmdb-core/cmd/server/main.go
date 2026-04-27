@@ -34,6 +34,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/change"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/energy"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/problem"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	svcdomain "github.com/cmdb-platform/cmdb-core/internal/domain/service"
@@ -441,12 +442,16 @@ func main() {
 	// pattern; also owns the CAB approval auto-resolution logic.
 	changeSvc := change.NewService(queries, pool)
 
+	// Energy billing (Wave 6.1). Tariff CRUD with overlap rejection,
+	// daily kWh aggregator, monthly bill computation.
+	energySvc := energy.NewService(queries, pool)
+
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
-		serviceSvc, problemSvc, changeSvc, cipher, netGuard,
+		serviceSvc, problemSvc, changeSvc, energySvc, cipher, netGuard,
 	)
 
 	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)

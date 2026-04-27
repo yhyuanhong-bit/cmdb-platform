@@ -1812,6 +1812,59 @@ type DiscoveryStats struct {
 	Total    *int `json:"total,omitempty"`
 }
 
+// EnergyBill defines model for EnergyBill.
+type EnergyBill struct {
+	// Currency tariff currency, or 'MIXED' when assets span multiple currencies
+	Currency      string             `json:"currency"`
+	CurrencyMixed bool               `json:"currency_mixed"`
+	DayFrom       openapi_types.Date `json:"day_from"`
+	DayTo         openapi_types.Date `json:"day_to"`
+	Lines         *[]EnergyBillLine  `json:"lines,omitempty"`
+	TotalCost     string             `json:"total_cost"`
+	TotalKwh      string             `json:"total_kwh"`
+}
+
+// EnergyBillLine defines model for EnergyBillLine.
+type EnergyBillLine struct {
+	AssetId    openapi_types.UUID  `json:"asset_id"`
+	Cost       string              `json:"cost"`
+	Currency   string              `json:"currency"`
+	Kwh        string              `json:"kwh"`
+	LocationId *openapi_types.UUID `json:"location_id,omitempty"`
+	RatePerKwh string              `json:"rate_per_kwh"`
+}
+
+// EnergyDailyKwh Pre-aggregated (asset, day) energy rollup.
+type EnergyDailyKwh struct {
+	AssetId    openapi_types.UUID `json:"asset_id"`
+	AssetName  *string            `json:"asset_name,omitempty"`
+	AssetTag   *string            `json:"asset_tag,omitempty"`
+	ComputedAt *time.Time         `json:"computed_at,omitempty"`
+	Day        openapi_types.Date `json:"day"`
+	KwAvg      string             `json:"kw_avg"`
+	KwPeak     string             `json:"kw_peak"`
+
+	// KwhTotal decimal as string
+	KwhTotal    string              `json:"kwh_total"`
+	LocationId  *openapi_types.UUID `json:"location_id,omitempty"`
+	SampleCount int                 `json:"sample_count"`
+}
+
+// EnergyTariff Per-location $/kWh rate valid in a date range.
+type EnergyTariff struct {
+	CreatedAt     time.Time           `json:"created_at"`
+	Currency      string              `json:"currency"`
+	EffectiveFrom openapi_types.Date  `json:"effective_from"`
+	EffectiveTo   *openapi_types.Date `json:"effective_to,omitempty"`
+	Id            openapi_types.UUID  `json:"id"`
+	LocationId    *openapi_types.UUID `json:"location_id,omitempty"`
+	Notes         *string             `json:"notes,omitempty"`
+
+	// RatePerKwh decimal as string
+	RatePerKwh string     `json:"rate_per_kwh"`
+	UpdatedAt  *time.Time `json:"updated_at,omitempty"`
+}
+
 // ErrorBody defines model for ErrorBody.
 type ErrorBody struct {
 	Code    string `json:"code"`
@@ -2853,6 +2906,47 @@ type ListDiscoveredAssetsParams struct {
 	Status   *string   `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// AggregateEnergyDailyJSONBody defines parameters for AggregateEnergyDaily.
+type AggregateEnergyDailyJSONBody struct {
+	DayFrom openapi_types.Date `json:"day_from"`
+	DayTo   openapi_types.Date `json:"day_to"`
+}
+
+// GetEnergyBillParams defines parameters for GetEnergyBill.
+type GetEnergyBillParams struct {
+	DayFrom openapi_types.Date `form:"day_from" json:"day_from"`
+	DayTo   openapi_types.Date `form:"day_to" json:"day_to"`
+}
+
+// ListEnergyDailyKwhParams defines parameters for ListEnergyDailyKwh.
+type ListEnergyDailyKwhParams struct {
+	DayFrom openapi_types.Date `form:"day_from" json:"day_from"`
+	DayTo   openapi_types.Date `form:"day_to" json:"day_to"`
+}
+
+// CreateEnergyTariffJSONBody defines parameters for CreateEnergyTariff.
+type CreateEnergyTariffJSONBody struct {
+	Currency      *string             `json:"currency,omitempty"`
+	EffectiveFrom openapi_types.Date  `json:"effective_from"`
+	EffectiveTo   *openapi_types.Date `json:"effective_to,omitempty"`
+	LocationId    *openapi_types.UUID `json:"location_id,omitempty"`
+	Notes         *string             `json:"notes,omitempty"`
+
+	// RatePerKwh decimal as string for precision
+	RatePerKwh string `json:"rate_per_kwh"`
+}
+
+// UpdateEnergyTariffJSONBody defines parameters for UpdateEnergyTariff.
+type UpdateEnergyTariffJSONBody struct {
+	// ClearEffectiveTo set effective_to back to NULL (open-ended)
+	ClearEffectiveTo *bool               `json:"clear_effective_to,omitempty"`
+	Currency         *string             `json:"currency,omitempty"`
+	EffectiveFrom    *openapi_types.Date `json:"effective_from,omitempty"`
+	EffectiveTo      *openapi_types.Date `json:"effective_to,omitempty"`
+	Notes            *string             `json:"notes,omitempty"`
+	RatePerKwh       *string             `json:"rate_per_kwh,omitempty"`
+}
+
 // GetEnergyBreakdownParams defines parameters for GetEnergyBreakdown.
 type GetEnergyBreakdownParams struct {
 	LocationId *openapi_types.UUID `form:"location_id,omitempty" json:"location_id,omitempty"`
@@ -3388,6 +3482,15 @@ type ApproveDiscoveredAssetJSONRequestBody = ApproveDiscoveredAssetRequest
 
 // IgnoreDiscoveredAssetJSONRequestBody defines body for IgnoreDiscoveredAsset for application/json ContentType.
 type IgnoreDiscoveredAssetJSONRequestBody = IgnoreDiscoveredAssetRequest
+
+// AggregateEnergyDailyJSONRequestBody defines body for AggregateEnergyDaily for application/json ContentType.
+type AggregateEnergyDailyJSONRequestBody AggregateEnergyDailyJSONBody
+
+// CreateEnergyTariffJSONRequestBody defines body for CreateEnergyTariff for application/json ContentType.
+type CreateEnergyTariffJSONRequestBody CreateEnergyTariffJSONBody
+
+// UpdateEnergyTariffJSONRequestBody defines body for UpdateEnergyTariff for application/json ContentType.
+type UpdateEnergyTariffJSONRequestBody UpdateEnergyTariffJSONBody
 
 // CreateAdapterJSONRequestBody defines body for CreateAdapter for application/json ContentType.
 type CreateAdapterJSONRequestBody CreateAdapterJSONBody
@@ -4591,6 +4694,30 @@ type ServerInterface interface {
 
 	// (POST /discovery/{id}/ignore)
 	IgnoreDiscoveredAsset(c *gin.Context, id IdPath)
+	// Backfill daily kWh rollups for a date range
+	// (POST /energy/billing/aggregate)
+	AggregateEnergyDaily(c *gin.Context)
+	// Compute the bill for a date range
+	// (GET /energy/billing/bill)
+	GetEnergyBill(c *gin.Context, params GetEnergyBillParams)
+	// Per-(asset, day) kWh rollup over a window
+	// (GET /energy/billing/daily)
+	ListEnergyDailyKwh(c *gin.Context, params ListEnergyDailyKwhParams)
+	// List tariffs (current + historic)
+	// (GET /energy/billing/tariffs)
+	ListEnergyTariffs(c *gin.Context)
+	// Create a tariff
+	// (POST /energy/billing/tariffs)
+	CreateEnergyTariff(c *gin.Context)
+	// Delete a tariff
+	// (DELETE /energy/billing/tariffs/{id})
+	DeleteEnergyTariff(c *gin.Context, id IdPath)
+	// Get a tariff by ID
+	// (GET /energy/billing/tariffs/{id})
+	GetEnergyTariff(c *gin.Context, id IdPath)
+	// Update a tariff
+	// (PUT /energy/billing/tariffs/{id})
+	UpdateEnergyTariff(c *gin.Context, id IdPath)
 	// Get energy breakdown by category
 	// (GET /energy/breakdown)
 	GetEnergyBreakdown(c *gin.Context, params GetEnergyBreakdownParams)
@@ -7024,6 +7151,229 @@ func (siw *ServerInterfaceWrapper) IgnoreDiscoveredAsset(c *gin.Context) {
 	}
 
 	siw.Handler.IgnoreDiscoveredAsset(c, id)
+}
+
+// AggregateEnergyDaily operation middleware
+func (siw *ServerInterfaceWrapper) AggregateEnergyDaily(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AggregateEnergyDaily(c)
+}
+
+// GetEnergyBill operation middleware
+func (siw *ServerInterfaceWrapper) GetEnergyBill(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetEnergyBillParams
+
+	// ------------- Required query parameter "day_from" -------------
+
+	if paramValue := c.Query("day_from"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument day_from is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "day_from", c.Request.URL.Query(), &params.DayFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter day_from: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "day_to" -------------
+
+	if paramValue := c.Query("day_to"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument day_to is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "day_to", c.Request.URL.Query(), &params.DayTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter day_to: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetEnergyBill(c, params)
+}
+
+// ListEnergyDailyKwh operation middleware
+func (siw *ServerInterfaceWrapper) ListEnergyDailyKwh(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListEnergyDailyKwhParams
+
+	// ------------- Required query parameter "day_from" -------------
+
+	if paramValue := c.Query("day_from"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument day_from is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "day_from", c.Request.URL.Query(), &params.DayFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter day_from: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "day_to" -------------
+
+	if paramValue := c.Query("day_to"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandler(c, fmt.Errorf("Query argument day_to is required, but not found"), http.StatusBadRequest)
+		return
+	}
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "day_to", c.Request.URL.Query(), &params.DayTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter day_to: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListEnergyDailyKwh(c, params)
+}
+
+// ListEnergyTariffs operation middleware
+func (siw *ServerInterfaceWrapper) ListEnergyTariffs(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListEnergyTariffs(c)
+}
+
+// CreateEnergyTariff operation middleware
+func (siw *ServerInterfaceWrapper) CreateEnergyTariff(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateEnergyTariff(c)
+}
+
+// DeleteEnergyTariff operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEnergyTariff(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeleteEnergyTariff(c, id)
+}
+
+// GetEnergyTariff operation middleware
+func (siw *ServerInterfaceWrapper) GetEnergyTariff(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetEnergyTariff(c, id)
+}
+
+// UpdateEnergyTariff operation middleware
+func (siw *ServerInterfaceWrapper) UpdateEnergyTariff(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateEnergyTariff(c, id)
 }
 
 // GetEnergyBreakdown operation middleware
@@ -11356,6 +11706,14 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/discovery/stats", wrapper.GetDiscoveryStats)
 	router.POST(options.BaseURL+"/discovery/:id/approve", wrapper.ApproveDiscoveredAsset)
 	router.POST(options.BaseURL+"/discovery/:id/ignore", wrapper.IgnoreDiscoveredAsset)
+	router.POST(options.BaseURL+"/energy/billing/aggregate", wrapper.AggregateEnergyDaily)
+	router.GET(options.BaseURL+"/energy/billing/bill", wrapper.GetEnergyBill)
+	router.GET(options.BaseURL+"/energy/billing/daily", wrapper.ListEnergyDailyKwh)
+	router.GET(options.BaseURL+"/energy/billing/tariffs", wrapper.ListEnergyTariffs)
+	router.POST(options.BaseURL+"/energy/billing/tariffs", wrapper.CreateEnergyTariff)
+	router.DELETE(options.BaseURL+"/energy/billing/tariffs/:id", wrapper.DeleteEnergyTariff)
+	router.GET(options.BaseURL+"/energy/billing/tariffs/:id", wrapper.GetEnergyTariff)
+	router.PUT(options.BaseURL+"/energy/billing/tariffs/:id", wrapper.UpdateEnergyTariff)
 	router.GET(options.BaseURL+"/energy/breakdown", wrapper.GetEnergyBreakdown)
 	router.GET(options.BaseURL+"/energy/summary", wrapper.GetEnergySummary)
 	router.GET(options.BaseURL+"/energy/trend", wrapper.GetEnergyTrend)

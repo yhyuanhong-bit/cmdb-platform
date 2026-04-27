@@ -2952,6 +2952,210 @@ paths:
         '200':
           description: Energy trend data
 
+  # --------------------------------------------------------------------------
+  # Wave 6.1: energy billing — tariffs CRUD, daily kWh rollup query, monthly
+  # bill calculation. Lives under /energy/billing/* so it doesn't collide
+  # with the existing live-dashboard endpoints above.
+  # --------------------------------------------------------------------------
+
+  /energy/billing/tariffs:
+    get:
+      operationId: listEnergyTariffs
+      tags: [energy]
+      summary: List tariffs (current + historic)
+      responses:
+        '200':
+          description: Tariffs ordered by effective_from DESC
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/EnergyTariff' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+    post:
+      operationId: createEnergyTariff
+      tags: [energy]
+      summary: Create a tariff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rate_per_kwh, effective_from]
+              properties:
+                location_id:    { type: string, format: uuid, nullable: true }
+                currency:       { type: string }
+                rate_per_kwh:   { type: string, description: "decimal as string for precision" }
+                effective_from: { type: string, format: date }
+                effective_to:   { type: string, format: date, nullable: true }
+                notes:          { type: string }
+      responses:
+        '201':
+          description: Tariff created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/EnergyTariff' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /energy/billing/tariffs/{id}:
+    get:
+      operationId: getEnergyTariff
+      tags: [energy]
+      summary: Get a tariff by ID
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Tariff
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/EnergyTariff' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateEnergyTariff
+      tags: [energy]
+      summary: Update a tariff
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currency:          { type: string }
+                rate_per_kwh:      { type: string }
+                effective_from:    { type: string, format: date }
+                effective_to:      { type: string, format: date, nullable: true }
+                clear_effective_to: { type: boolean, description: "set effective_to back to NULL (open-ended)" }
+                notes:             { type: string }
+      responses:
+        '200':
+          description: Tariff updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/EnergyTariff' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      operationId: deleteEnergyTariff
+      tags: [energy]
+      summary: Delete a tariff
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '204': { description: Deleted }
+
+  /energy/billing/aggregate:
+    post:
+      operationId: aggregateEnergyDaily
+      tags: [energy]
+      summary: Backfill daily kWh rollups for a date range
+      description: >
+        Idempotent — re-runs for the same range overwrite existing
+        energy_daily_kwh rows. Used by the daily cron job and for
+        manual gap-filling.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [day_from, day_to]
+              properties:
+                day_from: { type: string, format: date }
+                day_to:   { type: string, format: date }
+      responses:
+        '200':
+          description: Number of (asset, day) pairs aggregated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      aggregated_count: { type: integer }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /energy/billing/daily:
+    get:
+      operationId: listEnergyDailyKwh
+      tags: [energy]
+      summary: Per-(asset, day) kWh rollup over a window
+      parameters:
+        - name: day_from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: day_to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Daily kWh rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/EnergyDailyKwh' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /energy/billing/bill:
+    get:
+      operationId: getEnergyBill
+      tags: [energy]
+      summary: Compute the bill for a date range
+      description: >
+        Iterates each asset that has kWh in the window, resolves the
+        per-location tariff applying to the window's midpoint, and
+        produces a per-asset cost line plus the total. If assets span
+        tariffs in different currencies, currency_mixed=true and the
+        UI should refuse to display a single combined total.
+      parameters:
+        - name: day_from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: day_to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Bill summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/EnergyBill' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /sensors:
     get:
       operationId: listSensors
@@ -6565,6 +6769,63 @@ components:
         - status
         - severity
         - started_at
+
+    # ── Energy billing (Wave 6.1) ──────────────────────────────────────
+    EnergyTariff:
+      type: object
+      description: Per-location $/kWh rate valid in a date range.
+      properties:
+        id:             { type: string, format: uuid }
+        location_id:    { type: string, format: uuid, nullable: true }
+        currency:       { type: string }
+        rate_per_kwh:   { type: string, description: "decimal as string" }
+        effective_from: { type: string, format: date }
+        effective_to:   { type: string, format: date, nullable: true }
+        notes:          { type: string, nullable: true }
+        created_at:     { type: string, format: date-time }
+        updated_at:     { type: string, format: date-time, nullable: true }
+      required: [id, currency, rate_per_kwh, effective_from, created_at]
+
+    EnergyDailyKwh:
+      type: object
+      description: Pre-aggregated (asset, day) energy rollup.
+      properties:
+        asset_id:     { type: string, format: uuid }
+        asset_tag:    { type: string, nullable: true }
+        asset_name:   { type: string, nullable: true }
+        location_id:  { type: string, format: uuid, nullable: true }
+        day:          { type: string, format: date }
+        kwh_total:    { type: string, description: "decimal as string" }
+        kw_peak:      { type: string }
+        kw_avg:       { type: string }
+        sample_count: { type: integer }
+        computed_at:  { type: string, format: date-time }
+      required: [asset_id, day, kwh_total, kw_peak, kw_avg, sample_count]
+
+    EnergyBillLine:
+      type: object
+      properties:
+        asset_id:     { type: string, format: uuid }
+        location_id:  { type: string, format: uuid, nullable: true }
+        kwh:          { type: string }
+        rate_per_kwh: { type: string }
+        cost:         { type: string }
+        currency:     { type: string }
+      required: [asset_id, kwh, rate_per_kwh, cost, currency]
+
+    EnergyBill:
+      type: object
+      properties:
+        day_from:        { type: string, format: date }
+        day_to:          { type: string, format: date }
+        total_kwh:       { type: string }
+        total_cost:      { type: string }
+        currency:        { type: string, description: "tariff currency, or 'MIXED' when assets span multiple currencies" }
+        currency_mixed:  { type: boolean }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/EnergyBillLine' }
+      required: [day_from, day_to, total_kwh, total_cost, currency, currency_mixed]
 
     # ── Change (ITIL Change Management) ───────────────────────────────
     Change:

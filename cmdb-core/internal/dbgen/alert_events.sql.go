@@ -18,7 +18,7 @@ UPDATE alert_events SET
     status   = 'acknowledged',
     acked_at = now()
 WHERE id = $1 AND tenant_id = $2 AND status = 'firing'
-RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version, dedup_key, updated_at
+RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version, dedup_key, updated_at, incident_id
 `
 
 type AcknowledgeAlertParams struct {
@@ -44,6 +44,7 @@ func (q *Queries) AcknowledgeAlert(ctx context.Context, arg AcknowledgeAlertPara
 		&i.SyncVersion,
 		&i.DedupKey,
 		&i.UpdatedAt,
+		&i.IncidentID,
 	)
 	return i, err
 }
@@ -98,7 +99,7 @@ func (q *Queries) CountAlertsUnderLocation(ctx context.Context, arg CountAlertsU
 }
 
 const listAlerts = `-- name: ListAlerts :many
-SELECT id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version, dedup_key, updated_at FROM alert_events
+SELECT id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version, dedup_key, updated_at, incident_id FROM alert_events
 WHERE tenant_id = $1
   AND ($4::varchar IS NULL OR status = $4)
   AND ($5::varchar IS NULL OR severity = $5)
@@ -147,6 +148,7 @@ func (q *Queries) ListAlerts(ctx context.Context, arg ListAlertsParams) ([]Alert
 			&i.SyncVersion,
 			&i.DedupKey,
 			&i.UpdatedAt,
+			&i.IncidentID,
 		); err != nil {
 			return nil, err
 		}
@@ -163,7 +165,7 @@ UPDATE alert_events SET
     status      = 'resolved',
     resolved_at = now()
 WHERE id = $1 AND tenant_id = $2 AND status IN ('firing', 'acknowledged')
-RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version, dedup_key, updated_at
+RETURNING id, tenant_id, rule_id, asset_id, status, severity, message, trigger_value, fired_at, acked_at, resolved_at, sync_version, dedup_key, updated_at, incident_id
 `
 
 type ResolveAlertParams struct {
@@ -189,6 +191,7 @@ func (q *Queries) ResolveAlert(ctx context.Context, arg ResolveAlertParams) (Ale
 		&i.SyncVersion,
 		&i.DedupKey,
 		&i.UpdatedAt,
+		&i.IncidentID,
 	)
 	return i, err
 }

@@ -118,6 +118,7 @@ type AlertEvent struct {
 	SyncVersion  int64              `json:"sync_version"`
 	DedupKey     string             `json:"dedup_key"`
 	UpdatedAt    time.Time          `json:"updated_at"`
+	IncidentID   pgtype.UUID        `json:"incident_id"`
 }
 
 type AlertRule struct {
@@ -440,6 +441,30 @@ type DiscoveredAsset struct {
 	MatchConfidence pgtype.Numeric     `json:"match_confidence"`
 	MatchStrategy   pgtype.Text        `json:"match_strategy"`
 	ReviewReason    pgtype.Text        `json:"review_reason"`
+}
+
+type EnergyDailyKwh struct {
+	TenantID    uuid.UUID      `json:"tenant_id"`
+	AssetID     uuid.UUID      `json:"asset_id"`
+	Day         pgtype.Date    `json:"day"`
+	KwhTotal    pgtype.Numeric `json:"kwh_total"`
+	KwPeak      pgtype.Numeric `json:"kw_peak"`
+	KwAvg       pgtype.Numeric `json:"kw_avg"`
+	SampleCount int32          `json:"sample_count"`
+	ComputedAt  time.Time      `json:"computed_at"`
+}
+
+type EnergyTariff struct {
+	ID            uuid.UUID      `json:"id"`
+	TenantID      uuid.UUID      `json:"tenant_id"`
+	LocationID    pgtype.UUID    `json:"location_id"`
+	Currency      string         `json:"currency"`
+	RatePerKwh    pgtype.Numeric `json:"rate_per_kwh"`
+	EffectiveFrom pgtype.Date    `json:"effective_from"`
+	EffectiveTo   pgtype.Date    `json:"effective_to"`
+	Notes         pgtype.Text    `json:"notes"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
 }
 
 type Incident struct {
