@@ -92,6 +92,16 @@ __pycache__/
 *.pyo
 
 # ========================
+# Test coverage artifacts
+# ========================
+cmdb-demo/coverage/
+ingestion-engine/.coverage
+ingestion-engine/htmlcov/
+ingestion-engine/coverage.xml
+cmdb-core/cover.out
+cmdb-core/coverage.out
+
+# ========================
 # 日志
 # ========================
 *.log

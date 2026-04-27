@@ -8,5 +8,19 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     exclude: ['e2e/**', 'node_modules/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov', 'json-summary'],
+      reportsDirectory: './coverage',
+      exclude: [
+        'e2e/**',
+        'node_modules/**',
+        'dist/**',
+        'src/test/**',
+        'src/generated/**',
+        '**/*.config.*',
+        '**/*.d.ts',
+      ],
+    },
   },
 })
