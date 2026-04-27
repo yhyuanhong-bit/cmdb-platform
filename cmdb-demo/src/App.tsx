@@ -60,6 +60,8 @@ const AddMaintenanceTask = lazy(() => import('./pages/AddMaintenanceTask'))
 
 // Predictive AI (unified)
 const PredictiveHub = lazy(() => import('./pages/PredictiveHub'))
+const PredictiveRefreshPage = lazy(() => import('./pages/PredictiveRefresh'))
+const PredictiveCapex = lazy(() => import('./pages/PredictiveCapex'))
 
 // Audit
 const AuditHistory = lazy(() => import('./pages/AuditHistory'))
@@ -177,6 +179,8 @@ export default function App() {
 
           {/* Predictive AI */}
           <Route path="/predictive" element={<PredictiveHub />} />
+          <Route path="/predictive/refresh" element={<PredictiveRefreshPage />} />
+          <Route path="/predictive/capex" element={<PredictiveCapex />} />
 
           {/* Audit */}
           <Route path="/audit" element={<AuditHistory />} />

@@ -82,7 +82,16 @@ const navSections: NavSection[] = [
       { labelKey: 'nav.sub.task_dispatch', to: '/maintenance/dispatch' },
     ],
   },
-  { to: '/predictive', icon: 'psychology', key: 'nav.predictive_ai' },
+  {
+    to: '/predictive',
+    icon: 'psychology',
+    key: 'nav.predictive_ai',
+    children: [
+      { labelKey: 'nav.sub.predictive_hub', to: '/predictive' },
+      { labelKey: 'nav.sub.predictive_refresh', to: '/predictive/refresh' },
+      { labelKey: 'nav.sub.predictive_capex', to: '/predictive/capex' },
+    ],
+  },
   { to: '/bia', icon: 'assessment', key: 'nav.bia_modeler' },
   {
     to: '/audit',
