@@ -127,6 +127,8 @@
     "reports": "報表",
     "locations_overview": "位置總覽",
     "sub": {
+      "dashboard_main": "主儀表板",
+      "ops_overview": "維運總覽",
       "asset_list": "資產列表",
       "asset_detail": "資產詳情",
       "health_monitor": "健康監控",
@@ -1613,6 +1615,32 @@
     "toast_updated": "指標來源已更新。",
     "toast_deleted": "指標來源已刪除。",
     "toast_duplicate": "本租戶內已存在同名指標來源。"
+  },
+
+  "ops_overview": {
+    "title": "維運總覽",
+    "subtitle": "維運人員可處置之所有資訊面單頁彙總 —— 事件、問題、變更、能源、資本支出、資料平面、排程器。",
+    "breadcrumb_dashboard": "儀表板",
+    "auto_refresh_hint": "每 60 秒自動重新整理。",
+    "tile_error": "載入失敗",
+    "section_itsm": "ITSM",
+    "section_capacity": "容量與能源",
+    "section_data_plane": "資料平面健康",
+    "tile_incidents": "未處理事件",
+    "tile_incidents_hint": "等待確認或解決。",
+    "tile_problems": "未處理 Problem",
+    "tile_problems_hint": "仍在調查中的根本原因。",
+    "tile_changes": "已提交變更",
+    "tile_changes_hint": "等待 CAB 核准。",
+    "tile_refresh_recs": "汰換建議",
+    "tile_refresh_recs_hint": "接近保固 / EOL 的硬體。",
+    "tile_energy_anomalies": "能源異常",
+    "tile_energy_anomalies_hint": "近 30 天未處理。",
+    "tile_stale_sources": "逾期指標來源",
+    "tile_stale_sources_hint": "超過預期週期 2 倍的來源。",
+    "tile_schedulers": "排程器健康",
+    "tile_schedulers_ok_hint": "所有排程器按時執行。",
+    "tile_schedulers_unhealthy_hint": "存在排程器逾期或從未執行。"
   },
 
   "scheduler_health": {

@@ -127,6 +127,8 @@
     "reports": "报告",
     "locations_overview": "位置总览",
     "sub": {
+      "dashboard_main": "主仪表板",
+      "ops_overview": "运维总览",
       "asset_list": "资产列表",
       "asset_detail": "资产详情",
       "health_monitor": "健康监控",
@@ -1613,6 +1615,32 @@
     "toast_updated": "指标源已更新。",
     "toast_deleted": "指标源已删除。",
     "toast_duplicate": "本租户内已存在同名指标源。"
+  },
+
+  "ops_overview": {
+    "title": "运维总览",
+    "subtitle": "运维人员可处置的所有信息面单页汇总 —— 事件、问题、变更、能源、资本支出、数据平面、调度器。",
+    "breadcrumb_dashboard": "仪表板",
+    "auto_refresh_hint": "每 60 秒自动刷新。",
+    "tile_error": "加载失败",
+    "section_itsm": "ITSM",
+    "section_capacity": "容量与能源",
+    "section_data_plane": "数据平面健康",
+    "tile_incidents": "未处理事件",
+    "tile_incidents_hint": "等待确认或解决。",
+    "tile_problems": "未处理 Problem",
+    "tile_problems_hint": "仍在调查中的根本原因。",
+    "tile_changes": "已提交变更",
+    "tile_changes_hint": "等待 CAB 审批。",
+    "tile_refresh_recs": "汰换建议",
+    "tile_refresh_recs_hint": "接近质保 / EOL 的硬件。",
+    "tile_energy_anomalies": "能源异常",
+    "tile_energy_anomalies_hint": "近 30 天未处理。",
+    "tile_stale_sources": "过期指标源",
+    "tile_stale_sources_hint": "超过预期周期 2 倍的源。",
+    "tile_schedulers": "调度器健康",
+    "tile_schedulers_ok_hint": "所有调度器按时执行。",
+    "tile_schedulers_unhealthy_hint": "存在调度器过期或从未执行。"
   },
 
   "scheduler_health": {

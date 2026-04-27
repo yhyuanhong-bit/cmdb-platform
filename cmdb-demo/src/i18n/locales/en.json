@@ -127,6 +127,8 @@
     "reports": "Reports",
     "locations_overview": "Locations",
     "sub": {
+      "dashboard_main": "Main Dashboard",
+      "ops_overview": "Ops Overview",
       "asset_list": "Asset List",
       "asset_detail": "Asset Detail",
       "health_monitor": "Health Monitor",
@@ -1613,6 +1615,32 @@
     "toast_updated": "Metric source updated.",
     "toast_deleted": "Metric source deleted.",
     "toast_duplicate": "A source with this name already exists in this tenant."
+  },
+
+  "ops_overview": {
+    "title": "Operations Overview",
+    "subtitle": "Single-pane summary of every operator-actionable surface — incidents, problems, changes, energy, capex, data plane, schedulers.",
+    "breadcrumb_dashboard": "Dashboard",
+    "auto_refresh_hint": "Auto-refreshes every 60 seconds.",
+    "tile_error": "Failed to load",
+    "section_itsm": "ITSM",
+    "section_capacity": "Capacity & Energy",
+    "section_data_plane": "Data Plane Health",
+    "tile_incidents": "Open Incidents",
+    "tile_incidents_hint": "Awaiting acknowledgement or resolution.",
+    "tile_problems": "Open Problems",
+    "tile_problems_hint": "Underlying root causes still under investigation.",
+    "tile_changes": "Submitted Changes",
+    "tile_changes_hint": "Awaiting CAB approval.",
+    "tile_refresh_recs": "Refresh Recommendations",
+    "tile_refresh_recs_hint": "Hardware approaching warranty / EOL.",
+    "tile_energy_anomalies": "Energy Anomalies",
+    "tile_energy_anomalies_hint": "Open in the last 30 days.",
+    "tile_stale_sources": "Stale Metric Sources",
+    "tile_stale_sources_hint": "Sources past 2× their expected interval.",
+    "tile_schedulers": "Scheduler Health",
+    "tile_schedulers_ok_hint": "All schedulers ticking on schedule.",
+    "tile_schedulers_unhealthy_hint": "One or more schedulers stale or never ticked."
   },
 
   "scheduler_health": {

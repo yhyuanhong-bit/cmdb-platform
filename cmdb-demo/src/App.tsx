@@ -12,6 +12,7 @@ const CampusOverview = lazy(() => import('./pages/locations/CampusOverview'))
 
 // Dashboard
 const Dashboard = lazy(() => import('./pages/Dashboard'))
+const OperationsOverview = lazy(() => import('./pages/OperationsOverview'))
 
 // Assets (unified)
 const AssetManagement = lazy(() => import('./pages/AssetManagementUnified'))
@@ -128,6 +129,7 @@ export default function App() {
 
           {/* Dashboard */}
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/ops" element={<OperationsOverview />} />
 
           {/* Assets */}
           <Route path="/assets" element={<AssetManagement />} />

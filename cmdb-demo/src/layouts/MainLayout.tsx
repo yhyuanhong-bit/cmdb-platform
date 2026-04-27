@@ -19,7 +19,15 @@ interface NavSection {
 
 const navSections: NavSection[] = [
   { to: '/locations', icon: 'public', key: 'nav.locations_overview' },
-  { to: '/dashboard', icon: 'dashboard', key: 'nav.dashboard' },
+  {
+    to: '/dashboard',
+    icon: 'dashboard',
+    key: 'nav.dashboard',
+    children: [
+      { labelKey: 'nav.sub.dashboard_main', to: '/dashboard' },
+      { labelKey: 'nav.sub.ops_overview', to: '/dashboard/ops' },
+    ],
+  },
   {
     to: '/assets',
     icon: 'inventory_2',
