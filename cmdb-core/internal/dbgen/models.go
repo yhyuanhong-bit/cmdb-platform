@@ -337,6 +337,71 @@ type BiaScoringRule struct {
 	CreatedAt    time.Time      `json:"created_at"`
 }
 
+type Change struct {
+	ID                uuid.UUID          `json:"id"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	Title             string             `json:"title"`
+	Description       pgtype.Text        `json:"description"`
+	Type              string             `json:"type"`
+	Risk              string             `json:"risk"`
+	Status            string             `json:"status"`
+	ApprovalThreshold int32              `json:"approval_threshold"`
+	RequestedBy       pgtype.UUID        `json:"requested_by"`
+	AssigneeUserID    pgtype.UUID        `json:"assignee_user_id"`
+	PlannedStart      pgtype.Timestamptz `json:"planned_start"`
+	PlannedEnd        pgtype.Timestamptz `json:"planned_end"`
+	ActualStart       pgtype.Timestamptz `json:"actual_start"`
+	ActualEnd         pgtype.Timestamptz `json:"actual_end"`
+	RollbackPlan      pgtype.Text        `json:"rollback_plan"`
+	ImpactSummary     pgtype.Text        `json:"impact_summary"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	SubmittedAt       pgtype.Timestamptz `json:"submitted_at"`
+	ApprovedAt        pgtype.Timestamptz `json:"approved_at"`
+	RejectedAt        pgtype.Timestamptz `json:"rejected_at"`
+}
+
+type ChangeApproval struct {
+	ID       uuid.UUID   `json:"id"`
+	TenantID uuid.UUID   `json:"tenant_id"`
+	ChangeID uuid.UUID   `json:"change_id"`
+	VoterID  uuid.UUID   `json:"voter_id"`
+	Vote     string      `json:"vote"`
+	Note     pgtype.Text `json:"note"`
+	VotedAt  time.Time   `json:"voted_at"`
+}
+
+type ChangeAsset struct {
+	ChangeID  uuid.UUID `json:"change_id"`
+	AssetID   uuid.UUID `json:"asset_id"`
+	TenantID  uuid.UUID `json:"tenant_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ChangeComment struct {
+	ID        uuid.UUID   `json:"id"`
+	TenantID  uuid.UUID   `json:"tenant_id"`
+	ChangeID  uuid.UUID   `json:"change_id"`
+	AuthorID  pgtype.UUID `json:"author_id"`
+	Kind      string      `json:"kind"`
+	Body      string      `json:"body"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
+type ChangeProblem struct {
+	ChangeID  uuid.UUID `json:"change_id"`
+	ProblemID uuid.UUID `json:"problem_id"`
+	TenantID  uuid.UUID `json:"tenant_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ChangeService struct {
+	ChangeID  uuid.UUID `json:"change_id"`
+	ServiceID uuid.UUID `json:"service_id"`
+	TenantID  uuid.UUID `json:"tenant_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type Credential struct {
 	ID        uuid.UUID   `json:"id"`
 	TenantID  uuid.UUID   `json:"tenant_id"`

@@ -2369,6 +2369,492 @@ paths:
         '204':
           description: Unlinked
 
+  # --------------------------------------------------------------------------
+  # Wave 5.3: Changes (ITIL Change Management) + CAB approval flow.
+  # --------------------------------------------------------------------------
+
+  /changes:
+    get:
+      operationId: listChanges
+      tags: [changes]
+      summary: List changes
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: risk
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Paginated change list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Change' }
+                  pagination: { $ref: '#/components/schemas/Pagination' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+    post:
+      operationId: createChange
+      tags: [changes]
+      summary: Create a change in `draft` state
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:               { type: string }
+                description:         { type: string }
+                type:                { type: string, enum: [standard, normal, emergency] }
+                risk:                { type: string, enum: [low, medium, high, critical] }
+                approval_threshold:  { type: integer, minimum: 0 }
+                assignee_user_id:    { type: string, format: uuid }
+                planned_start:       { type: string, format: date-time }
+                planned_end:         { type: string, format: date-time }
+                rollback_plan:       { type: string }
+                impact_summary:      { type: string }
+      responses:
+        '201':
+          description: Change created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Change' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /changes/{id}:
+    get:
+      operationId: getChange
+      tags: [changes]
+      summary: Get a change by ID
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Change detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Change' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateChange
+      tags: [changes]
+      summary: Update non-status fields on a change
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:              { type: string }
+                description:        { type: string }
+                type:               { type: string }
+                risk:               { type: string }
+                approval_threshold: { type: integer }
+                assignee_user_id:   { type: string, format: uuid }
+                planned_start:      { type: string, format: date-time }
+                planned_end:        { type: string, format: date-time }
+                rollback_plan:      { type: string }
+                impact_summary:     { type: string }
+      responses:
+        '200':
+          description: Change updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Change' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /changes/{id}/submit:
+    post:
+      operationId: submitChange
+      tags: [changes]
+      summary: draft → submitted (auto-approves standard / emergency types)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Change submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Change' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /changes/{id}/votes:
+    get:
+      operationId: listChangeApprovals
+      tags: [changes]
+      summary: CAB voter rolls
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Approval rows oldest-first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChangeApproval' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+    post:
+      operationId: castChangeVote
+      tags: [changes]
+      summary: Cast / update a CAB vote (auto-approve or auto-reject on threshold)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vote]
+              properties:
+                vote: { type: string, enum: [approve, reject, abstain] }
+                note: { type: string }
+      responses:
+        '200':
+          description: Vote recorded; change row reflects any auto-transition
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Change' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /changes/{id}/start:
+    post:
+      operationId: startChange
+      tags: [changes]
+      summary: approved → in_progress
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Change started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Change' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /changes/{id}/succeeded:
+    post:
+      operationId: markChangeSucceeded
+      tags: [changes]
+      summary: in_progress → succeeded
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '200':
+          description: Marked succeeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Change' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /changes/{id}/failed:
+    post:
+      operationId: markChangeFailed
+      tags: [changes]
+      summary: in_progress → failed
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '200':
+          description: Marked failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Change' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /changes/{id}/rolled-back:
+    post:
+      operationId: markChangeRolledBack
+      tags: [changes]
+      summary: in_progress|failed → rolled_back
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '200':
+          description: Marked rolled_back
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Change' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /changes/{id}/comments:
+    get:
+      operationId: listChangeComments
+      tags: [changes]
+      summary: Activity timeline
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Comments oldest-first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChangeComment' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+    post:
+      operationId: createChangeComment
+      tags: [changes]
+      summary: Append a human comment
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        '201':
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChangeComment' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /changes/{id}/assets:
+    get:
+      operationId: listAssetsForChange
+      tags: [changes]
+      summary: Assets touched by this change
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Linked assets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Asset' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /changes/{id}/assets/{assetId}:
+    post:
+      operationId: linkChangeAsset
+      tags: [changes]
+      summary: Link an asset to a change
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: assetId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Linked }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: unlinkChangeAsset
+      tags: [changes]
+      summary: Unlink an asset
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: assetId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Unlinked }
+
+  /changes/{id}/services:
+    get:
+      operationId: listServicesForChange
+      tags: [changes]
+      summary: Services impacted by this change
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Linked services
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Service' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /changes/{id}/services/{serviceId}:
+    post:
+      operationId: linkChangeService
+      tags: [changes]
+      summary: Link a service
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: serviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Linked }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: unlinkChangeService
+      tags: [changes]
+      summary: Unlink a service
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: serviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Unlinked }
+
+  /changes/{id}/problems:
+    get:
+      operationId: listProblemsForChange
+      tags: [changes]
+      summary: Problems addressed by this change
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Linked problems
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Problem' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /changes/{id}/problems/{problemId}:
+    post:
+      operationId: linkChangeProblem
+      tags: [changes]
+      summary: Link a problem
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: problemId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Linked }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: unlinkChangeProblem
+      tags: [changes]
+      summary: Unlink a problem
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - name: problemId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Unlinked }
+
+  /problems/{id}/changes:
+    get:
+      operationId: listChangesForProblem
+      tags: [problems]
+      summary: Changes addressing this problem (reverse lookup)
+      parameters: [{ $ref: '#/components/parameters/IdPath' }]
+      responses:
+        '200':
+          description: Linked changes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Change' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
   /monitoring/metrics:
     get:
       operationId: queryMetrics
@@ -6079,6 +6565,69 @@ components:
         - status
         - severity
         - started_at
+
+    # ── Change (ITIL Change Management) ───────────────────────────────
+    Change:
+      type: object
+      description: >
+        ITIL Change request. Lifecycle: draft → submitted → approved |
+        rejected; approved → in_progress → succeeded | failed |
+        rolled_back. Standard and emergency types skip CAB and
+        auto-approve on submit.
+      properties:
+        id:                  { type: string, format: uuid }
+        title:               { type: string }
+        description:         { type: string, nullable: true }
+        type:                { type: string, enum: [standard, normal, emergency] }
+        risk:                { type: string, enum: [low, medium, high, critical] }
+        status:
+          type: string
+          enum: [draft, submitted, approved, rejected, in_progress, succeeded, failed, rolled_back]
+        approval_threshold:  { type: integer, description: "approve-count needed before auto-approval (0 = pre-approved)" }
+        requested_by:        { type: string, format: uuid, nullable: true }
+        assignee_user_id:    { type: string, format: uuid, nullable: true }
+        planned_start:       { type: string, format: date-time, nullable: true }
+        planned_end:         { type: string, format: date-time, nullable: true }
+        actual_start:        { type: string, format: date-time, nullable: true }
+        actual_end:          { type: string, format: date-time, nullable: true }
+        rollback_plan:       { type: string, nullable: true }
+        impact_summary:      { type: string, nullable: true }
+        created_at:          { type: string, format: date-time }
+        updated_at:          { type: string, format: date-time, nullable: true }
+        submitted_at:        { type: string, format: date-time, nullable: true }
+        approved_at:         { type: string, format: date-time, nullable: true }
+        rejected_at:         { type: string, format: date-time, nullable: true }
+      required: [id, title, type, risk, status, approval_threshold, created_at]
+
+    # ── ChangeApproval ────────────────────────────────────────────────
+    ChangeApproval:
+      type: object
+      description: >
+        One CAB voter's decision on a change. Each voter has at most one
+        row per change; updating votes overwrites. The change's running
+        tally drives auto-approval / auto-rejection in the domain layer.
+      properties:
+        id:               { type: string, format: uuid }
+        change_id:        { type: string, format: uuid }
+        voter_id:         { type: string, format: uuid }
+        voter_username:   { type: string, nullable: true }
+        vote:             { type: string, enum: [approve, reject, abstain] }
+        note:             { type: string, nullable: true }
+        voted_at:         { type: string, format: date-time }
+      required: [id, change_id, voter_id, vote, voted_at]
+
+    # ── ChangeComment ─────────────────────────────────────────────────
+    ChangeComment:
+      type: object
+      properties:
+        id:           { type: string, format: uuid }
+        change_id:    { type: string, format: uuid }
+        author_id:    { type: string, format: uuid, nullable: true }
+        author_username: { type: string, nullable: true }
+        kind:         { type: string, enum: [human, system] }
+        body:         { type: string }
+        created_at:   { type: string, format: date-time }
+      required: [id, change_id, kind, body, created_at]
 
     # ── Problem ───────────────────────────────────────────────────────
     Problem:

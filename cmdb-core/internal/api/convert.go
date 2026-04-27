@@ -643,6 +643,128 @@ func toAPIIncidentComment(db dbgen.ListIncidentCommentsRow) IncidentComment {
 }
 
 // ---------------------------------------------------------------------------
+// Wave 5.3: Change / ChangeApproval / ChangeComment converters.
+// ---------------------------------------------------------------------------
+
+func toAPIChange(db dbgen.Change) Change {
+	out := Change{
+		Id:                db.ID,
+		Title:             db.Title,
+		Type:              ChangeType(db.Type),
+		Risk:              ChangeRisk(db.Risk),
+		Status:            ChangeStatus(db.Status),
+		ApprovalThreshold: int(db.ApprovalThreshold),
+		CreatedAt:         db.CreatedAt,
+	}
+	if db.Description.Valid {
+		s := db.Description.String
+		out.Description = &s
+	}
+	if db.RequestedBy.Valid {
+		u := uuid.UUID(db.RequestedBy.Bytes)
+		out.RequestedBy = &u
+	}
+	if db.AssigneeUserID.Valid {
+		u := uuid.UUID(db.AssigneeUserID.Bytes)
+		out.AssigneeUserId = &u
+	}
+	if db.PlannedStart.Valid {
+		t := db.PlannedStart.Time
+		out.PlannedStart = &t
+	}
+	if db.PlannedEnd.Valid {
+		t := db.PlannedEnd.Time
+		out.PlannedEnd = &t
+	}
+	if db.ActualStart.Valid {
+		t := db.ActualStart.Time
+		out.ActualStart = &t
+	}
+	if db.ActualEnd.Valid {
+		t := db.ActualEnd.Time
+		out.ActualEnd = &t
+	}
+	if db.RollbackPlan.Valid {
+		s := db.RollbackPlan.String
+		out.RollbackPlan = &s
+	}
+	if db.ImpactSummary.Valid {
+		s := db.ImpactSummary.String
+		out.ImpactSummary = &s
+	}
+	if !db.UpdatedAt.IsZero() {
+		t := db.UpdatedAt
+		out.UpdatedAt = &t
+	}
+	if db.SubmittedAt.Valid {
+		t := db.SubmittedAt.Time
+		out.SubmittedAt = &t
+	}
+	if db.ApprovedAt.Valid {
+		t := db.ApprovedAt.Time
+		out.ApprovedAt = &t
+	}
+	if db.RejectedAt.Valid {
+		t := db.RejectedAt.Time
+		out.RejectedAt = &t
+	}
+	return out
+}
+
+func toAPIChangeApproval(db dbgen.ListChangeApprovalsRow) ChangeApproval {
+	out := ChangeApproval{
+		Id:       db.ID,
+		ChangeId: db.ChangeID,
+		VoterId:  db.VoterID,
+		Vote:     ChangeApprovalVote(db.Vote),
+		VotedAt:  db.VotedAt,
+	}
+	if db.Note.Valid {
+		s := db.Note.String
+		out.Note = &s
+	}
+	if db.VoterUsername.Valid {
+		s := db.VoterUsername.String
+		out.VoterUsername = &s
+	}
+	return out
+}
+
+func toAPIChangeComment(db dbgen.ListChangeCommentsRow) ChangeComment {
+	out := ChangeComment{
+		Id:        db.ID,
+		ChangeId:  db.ChangeID,
+		Kind:      ChangeCommentKind(db.Kind),
+		Body:      db.Body,
+		CreatedAt: db.CreatedAt,
+	}
+	if db.AuthorID.Valid {
+		u := uuid.UUID(db.AuthorID.Bytes)
+		out.AuthorId = &u
+	}
+	if db.AuthorUsername.Valid {
+		s := db.AuthorUsername.String
+		out.AuthorUsername = &s
+	}
+	return out
+}
+
+func toAPIChangeCommentFromRecord(db dbgen.ChangeComment) ChangeComment {
+	out := ChangeComment{
+		Id:        db.ID,
+		ChangeId:  db.ChangeID,
+		Kind:      ChangeCommentKind(db.Kind),
+		Body:      db.Body,
+		CreatedAt: db.CreatedAt,
+	}
+	if db.AuthorID.Valid {
+		u := uuid.UUID(db.AuthorID.Bytes)
+		out.AuthorId = &u
+	}
+	return out
+}
+
+// ---------------------------------------------------------------------------
 // Wave 5.2: Problem + ProblemComment converters.
 // ---------------------------------------------------------------------------
 

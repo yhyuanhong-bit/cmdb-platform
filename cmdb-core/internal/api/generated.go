@@ -147,6 +147,126 @@ func (e AssetServiceMembershipTier) Valid() bool {
 	}
 }
 
+// Defines values for ChangeRisk.
+const (
+	ChangeRiskCritical ChangeRisk = "critical"
+	ChangeRiskHigh     ChangeRisk = "high"
+	ChangeRiskLow      ChangeRisk = "low"
+	ChangeRiskMedium   ChangeRisk = "medium"
+)
+
+// Valid indicates whether the value is a known member of the ChangeRisk enum.
+func (e ChangeRisk) Valid() bool {
+	switch e {
+	case ChangeRiskCritical:
+		return true
+	case ChangeRiskHigh:
+		return true
+	case ChangeRiskLow:
+		return true
+	case ChangeRiskMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChangeStatus.
+const (
+	ChangeStatusApproved   ChangeStatus = "approved"
+	ChangeStatusDraft      ChangeStatus = "draft"
+	ChangeStatusFailed     ChangeStatus = "failed"
+	ChangeStatusInProgress ChangeStatus = "in_progress"
+	ChangeStatusRejected   ChangeStatus = "rejected"
+	ChangeStatusRolledBack ChangeStatus = "rolled_back"
+	ChangeStatusSubmitted  ChangeStatus = "submitted"
+	ChangeStatusSucceeded  ChangeStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ChangeStatus enum.
+func (e ChangeStatus) Valid() bool {
+	switch e {
+	case ChangeStatusApproved:
+		return true
+	case ChangeStatusDraft:
+		return true
+	case ChangeStatusFailed:
+		return true
+	case ChangeStatusInProgress:
+		return true
+	case ChangeStatusRejected:
+		return true
+	case ChangeStatusRolledBack:
+		return true
+	case ChangeStatusSubmitted:
+		return true
+	case ChangeStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChangeType.
+const (
+	ChangeTypeEmergency ChangeType = "emergency"
+	ChangeTypeNormal    ChangeType = "normal"
+	ChangeTypeStandard  ChangeType = "standard"
+)
+
+// Valid indicates whether the value is a known member of the ChangeType enum.
+func (e ChangeType) Valid() bool {
+	switch e {
+	case ChangeTypeEmergency:
+		return true
+	case ChangeTypeNormal:
+		return true
+	case ChangeTypeStandard:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChangeApprovalVote.
+const (
+	ChangeApprovalVoteAbstain ChangeApprovalVote = "abstain"
+	ChangeApprovalVoteApprove ChangeApprovalVote = "approve"
+	ChangeApprovalVoteReject  ChangeApprovalVote = "reject"
+)
+
+// Valid indicates whether the value is a known member of the ChangeApprovalVote enum.
+func (e ChangeApprovalVote) Valid() bool {
+	switch e {
+	case ChangeApprovalVoteAbstain:
+		return true
+	case ChangeApprovalVoteApprove:
+		return true
+	case ChangeApprovalVoteReject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChangeCommentKind.
+const (
+	ChangeCommentKindHuman  ChangeCommentKind = "human"
+	ChangeCommentKindSystem ChangeCommentKind = "system"
+)
+
+// Valid indicates whether the value is a known member of the ChangeCommentKind enum.
+func (e ChangeCommentKind) Valid() bool {
+	switch e {
+	case ChangeCommentKindHuman:
+		return true
+	case ChangeCommentKindSystem:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateServiceRequestTier.
 const (
 	CreateServiceRequestTierCritical  CreateServiceRequestTier = "critical"
@@ -951,6 +1071,72 @@ func (e GetActivityFeedParamsTargetType) Valid() bool {
 	}
 }
 
+// Defines values for CreateChangeJSONBodyRisk.
+const (
+	CreateChangeJSONBodyRiskCritical CreateChangeJSONBodyRisk = "critical"
+	CreateChangeJSONBodyRiskHigh     CreateChangeJSONBodyRisk = "high"
+	CreateChangeJSONBodyRiskLow      CreateChangeJSONBodyRisk = "low"
+	CreateChangeJSONBodyRiskMedium   CreateChangeJSONBodyRisk = "medium"
+)
+
+// Valid indicates whether the value is a known member of the CreateChangeJSONBodyRisk enum.
+func (e CreateChangeJSONBodyRisk) Valid() bool {
+	switch e {
+	case CreateChangeJSONBodyRiskCritical:
+		return true
+	case CreateChangeJSONBodyRiskHigh:
+		return true
+	case CreateChangeJSONBodyRiskLow:
+		return true
+	case CreateChangeJSONBodyRiskMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateChangeJSONBodyType.
+const (
+	Emergency CreateChangeJSONBodyType = "emergency"
+	Normal    CreateChangeJSONBodyType = "normal"
+	Standard  CreateChangeJSONBodyType = "standard"
+)
+
+// Valid indicates whether the value is a known member of the CreateChangeJSONBodyType enum.
+func (e CreateChangeJSONBodyType) Valid() bool {
+	switch e {
+	case Emergency:
+		return true
+	case Normal:
+		return true
+	case Standard:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CastChangeVoteJSONBodyVote.
+const (
+	CastChangeVoteJSONBodyVoteAbstain CastChangeVoteJSONBodyVote = "abstain"
+	CastChangeVoteJSONBodyVoteApprove CastChangeVoteJSONBodyVote = "approve"
+	CastChangeVoteJSONBodyVoteReject  CastChangeVoteJSONBodyVote = "reject"
+)
+
+// Valid indicates whether the value is a known member of the CastChangeVoteJSONBodyVote enum.
+func (e CastChangeVoteJSONBodyVote) Valid() bool {
+	switch e {
+	case CastChangeVoteJSONBodyVoteAbstain:
+		return true
+	case CastChangeVoteJSONBodyVoteApprove:
+		return true
+	case CastChangeVoteJSONBodyVoteReject:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetDashboardAssetsTrendParamsPeriod.
 const (
 	N30d GetDashboardAssetsTrendParamsPeriod = "30d"
@@ -1025,25 +1211,25 @@ func (e ResolveInventoryDiscrepancyJSONBodyAction) Valid() bool {
 
 // Defines values for ListServicesParamsTier.
 const (
-	Critical  ListServicesParamsTier = "critical"
-	Important ListServicesParamsTier = "important"
-	Low       ListServicesParamsTier = "low"
-	Minor     ListServicesParamsTier = "minor"
-	Normal    ListServicesParamsTier = "normal"
+	ListServicesParamsTierCritical  ListServicesParamsTier = "critical"
+	ListServicesParamsTierImportant ListServicesParamsTier = "important"
+	ListServicesParamsTierLow       ListServicesParamsTier = "low"
+	ListServicesParamsTierMinor     ListServicesParamsTier = "minor"
+	ListServicesParamsTierNormal    ListServicesParamsTier = "normal"
 )
 
 // Valid indicates whether the value is a known member of the ListServicesParamsTier enum.
 func (e ListServicesParamsTier) Valid() bool {
 	switch e {
-	case Critical:
+	case ListServicesParamsTierCritical:
 		return true
-	case Important:
+	case ListServicesParamsTierImportant:
 		return true
-	case Low:
+	case ListServicesParamsTierLow:
 		return true
-	case Minor:
+	case ListServicesParamsTierMinor:
 		return true
-	case Normal:
+	case ListServicesParamsTierNormal:
 		return true
 	default:
 		return false
@@ -1151,19 +1337,19 @@ func (e SyncSnapshotParamsEntityType) Valid() bool {
 
 // Defines values for GetTopologyImpactParamsDirection.
 const (
-	GetTopologyImpactParamsDirectionBoth       GetTopologyImpactParamsDirection = "both"
-	GetTopologyImpactParamsDirectionDownstream GetTopologyImpactParamsDirection = "downstream"
-	GetTopologyImpactParamsDirectionUpstream   GetTopologyImpactParamsDirection = "upstream"
+	Both       GetTopologyImpactParamsDirection = "both"
+	Downstream GetTopologyImpactParamsDirection = "downstream"
+	Upstream   GetTopologyImpactParamsDirection = "upstream"
 )
 
 // Valid indicates whether the value is a known member of the GetTopologyImpactParamsDirection enum.
 func (e GetTopologyImpactParamsDirection) Valid() bool {
 	switch e {
-	case GetTopologyImpactParamsDirectionBoth:
+	case Both:
 		return true
-	case GetTopologyImpactParamsDirectionDownstream:
+	case Downstream:
 		return true
-	case GetTopologyImpactParamsDirectionUpstream:
+	case Upstream:
 		return true
 	default:
 		return false
@@ -1424,6 +1610,69 @@ type CapacityPlanning struct {
 	UsedRackUnits        *int                   `json:"used_rack_units,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
+
+// Change ITIL Change request. Lifecycle: draft → submitted → approved | rejected; approved → in_progress → succeeded | failed | rolled_back. Standard and emergency types skip CAB and auto-approve on submit.
+type Change struct {
+	ActualEnd   *time.Time `json:"actual_end,omitempty"`
+	ActualStart *time.Time `json:"actual_start,omitempty"`
+
+	// ApprovalThreshold approve-count needed before auto-approval (0 = pre-approved)
+	ApprovalThreshold int                 `json:"approval_threshold"`
+	ApprovedAt        *time.Time          `json:"approved_at,omitempty"`
+	AssigneeUserId    *openapi_types.UUID `json:"assignee_user_id,omitempty"`
+	CreatedAt         time.Time           `json:"created_at"`
+	Description       *string             `json:"description,omitempty"`
+	Id                openapi_types.UUID  `json:"id"`
+	ImpactSummary     *string             `json:"impact_summary,omitempty"`
+	PlannedEnd        *time.Time          `json:"planned_end,omitempty"`
+	PlannedStart      *time.Time          `json:"planned_start,omitempty"`
+	RejectedAt        *time.Time          `json:"rejected_at,omitempty"`
+	RequestedBy       *openapi_types.UUID `json:"requested_by,omitempty"`
+	Risk              ChangeRisk          `json:"risk"`
+	RollbackPlan      *string             `json:"rollback_plan,omitempty"`
+	Status            ChangeStatus        `json:"status"`
+	SubmittedAt       *time.Time          `json:"submitted_at,omitempty"`
+	Title             string              `json:"title"`
+	Type              ChangeType          `json:"type"`
+	UpdatedAt         *time.Time          `json:"updated_at,omitempty"`
+}
+
+// ChangeRisk defines model for Change.Risk.
+type ChangeRisk string
+
+// ChangeStatus defines model for Change.Status.
+type ChangeStatus string
+
+// ChangeType defines model for Change.Type.
+type ChangeType string
+
+// ChangeApproval One CAB voter's decision on a change. Each voter has at most one row per change; updating votes overwrites. The change's running tally drives auto-approval / auto-rejection in the domain layer.
+type ChangeApproval struct {
+	ChangeId      openapi_types.UUID `json:"change_id"`
+	Id            openapi_types.UUID `json:"id"`
+	Note          *string            `json:"note,omitempty"`
+	Vote          ChangeApprovalVote `json:"vote"`
+	VotedAt       time.Time          `json:"voted_at"`
+	VoterId       openapi_types.UUID `json:"voter_id"`
+	VoterUsername *string            `json:"voter_username,omitempty"`
+}
+
+// ChangeApprovalVote defines model for ChangeApproval.Vote.
+type ChangeApprovalVote string
+
+// ChangeComment defines model for ChangeComment.
+type ChangeComment struct {
+	AuthorId       *openapi_types.UUID `json:"author_id,omitempty"`
+	AuthorUsername *string             `json:"author_username,omitempty"`
+	Body           string              `json:"body"`
+	ChangeId       openapi_types.UUID  `json:"change_id"`
+	CreatedAt      time.Time           `json:"created_at"`
+	Id             openapi_types.UUID  `json:"id"`
+	Kind           ChangeCommentKind   `json:"kind"`
+}
+
+// ChangeCommentKind defines model for ChangeComment.Kind.
+type ChangeCommentKind string
 
 // ConfirmLocationRequest defines model for ConfirmLocationRequest.
 type ConfirmLocationRequest struct {
@@ -2490,6 +2739,78 @@ type UpdateBIAScoringRuleJSONBody struct {
 	RtoThreshold *float32 `json:"rto_threshold,omitempty"`
 }
 
+// ListChangesParams defines parameters for ListChanges.
+type ListChangesParams struct {
+	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *PageSize `form:"page_size,omitempty" json:"page_size,omitempty"`
+	Status   *string   `form:"status,omitempty" json:"status,omitempty"`
+	Type     *string   `form:"type,omitempty" json:"type,omitempty"`
+	Risk     *string   `form:"risk,omitempty" json:"risk,omitempty"`
+}
+
+// CreateChangeJSONBody defines parameters for CreateChange.
+type CreateChangeJSONBody struct {
+	ApprovalThreshold *int                      `json:"approval_threshold,omitempty"`
+	AssigneeUserId    *openapi_types.UUID       `json:"assignee_user_id,omitempty"`
+	Description       *string                   `json:"description,omitempty"`
+	ImpactSummary     *string                   `json:"impact_summary,omitempty"`
+	PlannedEnd        *time.Time                `json:"planned_end,omitempty"`
+	PlannedStart      *time.Time                `json:"planned_start,omitempty"`
+	Risk              *CreateChangeJSONBodyRisk `json:"risk,omitempty"`
+	RollbackPlan      *string                   `json:"rollback_plan,omitempty"`
+	Title             string                    `json:"title"`
+	Type              *CreateChangeJSONBodyType `json:"type,omitempty"`
+}
+
+// CreateChangeJSONBodyRisk defines parameters for CreateChange.
+type CreateChangeJSONBodyRisk string
+
+// CreateChangeJSONBodyType defines parameters for CreateChange.
+type CreateChangeJSONBodyType string
+
+// UpdateChangeJSONBody defines parameters for UpdateChange.
+type UpdateChangeJSONBody struct {
+	ApprovalThreshold *int                `json:"approval_threshold,omitempty"`
+	AssigneeUserId    *openapi_types.UUID `json:"assignee_user_id,omitempty"`
+	Description       *string             `json:"description,omitempty"`
+	ImpactSummary     *string             `json:"impact_summary,omitempty"`
+	PlannedEnd        *time.Time          `json:"planned_end,omitempty"`
+	PlannedStart      *time.Time          `json:"planned_start,omitempty"`
+	Risk              *string             `json:"risk,omitempty"`
+	RollbackPlan      *string             `json:"rollback_plan,omitempty"`
+	Title             *string             `json:"title,omitempty"`
+	Type              *string             `json:"type,omitempty"`
+}
+
+// CreateChangeCommentJSONBody defines parameters for CreateChangeComment.
+type CreateChangeCommentJSONBody struct {
+	Body string `json:"body"`
+}
+
+// MarkChangeFailedJSONBody defines parameters for MarkChangeFailed.
+type MarkChangeFailedJSONBody struct {
+	Note *string `json:"note,omitempty"`
+}
+
+// MarkChangeRolledBackJSONBody defines parameters for MarkChangeRolledBack.
+type MarkChangeRolledBackJSONBody struct {
+	Note *string `json:"note,omitempty"`
+}
+
+// MarkChangeSucceededJSONBody defines parameters for MarkChangeSucceeded.
+type MarkChangeSucceededJSONBody struct {
+	Note *string `json:"note,omitempty"`
+}
+
+// CastChangeVoteJSONBody defines parameters for CastChangeVote.
+type CastChangeVoteJSONBody struct {
+	Note *string                    `json:"note,omitempty"`
+	Vote CastChangeVoteJSONBodyVote `json:"vote"`
+}
+
+// CastChangeVoteJSONBodyVote defines parameters for CastChangeVote.
+type CastChangeVoteJSONBodyVote string
+
 // GetDashboardAssetsTrendParams defines parameters for GetDashboardAssetsTrend.
 type GetDashboardAssetsTrendParams struct {
 	Period GetDashboardAssetsTrendParamsPeriod `form:"period" json:"period"`
@@ -3037,6 +3358,27 @@ type CreateBIADependencyJSONRequestBody CreateBIADependencyJSONBody
 
 // UpdateBIAScoringRuleJSONRequestBody defines body for UpdateBIAScoringRule for application/json ContentType.
 type UpdateBIAScoringRuleJSONRequestBody UpdateBIAScoringRuleJSONBody
+
+// CreateChangeJSONRequestBody defines body for CreateChange for application/json ContentType.
+type CreateChangeJSONRequestBody CreateChangeJSONBody
+
+// UpdateChangeJSONRequestBody defines body for UpdateChange for application/json ContentType.
+type UpdateChangeJSONRequestBody UpdateChangeJSONBody
+
+// CreateChangeCommentJSONRequestBody defines body for CreateChangeComment for application/json ContentType.
+type CreateChangeCommentJSONRequestBody CreateChangeCommentJSONBody
+
+// MarkChangeFailedJSONRequestBody defines body for MarkChangeFailed for application/json ContentType.
+type MarkChangeFailedJSONRequestBody MarkChangeFailedJSONBody
+
+// MarkChangeRolledBackJSONRequestBody defines body for MarkChangeRolledBack for application/json ContentType.
+type MarkChangeRolledBackJSONRequestBody MarkChangeRolledBackJSONBody
+
+// MarkChangeSucceededJSONRequestBody defines body for MarkChangeSucceeded for application/json ContentType.
+type MarkChangeSucceededJSONRequestBody MarkChangeSucceededJSONBody
+
+// CastChangeVoteJSONRequestBody defines body for CastChangeVote for application/json ContentType.
+type CastChangeVoteJSONRequestBody CastChangeVoteJSONBody
 
 // IngestDiscoveredAssetJSONRequestBody defines body for IngestDiscoveredAsset for application/json ContentType.
 type IngestDiscoveredAssetJSONRequestBody IngestDiscoveredAssetJSONBody
@@ -4159,6 +4501,72 @@ type ServerInterface interface {
 	// Tenant-wide capacity planning snapshot (power/cooling/rack U utilization)
 	// (GET /capacity-planning)
 	GetCapacityPlanning(c *gin.Context)
+	// List changes
+	// (GET /changes)
+	ListChanges(c *gin.Context, params ListChangesParams)
+	// Create a change in `draft` state
+	// (POST /changes)
+	CreateChange(c *gin.Context)
+	// Get a change by ID
+	// (GET /changes/{id})
+	GetChange(c *gin.Context, id IdPath)
+	// Update non-status fields on a change
+	// (PUT /changes/{id})
+	UpdateChange(c *gin.Context, id IdPath)
+	// Assets touched by this change
+	// (GET /changes/{id}/assets)
+	ListAssetsForChange(c *gin.Context, id IdPath)
+	// Unlink an asset
+	// (DELETE /changes/{id}/assets/{assetId})
+	UnlinkChangeAsset(c *gin.Context, id IdPath, assetId openapi_types.UUID)
+	// Link an asset to a change
+	// (POST /changes/{id}/assets/{assetId})
+	LinkChangeAsset(c *gin.Context, id IdPath, assetId openapi_types.UUID)
+	// Activity timeline
+	// (GET /changes/{id}/comments)
+	ListChangeComments(c *gin.Context, id IdPath)
+	// Append a human comment
+	// (POST /changes/{id}/comments)
+	CreateChangeComment(c *gin.Context, id IdPath)
+	// in_progress → failed
+	// (POST /changes/{id}/failed)
+	MarkChangeFailed(c *gin.Context, id IdPath)
+	// Problems addressed by this change
+	// (GET /changes/{id}/problems)
+	ListProblemsForChange(c *gin.Context, id IdPath)
+	// Unlink a problem
+	// (DELETE /changes/{id}/problems/{problemId})
+	UnlinkChangeProblem(c *gin.Context, id IdPath, problemId openapi_types.UUID)
+	// Link a problem
+	// (POST /changes/{id}/problems/{problemId})
+	LinkChangeProblem(c *gin.Context, id IdPath, problemId openapi_types.UUID)
+	// in_progress|failed → rolled_back
+	// (POST /changes/{id}/rolled-back)
+	MarkChangeRolledBack(c *gin.Context, id IdPath)
+	// Services impacted by this change
+	// (GET /changes/{id}/services)
+	ListServicesForChange(c *gin.Context, id IdPath)
+	// Unlink a service
+	// (DELETE /changes/{id}/services/{serviceId})
+	UnlinkChangeService(c *gin.Context, id IdPath, serviceId openapi_types.UUID)
+	// Link a service
+	// (POST /changes/{id}/services/{serviceId})
+	LinkChangeService(c *gin.Context, id IdPath, serviceId openapi_types.UUID)
+	// approved → in_progress
+	// (POST /changes/{id}/start)
+	StartChange(c *gin.Context, id IdPath)
+	// draft → submitted (auto-approves standard / emergency types)
+	// (POST /changes/{id}/submit)
+	SubmitChange(c *gin.Context, id IdPath)
+	// in_progress → succeeded
+	// (POST /changes/{id}/succeeded)
+	MarkChangeSucceeded(c *gin.Context, id IdPath)
+	// CAB voter rolls
+	// (GET /changes/{id}/votes)
+	ListChangeApprovals(c *gin.Context, id IdPath)
+	// Cast / update a CAB vote (auto-approve or auto-reject on threshold)
+	// (POST /changes/{id}/votes)
+	CastChangeVote(c *gin.Context, id IdPath)
 	// Asset count trend over time
 	// (GET /dashboard/assets-trend)
 	GetDashboardAssetsTrend(c *gin.Context, params GetDashboardAssetsTrendParams)
@@ -4450,6 +4858,9 @@ type ServerInterface interface {
 	// Update non-status fields on a problem
 	// (PUT /problems/{id})
 	UpdateProblem(c *gin.Context, id IdPath)
+	// Changes addressing this problem (reverse lookup)
+	// (GET /problems/{id}/changes)
+	ListChangesForProblem(c *gin.Context, id IdPath)
 	// resolved → closed (post-mortem lock)
 	// (POST /problems/{id}/close)
 	CloseProblem(c *gin.Context, id IdPath)
@@ -5747,6 +6158,655 @@ func (siw *ServerInterfaceWrapper) GetCapacityPlanning(c *gin.Context) {
 	}
 
 	siw.Handler.GetCapacityPlanning(c)
+}
+
+// ListChanges operation middleware
+func (siw *ServerInterfaceWrapper) ListChanges(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListChangesParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_size", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page_size: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "type", c.Request.URL.Query(), &params.Type, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter type: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "risk" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "risk", c.Request.URL.Query(), &params.Risk, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter risk: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListChanges(c, params)
+}
+
+// CreateChange operation middleware
+func (siw *ServerInterfaceWrapper) CreateChange(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateChange(c)
+}
+
+// GetChange operation middleware
+func (siw *ServerInterfaceWrapper) GetChange(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetChange(c, id)
+}
+
+// UpdateChange operation middleware
+func (siw *ServerInterfaceWrapper) UpdateChange(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateChange(c, id)
+}
+
+// ListAssetsForChange operation middleware
+func (siw *ServerInterfaceWrapper) ListAssetsForChange(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListAssetsForChange(c, id)
+}
+
+// UnlinkChangeAsset operation middleware
+func (siw *ServerInterfaceWrapper) UnlinkChangeAsset(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", c.Param("assetId"), &assetId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter assetId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UnlinkChangeAsset(c, id, assetId)
+}
+
+// LinkChangeAsset operation middleware
+func (siw *ServerInterfaceWrapper) LinkChangeAsset(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", c.Param("assetId"), &assetId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter assetId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LinkChangeAsset(c, id, assetId)
+}
+
+// ListChangeComments operation middleware
+func (siw *ServerInterfaceWrapper) ListChangeComments(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListChangeComments(c, id)
+}
+
+// CreateChangeComment operation middleware
+func (siw *ServerInterfaceWrapper) CreateChangeComment(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateChangeComment(c, id)
+}
+
+// MarkChangeFailed operation middleware
+func (siw *ServerInterfaceWrapper) MarkChangeFailed(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkChangeFailed(c, id)
+}
+
+// ListProblemsForChange operation middleware
+func (siw *ServerInterfaceWrapper) ListProblemsForChange(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListProblemsForChange(c, id)
+}
+
+// UnlinkChangeProblem operation middleware
+func (siw *ServerInterfaceWrapper) UnlinkChangeProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "problemId" -------------
+	var problemId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "problemId", c.Param("problemId"), &problemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter problemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UnlinkChangeProblem(c, id, problemId)
+}
+
+// LinkChangeProblem operation middleware
+func (siw *ServerInterfaceWrapper) LinkChangeProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "problemId" -------------
+	var problemId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "problemId", c.Param("problemId"), &problemId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter problemId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LinkChangeProblem(c, id, problemId)
+}
+
+// MarkChangeRolledBack operation middleware
+func (siw *ServerInterfaceWrapper) MarkChangeRolledBack(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkChangeRolledBack(c, id)
+}
+
+// ListServicesForChange operation middleware
+func (siw *ServerInterfaceWrapper) ListServicesForChange(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListServicesForChange(c, id)
+}
+
+// UnlinkChangeService operation middleware
+func (siw *ServerInterfaceWrapper) UnlinkChangeService(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "serviceId" -------------
+	var serviceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "serviceId", c.Param("serviceId"), &serviceId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter serviceId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UnlinkChangeService(c, id, serviceId)
+}
+
+// LinkChangeService operation middleware
+func (siw *ServerInterfaceWrapper) LinkChangeService(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "serviceId" -------------
+	var serviceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "serviceId", c.Param("serviceId"), &serviceId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter serviceId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.LinkChangeService(c, id, serviceId)
+}
+
+// StartChange operation middleware
+func (siw *ServerInterfaceWrapper) StartChange(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.StartChange(c, id)
+}
+
+// SubmitChange operation middleware
+func (siw *ServerInterfaceWrapper) SubmitChange(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SubmitChange(c, id)
+}
+
+// MarkChangeSucceeded operation middleware
+func (siw *ServerInterfaceWrapper) MarkChangeSucceeded(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.MarkChangeSucceeded(c, id)
+}
+
+// ListChangeApprovals operation middleware
+func (siw *ServerInterfaceWrapper) ListChangeApprovals(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListChangeApprovals(c, id)
+}
+
+// CastChangeVote operation middleware
+func (siw *ServerInterfaceWrapper) CastChangeVote(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CastChangeVote(c, id)
 }
 
 // GetDashboardAssetsTrend operation middleware
@@ -8321,6 +9381,32 @@ func (siw *ServerInterfaceWrapper) UpdateProblem(c *gin.Context) {
 	siw.Handler.UpdateProblem(c, id)
 }
 
+// ListChangesForProblem operation middleware
+func (siw *ServerInterfaceWrapper) ListChangesForProblem(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListChangesForProblem(c, id)
+}
+
 // CloseProblem operation middleware
 func (siw *ServerInterfaceWrapper) CloseProblem(c *gin.Context) {
 
@@ -10240,6 +11326,28 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.PUT(options.BaseURL+"/bia/rules/:id", wrapper.UpdateBIAScoringRule)
 	router.GET(options.BaseURL+"/bia/stats", wrapper.GetBIAStats)
 	router.GET(options.BaseURL+"/capacity-planning", wrapper.GetCapacityPlanning)
+	router.GET(options.BaseURL+"/changes", wrapper.ListChanges)
+	router.POST(options.BaseURL+"/changes", wrapper.CreateChange)
+	router.GET(options.BaseURL+"/changes/:id", wrapper.GetChange)
+	router.PUT(options.BaseURL+"/changes/:id", wrapper.UpdateChange)
+	router.GET(options.BaseURL+"/changes/:id/assets", wrapper.ListAssetsForChange)
+	router.DELETE(options.BaseURL+"/changes/:id/assets/:assetId", wrapper.UnlinkChangeAsset)
+	router.POST(options.BaseURL+"/changes/:id/assets/:assetId", wrapper.LinkChangeAsset)
+	router.GET(options.BaseURL+"/changes/:id/comments", wrapper.ListChangeComments)
+	router.POST(options.BaseURL+"/changes/:id/comments", wrapper.CreateChangeComment)
+	router.POST(options.BaseURL+"/changes/:id/failed", wrapper.MarkChangeFailed)
+	router.GET(options.BaseURL+"/changes/:id/problems", wrapper.ListProblemsForChange)
+	router.DELETE(options.BaseURL+"/changes/:id/problems/:problemId", wrapper.UnlinkChangeProblem)
+	router.POST(options.BaseURL+"/changes/:id/problems/:problemId", wrapper.LinkChangeProblem)
+	router.POST(options.BaseURL+"/changes/:id/rolled-back", wrapper.MarkChangeRolledBack)
+	router.GET(options.BaseURL+"/changes/:id/services", wrapper.ListServicesForChange)
+	router.DELETE(options.BaseURL+"/changes/:id/services/:serviceId", wrapper.UnlinkChangeService)
+	router.POST(options.BaseURL+"/changes/:id/services/:serviceId", wrapper.LinkChangeService)
+	router.POST(options.BaseURL+"/changes/:id/start", wrapper.StartChange)
+	router.POST(options.BaseURL+"/changes/:id/submit", wrapper.SubmitChange)
+	router.POST(options.BaseURL+"/changes/:id/succeeded", wrapper.MarkChangeSucceeded)
+	router.GET(options.BaseURL+"/changes/:id/votes", wrapper.ListChangeApprovals)
+	router.POST(options.BaseURL+"/changes/:id/votes", wrapper.CastChangeVote)
 	router.GET(options.BaseURL+"/dashboard/assets-trend", wrapper.GetDashboardAssetsTrend)
 	router.GET(options.BaseURL+"/dashboard/rack-heatmap", wrapper.GetDashboardRackHeatmap)
 	router.GET(options.BaseURL+"/dashboard/stats", wrapper.GetDashboardStats)
@@ -10337,6 +11445,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/problems", wrapper.CreateProblem)
 	router.GET(options.BaseURL+"/problems/:id", wrapper.GetProblem)
 	router.PUT(options.BaseURL+"/problems/:id", wrapper.UpdateProblem)
+	router.GET(options.BaseURL+"/problems/:id/changes", wrapper.ListChangesForProblem)
 	router.POST(options.BaseURL+"/problems/:id/close", wrapper.CloseProblem)
 	router.GET(options.BaseURL+"/problems/:id/comments", wrapper.ListProblemComments)
 	router.POST(options.BaseURL+"/problems/:id/comments", wrapper.CreateProblemComment)

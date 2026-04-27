@@ -33,6 +33,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/change"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/problem"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	svcdomain "github.com/cmdb-platform/cmdb-core/internal/domain/service"
@@ -432,12 +433,16 @@ func main() {
 	// status flip.
 	problemSvc := problem.NewService(queries, pool)
 
+	// Change (ITIL Change Management) entity (Wave 5.3). Same tx-scoped
+	// pattern; also owns the CAB approval auto-resolution logic.
+	changeSvc := change.NewService(queries, pool)
+
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
-		serviceSvc, problemSvc, cipher, netGuard,
+		serviceSvc, problemSvc, changeSvc, cipher, netGuard,
 	)
 
 	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)
