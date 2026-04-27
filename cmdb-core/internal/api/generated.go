@@ -546,6 +546,54 @@ func (e LocationAnomalySeverity) Valid() bool {
 	}
 }
 
+// Defines values for PredictiveRefreshKind.
+const (
+	PredictiveRefreshKindAgedOut          PredictiveRefreshKind = "aged_out"
+	PredictiveRefreshKindEolApproaching   PredictiveRefreshKind = "eol_approaching"
+	PredictiveRefreshKindEolPassed        PredictiveRefreshKind = "eol_passed"
+	PredictiveRefreshKindWarrantyExpired  PredictiveRefreshKind = "warranty_expired"
+	PredictiveRefreshKindWarrantyExpiring PredictiveRefreshKind = "warranty_expiring"
+)
+
+// Valid indicates whether the value is a known member of the PredictiveRefreshKind enum.
+func (e PredictiveRefreshKind) Valid() bool {
+	switch e {
+	case PredictiveRefreshKindAgedOut:
+		return true
+	case PredictiveRefreshKindEolApproaching:
+		return true
+	case PredictiveRefreshKindEolPassed:
+		return true
+	case PredictiveRefreshKindWarrantyExpired:
+		return true
+	case PredictiveRefreshKindWarrantyExpiring:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PredictiveRefreshStatus.
+const (
+	PredictiveRefreshStatusAck      PredictiveRefreshStatus = "ack"
+	PredictiveRefreshStatusOpen     PredictiveRefreshStatus = "open"
+	PredictiveRefreshStatusResolved PredictiveRefreshStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the PredictiveRefreshStatus enum.
+func (e PredictiveRefreshStatus) Valid() bool {
+	switch e {
+	case PredictiveRefreshStatusAck:
+		return true
+	case PredictiveRefreshStatusOpen:
+		return true
+	case PredictiveRefreshStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProblemPriority.
 const (
 	ProblemPriorityP1 ProblemPriority = "p1"
@@ -1284,6 +1332,102 @@ func (e ResolveInventoryDiscrepancyJSONBodyAction) Valid() bool {
 	case Register:
 		return true
 	case Verify:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListPredictiveRefreshParamsStatus.
+const (
+	ListPredictiveRefreshParamsStatusAck      ListPredictiveRefreshParamsStatus = "ack"
+	ListPredictiveRefreshParamsStatusOpen     ListPredictiveRefreshParamsStatus = "open"
+	ListPredictiveRefreshParamsStatusResolved ListPredictiveRefreshParamsStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the ListPredictiveRefreshParamsStatus enum.
+func (e ListPredictiveRefreshParamsStatus) Valid() bool {
+	switch e {
+	case ListPredictiveRefreshParamsStatusAck:
+		return true
+	case ListPredictiveRefreshParamsStatusOpen:
+		return true
+	case ListPredictiveRefreshParamsStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListPredictiveRefreshParamsKind.
+const (
+	ListPredictiveRefreshParamsKindAgedOut          ListPredictiveRefreshParamsKind = "aged_out"
+	ListPredictiveRefreshParamsKindEolApproaching   ListPredictiveRefreshParamsKind = "eol_approaching"
+	ListPredictiveRefreshParamsKindEolPassed        ListPredictiveRefreshParamsKind = "eol_passed"
+	ListPredictiveRefreshParamsKindWarrantyExpired  ListPredictiveRefreshParamsKind = "warranty_expired"
+	ListPredictiveRefreshParamsKindWarrantyExpiring ListPredictiveRefreshParamsKind = "warranty_expiring"
+)
+
+// Valid indicates whether the value is a known member of the ListPredictiveRefreshParamsKind enum.
+func (e ListPredictiveRefreshParamsKind) Valid() bool {
+	switch e {
+	case ListPredictiveRefreshParamsKindAgedOut:
+		return true
+	case ListPredictiveRefreshParamsKindEolApproaching:
+		return true
+	case ListPredictiveRefreshParamsKindEolPassed:
+		return true
+	case ListPredictiveRefreshParamsKindWarrantyExpired:
+		return true
+	case ListPredictiveRefreshParamsKindWarrantyExpiring:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TransitionPredictiveRefreshParamsKind.
+const (
+	AgedOut          TransitionPredictiveRefreshParamsKind = "aged_out"
+	EolApproaching   TransitionPredictiveRefreshParamsKind = "eol_approaching"
+	EolPassed        TransitionPredictiveRefreshParamsKind = "eol_passed"
+	WarrantyExpired  TransitionPredictiveRefreshParamsKind = "warranty_expired"
+	WarrantyExpiring TransitionPredictiveRefreshParamsKind = "warranty_expiring"
+)
+
+// Valid indicates whether the value is a known member of the TransitionPredictiveRefreshParamsKind enum.
+func (e TransitionPredictiveRefreshParamsKind) Valid() bool {
+	switch e {
+	case AgedOut:
+		return true
+	case EolApproaching:
+		return true
+	case EolPassed:
+		return true
+	case WarrantyExpired:
+		return true
+	case WarrantyExpiring:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TransitionPredictiveRefreshJSONBodyStatus.
+const (
+	Ack      TransitionPredictiveRefreshJSONBodyStatus = "ack"
+	Open     TransitionPredictiveRefreshJSONBodyStatus = "open"
+	Resolved TransitionPredictiveRefreshJSONBodyStatus = "resolved"
+)
+
+// Valid indicates whether the value is a known member of the TransitionPredictiveRefreshJSONBodyStatus enum.
+func (e TransitionPredictiveRefreshJSONBodyStatus) Valid() bool {
+	switch e {
+	case Ack:
+		return true
+	case Open:
+		return true
+	case Resolved:
 		return true
 	default:
 		return false
@@ -2263,6 +2407,36 @@ type PredictionModel struct {
 	Provider string                 `json:"provider"`
 	Type     string                 `json:"type"`
 }
+
+// PredictiveRefresh One hardware-refresh recommendation surfaced by the rule engine.
+type PredictiveRefresh struct {
+	AssetId           openapi_types.UUID    `json:"asset_id"`
+	AssetName         *string               `json:"asset_name,omitempty"`
+	AssetTag          *string               `json:"asset_tag,omitempty"`
+	AssetType         *string               `json:"asset_type,omitempty"`
+	DetectedAt        time.Time             `json:"detected_at"`
+	EolDate           *openapi_types.Date   `json:"eol_date,omitempty"`
+	Kind              PredictiveRefreshKind `json:"kind"`
+	LocationId        *openapi_types.UUID   `json:"location_id,omitempty"`
+	Note              *string               `json:"note,omitempty"`
+	PurchaseDate      *openapi_types.Date   `json:"purchase_date,omitempty"`
+	Reason            string                `json:"reason"`
+	RecommendedAction *string               `json:"recommended_action,omitempty"`
+	ReviewedAt        *time.Time            `json:"reviewed_at,omitempty"`
+	ReviewedBy        *openapi_types.UUID   `json:"reviewed_by,omitempty"`
+
+	// RiskScore 0-100 as decimal string, higher = more urgent
+	RiskScore   string                  `json:"risk_score"`
+	Status      PredictiveRefreshStatus `json:"status"`
+	TargetDate  *openapi_types.Date     `json:"target_date,omitempty"`
+	WarrantyEnd *openapi_types.Date     `json:"warranty_end,omitempty"`
+}
+
+// PredictiveRefreshKind defines model for PredictiveRefresh.Kind.
+type PredictiveRefreshKind string
+
+// PredictiveRefreshStatus defines model for PredictiveRefresh.Status.
+type PredictiveRefreshStatus string
 
 // Problem ITIL Problem entity — the underlying root cause of one or more Incidents. Separate lifecycle: open → investigating → known_error (optional) → resolved → closed.
 type Problem struct {
@@ -3373,6 +3547,32 @@ type VerifyRCAJSONBody struct {
 	VerifiedBy openapi_types.UUID `json:"verified_by"`
 }
 
+// ListPredictiveRefreshParams defines parameters for ListPredictiveRefresh.
+type ListPredictiveRefreshParams struct {
+	Page     *Page                              `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *PageSize                          `form:"page_size,omitempty" json:"page_size,omitempty"`
+	Status   *ListPredictiveRefreshParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Kind     *ListPredictiveRefreshParamsKind   `form:"kind,omitempty" json:"kind,omitempty"`
+}
+
+// ListPredictiveRefreshParamsStatus defines parameters for ListPredictiveRefresh.
+type ListPredictiveRefreshParamsStatus string
+
+// ListPredictiveRefreshParamsKind defines parameters for ListPredictiveRefresh.
+type ListPredictiveRefreshParamsKind string
+
+// TransitionPredictiveRefreshJSONBody defines parameters for TransitionPredictiveRefresh.
+type TransitionPredictiveRefreshJSONBody struct {
+	Note   *string                                   `json:"note,omitempty"`
+	Status TransitionPredictiveRefreshJSONBodyStatus `json:"status"`
+}
+
+// TransitionPredictiveRefreshParamsKind defines parameters for TransitionPredictiveRefresh.
+type TransitionPredictiveRefreshParamsKind string
+
+// TransitionPredictiveRefreshJSONBodyStatus defines parameters for TransitionPredictiveRefresh.
+type TransitionPredictiveRefreshJSONBodyStatus string
+
 // ListProblemsParams defines parameters for ListProblems.
 type ListProblemsParams struct {
 	Page     *Page     `form:"page,omitempty" json:"page,omitempty"`
@@ -3719,6 +3919,9 @@ type CreateRCAJSONRequestBody CreateRCAJSONBody
 
 // VerifyRCAJSONRequestBody defines body for VerifyRCA for application/json ContentType.
 type VerifyRCAJSONRequestBody VerifyRCAJSONBody
+
+// TransitionPredictiveRefreshJSONRequestBody defines body for TransitionPredictiveRefresh for application/json ContentType.
+type TransitionPredictiveRefreshJSONRequestBody TransitionPredictiveRefreshJSONBody
 
 // CreateProblemJSONRequestBody defines body for CreateProblem for application/json ContentType.
 type CreateProblemJSONRequestBody CreateProblemJSONBody
@@ -5135,6 +5338,15 @@ type ServerInterface interface {
 	// Get remaining useful life for an asset
 	// (GET /prediction/rul/{id})
 	GetAssetRUL(c *gin.Context, id IdPath)
+	// List hardware-refresh recommendations
+	// (GET /predictive/refresh)
+	ListPredictiveRefresh(c *gin.Context, params ListPredictiveRefreshParams)
+	// Manually trigger the rule engine for the caller's tenant
+	// (POST /predictive/refresh/run)
+	RunPredictiveRefreshScan(c *gin.Context)
+	// Transition a recommendation's status (open/ack/resolved)
+	// (POST /predictive/refresh/{assetId}/{kind}/transition)
+	TransitionPredictiveRefresh(c *gin.Context, assetId openapi_types.UUID, kind TransitionPredictiveRefreshParamsKind)
 	// List problems
 	// (GET /problems)
 	ListProblems(c *gin.Context, params ListProblemsParams)
@@ -9941,6 +10153,108 @@ func (siw *ServerInterfaceWrapper) GetAssetRUL(c *gin.Context) {
 	siw.Handler.GetAssetRUL(c, id)
 }
 
+// ListPredictiveRefresh operation middleware
+func (siw *ServerInterfaceWrapper) ListPredictiveRefresh(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListPredictiveRefreshParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page", c.Request.URL.Query(), &params.Page, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "page_size" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "page_size", c.Request.URL.Query(), &params.PageSize, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter page_size: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", c.Request.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter status: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kind", c.Request.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kind: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListPredictiveRefresh(c, params)
+}
+
+// RunPredictiveRefreshScan operation middleware
+func (siw *ServerInterfaceWrapper) RunPredictiveRefreshScan(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RunPredictiveRefreshScan(c)
+}
+
+// TransitionPredictiveRefresh operation middleware
+func (siw *ServerInterfaceWrapper) TransitionPredictiveRefresh(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", c.Param("assetId"), &assetId, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter assetId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Path parameter "kind" -------------
+	var kind TransitionPredictiveRefreshParamsKind
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kind", c.Param("kind"), &kind, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter kind: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.TransitionPredictiveRefresh(c, assetId, kind)
+}
+
 // ListProblems operation middleware
 func (siw *ServerInterfaceWrapper) ListProblems(c *gin.Context) {
 
@@ -12131,6 +12445,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/prediction/rca", wrapper.CreateRCA)
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)
 	router.GET(options.BaseURL+"/prediction/rul/:id", wrapper.GetAssetRUL)
+	router.GET(options.BaseURL+"/predictive/refresh", wrapper.ListPredictiveRefresh)
+	router.POST(options.BaseURL+"/predictive/refresh/run", wrapper.RunPredictiveRefreshScan)
+	router.POST(options.BaseURL+"/predictive/refresh/:assetId/:kind/transition", wrapper.TransitionPredictiveRefresh)
 	router.GET(options.BaseURL+"/problems", wrapper.ListProblems)
 	router.POST(options.BaseURL+"/problems", wrapper.CreateProblem)
 	router.GET(options.BaseURL+"/problems/:id", wrapper.GetProblem)

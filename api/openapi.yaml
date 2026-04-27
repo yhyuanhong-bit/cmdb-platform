@@ -3234,6 +3234,109 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # --------------------------------------------------------------------------
+  # Wave 7.1: Predictive — hardware-refresh recommendations.
+  # --------------------------------------------------------------------------
+
+  /predictive/refresh:
+    get:
+      operationId: listPredictiveRefresh
+      tags: [predictive]
+      summary: List hardware-refresh recommendations
+      description: >
+        Returns recommendations the rule engine has produced from
+        purchase_date / warranty_end / eol_date / expected_lifespan_months.
+        Sorted by risk_score DESC then target_date ASC so the most
+        urgent rows are first.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, ack, resolved] }
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [warranty_expiring, warranty_expired, eol_approaching, eol_passed, aged_out]
+      responses:
+        '200':
+          description: Paginated recommendations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PredictiveRefresh' }
+                  pagination: { $ref: '#/components/schemas/Pagination' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /predictive/refresh/run:
+    post:
+      operationId: runPredictiveRefreshScan
+      tags: [predictive]
+      summary: Manually trigger the rule engine for the caller's tenant
+      description: >
+        Idempotent — overwrites existing rows but preserves operator
+        status / note. The scheduled hourly tick runs the same code, so
+        this endpoint is for "I just edited a warranty date and want to
+        see the recommendation update now."
+      responses:
+        '200':
+          description: Scan summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      assets_scanned: { type: integer }
+                      rows_upserted:  { type: integer }
+                  meta: { $ref: '#/components/schemas/Meta' }
+
+  /predictive/refresh/{assetId}/{kind}/transition:
+    post:
+      operationId: transitionPredictiveRefresh
+      tags: [predictive]
+      summary: Transition a recommendation's status (open/ack/resolved)
+      parameters:
+        - name: assetId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [warranty_expiring, warranty_expired, eol_approaching, eol_passed, aged_out]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [open, ack, resolved] }
+                note:   { type: string }
+      responses:
+        '200':
+          description: Recommendation updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PredictiveRefresh' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /energy/billing/bill:
     get:
       operationId: getEnergyBill
@@ -6923,6 +7026,34 @@ components:
         cost:         { type: string }
         currency:     { type: string }
       required: [asset_id, kwh, rate_per_kwh, cost, currency]
+
+    PredictiveRefresh:
+      type: object
+      description: One hardware-refresh recommendation surfaced by the rule engine.
+      properties:
+        asset_id:           { type: string, format: uuid }
+        asset_tag:          { type: string, nullable: true }
+        asset_name:         { type: string, nullable: true }
+        asset_type:         { type: string, nullable: true }
+        location_id:        { type: string, format: uuid, nullable: true }
+        kind:
+          type: string
+          enum: [warranty_expiring, warranty_expired, eol_approaching, eol_passed, aged_out]
+        risk_score:
+          type: string
+          description: 0-100 as decimal string, higher = more urgent
+        reason:             { type: string }
+        recommended_action: { type: string, nullable: true }
+        target_date:        { type: string, format: date, nullable: true }
+        status:             { type: string, enum: [open, ack, resolved] }
+        detected_at:        { type: string, format: date-time }
+        reviewed_by:        { type: string, format: uuid, nullable: true }
+        reviewed_at:        { type: string, format: date-time, nullable: true }
+        note:               { type: string, nullable: true }
+        purchase_date:      { type: string, format: date, nullable: true }
+        warranty_end:       { type: string, format: date, nullable: true }
+        eol_date:           { type: string, format: date, nullable: true }
+      required: [asset_id, kind, risk_score, reason, status, detected_at]
 
     EnergyLocationPue:
       type: object

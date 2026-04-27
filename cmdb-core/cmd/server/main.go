@@ -33,6 +33,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/predictive"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/change"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/energy"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/problem"
@@ -452,12 +453,18 @@ func main() {
 	// so the duplicate ticks are no-ops.
 	go runEnergyScheduler(ctx, energySvc)
 
+	// Wave 7.1: predictive refresh recommendations. Hourly tick scans
+	// every tenant's lifecycle-bearing assets. Idempotent — duplicate
+	// ticks are no-ops on top of UPSERT semantics.
+	predictiveSvc := predictive.NewService(queries, pool)
+	go runPredictiveScheduler(ctx, predictiveSvc)
+
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, syncSvc, locationDetectSvc,
-		serviceSvc, problemSvc, changeSvc, energySvc, cipher, netGuard,
+		serviceSvc, problemSvc, changeSvc, energySvc, predictiveSvc, cipher, netGuard,
 	)
 
 	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)
@@ -782,6 +789,41 @@ func runEnergyScheduler(ctx context.Context, svc *energy.Service) {
 		select {
 		case <-ctx.Done():
 			zap.L().Info("energy scheduler stopped")
+			return
+		case <-t.C:
+			tick()
+		}
+	}
+}
+
+// runPredictiveScheduler runs the Wave 7.1 hardware-refresh rule engine
+// on a 1h ticker. Idempotent on each pass; per-tenant errors don't
+// abort the tick.
+func runPredictiveScheduler(ctx context.Context, svc *predictive.Service) {
+	const interval = time.Hour
+	cfg := predictive.DefaultRuleConfig()
+	zap.L().Info("predictive refresh scheduler started", zap.Duration("interval", interval))
+
+	tick := func() {
+		res := svc.RunScanTick(ctx, cfg)
+		zap.L().Info("predictive refresh tick",
+			zap.Int("tenants_scanned", res.TenantsScanned),
+			zap.Int("assets_scanned", res.AssetsScanned),
+			zap.Int("rows_upserted", res.RowsUpserted),
+			zap.Int("errors", len(res.Errors)),
+		)
+		for _, err := range res.Errors {
+			zap.L().Warn("predictive refresh tick error", zap.Error(err))
+		}
+	}
+
+	tick()
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			zap.L().Info("predictive refresh scheduler stopped")
 			return
 		case <-t.C:
 			tick()

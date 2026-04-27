@@ -696,6 +696,21 @@ type PredictionResult struct {
 	CreatedAt         time.Time          `json:"created_at"`
 }
 
+type PredictiveRefreshRecommendation struct {
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	AssetID           uuid.UUID          `json:"asset_id"`
+	Kind              string             `json:"kind"`
+	RiskScore         pgtype.Numeric     `json:"risk_score"`
+	Reason            string             `json:"reason"`
+	RecommendedAction pgtype.Text        `json:"recommended_action"`
+	TargetDate        pgtype.Date        `json:"target_date"`
+	Status            string             `json:"status"`
+	DetectedAt        time.Time          `json:"detected_at"`
+	ReviewedBy        pgtype.UUID        `json:"reviewed_by"`
+	ReviewedAt        pgtype.Timestamptz `json:"reviewed_at"`
+	Note              pgtype.Text        `json:"note"`
+}
+
 type Problem struct {
 	ID             uuid.UUID          `json:"id"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
