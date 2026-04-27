@@ -9,8 +9,26 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// formatPgNumeric stringifies a pgx Numeric for JSON. Decimal precision
+// is preserved; NULL collapses to "0". (Originally lived in the energy
+// billing handlers; moved here when those were retired.)
+func formatPgNumeric(n pgtype.Numeric) string {
+	if !n.Valid {
+		return "0"
+	}
+	v, err := n.Value()
+	if err != nil {
+		return "0"
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return "0"
+}
 
 // ListPredictiveRefresh — GET /predictive/refresh
 func (s *APIServer) ListPredictiveRefresh(c *gin.Context, params ListPredictiveRefreshParams) {

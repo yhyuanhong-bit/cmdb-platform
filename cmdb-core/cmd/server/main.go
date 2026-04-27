@@ -34,9 +34,6 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/predictive"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/change"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/energy"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/problem"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	svcdomain "github.com/cmdb-platform/cmdb-core/internal/domain/service"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
@@ -407,30 +404,11 @@ func main() {
 	// sqlc Queries surface + the event bus for CRUD fan-out.
 	serviceSvc := svcdomain.New(pool, queries, bus)
 
-	// Problem (ITIL) entity (Wave 5.2). Pool needed for tx-scoped
-	// lifecycle helpers that write a system comment alongside each
-	// status flip.
-	problemSvc := problem.NewService(queries, pool)
-
-	// Change (ITIL Change Management) entity (Wave 5.3). Same tx-scoped
-	// pattern; also owns the CAB approval auto-resolution logic.
-	changeSvc := change.NewService(queries, pool)
-
-	// Energy billing (Wave 6.1). Tariff CRUD with overlap rejection,
-	// daily kWh aggregator, monthly bill computation.
-	energySvc := energy.NewService(queries, pool)
-
 	// Wave 9.1: scheduler-health tracker. Schedulers Record() at the top
 	// of each tick so /admin/scheduler-health can detect a stuck loop.
 	schedTracker := schedhealth.New()
 	schedTracker.Register("alert_evaluator", monitoring.DefaultEvaluatorInterval)
 	alertEvalTrackerForwarder.target = schedTracker
-
-	// Wave 6.2: nightly PUE rollup + anomaly detector. One tick per hour
-	// is overkill for a daily job but means a startup right after midnight
-	// catches up within ~60 minutes; the underlying upserts are idempotent
-	// so the duplicate ticks are no-ops.
-	go runEnergyScheduler(ctx, energySvc, schedTracker)
 
 	// Wave 7.1: predictive refresh recommendations. Hourly tick scans
 	// every tenant's lifecycle-bearing assets. Idempotent — duplicate
@@ -447,7 +425,7 @@ func main() {
 		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, locationDetectSvc,
-		serviceSvc, problemSvc, changeSvc, energySvc, predictiveSvc, metricSourceSvc, schedTracker, cipher, netGuard,
+		serviceSvc, predictiveSvc, metricSourceSvc, schedTracker, cipher, netGuard,
 	)
 
 	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)
@@ -734,56 +712,6 @@ func envIntOr(envKey string, fallback int) int {
 		return fallback
 	}
 	return n
-}
-
-// runEnergyScheduler runs the Wave 6.2 nightly aggregator on a 1h
-// ticker. The tick processes "yesterday" UTC for every tenant with
-// recent power_kw metrics. Three steps per tenant — daily kWh rollup,
-// per-location PUE rollup, anomaly detection — each idempotent so a
-// crash + restart mid-tick recovers cleanly.
-//
-// Logged with zap; ctx cancellation stops the loop within one
-// interval. If a tick errors per-tenant, we log and continue rather
-// than aborting the whole tick.
-func runEnergyScheduler(ctx context.Context, svc *energy.Service, tracker *schedhealth.Tracker) {
-	const interval = time.Hour
-	const trackerName = "energy"
-	cfg := energy.DefaultAnomalyConfig()
-	if tracker != nil {
-		tracker.Register(trackerName, interval)
-	}
-	zap.L().Info("energy scheduler started", zap.Duration("interval", interval))
-
-	tick := func() {
-		if tracker != nil {
-			tracker.Record(trackerName)
-		}
-		res := svc.RunDailyTick(ctx, cfg)
-		zap.L().Info("energy scheduler tick",
-			zap.Int("tenants_scanned", res.TenantsScanned),
-			zap.Int("asset_days_aggregated", res.AssetDaysAggregated),
-			zap.Int("locations_rolled", res.LocationsRolled),
-			zap.Int("anomalies_flagged", res.AnomaliesFlagged),
-			zap.Int("errors", len(res.Errors)),
-		)
-		for _, err := range res.Errors {
-			zap.L().Warn("energy scheduler tick error", zap.Error(err))
-		}
-	}
-
-	tick() // run immediately on startup
-
-	t := time.NewTicker(interval)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			zap.L().Info("energy scheduler stopped")
-			return
-		case <-t.C:
-			tick()
-		}
-	}
 }
 
 // runPredictiveScheduler runs the Wave 7.1 hardware-refresh rule engine

@@ -4,10 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import Icon from '../components/Icon'
 
 import { monitoringApi } from '../lib/api/monitoring'
-import { problemsApi } from '../lib/api/problems'
-import { changesApi } from '../lib/api/changes'
 import { predictiveRefreshApi } from '../lib/api/predictiveRefresh'
-import { energyBillingApi } from '../lib/api/energyBilling'
 import { metricSourcesApi } from '../lib/api/metricSources'
 import { schedulerHealthApi } from '../lib/api/schedulerHealth'
 
@@ -37,47 +34,10 @@ function useOpenIncidents() {
   })
 }
 
-function useOpenProblems() {
-  return useQuery({
-    queryKey: ['ops', 'problems'],
-    queryFn: () => problemsApi.list({ status: 'open', page_size: 1 }),
-    refetchInterval: POLL_MS,
-  })
-}
-
-function useSubmittedChanges() {
-  return useQuery({
-    queryKey: ['ops', 'changes'],
-    queryFn: () => changesApi.list({ status: 'submitted', page_size: 1 }),
-    refetchInterval: POLL_MS,
-  })
-}
-
 function useOpenRefreshRecs() {
   return useQuery({
     queryKey: ['ops', 'predictive'],
     queryFn: () => predictiveRefreshApi.list({ status: 'open', page_size: 1 }),
-    refetchInterval: POLL_MS,
-  })
-}
-
-function useEnergyAnomaliesCount() {
-  // Open energy anomalies in the last 30 days. We pull a small page and
-  // rely on the pagination metadata for the total — same pattern the
-  // anomaly page uses.
-  const dayTo = new Date().toISOString().slice(0, 10)
-  const dayFromDate = new Date()
-  dayFromDate.setDate(dayFromDate.getDate() - 30)
-  const dayFrom = dayFromDate.toISOString().slice(0, 10)
-  return useQuery({
-    queryKey: ['ops', 'energy-anomalies', dayFrom, dayTo],
-    queryFn: () =>
-      energyBillingApi.listAnomalies({
-        status: 'open',
-        day_from: dayFrom,
-        day_to: dayTo,
-        page_size: 1,
-      }),
     refetchInterval: POLL_MS,
   })
 }
@@ -163,20 +123,12 @@ export default function OperationsOverview() {
   const navigate = useNavigate()
 
   const incidents = useOpenIncidents()
-  const problems = useOpenProblems()
-  const changes = useSubmittedChanges()
   const refresh = useOpenRefreshRecs()
-  const energy = useEnergyAnomaliesCount()
   const freshness = useStaleMetricSources()
   const sched = useSchedulerHealthOps()
 
   /* ITSM */
   const incidentCount = incidents.data?.data?.length ?? null
-  const problemCount = problems.data?.pagination?.total ?? problems.data?.data?.length ?? null
-  const changeCount = changes.data?.pagination?.total ?? changes.data?.data?.length ?? null
-
-  /* Energy */
-  const anomalyCount = energy.data?.pagination?.total ?? energy.data?.data?.length ?? null
 
   /* Predictive */
   const refreshCount = refresh.data?.pagination?.total ?? refresh.data?.data?.length ?? null
@@ -228,12 +180,12 @@ export default function OperationsOverview() {
         </div>
       </header>
 
-      {/* ITSM */}
+      {/* Active alerts */}
       <section className="px-8 pb-4">
         <h2 className="font-label text-[0.6875rem] uppercase tracking-[0.08em] text-on-surface-variant mb-3">
           {t('ops_overview.section_itsm')}
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Tile
             title={t('ops_overview.tile_incidents')}
             count={incidentCount}
@@ -243,45 +195,12 @@ export default function OperationsOverview() {
             onClick={() => navigate('/monitoring')}
           />
           <Tile
-            title={t('ops_overview.tile_problems')}
-            count={problemCount}
-            hint={t('ops_overview.tile_problems_hint')}
-            status={warnStatus(problems, problemCount)}
-            icon="bug_report"
-            onClick={() => navigate('/monitoring/problems?status=open')}
-          />
-          <Tile
-            title={t('ops_overview.tile_changes')}
-            count={changeCount}
-            hint={t('ops_overview.tile_changes_hint')}
-            status={warnStatus(changes, changeCount)}
-            icon="approval"
-            onClick={() => navigate('/monitoring/changes?status=submitted')}
-          />
-        </div>
-      </section>
-
-      {/* Capacity & energy */}
-      <section className="px-8 pb-4">
-        <h2 className="font-label text-[0.6875rem] uppercase tracking-[0.08em] text-on-surface-variant mb-3">
-          {t('ops_overview.section_capacity')}
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Tile
             title={t('ops_overview.tile_refresh_recs')}
             count={refreshCount}
             hint={t('ops_overview.tile_refresh_recs_hint')}
             status={warnStatus(refresh, refreshCount)}
             icon="upgrade"
             onClick={() => navigate('/predictive/refresh?status=open')}
-          />
-          <Tile
-            title={t('ops_overview.tile_energy_anomalies')}
-            count={anomalyCount}
-            hint={t('ops_overview.tile_energy_anomalies_hint')}
-            status={warnStatus(energy, anomalyCount)}
-            icon="bolt"
-            onClick={() => navigate('/monitoring/energy/anomalies')}
           />
         </div>
       </section>

@@ -12,7 +12,19 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/predictive"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/shopspring/decimal"
 )
+
+// dec parses a decimal string for test fixtures. Lives here only because
+// the predictive refresh tests need it for risk-score assertions; the
+// energy billing tests that originally hosted it are gone.
+func dec(s string) decimal.Decimal {
+	d, err := decimal.NewFromString(s)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}
 
 // Wave 7.1 coverage. The interesting properties:
 //

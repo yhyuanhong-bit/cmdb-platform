@@ -9,9 +9,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/bia"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/change"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/energy"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/predictive"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
 	location_detect "github.com/cmdb-platform/cmdb-core/internal/domain/location_detect"
@@ -19,7 +17,6 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/metricsource"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/problem"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/service"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
@@ -59,9 +56,6 @@ type APIServer struct {
 	discoverySvc      discoveryService
 	locationDetectSvc *location_detect.Service
 	serviceSvc        *service.Service
-	problemSvc        *problem.Service
-	changeSvc         *change.Service
-	energySvc         *energy.Service
 	predictiveSvc     *predictive.Service
 	metricSourceSvc   *metricsource.Service
 	schedTracker      *schedhealth.Tracker
@@ -90,9 +84,6 @@ func NewAPIServer(
 	discoverySvc discoveryService,
 	locationDetectSvc *location_detect.Service,
 	serviceSvc *service.Service,
-	problemSvc *problem.Service,
-	changeSvc *change.Service,
-	energySvc *energy.Service,
 	predictiveSvc *predictive.Service,
 	metricSourceSvc *metricsource.Service,
 	schedTracker *schedhealth.Tracker,
@@ -119,9 +110,6 @@ func NewAPIServer(
 		discoverySvc:      discoverySvc,
 		locationDetectSvc: locationDetectSvc,
 		serviceSvc:        serviceSvc,
-		problemSvc:        problemSvc,
-		changeSvc:         changeSvc,
-		energySvc:         energySvc,
 		predictiveSvc:     predictiveSvc,
 		metricSourceSvc:   metricSourceSvc,
 		schedTracker:      schedTracker,
