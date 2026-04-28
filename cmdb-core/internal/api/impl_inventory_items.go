@@ -1,10 +1,9 @@
 package api
 
-//tenantlint:allow-direct-pool — inventory_scan_history and inventory_notes lack tenant_id; scoped via task/item FK chain
-
 import (
 	"time"
 
+	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -14,14 +13,20 @@ import (
 // GetItemScanHistory handles GET /inventory/tasks/:id/items/:itemId/scan-history
 // Returns the scan history for a specific inventory item. Task id is unused —
 // item_id alone uniquely identifies the scan history rows.
+//
+// Migration 000076 added tenant_id to inventory_scan_history. Queries route
+// through database.Scope, which prepends the bound tenantID as $1 and refuses
+// SQL that doesn't reference tenant_id (audit finding H5, 2026-04-28).
 func (s *APIServer) GetItemScanHistory(c *gin.Context, _ IdPath, itemId openapi_types.UUID) {
 	itemID := uuid.UUID(itemId)
+	tenantID := tenantIDFromContext(c)
+	sc := database.Scope(s.pool, tenantID)
 
-	rows, err := s.pool.Query(c.Request.Context(), `
+	rows, err := sc.Query(c.Request.Context(), `
 		SELECT ish.id, ish.scanned_at, u.display_name, ish.method, ish.result, ish.note
 		FROM inventory_scan_history ish
 		LEFT JOIN users u ON ish.scanned_by = u.id
-		WHERE ish.item_id = $1
+		WHERE ish.tenant_id = $1 AND ish.item_id = $2
 		ORDER BY ish.scanned_at DESC
 	`, itemID)
 	if err != nil {
@@ -66,7 +71,7 @@ func (s *APIServer) GetItemScanHistory(c *gin.Context, _ IdPath, itemId openapi_
 // item_id alone uniquely identifies the target.
 func (s *APIServer) CreateItemScanRecord(c *gin.Context, _ IdPath, itemId openapi_types.UUID) {
 	itemID := uuid.UUID(itemId)
-
+	tenantID := tenantIDFromContext(c)
 	userID := userIDFromContext(c)
 
 	var body struct {
@@ -79,12 +84,26 @@ func (s *APIServer) CreateItemScanRecord(c *gin.Context, _ IdPath, itemId openap
 		return
 	}
 
+	// Refuse to write a scan history row whose item belongs to another
+	// tenant. The SELECT is gated by tenant_id so a cross-tenant item_id
+	// returns 0 rows → 404.
+	sc := database.Scope(s.pool, tenantID)
+	var ownedItemID uuid.UUID
+	if err := sc.QueryRow(c.Request.Context(), `
+		SELECT ii.id
+		FROM inventory_items ii
+		JOIN inventory_tasks it ON ii.task_id = it.id
+		WHERE ii.id = $2 AND it.tenant_id = $1
+	`, itemID).Scan(&ownedItemID); err != nil {
+		response.NotFound(c, "inventory item not found")
+		return
+	}
+
 	newID := uuid.New()
-	_, err := s.pool.Exec(c.Request.Context(), `
-		INSERT INTO inventory_scan_history (id, item_id, scanned_by, method, result, note, scanned_at)
-		VALUES ($1, $2, $3, $4, $5, $6, now())
-	`, newID, itemID, userID, body.Method, body.Result, body.Note)
-	if err != nil {
+	if _, err := sc.Exec(c.Request.Context(), `
+		INSERT INTO inventory_scan_history (id, tenant_id, item_id, scanned_by, method, result, note, scanned_at)
+		VALUES ($2, $1, $3, $4, $5, $6, $7, now())
+	`, newID, itemID, userID, body.Method, body.Result, body.Note); err != nil {
 		response.InternalError(c, "failed to create scan record")
 		return
 	}
@@ -102,12 +121,14 @@ func (s *APIServer) CreateItemScanRecord(c *gin.Context, _ IdPath, itemId openap
 // in the query because item_id alone is unique.
 func (s *APIServer) GetItemNotes(c *gin.Context, _ IdPath, itemId openapi_types.UUID) {
 	itemID := uuid.UUID(itemId)
+	tenantID := tenantIDFromContext(c)
+	sc := database.Scope(s.pool, tenantID)
 
-	rows, err := s.pool.Query(c.Request.Context(), `
+	rows, err := sc.Query(c.Request.Context(), `
 		SELECT n.id, n.created_at, u.display_name, n.severity, n.text
 		FROM inventory_notes n
 		LEFT JOIN users u ON n.author_id = u.id
-		WHERE n.item_id = $1
+		WHERE n.tenant_id = $1 AND n.item_id = $2
 		ORDER BY n.created_at DESC
 	`, itemID)
 	if err != nil {
@@ -149,6 +170,7 @@ func (s *APIServer) GetItemNotes(c *gin.Context, _ IdPath, itemId openapi_types.
 // Creates a new note for a specific inventory item.
 func (s *APIServer) CreateItemNote(c *gin.Context, _ IdPath, itemId openapi_types.UUID) {
 	itemID := uuid.UUID(itemId)
+	tenantID := tenantIDFromContext(c)
 	userID := userIDFromContext(c)
 
 	var body struct {
@@ -163,12 +185,24 @@ func (s *APIServer) CreateItemNote(c *gin.Context, _ IdPath, itemId openapi_type
 		body.Severity = "info"
 	}
 
+	// Mirror CreateItemScanRecord's tenant gate on the parent item.
+	sc := database.Scope(s.pool, tenantID)
+	var ownedItemID uuid.UUID
+	if err := sc.QueryRow(c.Request.Context(), `
+		SELECT ii.id
+		FROM inventory_items ii
+		JOIN inventory_tasks it ON ii.task_id = it.id
+		WHERE ii.id = $2 AND it.tenant_id = $1
+	`, itemID).Scan(&ownedItemID); err != nil {
+		response.NotFound(c, "inventory item not found")
+		return
+	}
+
 	newID := uuid.New()
-	_, err := s.pool.Exec(c.Request.Context(), `
-		INSERT INTO inventory_notes (id, item_id, author_id, severity, text, created_at)
-		VALUES ($1, $2, $3, $4, $5, now())
-	`, newID, itemID, userID, body.Severity, body.Text)
-	if err != nil {
+	if _, err := sc.Exec(c.Request.Context(), `
+		INSERT INTO inventory_notes (id, tenant_id, item_id, author_id, severity, text, created_at)
+		VALUES ($2, $1, $3, $4, $5, $6, now())
+	`, newID, itemID, userID, body.Severity, body.Text); err != nil {
 		response.InternalError(c, "failed to create note")
 		return
 	}
