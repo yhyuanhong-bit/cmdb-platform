@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,29 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cmdb-platform/cmdb-core/internal/ai"
-	"github.com/google/uuid"
 	"github.com/cmdb-platform/cmdb-core/internal/api"
-	"github.com/cmdb-platform/cmdb-core/internal/auth"
 	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/asset"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/audit"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/bia"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/discovery"
-	location_detect "github.com/cmdb-platform/cmdb-core/internal/domain/location_detect"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/identity"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/inventory"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/metricsource"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/monitoring"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/predictive"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
-	svcdomain "github.com/cmdb-platform/cmdb-core/internal/domain/service"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/workflows"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	cmdbmcp "github.com/cmdb-platform/cmdb-core/internal/mcp"
@@ -41,13 +22,13 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
-	"github.com/cmdb-platform/cmdb-core/internal/platform/schedhealth"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
 	cmdbws "github.com/cmdb-platform/cmdb-core/internal/websocket"
 	"github.com/gin-gonic/gin"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"go.uber.org/zap"
 )
+
 
 //tenantlint:allow-direct-pool — server bootstrap: seed data and schema init run outside request context
 
@@ -162,139 +143,19 @@ func main() {
 	zap.L().Info("SSRF outbound guard configured",
 		zap.Int("allow_hosts", len(cfg.IntegrationAllowedOutboundHosts)))
 
-	// 8. Create all services
-	// Redis-backed JWT blacklist — revocations (logout, admin-issued) self-
-	// expire along with the tokens.
-	blacklist := auth.NewBlacklist(redisClient)
-	authSvc := identity.NewAuthService(queries, redisClient, cfg.JWTSecret, pool).
-		WithBlacklist(blacklist)
-	// Wire authSvc as the refresh-token revoker so identitySvc.Deactivate
-	// invalidates outstanding refresh tokens (audit finding H1, 2026-04-28).
-	identitySvc := identity.NewService(queries).WithRefreshRevoker(authSvc)
-	topologySvc := topology.NewService(queries, pool)
-	assetSvc := asset.NewService(queries, bus, pool)
-	maintenanceSvc := maintenance.NewService(queries, bus, pool)
-	monitoringSvc := monitoring.NewService(queries, bus, pool)
-
-	// Alert Rule Evaluator (Phase 2.1 — REMEDIATION-ROADMAP.md). Scans
-	// alert_rules every 60s, aggregates TimescaleDB metrics, and emits
-	// alert_events rows on threshold breach. Strictly tenant-scoped per
-	// rule. Launched as a background goroutine off the server context so
-	// SIGTERM stops it within one interval.
-	// schedTracker is created later (right before the goroutine
-	// launches), so register the alert evaluator with the
-	// once-resolvable forwarder. WithSchedHealth tolerates a nil
-	// recorder, but here we know the tracker will exist at startup
-	// time — the forwarder pattern just keeps the evaluator
-	// constructor argument-stable across waves that change the
-	// startup ordering. See Wave 9.1.
-	alertEvalTrackerForwarder := &lateBoundRecorder{}
-	alertEvaluator := monitoring.NewEvaluator(
-		queries,
-		monitoring.NewPoolAdapter(pool),
-		bus,
-		monitoring.WithInterval(monitoring.DefaultEvaluatorInterval),
-		// Wave 5.4: high-signal alerts (critical/high/warning) on a
-		// known asset auto-spawn or attach to an open incident so
-		// operators get a single coordination surface.
-		monitoring.WithIncidentBridge(pool),
-		// Wave 9.1: scheduler heartbeat for the readiness dashboard.
-		monitoring.WithSchedHealth(alertEvalTrackerForwarder, "alert_evaluator"),
-	)
-	inventorySvc := inventory.NewService(queries, bus)
-	auditSvc := audit.NewService(queries)
-	dashboardSvc := dashboard.NewService(queries, pool, redisClient)
-
-	integrationSvc := integration.NewService(queries)
-	biaSvc := bia.NewService(queries, pool)
-	qualitySvc := quality.NewService(queries, pool)
-	discoverySvc := discovery.NewService(queries, pool)
-
-	// Location detection
-	locationDetectSvc := location_detect.NewService(pool, bus)
-
-	// Subscribe to MAC table updates from ingestion-engine
-	if bus != nil && locationDetectSvc != nil {
-		bus.Subscribe("mac_table.updated", func(ctx context.Context, event eventbus.Event) error {
-			var payload struct {
-				TenantID string `json:"tenant_id"`
-				Entries  []struct {
-					SwitchAssetID string `json:"switch_asset_id"`
-					PortName      string `json:"port_name"`
-					MACAddress    string `json:"mac_address"`
-				} `json:"entries"`
-			}
-			if unmarshalErr := json.Unmarshal(event.Payload, &payload); unmarshalErr != nil {
-				return nil
-			}
-			tenantID, parseErr := uuid.Parse(payload.TenantID)
-			if parseErr != nil {
-				return nil
-			}
-
-			var entries []location_detect.MACEntry
-			for _, e := range payload.Entries {
-				switchID, _ := uuid.Parse(e.SwitchAssetID)
-				entries = append(entries, location_detect.MACEntry{
-					SwitchAssetID: switchID,
-					PortName:      e.PortName,
-					MACAddress:    e.MACAddress,
-				})
-			}
-
-			if len(entries) > 0 {
-				locationDetectSvc.UpdateMACCache(ctx, tenantID, entries)
-				zap.L().Info("MAC cache updated from SNMP scan", zap.Int("entries", len(entries)))
-
-				// Immediately run location comparison after cache update.
-				// Use the server ctx, not context.Background(), so SIGTERM
-				// cancels a comparison that was kicked off but not yet
-				// completed when shutdown arrives.
-				go func() {
-					locationDetectSvc.RunDetection(ctx, tenantID)
-				}()
-			}
-			return nil
-		})
-		zap.L().Info("Subscribed to mac_table.updated events")
-	}
-
-	// AI Registry
-	aiRegistry := ai.NewRegistry()
-	if aiErr := aiRegistry.LoadFromDB(ctx, &ai.QueriesAdapter{Q: queries}); aiErr != nil {
-		zap.L().Warn("failed to load AI models", zap.Error(aiErr))
-	}
-
-	// Prediction
-	predictionSvc := prediction.NewService(queries, aiRegistry)
-
-	// Business Service entity (Wave 2). Domain service depends on the
-	// sqlc Queries surface + the event bus for CRUD fan-out.
-	serviceSvc := svcdomain.New(pool, queries, bus)
-
-	// Wave 9.1: scheduler-health tracker. Schedulers Record() at the top
-	// of each tick so /admin/scheduler-health can detect a stuck loop.
-	schedTracker := schedhealth.New()
-	schedTracker.Register("alert_evaluator", monitoring.DefaultEvaluatorInterval)
-	alertEvalTrackerForwarder.target = schedTracker
-
-	// Wave 7.1: predictive refresh recommendations. Hourly tick scans
-	// every tenant's lifecycle-bearing assets. Idempotent — duplicate
-	// ticks are no-ops on top of UPSERT semantics.
-	predictiveSvc := predictive.NewService(queries, pool)
-	go runPredictiveScheduler(ctx, predictiveSvc, schedTracker)
-
-	// Wave 8.1: metric-source registry. CRUD + heartbeat + freshness.
-	// No background scheduler needed — freshness is computed on read.
-	metricSourceSvc := metricsource.NewService(queries, pool)
+	// 8. Build all domain services + alert evaluator + predictive scheduler.
+	// See services.go for the full wire-up; the appServices struct keeps
+	// downstream consumers (api.NewAPIServer, router middleware, workflow
+	// subscribers) honest by giving each dependency a single source.
+	svcs := buildServices(ctx, cfg, pool, queries, redisClient, bus)
 
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, redisClient, natsBus,
-		authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
-		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
-		integrationSvc, biaSvc, qualitySvc, discoverySvc, locationDetectSvc,
-		serviceSvc, predictiveSvc, metricSourceSvc, schedTracker, cipher, netGuard,
+		svcs.authSvc, svcs.identitySvc, svcs.topologySvc, svcs.assetSvc, svcs.maintenanceSvc,
+		svcs.monitoringSvc, svcs.inventorySvc, svcs.auditSvc, svcs.dashboardSvc, svcs.predictionSvc,
+		svcs.integrationSvc, svcs.biaSvc, svcs.qualitySvc, svcs.discoverySvc, svcs.locationDetectSvc,
+		svcs.serviceSvc, svcs.predictiveSvc, svcs.metricSourceSvc, svcs.schedTracker, cipher, netGuard,
 	)
 
 	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)
@@ -329,8 +190,8 @@ func main() {
 	v1 := router.Group("/api/v1")
 	authMW := middleware.Auth(
 		cfg.JWTSecret,
-		middleware.WithBlacklist(blacklist),
-		middleware.WithPasswordChangeChecker(authSvc),
+		middleware.WithBlacklist(svcs.blacklist),
+		middleware.WithPasswordChangeChecker(svcs.authSvc),
 	)
 	// Derive the auth-bypass set from the same RBAC config that drives
 	// publicPaths. Pre-4.9 this list was a second hardcoded string triple
@@ -487,16 +348,16 @@ func main() {
 	// consolidated the 8 individual Start* calls behind StartAll — see
 	// workflows/start.go for the full list and rationale.
 	if bus != nil {
-		wfSub := workflows.New(pool, queries, bus, maintenanceSvc, cipher).
-			WithQualityScanner(qualitySvc).
-			WithSchedHealth(schedTracker)
+		wfSub := workflows.New(pool, queries, bus, svcs.maintenanceSvc, cipher).
+			WithQualityScanner(svcs.qualitySvc).
+			WithSchedHealth(svcs.schedTracker)
 		wfSub.Register()
 		wfSub.StartAll(ctx)
 
 		// Dashboard cache invalidator. Subscribes to asset/rack/alert/
 		// order events so the next GetStats call sees fresh numbers
 		// instead of waiting out the 60-second Redis TTL.
-		dashInval := dashboard.NewInvalidationSubscriber(dashboardSvc, bus, nil)
+		dashInval := dashboard.NewInvalidationSubscriber(svcs.dashboardSvc, bus, nil)
 		if err := dashInval.Start(); err != nil {
 			zap.L().Warn("dashboard invalidation subscribe failed", zap.Error(err))
 		}
@@ -506,8 +367,8 @@ func main() {
 	// other background worker so a single SIGTERM stops the whole stack.
 	// Starts unconditionally (no feature flag) — an empty alert_rules table
 	// is a zero-cost scan.
-	go alertEvaluator.Start(ctx)
-	zap.L().Info("Alert rule evaluator launched", zap.Duration("interval", monitoring.DefaultEvaluatorInterval))
+	go svcs.alertEvaluator.Start(ctx)
+	zap.L().Info("Alert rule evaluator launched")
 
 	// Webhook dispatcher. Each fan-out delivery goroutine derives from the
 	// server ctx via WithBaseContext, so SIGTERM cancels in-flight retries
