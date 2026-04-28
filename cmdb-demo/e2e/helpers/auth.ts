@@ -71,7 +71,9 @@ export async function login(page: Page, username = 'admin@example.invalid', _pas
   await page.goto('/')
 }
 
-/** Build a reusable API-mock interceptor for the assets list. */
+/** Build a reusable API-mock interceptor for the assets list.
+ * The frontend reads `pagination.page_size` (matches ApiListResponse type);
+ * older stubs used `limit` which broke list rendering after Wave H. */
 export function stubAssetsList(page: Page, assets: object[] = []) {
   return page.route('**/api/v1/assets**', async (route) => {
     await route.fulfill({
@@ -80,7 +82,7 @@ export function stubAssetsList(page: Page, assets: object[] = []) {
       body: JSON.stringify({
         success: true,
         data: assets,
-        pagination: { total: assets.length, page: 1, limit: 20, total_pages: 1 },
+        pagination: { total: assets.length, page: 1, page_size: 20, total_pages: 1 },
       }),
     })
   })

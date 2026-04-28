@@ -229,9 +229,14 @@ jobs:
           if-no-files-found: warn
 
   e2e-tests:
+    # E2E suite runs against fully-stubbed APIs (no real backend needed) —
+    # the original `if: false` comment about Docker Compose was outdated.
+    # Re-enabled 2026-04-28 with continue-on-error: true so runs become
+    # visible in CI without gating PRs while the 13 stale specs that broke
+    # during Waves F-M are repaired in follow-up.
     name: E2E Tests
     runs-on: ubuntu-latest
-    if: false  # Disabled until CI has Docker Compose for backend
+    continue-on-error: true
     defaults:
       run:
         working-directory: cmdb-demo
@@ -240,11 +245,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+          cache-dependency-path: cmdb-demo/package-lock.json
+      - run: npm ci --legacy-peer-deps
       - run: npx playwright install chromium --with-deps
-      - run: npx playwright test
+      # Smoke + responsive subsets are known-green; the rest may report
+      # failures while the helpers/specs catch up to the post-Wave-G UI.
+      - run: npx playwright test --project=chromium
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
           name: playwright-report
           path: cmdb-demo/playwright-report/
+          if-no-files-found: warn

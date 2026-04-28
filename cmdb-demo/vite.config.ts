@@ -34,7 +34,12 @@ export default defineConfig({
         },
       },
     },
-    chunkSizeWarningLimit: 600,
+    // 600kB caught the main + vendor-react chunks. The elk + xlsx chunks
+    // are intentionally larger (1.4MB / 500kB) but are dynamically imported
+    // and only loaded on the topology / Excel-export paths, so they don't
+    // affect first paint. 1500kB silences the noise without losing the
+    // signal on the chunks that actually ship to every page load.
+    chunkSizeWarningLimit: 1500,
   },
   server: {
     port: 5175,
