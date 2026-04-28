@@ -213,6 +213,64 @@ func (s *APIServer) UpdateWorkOrder(c *gin.Context, id IdPath) {
 	response.OK(c, toAPIWorkOrder(*order))
 }
 
+// AssignWorkOrder reassigns a work order to a different operator.
+// (POST /maintenance/orders/{id}/assign)
+//
+// UpdateWorkOrder rejects edits on approved+ orders, so the TaskDispatch
+// UI used to silently fail when reassigning in-flight work. This endpoint
+// is the dedicated channel for that workflow action — accepts submitted,
+// rejected, approved, and in_progress; rejects completed/verified.
+func (s *APIServer) AssignWorkOrder(c *gin.Context, id IdPath) {
+	var req AssignWorkOrderJSONRequestBody
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	assigneeID := uuid.UUID(req.AssigneeId)
+	if assigneeID == uuid.Nil {
+		response.BadRequest(c, "assignee_id is required")
+		return
+	}
+
+	tenantID := tenantIDFromContext(c)
+	orderID := uuid.UUID(id)
+
+	order, err := s.maintenanceSvc.Assign(c.Request.Context(), tenantID, orderID, assigneeID)
+	if err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "work order not found") {
+			response.NotFound(c, "work order not found")
+			return
+		}
+		if strings.Contains(msg, "cannot reassign") {
+			response.Err(c, 422, "INVALID_STATE", msg)
+			return
+		}
+		if strings.Contains(msg, "state changed concurrently") {
+			response.Err(c, 409, "CONCURRENT_UPDATE", msg)
+			return
+		}
+		response.InternalError(c, "failed to reassign work order")
+		return
+	}
+
+	comment := ""
+	if req.Comment != nil {
+		comment = *req.Comment
+	}
+	s.recordAudit(c, "order.assigned", "maintenance", "work_order", orderID, map[string]any{
+		"assignee_id": assigneeID.String(),
+		"comment":     comment,
+	})
+	s.publishEvent(c.Request.Context(), eventbus.SubjectOrderAssigned, tenantID.String(), map[string]any{
+		"order_id":    orderID.String(),
+		"tenant_id":   tenantID.String(),
+		"assignee_id": assigneeID.String(),
+	})
+	response.OK(c, toAPIWorkOrder(*order))
+}
+
 // DeleteWorkOrder soft-deletes a work order.
 // (DELETE /maintenance/orders/{id})
 func (s *APIServer) DeleteWorkOrder(c *gin.Context, id openapi_types.UUID) {

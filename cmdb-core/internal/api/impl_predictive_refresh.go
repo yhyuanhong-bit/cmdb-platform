@@ -55,6 +55,43 @@ func (s *APIServer) ListPredictiveRefresh(c *gin.Context, params ListPredictiveR
 	response.OKList(c, out, page, pageSize, int(total))
 }
 
+// GetPredictiveRefreshAggregate — GET /predictive/refresh/aggregate
+//
+// Server-side roll-up so the capex chart doesn't have to fetch the
+// whole list and bucket in JS. Only open recommendations with a
+// non-NULL target_date are counted (see SQL doc for the rationale).
+func (s *APIServer) GetPredictiveRefreshAggregate(c *gin.Context, params GetPredictiveRefreshAggregateParams) {
+	tenantID := tenantIDFromContext(c)
+
+	arg := dbgen.AggregatePredictiveRefreshByMonthParams{TenantID: tenantID}
+	if params.From != nil {
+		arg.FromMonth = pgtype.Date{Time: params.From.Time, Valid: true}
+	}
+	if params.To != nil {
+		arg.ToMonth = pgtype.Date{Time: params.To.Time, Valid: true}
+	}
+
+	rows, err := dbgen.New(s.pool).AggregatePredictiveRefreshByMonth(c.Request.Context(), arg)
+	if err != nil {
+		response.InternalError(c, "failed to aggregate recommendations")
+		return
+	}
+
+	out := make([]PredictiveRefreshAggregateBucket, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, PredictiveRefreshAggregateBucket{
+			Month:            openapi_types.Date{Time: r.Month.Time},
+			Count:            r.Count,
+			WarrantyExpiring: r.WarrantyExpiring,
+			WarrantyExpired:  r.WarrantyExpired,
+			EolApproaching:   r.EolApproaching,
+			EolPassed:        r.EolPassed,
+			AgedOut:          r.AgedOut,
+		})
+	}
+	response.OK(c, out)
+}
+
 // RunPredictiveRefreshScan — POST /predictive/refresh/run
 func (s *APIServer) RunPredictiveRefreshScan(c *gin.Context) {
 	tenantID := tenantIDFromContext(c)

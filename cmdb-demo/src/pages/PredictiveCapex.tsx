@@ -2,8 +2,11 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Icon from '../components/Icon'
-import { usePredictiveRefresh } from '../hooks/usePredictiveRefresh'
-import type { PredictiveRefresh, PredictiveRefreshKind } from '../lib/api/predictiveRefresh'
+import { usePredictiveRefreshAggregate } from '../hooks/usePredictiveRefresh'
+import type {
+  PredictiveRefreshAggregateBucket,
+  PredictiveRefreshKind,
+} from '../lib/api/predictiveRefresh'
 
 /* ------------------------------------------------------------------ */
 /*  Capex backlog: groups open recommendations by target_date month    */
@@ -14,7 +17,6 @@ interface MonthBucket {
   month: string // YYYY-MM
   total: number
   byKind: Record<PredictiveRefreshKind, number>
-  topAssets: PredictiveRefresh[] // up to 3 highest-score for the tooltip
 }
 
 const kindOrder: PredictiveRefreshKind[] = [
@@ -33,37 +35,18 @@ const kindFill: Record<PredictiveRefreshKind, string> = {
   aged_out:          '#a78bfa',
 }
 
-function bucketByMonth(rows: PredictiveRefresh[]): MonthBucket[] {
-  const map = new Map<string, MonthBucket>()
-  for (const r of rows) {
-    if (!r.target_date) continue
-    const month = r.target_date.slice(0, 7)
-    let b = map.get(month)
-    if (!b) {
-      b = {
-        month,
-        total: 0,
-        byKind: {
-          warranty_expiring: 0,
-          warranty_expired:  0,
-          eol_approaching:   0,
-          eol_passed:        0,
-          aged_out:          0,
-        },
-        topAssets: [],
-      }
-      map.set(month, b)
-    }
-    b.total += 1
-    b.byKind[r.kind] = (b.byKind[r.kind] ?? 0) + 1
-    b.topAssets.push(r)
-  }
-  // Sort topAssets by score descending and trim.
-  for (const b of map.values()) {
-    b.topAssets.sort((a, b2) => Number(b2.risk_score) - Number(a.risk_score))
-    b.topAssets = b.topAssets.slice(0, 3)
-  }
-  return Array.from(map.values()).sort((a, b) => a.month.localeCompare(b.month))
+function fromAggregateBuckets(rows: PredictiveRefreshAggregateBucket[]): MonthBucket[] {
+  return rows.map((r) => ({
+    month: r.month.slice(0, 7),
+    total: r.count,
+    byKind: {
+      warranty_expiring: r.warranty_expiring,
+      warranty_expired:  r.warranty_expired,
+      eol_approaching:   r.eol_approaching,
+      eol_passed:        r.eol_passed,
+      aged_out:          r.aged_out,
+    },
+  }))
 }
 
 /* ------------------------------------------------------------------ */
@@ -192,17 +175,14 @@ export default function PredictiveCapex() {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  // C-H1 (audit 2026-04-28): page_size dropped from 1000 to 200.
-  // Backend has no per-month aggregation endpoint yet; client-side
-  // bucketing by target_date is acceptable at this scale. When the
-  // /predictive-refresh API grows a `month=YYYY-MM` filter or
-  // `/predictive-refresh/aggregate` endpoint, swap to that and remove
-  // this comment. Tracking: predictive backlog HIGH item C-H1.
-  const listQ = usePredictiveRefresh({ status: 'open', page_size: 200 })
-  const rows: PredictiveRefresh[] = listQ.data?.data ?? []
-  const buckets = useMemo(() => bucketByMonth(rows), [rows])
+  const aggQ = usePredictiveRefreshAggregate({ bucket: 'month' })
+  const buckets = useMemo(
+    () => fromAggregateBuckets(aggQ.data?.data ?? []),
+    [aggQ.data],
+  )
 
-  // Aggregate counters for the summary strip.
+  // Aggregate counters for the summary strip — derived from the
+  // server-side rollup so we don't need to refetch the full list.
   const totals = useMemo(() => {
     const byKind = {
       warranty_expiring: 0,
@@ -211,9 +191,11 @@ export default function PredictiveCapex() {
       eol_passed:        0,
       aged_out:          0,
     } as Record<PredictiveRefreshKind, number>
-    for (const r of rows) byKind[r.kind] += 1
+    for (const b of buckets) {
+      for (const k of kindOrder) byKind[k] += b.byKind[k]
+    }
     return byKind
-  }, [rows])
+  }, [buckets])
 
   const onPickMonth = (month: string) => {
     navigate(`/predictive/refresh?status=open&month=${month}`)
@@ -275,14 +257,14 @@ export default function PredictiveCapex() {
               {t('predictive_capex.click_hint')}
             </span>
           </div>
-          {listQ.isLoading ? (
+          {aggQ.isLoading ? (
             <div className="h-[260px] flex justify-center items-center">
               <div className="animate-spin rounded-full h-6 w-6 border-2 border-sky-400 border-t-transparent" />
             </div>
-          ) : listQ.error ? (
+          ) : aggQ.error ? (
             <div className="rounded-lg bg-red-900/20 p-4 text-red-300 text-sm">
               {t('predictive_capex.load_failed')}{' '}
-              <button onClick={() => listQ.refetch()} className="underline">{t('common.retry')}</button>
+              <button onClick={() => aggQ.refetch()} className="underline">{t('common.retry')}</button>
             </div>
           ) : (
             <CapexChart buckets={buckets} onPick={onPickMonth} />
@@ -300,12 +282,11 @@ export default function PredictiveCapex() {
                 <th className="px-4 py-3 text-left font-semibold">{t('predictive_capex.col_month')}</th>
                 <th className="px-4 py-3 text-right font-semibold">{t('predictive_capex.col_total')}</th>
                 <th className="px-4 py-3 text-left font-semibold">{t('predictive_capex.col_breakdown')}</th>
-                <th className="px-4 py-3 text-left font-semibold">{t('predictive_capex.col_top')}</th>
               </tr>
             </thead>
             <tbody>
-              {buckets.length === 0 && !listQ.isLoading && (
-                <tr><td colSpan={4} className="py-10 text-center text-on-surface-variant text-sm">
+              {buckets.length === 0 && !aggQ.isLoading && (
+                <tr><td colSpan={3} className="py-10 text-center text-on-surface-variant text-sm">
                   {t('predictive_capex.empty_state')}
                 </td></tr>
               )}
@@ -337,21 +318,6 @@ export default function PredictiveCapex() {
                         )
                       })}
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <ul className="text-xs text-on-surface-variant">
-                      {b.topAssets.map((a) => (
-                        <li key={a.asset_id} className="truncate">
-                          <button
-                            onClick={() => navigate(`/assets/${a.asset_id}`)}
-                            className="text-primary hover:underline"
-                          >
-                            {a.asset_name ?? a.asset_id.slice(0, 8) + '…'}
-                          </button>
-                          <span className="font-mono text-on-surface-variant"> · {Number(a.risk_score).toFixed(0)}</span>
-                        </li>
-                      ))}
-                    </ul>
                   </td>
                 </tr>
               ))}

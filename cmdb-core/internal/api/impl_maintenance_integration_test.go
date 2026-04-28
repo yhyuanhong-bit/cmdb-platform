@@ -14,6 +14,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -250,6 +251,254 @@ func TestIntegration_CreateWorkOrderComment_RoundTrip(t *testing.T) {
 	}
 	if gotAuthor != fix.userID {
 		t.Errorf("author_id = %s, want %s", gotAuthor, fix.userID)
+	}
+}
+
+// ---------------------------------------------------------------------
+// AssignWorkOrder integration coverage (audit D-H3, 2026-04-28).
+// ---------------------------------------------------------------------
+//
+// UpdateWorkOrder rejects edits on approved+ orders, so before this
+// endpoint existed the TaskDispatch UI silently failed when reassigning
+// in-flight work. AssignWorkOrder is the dedicated channel: accepts
+// submitted/rejected/approved/in_progress, rejects completed/verified,
+// and is tenant-scoped at both the GET and the UPDATE.
+//
+// These tests cover the four state branches plus cross-tenant.
+
+type assignFixture struct {
+	tenantID uuid.UUID
+	userID   uuid.UUID
+	// origAssignee is the assignee on every fixture order; tests
+	// reassign to newAssignee and assert the swap landed.
+	origAssignee uuid.UUID
+	newAssignee  uuid.UUID
+	orderSubmitted  uuid.UUID
+	orderRejected   uuid.UUID
+	orderApproved   uuid.UUID
+	orderInProgress uuid.UUID
+	orderCompleted  uuid.UUID
+	orderVerified   uuid.UUID
+}
+
+func setupAssignFixture(t *testing.T, pool *pgxpool.Pool) assignFixture {
+	t.Helper()
+	ctx := context.Background()
+	fix := assignFixture{
+		tenantID:        uuid.New(),
+		userID:          uuid.New(),
+		origAssignee:    uuid.New(),
+		newAssignee:     uuid.New(),
+		orderSubmitted:  uuid.New(),
+		orderRejected:   uuid.New(),
+		orderApproved:   uuid.New(),
+		orderInProgress: uuid.New(),
+		orderCompleted:  uuid.New(),
+		orderVerified:   uuid.New(),
+	}
+
+	suffix := fix.tenantID.String()[:8]
+
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3)`,
+		fix.tenantID, "assign-test-"+suffix, "assign-test-"+suffix); err != nil {
+		t.Fatalf("insert tenant: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO users (id, tenant_id, username, display_name, email, password_hash)
+		 VALUES
+		   ($1, $2, $3, $4, $5, 'x'),
+		   ($6, $2, $7, $8, $9, 'x'),
+		   ($10, $2, $11, $12, $13, 'x')`,
+		fix.userID, fix.tenantID, "caller-"+suffix, "Caller "+suffix, "caller-"+suffix+"@test.local",
+		fix.origAssignee, "orig-"+suffix, "Orig "+suffix, "orig-"+suffix+"@test.local",
+		fix.newAssignee, "new-"+suffix, "New "+suffix, "new-"+suffix+"@test.local"); err != nil {
+		t.Fatalf("insert users: %v", err)
+	}
+	// Insert one work order in each lifecycle state. Status is the
+	// authoritative source for the state guard (the UPDATE filters on
+	// it directly), so the test seeds it explicitly per row.
+	rows := []struct {
+		id     uuid.UUID
+		status string
+		code   string
+	}{
+		{fix.orderSubmitted, "submitted", "WO-S-" + suffix},
+		{fix.orderRejected, "rejected", "WO-R-" + suffix},
+		{fix.orderApproved, "approved", "WO-A-" + suffix},
+		{fix.orderInProgress, "in_progress", "WO-I-" + suffix},
+		{fix.orderCompleted, "completed", "WO-C-" + suffix},
+		{fix.orderVerified, "verified", "WO-V-" + suffix},
+	}
+	for _, r := range rows {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO work_orders (id, tenant_id, code, type, priority, status, title, assignee_id)
+			 VALUES ($1, $2, $3, 'maintenance', 'medium', $4, $5, $6)`,
+			r.id, fix.tenantID, r.code, r.status, r.code, fix.origAssignee); err != nil {
+			t.Fatalf("insert work_order %s: %v", r.status, err)
+		}
+	}
+
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM work_orders WHERE tenant_id = $1`, fix.tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM users WHERE tenant_id = $1`, fix.tenantID)
+		_, _ = pool.Exec(ctx, `DELETE FROM tenants WHERE id = $1`, fix.tenantID)
+	})
+	return fix
+}
+
+func newAssignCtx(t *testing.T, fix assignFixture, orderID uuid.UUID, body []byte) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	req, _ := http.NewRequest(http.MethodPost, "/maintenance/orders/"+orderID.String()+"/assign", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	c.Set("tenant_id", fix.tenantID.String())
+	c.Set("user_id", fix.userID.String())
+	return c, rec
+}
+
+func readAssignedID(t *testing.T, pool *pgxpool.Pool, orderID uuid.UUID) uuid.UUID {
+	t.Helper()
+	var got pgtype.UUID
+	if err := pool.QueryRow(context.Background(),
+		`SELECT assignee_id FROM work_orders WHERE id = $1`, orderID).Scan(&got); err != nil {
+		t.Fatalf("read assignee_id: %v", err)
+	}
+	if !got.Valid {
+		return uuid.Nil
+	}
+	return got.Bytes
+}
+
+// TestIntegration_AssignWorkOrder_AllowedStates pins that submitted,
+// rejected, approved, and in_progress all accept reassignment. Before
+// this endpoint, only submitted+rejected worked (UpdateWorkOrder), so
+// the TaskDispatch UI silently failed on approved/in_progress.
+func TestIntegration_AssignWorkOrder_AllowedStates(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupAssignFixture(t, pool)
+
+	s := newWOTestServer(pool)
+	cases := []struct {
+		name    string
+		orderID uuid.UUID
+	}{
+		{"submitted", fix.orderSubmitted},
+		{"rejected", fix.orderRejected},
+		{"approved", fix.orderApproved},
+		{"in_progress", fix.orderInProgress},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload, _ := json.Marshal(map[string]string{
+				"assignee_id": fix.newAssignee.String(),
+				"comment":     "reassigning for " + tc.name,
+			})
+			c, rec := newAssignCtx(t, fix, tc.orderID, payload)
+			s.AssignWorkOrder(c, IdPath(tc.orderID))
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200 — body=%s", rec.Code, rec.Body.String())
+			}
+			if got := readAssignedID(t, pool, tc.orderID); got != fix.newAssignee {
+				t.Errorf("assignee_id = %s, want %s", got, fix.newAssignee)
+			}
+		})
+	}
+}
+
+// TestIntegration_AssignWorkOrder_FrozenStates pins that completed and
+// verified orders refuse reassignment. The lifecycle is intentionally
+// immutable once the order is closed out so the audit trail stays
+// trustworthy. Service returns "cannot reassign", handler maps to 422.
+func TestIntegration_AssignWorkOrder_FrozenStates(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupAssignFixture(t, pool)
+
+	s := newWOTestServer(pool)
+	cases := []struct {
+		name    string
+		orderID uuid.UUID
+	}{
+		{"completed", fix.orderCompleted},
+		{"verified", fix.orderVerified},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload, _ := json.Marshal(map[string]string{
+				"assignee_id": fix.newAssignee.String(),
+			})
+			c, rec := newAssignCtx(t, fix, tc.orderID, payload)
+			s.AssignWorkOrder(c, IdPath(tc.orderID))
+
+			if rec.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, want 422 — body=%s", rec.Code, rec.Body.String())
+			}
+			if got := readAssignedID(t, pool, tc.orderID); got != fix.origAssignee {
+				t.Errorf("assignee_id mutated despite 422: got %s, want %s (orig)", got, fix.origAssignee)
+			}
+		})
+	}
+}
+
+// TestIntegration_AssignWorkOrder_CrossTenant_Returns404 pins audit D-H3.
+// AssignWorkOrder must scope the lookup AND the UPDATE by tenant_id.
+// Caller in tenantA targeting tenantB's order returns 404 and never
+// touches the row. Without this the new endpoint becomes a cross-tenant
+// rewrite primitive.
+func TestIntegration_AssignWorkOrder_CrossTenant_Returns404(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	tenantA := setupAssignFixture(t, pool)
+	tenantB := setupAssignFixture(t, pool)
+	s := newWOTestServer(pool)
+
+	payload, _ := json.Marshal(map[string]string{
+		"assignee_id": tenantA.newAssignee.String(),
+	})
+	// Caller authenticated as tenantA, targeting tenantB's order.
+	c, rec := newAssignCtx(t, tenantA, tenantB.orderApproved, payload)
+	s.AssignWorkOrder(c, IdPath(tenantB.orderApproved))
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("CRITICAL: tenantA was allowed to reassign tenantB WO (status=200, body=%s)",
+			rec.Body.String())
+	}
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 — body=%s", rec.Code, rec.Body.String())
+	}
+	if got := readAssignedID(t, pool, tenantB.orderApproved); got != tenantB.origAssignee {
+		t.Errorf("CRITICAL: cross-tenant write landed: assignee_id = %s, want %s (tenantB orig)", got, tenantB.origAssignee)
+	}
+}
+
+// TestIntegration_AssignWorkOrder_MissingAssignee_Returns400 covers the
+// happy-path validation: empty assignee_id is a client error, not a
+// silent no-op.
+func TestIntegration_AssignWorkOrder_MissingAssignee_Returns400(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	fix := setupAssignFixture(t, pool)
+
+	s := newWOTestServer(pool)
+	// Body parses (uuid.Nil is a valid UUID for the JSON binder),
+	// but the handler rejects nil after binding.
+	payload, _ := json.Marshal(map[string]string{
+		"assignee_id": uuid.Nil.String(),
+	})
+	c, rec := newAssignCtx(t, fix, fix.orderSubmitted, payload)
+	s.AssignWorkOrder(c, IdPath(fix.orderSubmitted))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 — body=%s", rec.Code, rec.Body.String())
+	}
+	if got := readAssignedID(t, pool, fix.orderSubmitted); got != fix.origAssignee {
+		t.Errorf("assignee_id mutated despite 400: got %s, want %s (orig)", got, fix.origAssignee)
 	}
 }
 

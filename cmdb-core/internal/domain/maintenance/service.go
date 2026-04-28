@@ -450,6 +450,46 @@ func (s *Service) Update(ctx context.Context, tenantID uuid.UUID, params dbgen.U
 	return &updated, nil
 }
 
+// Assign reassigns a work order to a different operator. Reassignment is
+// allowed in submitted, rejected, approved, and in_progress — completed
+// and verified orders are immutable. Update() rejects approved+ states
+// because it edits domain content (title, priority, schedule); reassignment
+// is a workflow action that must work on in-flight orders too. Returns
+// ErrAssignNotAllowed when the order exists but is in a frozen state, and
+// wraps pgx.ErrNoRows otherwise so callers can distinguish 404 from 422.
+func (s *Service) Assign(ctx context.Context, tenantID, orderID, assigneeID uuid.UUID) (*dbgen.WorkOrder, error) {
+	order, err := s.queries.GetWorkOrder(ctx, dbgen.GetWorkOrderParams{ID: orderID, TenantID: tenantID})
+	if err != nil {
+		return nil, fmt.Errorf("work order not found: %w", err)
+	}
+
+	switch order.Status {
+	case StatusSubmitted, StatusRejected, StatusApproved, StatusInProgress:
+		// allowed
+	default:
+		return nil, fmt.Errorf("cannot reassign work order in '%s' status; only submitted, rejected, approved, or in_progress orders can be reassigned", order.Status)
+	}
+
+	updated, err := s.queries.AssignWorkOrder(ctx, dbgen.AssignWorkOrderParams{
+		ID:         orderID,
+		AssigneeID: pgtype.UUID{Bytes: assigneeID, Valid: true},
+		TenantID:   tenantID,
+	})
+	if err != nil {
+		// Treated as a state race: GetWorkOrder said allowed, the row
+		// guard rejected the UPDATE because a concurrent transition
+		// moved the order out of an assignable status.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("work order state changed concurrently, please retry")
+		}
+		return nil, fmt.Errorf("assign work order: %w", err)
+	}
+
+	s.incrementSyncVersion(ctx, "work_orders", orderID, tenantID)
+
+	return &updated, nil
+}
+
 // Delete soft-deletes a work order. Only draft/rejected orders can be deleted.
 func (s *Service) Delete(ctx context.Context, tenantID, orderID uuid.UUID) error {
 	order, err := s.queries.GetWorkOrder(ctx, dbgen.GetWorkOrderParams{ID: orderID, TenantID: tenantID})

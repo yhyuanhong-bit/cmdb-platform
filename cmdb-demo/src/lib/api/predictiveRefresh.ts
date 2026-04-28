@@ -39,6 +39,27 @@ export interface ListPredictiveRefreshParams {
   kind?: PredictiveRefreshKind
 }
 
+/** One time-bucket from the server-side capex roll-up. `month` is
+ *  YYYY-MM-01 (first-of-the-month). */
+export interface PredictiveRefreshAggregateBucket {
+  month: string
+  count: number
+  warranty_expiring: number
+  warranty_expired: number
+  eol_approaching: number
+  eol_passed: number
+  aged_out: number
+}
+
+export interface AggregatePredictiveRefreshParams {
+  /** Bucket granularity. Only `month` is supported today. */
+  bucket?: 'month'
+  /** Inclusive lower bound (YYYY-MM-DD). */
+  from?: string
+  /** Inclusive upper bound (YYYY-MM-DD). */
+  to?: string
+}
+
 function listParams(p?: ListPredictiveRefreshParams): Record<string, string> | undefined {
   if (!p) return undefined
   const out: Record<string, string> = {}
@@ -49,12 +70,27 @@ function listParams(p?: ListPredictiveRefreshParams): Record<string, string> | u
   return out
 }
 
+function aggregateParams(p?: AggregatePredictiveRefreshParams): Record<string, string> | undefined {
+  if (!p) return undefined
+  const out: Record<string, string> = {}
+  if (p.bucket) out.bucket = p.bucket
+  if (p.from) out.from = p.from
+  if (p.to) out.to = p.to
+  return Object.keys(out).length === 0 ? undefined : out
+}
+
 export const predictiveRefreshApi = {
   list: (p?: ListPredictiveRefreshParams) =>
     apiClient.get<{
       data: PredictiveRefresh[]
       pagination?: { total: number; page: number; page_size: number }
     }>('/predictive/refresh', listParams(p)),
+
+  aggregate: (p?: AggregatePredictiveRefreshParams) =>
+    apiClient.get<{ data: PredictiveRefreshAggregateBucket[] }>(
+      '/predictive/refresh/aggregate',
+      aggregateParams(p),
+    ),
 
   /** Manual rescan for the caller's tenant. The hourly scheduler runs
    *  the same code, so this endpoint is for "I just edited a warranty

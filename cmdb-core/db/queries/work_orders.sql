@@ -148,6 +148,22 @@ UPDATE work_orders SET
 WHERE id = $1 AND tenant_id = $4 AND governance_status = $5 AND deleted_at IS NULL
 RETURNING *;
 
+-- name: AssignWorkOrder :one
+-- Reassigns a work order to a different operator. Unlike UpdateWorkOrder
+-- which restricts edits to submitted/rejected, reassignment is a workflow
+-- action that must work on in-flight states too — submitted, rejected,
+-- approved, and in_progress. Completed and verified orders stay immutable.
+-- 0 rows returned = order missing, cross-tenant, soft-deleted, or in a
+-- frozen state; the caller distinguishes these via a follow-up GetWorkOrder.
+UPDATE work_orders SET
+    assignee_id = $2,
+    updated_at  = now()
+WHERE id = $1
+  AND tenant_id = $3
+  AND status IN ('submitted', 'rejected', 'approved', 'in_progress')
+  AND deleted_at IS NULL
+RETURNING *;
+
 -- name: TransitionEmergencyWorkOrder :one
 -- Atomically approves-and-starts an emergency work order in a single UPDATE.
 -- Replaces the previous two-step flow (approve, then in_progress) which could

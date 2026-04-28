@@ -13,6 +13,81 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const aggregatePredictiveRefreshByMonth = `-- name: AggregatePredictiveRefreshByMonth :many
+SELECT
+    date_trunc('month', r.target_date)::date AS month,
+    count(*)::bigint                                     AS count,
+    count(*) FILTER (WHERE r.kind = 'warranty_expiring')::bigint AS warranty_expiring,
+    count(*) FILTER (WHERE r.kind = 'warranty_expired')::bigint  AS warranty_expired,
+    count(*) FILTER (WHERE r.kind = 'eol_approaching')::bigint   AS eol_approaching,
+    count(*) FILTER (WHERE r.kind = 'eol_passed')::bigint        AS eol_passed,
+    count(*) FILTER (WHERE r.kind = 'aged_out')::bigint          AS aged_out
+FROM predictive_refresh_recommendations r
+JOIN assets a ON a.id = r.asset_id AND a.tenant_id = r.tenant_id AND a.deleted_at IS NULL
+WHERE r.tenant_id = $1
+  AND r.status = 'open'
+  AND r.target_date IS NOT NULL
+  AND ($2::date IS NULL OR date_trunc('month', r.target_date) >= date_trunc('month', $2::date))
+  AND ($3::date   IS NULL OR date_trunc('month', r.target_date) <= date_trunc('month', $3::date))
+GROUP BY date_trunc('month', r.target_date)
+ORDER BY date_trunc('month', r.target_date) ASC
+`
+
+type AggregatePredictiveRefreshByMonthParams struct {
+	TenantID  uuid.UUID   `json:"tenant_id"`
+	FromMonth pgtype.Date `json:"from_month"`
+	ToMonth   pgtype.Date `json:"to_month"`
+}
+
+type AggregatePredictiveRefreshByMonthRow struct {
+	Month            pgtype.Date `json:"month"`
+	Count            int64       `json:"count"`
+	WarrantyExpiring int64       `json:"warranty_expiring"`
+	WarrantyExpired  int64       `json:"warranty_expired"`
+	EolApproaching   int64       `json:"eol_approaching"`
+	EolPassed        int64       `json:"eol_passed"`
+	AgedOut          int64       `json:"aged_out"`
+}
+
+// Capex backlog roll-up. Groups open recommendations by the month of
+// target_date, returning total count + per-kind counts so the dashboard
+// can render the stacked bar chart server-side instead of paging the
+// whole list and bucketing in JS. Rows with NULL target_date are
+// excluded — they have no month to bucket into and aren't actionable
+// for capex planning anyway.
+//
+// Range parameters are optional (NULL = no bound). When set they're
+// compared against the *month boundary* (date_trunc('month', ...)) so
+// callers can pass a YYYY-MM-01 anchor and reason about inclusive
+// months without fencepost math.
+func (q *Queries) AggregatePredictiveRefreshByMonth(ctx context.Context, arg AggregatePredictiveRefreshByMonthParams) ([]AggregatePredictiveRefreshByMonthRow, error) {
+	rows, err := q.db.Query(ctx, aggregatePredictiveRefreshByMonth, arg.TenantID, arg.FromMonth, arg.ToMonth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AggregatePredictiveRefreshByMonthRow{}
+	for rows.Next() {
+		var i AggregatePredictiveRefreshByMonthRow
+		if err := rows.Scan(
+			&i.Month,
+			&i.Count,
+			&i.WarrantyExpiring,
+			&i.WarrantyExpired,
+			&i.EolApproaching,
+			&i.EolPassed,
+			&i.AgedOut,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countPredictiveRefresh = `-- name: CountPredictiveRefresh :one
 SELECT count(*) FROM predictive_refresh_recommendations r
 JOIN assets a ON a.id = r.asset_id AND a.tenant_id = r.tenant_id AND a.deleted_at IS NULL

@@ -88,3 +88,33 @@ WHERE a.deleted_at IS NULL
   AND (a.purchase_date IS NOT NULL
     OR a.warranty_end  IS NOT NULL
     OR a.eol_date      IS NOT NULL);
+
+-- name: AggregatePredictiveRefreshByMonth :many
+-- Capex backlog roll-up. Groups open recommendations by the month of
+-- target_date, returning total count + per-kind counts so the dashboard
+-- can render the stacked bar chart server-side instead of paging the
+-- whole list and bucketing in JS. Rows with NULL target_date are
+-- excluded — they have no month to bucket into and aren't actionable
+-- for capex planning anyway.
+--
+-- Range parameters are optional (NULL = no bound). When set they're
+-- compared against the *month boundary* (date_trunc('month', ...)) so
+-- callers can pass a YYYY-MM-01 anchor and reason about inclusive
+-- months without fencepost math.
+SELECT
+    date_trunc('month', r.target_date)::date AS month,
+    count(*)::bigint                                     AS count,
+    count(*) FILTER (WHERE r.kind = 'warranty_expiring')::bigint AS warranty_expiring,
+    count(*) FILTER (WHERE r.kind = 'warranty_expired')::bigint  AS warranty_expired,
+    count(*) FILTER (WHERE r.kind = 'eol_approaching')::bigint   AS eol_approaching,
+    count(*) FILTER (WHERE r.kind = 'eol_passed')::bigint        AS eol_passed,
+    count(*) FILTER (WHERE r.kind = 'aged_out')::bigint          AS aged_out
+FROM predictive_refresh_recommendations r
+JOIN assets a ON a.id = r.asset_id AND a.tenant_id = r.tenant_id AND a.deleted_at IS NULL
+WHERE r.tenant_id = $1
+  AND r.status = 'open'
+  AND r.target_date IS NOT NULL
+  AND (sqlc.narg('from_month')::date IS NULL OR date_trunc('month', r.target_date) >= date_trunc('month', sqlc.narg('from_month')::date))
+  AND (sqlc.narg('to_month')::date   IS NULL OR date_trunc('month', r.target_date) <= date_trunc('month', sqlc.narg('to_month')::date))
+GROUP BY date_trunc('month', r.target_date)
+ORDER BY date_trunc('month', r.target_date) ASC;
