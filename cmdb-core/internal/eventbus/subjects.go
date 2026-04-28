@@ -17,6 +17,7 @@ const (
 	SubjectOrderCreated      = "maintenance.order_created"
 	SubjectOrderUpdated      = "maintenance.order_updated"
 	SubjectOrderTransitioned = "maintenance.order_transitioned"
+	SubjectOrderAssigned     = "maintenance.order_assigned"
 
 	SubjectInventoryTaskCreated   = "inventory.task_created"
 	SubjectInventoryTaskCompleted = "inventory.task_completed"
