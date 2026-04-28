@@ -115,7 +115,11 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*TokenRespon
 	}
 
 	if user.Status != "active" {
-		return nil, errors.New("account is not active")
+		// Generic error matches the wrong-password path above. A distinct
+		// "account is not active" message would tell an attacker that
+		// the username AND password are both correct for a deactivated
+		// account, leaking password validity. Audit finding H2 (2026-04-28).
+		return nil, errors.New("invalid username or password")
 	}
 
 	tokens, err := s.issueTokens(ctx, user)
@@ -253,7 +257,7 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, curr
 	}
 	// Best-effort refresh-token revocation and password-change cache bust.
 	if s.redis != nil {
-		s.revokeAllRefreshTokens(ctx, userID)
+		s.RevokeAllRefreshTokens(ctx, userID)
 		// Bust any cached password_changed_at so the middleware picks up the
 		// new value immediately rather than after the cache TTL.
 		_ = s.redis.Del(ctx, pwdChangedCachePrefix+userID.String()).Err()
@@ -270,12 +274,25 @@ func (s *AuthService) Logout(ctx context.Context, userID uuid.UUID, jti string, 
 		}
 	}
 	if s.redis != nil && userID != uuid.Nil {
-		s.revokeAllRefreshTokens(ctx, userID)
+		s.RevokeAllRefreshTokens(ctx, userID)
 	}
 	return nil
 }
 
+// errRefreshUserInactive is returned by Refresh when the user behind a
+// refresh token has been deactivated, soft-deleted, or otherwise has a
+// non-active status. Surfaced to the caller as a generic "invalid or
+// expired refresh token" so deactivation isn't observable to attackers.
+var errRefreshUserInactive = errors.New("refresh: user is not active")
+
 // Refresh validates a refresh token and issues a new token pair (rotation).
+//
+// Failure modes (audit finding H3, 2026-04-28):
+//   - If the rotation Del fails, we must NOT issue new tokens. Otherwise
+//     the old refresh stays valid in Redis and a transient write failure
+//     becomes a token-replay window.
+//   - If the user has been deactivated since the original login, refuse
+//     to mint new access tokens regardless of the refresh token's TTL.
 func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*TokenResponse, error) {
 	key := refreshPrefix + refreshToken
 	userIDStr, err := s.redis.Get(ctx, key).Result()
@@ -283,14 +300,31 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (*TokenR
 		return nil, errors.New("invalid or expired refresh token")
 	}
 
-	// Delete the used refresh token (rotation) and its index entry.
-	s.redis.Del(ctx, key)
-	s.redis.SRem(ctx, refreshUserIndexPrefix+userIDStr, key)
+	// Delete the used refresh token (rotation). Failure here means the
+	// old token would survive — we MUST refuse to issue a new one.
+	if delErr := s.redis.Del(ctx, key).Err(); delErr != nil {
+		zap.L().Warn("Refresh: rotation Del failed; refusing to issue new tokens",
+			zap.String("user_id", userIDStr), zap.Error(delErr))
+		return nil, errors.New("invalid or expired refresh token")
+	}
+	// SRem on the per-user index. Failure here is recoverable: the
+	// token itself is gone, the index just keeps a stale entry. Log
+	// and continue rather than failing the user-visible operation.
+	if sremErr := s.redis.SRem(ctx, refreshUserIndexPrefix+userIDStr, key).Err(); sremErr != nil {
+		zap.L().Warn("Refresh: rotation SRem failed (stale index entry)",
+			zap.String("user_id", userIDStr), zap.Error(sremErr))
+	}
 
 	userID := parseUUID(userIDStr)
 	user, err := s.queries.GetUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found: %w", err)
+	}
+	// Block deactivated/deleted users from minting new access tokens
+	// even if their refresh keys are still in Redis (TTL race, partial
+	// revoke). Surfaced as generic to avoid leaking deactivation state.
+	if user.Status != "active" || user.DeletedAt.Valid {
+		return nil, errRefreshUserInactive
 	}
 
 	return s.issueTokens(ctx, user)
@@ -387,24 +421,30 @@ func (s *AuthService) issueTokens(ctx context.Context, user dbgen.User) (*TokenR
 	}, nil
 }
 
-// revokeAllRefreshTokens deletes every refresh token registered for a user
-// plus the index itself. Safe to call even when no tokens exist.
-func (s *AuthService) revokeAllRefreshTokens(ctx context.Context, userID uuid.UUID) {
+// RevokeAllRefreshTokens deletes every refresh token registered for a user
+// plus the index itself. Safe to call even when no tokens exist or when
+// Redis is unavailable (errors are logged, not propagated). Exposed
+// publicly so the identity service can call it during user deactivation
+// (audit finding H1, 2026-04-28).
+func (s *AuthService) RevokeAllRefreshTokens(ctx context.Context, userID uuid.UUID) {
+	if s.redis == nil {
+		return
+	}
 	indexKey := refreshUserIndexPrefix + userID.String()
 	keys, err := s.redis.SMembers(ctx, indexKey).Result()
 	if err != nil {
-		zap.L().Warn("revokeAllRefreshTokens: SMembers failed",
+		zap.L().Warn("RevokeAllRefreshTokens: SMembers failed",
 			zap.String("user_id", userID.String()), zap.Error(err))
 		return
 	}
 	if len(keys) > 0 {
 		if err := s.redis.Del(ctx, keys...).Err(); err != nil {
-			zap.L().Warn("revokeAllRefreshTokens: Del tokens failed",
+			zap.L().Warn("RevokeAllRefreshTokens: Del tokens failed",
 				zap.String("user_id", userID.String()), zap.Error(err))
 		}
 	}
 	if err := s.redis.Del(ctx, indexKey).Err(); err != nil {
-		zap.L().Warn("revokeAllRefreshTokens: Del index failed",
+		zap.L().Warn("RevokeAllRefreshTokens: Del index failed",
 			zap.String("user_id", userID.String()), zap.Error(err))
 	}
 }

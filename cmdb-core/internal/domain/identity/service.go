@@ -47,14 +47,30 @@ type identityQueries interface {
 	ListUserRoleIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 }
 
+// RefreshTokenRevoker can revoke every refresh token for a user. Implemented
+// by *AuthService. Wired in via WithRefreshRevoker so unit tests can omit
+// it without dragging Redis into every fixture.
+type RefreshTokenRevoker interface {
+	RevokeAllRefreshTokens(ctx context.Context, userID uuid.UUID)
+}
+
 // Service provides user and role listing operations.
 type Service struct {
 	queries identityQueries
+	revoker RefreshTokenRevoker
 }
 
 // NewService creates a new identity Service.
 func NewService(queries *dbgen.Queries) *Service {
 	return &Service{queries: queries}
+}
+
+// WithRefreshRevoker wires in a refresh-token revoker so Deactivate can
+// invalidate the user's outstanding refresh tokens. Returns the receiver
+// for fluent chaining.
+func (s *Service) WithRefreshRevoker(r RefreshTokenRevoker) *Service {
+	s.revoker = r
+	return s
 }
 
 // ListUsers returns a paginated list of users for the given tenant.
@@ -218,11 +234,17 @@ func (s *Service) ListUserRoleIDs(ctx context.Context, tenantID, userID uuid.UUI
 	return ids, nil
 }
 
-// Deactivate soft-deletes a user by setting status to 'deleted'.
+// Deactivate soft-deletes a user by setting status to 'deleted' and
+// revokes the user's outstanding refresh tokens (if a revoker is wired
+// in). Without the revoke step a deactivated user can keep minting new
+// access tokens for up to the refresh TTL — audit finding H1, 2026-04-28.
 func (s *Service) Deactivate(ctx context.Context, tenantID, userID uuid.UUID) error {
 	err := s.queries.DeactivateUser(ctx, dbgen.DeactivateUserParams{ID: userID, TenantID: tenantID})
 	if err != nil {
 		return fmt.Errorf("deactivate user: %w", err)
+	}
+	if s.revoker != nil {
+		s.revoker.RevokeAllRefreshTokens(ctx, userID)
 	}
 	return nil
 }

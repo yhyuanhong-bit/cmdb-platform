@@ -302,7 +302,9 @@ func main() {
 	blacklist := auth.NewBlacklist(redisClient)
 	authSvc := identity.NewAuthService(queries, redisClient, cfg.JWTSecret, pool).
 		WithBlacklist(blacklist)
-	identitySvc := identity.NewService(queries)
+	// Wire authSvc as the refresh-token revoker so identitySvc.Deactivate
+	// invalidates outstanding refresh tokens (audit finding H1, 2026-04-28).
+	identitySvc := identity.NewService(queries).WithRefreshRevoker(authSvc)
 	topologySvc := topology.NewService(queries, pool)
 	assetSvc := asset.NewService(queries, bus, pool)
 	maintenanceSvc := maintenance.NewService(queries, bus, pool)
