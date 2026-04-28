@@ -1,7 +1,7 @@
 import { memo, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useRacks } from "../hooks/useTopology";
+import { useRacks, useAllLocations } from "../hooks/useTopology";
 import { useLocationContext } from "../contexts/LocationContext";
 import type { Rack as ApiRack } from "../lib/api/topology";
 
@@ -94,9 +94,19 @@ function FacilityMap() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { path } = useLocationContext();
-  // Fallback to Neihu campus if no location context set
-  const locationId = path.idc?.id ?? path.campus?.id ?? "d0000000-0000-0000-0000-000000000004";
-  const { data: racksResponse, isLoading, error } = useRacks(locationId);
+
+  const { data: allLocResp, isLoading: locationsLoading } = useAllLocations();
+  const allLocations = allLocResp?.data ?? [];
+  const fallbackLocationId = useMemo(() => {
+    const rackCapable = allLocations.find((l) =>
+      ['room', 'module', 'idc', 'campus'].includes(l.level)
+    );
+    return rackCapable?.id ?? allLocations[0]?.id ?? '';
+  }, [allLocations]);
+
+  const locationId = path.idc?.id ?? path.campus?.id ?? fallbackLocationId;
+  const { data: racksResponse, isLoading: racksLoading, error } = useRacks(locationId);
+  const isLoading = locationsLoading || (!!locationId && racksLoading);
   const apiRacks: ApiRack[] = racksResponse?.data ?? [];
   const ROWS = useMemo(() => buildRows(apiRacks), [apiRacks]);
   const ALL_RACKS = useMemo(() => ROWS.flatMap((r) => r.racks), [ROWS]);
@@ -119,6 +129,30 @@ function FacilityMap() {
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <span className="material-symbols-outlined text-error text-4xl">error</span>
         <p className="text-error text-sm">Failed to load facility data</p>
+      </div>
+    );
+  }
+
+  if (!locationId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+        <span className="material-symbols-outlined text-on-surface-variant/60 text-5xl">location_off</span>
+        <p className="text-base font-headline font-semibold text-on-surface">
+          {t('facility_map.no_location_title', 'No location selected')}
+        </p>
+        <p className="max-w-sm text-sm text-on-surface-variant">
+          {t(
+            'facility_map.no_location_body',
+            'No locations are configured for this tenant. Add a location in the Locations page to view the facility map.'
+          )}
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate('/locations')}
+          className="mt-2 rounded-md bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-on-primary-container transition-colors hover:brightness-110"
+        >
+          {t('facility_map.go_to_locations', 'Go to Locations')}
+        </button>
       </div>
     );
   }

@@ -148,7 +148,7 @@ export default function DataCenter3D() {
   const { path } = useLocationContext();
 
   // Single query: fetch ALL locations for this tenant
-  const { data: allLocResp } = useAllLocations();
+  const { data: allLocResp, isLoading: locationsLoading } = useAllLocations();
   const allLocations = allLocResp?.data ?? [];
 
   // Derive territories (root nodes with no parent)
@@ -199,8 +199,8 @@ export default function DataCenter3D() {
       active: t.id === selectedLocationId,
     }));
 
-  // Fallback to Neihu campus if no location context set
-  const contextLocationId = path.idc?.id ?? path.campus?.id ?? 'd0000000-0000-0000-0000-000000000004';
+  // Fall back to context, then to first rack-capable location for this tenant.
+  const contextLocationId = path.idc?.id ?? path.campus?.id ?? '';
   const effectiveLocationId = selectedLocationId || contextLocationId;
   const { data: racksResponse } = useRacks(effectiveLocationId);
   const apiRacks: Rack[] = racksResponse?.data ?? [];
@@ -305,6 +305,45 @@ export default function DataCenter3D() {
           : "bg-emerald-500/50";
     }
   };
+
+  if (locationsLoading) {
+    return (
+      <div className="min-h-screen bg-surface text-on-surface font-body p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="h-6 w-48 rounded bg-surface-container-high animate-pulse" />
+        </div>
+        <div className="flex gap-4">
+          <div className="w-72 h-96 rounded-lg bg-surface-container-low animate-pulse" />
+          <div className="flex-1 h-96 rounded-lg bg-surface-container-low animate-pulse" />
+          <div className="w-80 h-96 rounded-lg bg-surface-container-low animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  if (allLocations.length === 0) {
+    return (
+      <div className="min-h-screen bg-surface text-on-surface font-body flex flex-col items-center justify-center px-6 text-center gap-4">
+        <span className="material-symbols-outlined text-on-surface-variant/60 text-6xl">domain_disabled</span>
+        <h1 className="text-xl font-headline font-bold text-on-surface">
+          {t('datacenter_3d.empty_locations_title', 'No locations configured')}
+        </h1>
+        <p className="max-w-md text-sm text-on-surface-variant">
+          {t(
+            'datacenter_3d.empty_locations_body',
+            'This tenant has no locations yet. Go to the Locations page to add a campus, IDC, module, or room before viewing the 3D data center.'
+          )}
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate('/locations')}
+          className="mt-2 px-4 py-2 rounded-lg bg-primary-container text-primary text-sm font-medium hover:bg-on-primary-container/20 transition-colors"
+        >
+          {t('datacenter_3d.go_to_locations', 'Go to Locations')}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface text-on-surface font-body">
