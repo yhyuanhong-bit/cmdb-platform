@@ -7,15 +7,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/ai"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/cmdb-platform/cmdb-core/internal/api"
 	"github.com/cmdb-platform/cmdb-core/internal/auth"
 	"github.com/cmdb-platform/cmdb-core/internal/config"
@@ -126,145 +122,15 @@ func main() {
 	}
 	defer pool.Close()
 
-	// 4a. Auto-run pending migrations
-	{
-		migrationsDir := os.Getenv("MIGRATIONS_DIR")
-		if migrationsDir == "" {
-			migrationsDir = "migrations"
-		}
-		if _, statErr := os.Stat(migrationsDir); statErr == nil {
-			entries, _ := os.ReadDir(migrationsDir)
-			for _, entry := range entries {
-				if !strings.HasSuffix(entry.Name(), ".up.sql") {
-					continue
-				}
-				// Extract version number
-				var version int
-				fmt.Sscanf(entry.Name(), "%06d", &version)
-
-				// Check if already applied
-				var exists bool
-				pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)", version).Scan(&exists)
-				if exists {
-					continue
-				}
-
-				// Apply migration
-				sqlBytes, readErr := os.ReadFile(filepath.Join(migrationsDir, entry.Name()))
-				if readErr != nil {
-					zap.L().Warn("migration: failed to read", zap.String("file", entry.Name()), zap.Error(readErr))
-					continue
-				}
-				if _, applyErr := pool.Exec(ctx, string(sqlBytes)); applyErr != nil {
-					zap.L().Error("migration: failed to apply", zap.String("file", entry.Name()), zap.Error(applyErr))
-					continue
-				}
-				// A failed schema_migrations row means the migration
-				// applied but the tracker didn't advance — on next boot
-				// we'd try to apply it again. That's the kind of silent
-				// divergence that leaves ops chasing phantom failures.
-				if _, insErr := pool.Exec(ctx, "INSERT INTO schema_migrations (version, dirty) VALUES ($1, false) ON CONFLICT DO NOTHING", version); insErr != nil {
-					zap.L().Error("migration: failed to record applied version — tracker is out of sync",
-						zap.String("file", entry.Name()), zap.Int("version", version), zap.Error(insErr))
-				}
-				zap.L().Info("migration: applied", zap.String("file", entry.Name()), zap.Int("version", version))
-			}
-		}
-	}
-
-	// 4b. Verify database migration version matches code expectations
-	{
-		const expectedMigration = 50 // bump this when adding new migrations
-		var dbVersion int
-		if qErr := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&dbVersion); qErr != nil {
-			zap.L().Fatal("failed to check migration version — is the database initialized?", zap.Error(qErr))
-		}
-		if dbVersion < expectedMigration {
-			zap.L().Fatal("database schema is behind code — run pending migrations before starting the server",
-				zap.Int("db_version", dbVersion),
-				zap.Int("expected_version", expectedMigration),
-				zap.Int("migrations_behind", expectedMigration-dbVersion))
-		}
-		if dbVersion > expectedMigration {
-			zap.L().Warn("database schema is ahead of code — is this the right binary?",
-				zap.Int("db_version", dbVersion),
-				zap.Int("expected_version", expectedMigration))
-		}
-	}
+	// 4a. Auto-run pending migrations + verify schema version
+	applyPendingMigrations(ctx, pool)
+	verifyMigrationVersion(ctx, pool)
 
 	// 5. Create dbgen.Queries from the pool
 	queries := dbgen.New(pool)
 
-	// 5a. Auto-seed: create default tenant, admin user, and roles if DB is empty
-	{
-		var userCount int
-		// If the user-count probe fails, we can't safely decide whether
-		// to seed — re-seeding into a populated DB would stomp an
-		// existing admin. Fatal is the correct response: stop startup so
-		// ops can diagnose instead of racing into a half-initialized
-		// state.
-		if probeErr := pool.QueryRow(ctx, "SELECT count(*) FROM users").Scan(&userCount); probeErr != nil {
-			zap.L().Fatal("seed: failed to probe users count — cannot safely decide whether to seed", zap.Error(probeErr))
-		}
-		if userCount == 0 {
-			zap.L().Info("database is empty — running initial seed")
-			seedDir := os.Getenv("SEED_DIR")
-			if seedDir == "" {
-				seedDir = "db/seed"
-			}
-			seedFile := filepath.Join(seedDir, "seed.sql")
-			if sqlBytes, seedReadErr := os.ReadFile(seedFile); seedReadErr == nil {
-				if _, seedExecErr := pool.Exec(ctx, string(sqlBytes)); seedExecErr != nil {
-					zap.L().Error("seed: failed to apply", zap.Error(seedExecErr))
-				} else {
-					zap.L().Info("seed: initial data loaded successfully")
-				}
-			} else {
-				// Seed file not found — create minimal admin only
-				zap.L().Warn("seed file not found, creating minimal admin user", zap.String("path", seedFile))
-				adminPassword := os.Getenv("ADMIN_DEFAULT_PASSWORD")
-				if adminPassword == "" {
-					adminPassword = "admin-" + uuid.New().String()[:8]
-				}
-				hash, hashErr := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
-				if hashErr != nil {
-					zap.L().Fatal("seed: failed to hash admin password", zap.Error(hashErr))
-				}
-				// Each INSERT failure here means the minimal-admin seed
-				// never completed. We refuse to continue startup in that
-				// case: the operator would otherwise be looking at a
-				// half-seeded database with no usable login.
-				seedStmts := []struct {
-					label string
-					sql   string
-					args  []any
-				}{
-					{"tenant", `INSERT INTO tenants (id, name, slug) VALUES ('a0000000-0000-0000-0000-000000000001', 'Default', 'default') ON CONFLICT DO NOTHING`, nil},
-					{"user", `INSERT INTO users (id, tenant_id, username, display_name, email, password_hash, status, source) VALUES ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'admin', 'System Admin', 'admin@example.com', $1, 'active', 'local') ON CONFLICT DO NOTHING`, []any{string(hash)}},
-					{"role", `INSERT INTO roles (id, tenant_id, name, description, permissions, is_system) VALUES ('c0000000-0000-0000-0000-000000000001', NULL, 'super-admin', 'Full system access', '{"*": ["*"]}', true) ON CONFLICT DO NOTHING`, nil},
-					{"user_role", `INSERT INTO user_roles (user_id, role_id) VALUES ('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001') ON CONFLICT DO NOTHING`, nil},
-				}
-				for _, stmt := range seedStmts {
-					if _, seedErr := pool.Exec(ctx, stmt.sql, stmt.args...); seedErr != nil {
-						zap.L().Fatal("seed: minimal-admin insert failed — aborting startup",
-							zap.String("step", stmt.label), zap.Error(seedErr))
-					}
-				}
-				// SECURITY: do NOT log the plaintext password — log aggregators
-				// would archive the admin credential. Persist it to a 0600 file
-				// and only log the path + username.
-				credsPath, credsErr := writeSeedPasswordToFile(adminPassword, "admin")
-				if credsErr != nil {
-					// Fatal WITHOUT including the password in any field.
-					zap.L().Fatal("failed to persist seeded admin password — cannot continue",
-						zap.Error(credsErr))
-				}
-				zap.L().Warn("seed: minimal admin user created — change password immediately; credentials written to file",
-					zap.String("username", "admin"),
-					zap.String("credentials_file", credsPath))
-			}
-		}
-	}
+	// 5a. Auto-seed default tenant + admin if DB is empty
+	seedIfEmpty(ctx, pool)
 
 	// 6. Create Redis client
 	redisClient, err := cache.NewRedisClient(cfg.RedisURL)
@@ -699,79 +565,5 @@ func main() {
 	zap.L().Info("server exited gracefully")
 }
 
-// envIntOr reads a positive integer from the named env var, returning
-// fallback if the var is unset, non-numeric, or non-positive. Wrong
-// values do not brick startup — they fall back with a warning log.
-func envIntOr(envKey string, fallback int) int {
-	raw := os.Getenv(envKey)
-	if raw == "" {
-		return fallback
-	}
-	n, err := strconv.Atoi(raw)
-	if err != nil || n <= 0 {
-		zap.L().Warn("invalid env int, using fallback",
-			zap.String("env", envKey),
-			zap.String("raw", raw),
-			zap.Int("fallback", fallback))
-		return fallback
-	}
-	return n
-}
-
-// runPredictiveScheduler runs the Wave 7.1 hardware-refresh rule engine
-// on a 1h ticker. Idempotent on each pass; per-tenant errors don't
-// abort the tick.
-func runPredictiveScheduler(ctx context.Context, svc *predictive.Service, tracker *schedhealth.Tracker) {
-	const interval = time.Hour
-	const trackerName = "predictive_refresh"
-	cfg := predictive.DefaultRuleConfig()
-	if tracker != nil {
-		tracker.Register(trackerName, interval)
-	}
-	zap.L().Info("predictive refresh scheduler started", zap.Duration("interval", interval))
-
-	tick := func() {
-		if tracker != nil {
-			tracker.Record(trackerName)
-		}
-		res := svc.RunScanTick(ctx, cfg)
-		zap.L().Info("predictive refresh tick",
-			zap.Int("tenants_scanned", res.TenantsScanned),
-			zap.Int("assets_scanned", res.AssetsScanned),
-			zap.Int("rows_upserted", res.RowsUpserted),
-			zap.Int("errors", len(res.Errors)),
-		)
-		for _, err := range res.Errors {
-			zap.L().Warn("predictive refresh tick error", zap.Error(err))
-		}
-	}
-
-	tick()
-	t := time.NewTicker(interval)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			zap.L().Info("predictive refresh scheduler stopped")
-			return
-		case <-t.C:
-			tick()
-		}
-	}
-}
-
-// lateBoundRecorder forwards Record() to a target tracker that may not
-// exist yet at the moment the evaluator is constructed. Wave 9.1 needs
-// the alert evaluator (built early in main) to share a tracker that's
-// only created later in main, after the rest of the schedulers are
-// known. The forwarder keeps the evaluator constructor signature stable
-// while letting startup wire-up happen in any order.
-type lateBoundRecorder struct {
-	target *schedhealth.Tracker
-}
-
-func (r *lateBoundRecorder) Record(name string) {
-	if r.target != nil {
-		r.target.Record(name)
-	}
-}
+// Helpers (envIntOr, runPredictiveScheduler, lateBoundRecorder) moved
+// to helpers.go as part of the Phase 2 main.go split (2026-04-28).
