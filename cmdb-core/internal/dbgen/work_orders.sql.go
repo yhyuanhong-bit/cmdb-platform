@@ -12,6 +12,66 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const assignWorkOrder = `-- name: AssignWorkOrder :one
+UPDATE work_orders SET
+    assignee_id = $2,
+    updated_at  = now()
+WHERE id = $1
+  AND tenant_id = $3
+  AND status IN ('submitted', 'rejected', 'approved', 'in_progress')
+  AND deleted_at IS NULL
+RETURNING id, tenant_id, code, title, type, status, priority, location_id, asset_id, requestor_id, assignee_id, description, reason, prediction_id, scheduled_start, scheduled_end, actual_start, actual_end, created_at, updated_at, deleted_at, approved_at, approved_by, sla_deadline, sla_warning_sent, sla_breached, sync_version, execution_status, governance_status
+`
+
+type AssignWorkOrderParams struct {
+	ID         uuid.UUID   `json:"id"`
+	AssigneeID pgtype.UUID `json:"assignee_id"`
+	TenantID   uuid.UUID   `json:"tenant_id"`
+}
+
+// Reassigns a work order to a different operator. Unlike UpdateWorkOrder
+// which restricts edits to submitted/rejected, reassignment is a workflow
+// action that must work on in-flight states too — submitted, rejected,
+// approved, and in_progress. Completed and verified orders stay immutable.
+// 0 rows returned = order missing, cross-tenant, soft-deleted, or in a
+// frozen state; the caller distinguishes these via a follow-up GetWorkOrder.
+func (q *Queries) AssignWorkOrder(ctx context.Context, arg AssignWorkOrderParams) (WorkOrder, error) {
+	row := q.db.QueryRow(ctx, assignWorkOrder, arg.ID, arg.AssigneeID, arg.TenantID)
+	var i WorkOrder
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.Code,
+		&i.Title,
+		&i.Type,
+		&i.Status,
+		&i.Priority,
+		&i.LocationID,
+		&i.AssetID,
+		&i.RequestorID,
+		&i.AssigneeID,
+		&i.Description,
+		&i.Reason,
+		&i.PredictionID,
+		&i.ScheduledStart,
+		&i.ScheduledEnd,
+		&i.ActualStart,
+		&i.ActualEnd,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ApprovedAt,
+		&i.ApprovedBy,
+		&i.SlaDeadline,
+		&i.SlaWarningSent,
+		&i.SlaBreached,
+		&i.SyncVersion,
+		&i.ExecutionStatus,
+		&i.GovernanceStatus,
+	)
+	return i, err
+}
+
 const breachSLAWorkOrders = `-- name: BreachSLAWorkOrders :many
 UPDATE work_orders
 SET sla_breached = true, updated_at = now()

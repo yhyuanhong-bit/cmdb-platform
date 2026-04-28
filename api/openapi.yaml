@@ -1463,6 +1463,56 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /maintenance/orders/{id}/assign:
+    post:
+      operationId: assignWorkOrder
+      tags: [maintenance]
+      summary: Reassign a work order
+      description: |
+        Changes the assignee on a work order. Unlike updateWorkOrder (which
+        only allows edits on submitted/rejected), this endpoint accepts
+        reassignment on submitted, rejected, approved, and in_progress
+        states — completed and verified orders are immutable.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assignee_id]
+              properties:
+                assignee_id:
+                  type: string
+                  format: uuid
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: Work order reassigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkOrder'
+                  meta:
+                    $ref: '#/components/schemas/Meta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Work order is in a state that does not allow reassignment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /maintenance/orders/{id}/comments:
     get:
       operationId: listWorkOrderComments

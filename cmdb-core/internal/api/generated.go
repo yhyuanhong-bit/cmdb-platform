@@ -2849,6 +2849,12 @@ type UpdateWorkOrderJSONBody struct {
 	Title          *string             `json:"title,omitempty"`
 }
 
+// AssignWorkOrderJSONBody defines parameters for AssignWorkOrder.
+type AssignWorkOrderJSONBody struct {
+	AssigneeId openapi_types.UUID `json:"assignee_id"`
+	Comment    *string            `json:"comment,omitempty"`
+}
+
 // CreateWorkOrderCommentJSONBody defines parameters for CreateWorkOrderComment.
 type CreateWorkOrderCommentJSONBody struct {
 	Text *string `json:"text,omitempty"`
@@ -3227,6 +3233,9 @@ type CreateWorkOrderJSONRequestBody CreateWorkOrderJSONBody
 
 // UpdateWorkOrderJSONRequestBody defines body for UpdateWorkOrder for application/json ContentType.
 type UpdateWorkOrderJSONRequestBody UpdateWorkOrderJSONBody
+
+// AssignWorkOrderJSONRequestBody defines body for AssignWorkOrder for application/json ContentType.
+type AssignWorkOrderJSONRequestBody AssignWorkOrderJSONBody
 
 // CreateWorkOrderCommentJSONRequestBody defines body for CreateWorkOrderComment for application/json ContentType.
 type CreateWorkOrderCommentJSONRequestBody CreateWorkOrderCommentJSONBody
@@ -4466,6 +4475,9 @@ type ServerInterface interface {
 	// Update a work order
 	// (PUT /maintenance/orders/{id})
 	UpdateWorkOrder(c *gin.Context, id IdPath)
+	// Reassign a work order
+	// (POST /maintenance/orders/{id}/assign)
+	AssignWorkOrder(c *gin.Context, id IdPath)
 	// List comments on a work order
 	// (GET /maintenance/orders/{id}/comments)
 	ListWorkOrderComments(c *gin.Context, id IdPath)
@@ -7379,6 +7391,32 @@ func (siw *ServerInterfaceWrapper) UpdateWorkOrder(c *gin.Context) {
 	siw.Handler.UpdateWorkOrder(c, id)
 }
 
+// AssignWorkOrder operation middleware
+func (siw *ServerInterfaceWrapper) AssignWorkOrder(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AssignWorkOrder(c, id)
+}
+
 // ListWorkOrderComments operation middleware
 func (siw *ServerInterfaceWrapper) ListWorkOrderComments(c *gin.Context) {
 
@@ -10106,6 +10144,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/maintenance/orders/:id", wrapper.DeleteWorkOrder)
 	router.GET(options.BaseURL+"/maintenance/orders/:id", wrapper.GetWorkOrder)
 	router.PUT(options.BaseURL+"/maintenance/orders/:id", wrapper.UpdateWorkOrder)
+	router.POST(options.BaseURL+"/maintenance/orders/:id/assign", wrapper.AssignWorkOrder)
 	router.GET(options.BaseURL+"/maintenance/orders/:id/comments", wrapper.ListWorkOrderComments)
 	router.POST(options.BaseURL+"/maintenance/orders/:id/comments", wrapper.CreateWorkOrderComment)
 	router.GET(options.BaseURL+"/maintenance/orders/:id/logs", wrapper.ListWorkOrderLogs)
