@@ -152,11 +152,16 @@ func (w *WorkflowSubscriber) createUnreviewedDiscoveryWO(
 // is frequent enough that overdue rows surface within the same shift
 // they crossed the 24h threshold without spamming the scheduler.
 func (w *WorkflowSubscriber) StartDiscoveryReviewChecker(ctx context.Context) {
+	const interval = time.Hour
+	w.registerScheduler(SchedNameDiscoveryReview, interval)
 	// Run once immediately so a restart does not leave overdue rows
 	// invisible until the first tick.
-	go w.checkUnreviewedDiscoveries(ctx)
+	go func() {
+		w.recordTick(SchedNameDiscoveryReview)
+		w.checkUnreviewedDiscoveries(ctx)
+	}()
 
-	ticker := time.NewTicker(time.Hour)
+	ticker := time.NewTicker(interval)
 	zap.L().Info("discovery review checker started", zap.Int("interval_hours", 1))
 	go func() {
 		defer ticker.Stop()
@@ -165,6 +170,7 @@ func (w *WorkflowSubscriber) StartDiscoveryReviewChecker(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				w.recordTick(SchedNameDiscoveryReview)
 				w.checkUnreviewedDiscoveries(ctx)
 			}
 		}

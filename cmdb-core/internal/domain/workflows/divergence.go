@@ -56,11 +56,13 @@ func (w *WorkflowSubscriber) StartDivergenceChecker(ctx context.Context) {
 		return
 	}
 
+	w.registerScheduler(SchedNameDivergenceCheck, divergenceCheckInterval)
 	ticker := time.NewTicker(divergenceCheckInterval)
 	go func() {
 		// Run once immediately so the first signal arrives without
 		// waiting 15 minutes post-boot.
 		func() {
+			w.recordTick(SchedNameDivergenceCheck)
 			tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.divergence_check")
 			defer end()
 			w.runDivergenceCheck(tickCtx)
@@ -71,6 +73,7 @@ func (w *WorkflowSubscriber) StartDivergenceChecker(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
+				w.recordTick(SchedNameDivergenceCheck)
 				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.divergence_check")
 				w.runDivergenceCheck(tickCtx)
 				end()

@@ -9,6 +9,11 @@
 // main.go's 8 scattered Start* calls behind a single StartAll(ctx)
 // entry point.
 //
+// Scheduler names exposed below are the labels used by
+// /admin/scheduler-health. Keeping them in one place makes it obvious
+// which loops contribute to the readiness dashboard and prevents the
+// Register/Record sites from drifting on the spelling.
+//
 // Concrete benefits delivered by this commit:
 //
 //   - main.go no longer needs to enumerate every background loop by name,
@@ -25,6 +30,22 @@
 package workflows
 
 import "context"
+
+// Scheduler names for /admin/scheduler-health. Each long-running ticker
+// in this package registers under one of these labels.
+const (
+	SchedNameAssetVerification    = "workflows.asset_verification"
+	SchedNameAuditPartitionSample = "workflows.audit_partition_sample"
+	SchedNameConflictDiscovery    = "workflows.conflict_discovery_cleanup"
+	SchedNameDiscoveryReview      = "workflows.discovery_review"
+	SchedNameDivergenceCheck      = "workflows.divergence_check"
+	SchedNameMetricsPuller        = "workflows.metrics_puller"
+	SchedNameQualityScan          = "workflows.quality_scan"
+	SchedNameSessionCleanup       = "workflows.session_cleanup"
+	SchedNameSLAChecker           = "workflows.sla_checker"
+	SchedNameWarrantyChecker      = "workflows.warranty_checker"
+	SchedNameWebhookRetention     = "workflows.webhook_retention"
+)
 
 // StartAll launches every background goroutine managed by this
 // WorkflowSubscriber. The call is non-blocking: each Start* method

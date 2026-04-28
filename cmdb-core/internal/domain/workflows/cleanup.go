@@ -26,7 +26,9 @@ const (
 )
 
 func (w *WorkflowSubscriber) StartSessionCleanup(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Hour)
+	const interval = 1 * time.Hour
+	w.registerScheduler(SchedNameSessionCleanup, interval)
+	ticker := time.NewTicker(interval)
 	go func() {
 		for {
 			select {
@@ -34,6 +36,7 @@ func (w *WorkflowSubscriber) StartSessionCleanup(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
+				w.recordTick(SchedNameSessionCleanup)
 				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.session_cleanup")
 				w.cleanupSessions(tickCtx)
 				end()
@@ -85,7 +88,9 @@ func (w *WorkflowSubscriber) cleanupSessions(ctx context.Context) {
 
 // StartConflictAndDiscoveryCleanup runs a background ticker for conflict SLA and discovery TTL.
 func (w *WorkflowSubscriber) StartConflictAndDiscoveryCleanup(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Hour)
+	const interval = 1 * time.Hour
+	w.registerScheduler(SchedNameConflictDiscovery, interval)
+	ticker := time.NewTicker(interval)
 	go func() {
 		for {
 			select {
@@ -93,6 +98,7 @@ func (w *WorkflowSubscriber) StartConflictAndDiscoveryCleanup(ctx context.Contex
 				ticker.Stop()
 				return
 			case <-ticker.C:
+				w.recordTick(SchedNameConflictDiscovery)
 				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.conflict_discovery_cleanup")
 				w.autoResolveStaleConflicts(tickCtx)
 				w.expireStaleDiscoveries(tickCtx)
@@ -151,6 +157,8 @@ func (w *WorkflowSubscriber) expireStaleDiscoveries(ctx context.Context) {
 // quietest part of the global traffic window. Subsequent ticks fire every
 // 24 hours.
 func (w *WorkflowSubscriber) StartWebhookRetention(ctx context.Context) {
+	const interval = 24 * time.Hour
+	w.registerScheduler(SchedNameWebhookRetention, interval)
 	go func() {
 		// First-tick alignment: wake up at the next 03:00 UTC, then
 		// tick every 24h. If the service starts at 04:00 UTC we'll
@@ -167,18 +175,20 @@ func (w *WorkflowSubscriber) StartWebhookRetention(ctx context.Context) {
 		}
 
 		func() {
+			w.recordTick(SchedNameWebhookRetention)
 			tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.webhook_retention")
 			defer end()
 			w.runWebhookRetention(tickCtx)
 		}()
 
-		ticker := time.NewTicker(24 * time.Hour)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				w.recordTick(SchedNameWebhookRetention)
 				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.webhook_retention")
 				w.runWebhookRetention(tickCtx)
 				end()

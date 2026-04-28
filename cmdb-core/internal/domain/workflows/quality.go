@@ -68,6 +68,7 @@ func (w *WorkflowSubscriber) StartQualityScanner(ctx context.Context) {
 		zap.L().Info("quality scanner not started: no qualityScanner injected")
 		return
 	}
+	w.registerScheduler(SchedNameQualityScan, qualityScanInterval)
 	go w.qualityScanLoop(ctx)
 	zap.L().Info("quality scanner started",
 		zap.Duration("initial_delay", qualityScanInitialDelay),
@@ -91,10 +92,12 @@ func (w *WorkflowSubscriber) qualityScanLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-initial.C:
+			w.recordTick(SchedNameQualityScan)
 			tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.quality_scan")
 			w.runQualityScan(tickCtx)
 			end()
 		case <-ticker.C:
+			w.recordTick(SchedNameQualityScan)
 			tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.quality_scan")
 			w.runQualityScan(tickCtx)
 			end()

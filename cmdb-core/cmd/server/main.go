@@ -622,7 +622,8 @@ func main() {
 	// workflows/start.go for the full list and rationale.
 	if bus != nil {
 		wfSub := workflows.New(pool, queries, bus, maintenanceSvc, cipher).
-			WithQualityScanner(qualitySvc)
+			WithQualityScanner(qualitySvc).
+			WithSchedHealth(schedTracker)
 		wfSub.Register()
 		wfSub.StartAll(ctx)
 

@@ -66,7 +66,9 @@ func truncateReason(s string) string {
 }
 
 func (w *WorkflowSubscriber) StartMetricsPuller(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Minute)
+	const interval = 5 * time.Minute
+	w.registerScheduler(SchedNameMetricsPuller, interval)
+	ticker := time.NewTicker(interval)
 	go func() {
 		for {
 			select {
@@ -74,6 +76,7 @@ func (w *WorkflowSubscriber) StartMetricsPuller(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
+				w.recordTick(SchedNameMetricsPuller)
 				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.metrics_pull")
 				w.pullMetricsFromAdapters(tickCtx)
 				end()

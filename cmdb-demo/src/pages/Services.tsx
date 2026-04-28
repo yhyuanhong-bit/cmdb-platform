@@ -26,15 +26,18 @@ const STATUS_STYLES: Record<Service['status'], string> = {
   decommissioned: 'text-on-surface-variant line-through',
 }
 
+type StatusFilter = Service['status'] | 'all'
+
 const Services = memo(function Services() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [tierFilter, setTierFilter] = useState<Service['tier'] | ''>('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [showCreate, setShowCreate] = useState(false)
 
   const { data, isLoading, error } = useServices({
     tier: tierFilter || undefined,
-    status: 'active',
+    status: statusFilter === 'all' ? undefined : statusFilter,
     page: 1,
     page_size: 100,
   })
@@ -63,7 +66,7 @@ const Services = memo(function Services() {
 
       {/* Tier filter bar. Each button toggles a single tier; clicking the
           active filter again returns to the unfiltered view. */}
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           onClick={() => setTierFilter('')}
           className={`px-3 py-1.5 rounded-lg text-xs font-label transition-colors ${
@@ -87,6 +90,23 @@ const Services = memo(function Services() {
             {t(`services.tier_${tier}`)}
           </button>
         ))}
+
+        <span className="ml-auto inline-flex items-center gap-2">
+          <label htmlFor="services-status-filter" className="text-[10px] uppercase tracking-widest text-on-surface-variant font-label">
+            {t('services.col_status')}
+          </label>
+          <select
+            id="services-status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            className="px-3 py-1.5 rounded-lg text-xs font-label bg-surface-container text-on-surface border border-outline-variant focus:outline-none focus:ring-1 focus:ring-primary"
+          >
+            <option value="active">{t('services.status_active')}</option>
+            <option value="deprecated">{t('services.status_deprecated')}</option>
+            <option value="decommissioned">{t('services.status_decommissioned')}</option>
+            <option value="all">{t('services.status_filter_all')}</option>
+          </select>
+        </span>
       </div>
 
       {isLoading && (

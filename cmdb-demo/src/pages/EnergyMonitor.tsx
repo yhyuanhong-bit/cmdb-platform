@@ -2,7 +2,6 @@ import { memo, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { useMetrics } from '../hooks/useMetrics'
 import { useLocationContext } from '../contexts/LocationContext'
 import { apiClient } from '../lib/api/client'
 import EmptyState from '../components/EmptyState'
@@ -646,23 +645,7 @@ function EnergyMonitor() {
   const { path } = useLocationContext()
   const locationId = path.campus?.id ?? 'd0000000-0000-0000-0000-000000000004'
 
-  // Fetch power metrics for a representative asset
-  const powerQ = useMetrics({
-    asset_id: 'f0000000-0000-0000-0000-000000000001',
-    metric_name: 'power_kw',
-    time_range: '168h', // 7 days
-  })
-  const powerData = powerQ.data?.data ?? []
-
-  // Fetch PUE metric (kept as fallback)
-  const pueQ = useMetrics({
-    asset_id: 'f0000000-0000-0000-0000-000000000001',
-    metric_name: 'pue',
-    time_range: '24h',
-  })
-  const latestPUE = pueQ.data?.data?.[0]?.value ?? 1.35
-
-  // Energy API queries
+  // Energy API queries — all tenant-scoped server-side, no asset_id needed.
   const { data: breakdownRaw } = useQuery({
     queryKey: ['energyBreakdown'],
     queryFn: () => apiClient.get<BreakdownData>('/energy/breakdown'),
@@ -671,9 +654,13 @@ function EnergyMonitor() {
     queryKey: ['energySummary'],
     queryFn: () => apiClient.get<SummaryData>('/energy/summary'),
   })
-  const { data: trendRaw, isError: trendError } = useQuery({
-    queryKey: ['energyTrend'],
+  const { data: trendRaw, isError: trendError, isLoading: trendLoading } = useQuery({
+    queryKey: ['energyTrend', 24],
     queryFn: () => apiClient.get<{ trend: TrendPoint[] }>('/energy/trend', { hours: '24' }),
+  })
+  const { data: weeklyTrendRaw } = useQuery({
+    queryKey: ['energyTrend', 168],
+    queryFn: () => apiClient.get<{ trend: TrendPoint[] }>('/energy/trend', { hours: '168' }),
   })
 
   // Unwrap — energy endpoints return payload directly (no ApiResponse wrapper)
@@ -683,7 +670,18 @@ function EnergyMonitor() {
   const summaryData = sd?.pue != null ? (summaryRaw as SummaryData) : undefined
   const td = trendRaw as Record<string, unknown> | undefined
   const trendPoints: TrendPoint[] = (td?.trend as TrendPoint[] | undefined) ?? []
+  const wtd = weeklyTrendRaw as Record<string, unknown> | undefined
+  const weeklyTrendPoints: TrendPoint[] = (wtd?.trend as TrendPoint[] | undefined) ?? []
   const hasError = trendError
+
+  // Derive `powerData` from the tenant-wide weekly trend. `total_kw` is the
+  // hourly sum across all assets in the tenant, so dividing by 1000 keeps the
+  // downstream chart math (which expects MW-scale `value`) consistent.
+  const powerData = useMemo(
+    () => weeklyTrendPoints.map((p) => ({ time: p.hour, value: p.total_kw / 1000 })),
+    [weeklyTrendPoints],
+  )
+  const latestPUE = summaryData?.pue ?? 1.0
 
   // locationId used for future location-scoped queries
   void locationId
@@ -755,7 +753,7 @@ function EnergyMonitor() {
           t={t}
           powerData={powerData}
           latestPUE={latestPUE}
-          isLoading={powerQ.isLoading}
+          isLoading={trendLoading}
           breakdownData={breakdownData}
           summaryData={summaryData}
         />

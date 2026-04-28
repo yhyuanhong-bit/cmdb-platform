@@ -49,9 +49,12 @@ const reasonWOCreateFailed = telemetry.ReasonWOCreationFailed
 // firmware). The individual scans live in auto_workorders_warranty.go
 // and auto_workorders_security.go.
 func (w *WorkflowSubscriber) StartWarrantyChecker(ctx context.Context) {
-	ticker := time.NewTicker(24 * time.Hour)
+	const interval = 24 * time.Hour
+	w.registerScheduler(SchedNameWarrantyChecker, interval)
+	ticker := time.NewTicker(interval)
 	go func() {
 		func() {
+			w.recordTick(SchedNameWarrantyChecker)
 			tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.warranty_daily")
 			defer end()
 			w.runDailyChecks(tickCtx)
@@ -62,6 +65,7 @@ func (w *WorkflowSubscriber) StartWarrantyChecker(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
+				w.recordTick(SchedNameWarrantyChecker)
 				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.warranty_daily")
 				w.runDailyChecks(tickCtx)
 				end()
@@ -85,7 +89,9 @@ func (w *WorkflowSubscriber) runDailyChecks(ctx context.Context) {
 // duplicate serials, missing location). The individual scans live
 // in auto_workorders_governance.go.
 func (w *WorkflowSubscriber) StartAssetVerificationChecker(ctx context.Context) {
-	ticker := time.NewTicker(7 * 24 * time.Hour)
+	const interval = 7 * 24 * time.Hour
+	w.registerScheduler(SchedNameAssetVerification, interval)
+	ticker := time.NewTicker(interval)
 	go func() {
 		for {
 			select {
@@ -93,6 +99,7 @@ func (w *WorkflowSubscriber) StartAssetVerificationChecker(ctx context.Context) 
 				ticker.Stop()
 				return
 			case <-ticker.C:
+				w.recordTick(SchedNameAssetVerification)
 				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.asset_verification_weekly")
 				w.runWeeklyChecks(tickCtx)
 				end()

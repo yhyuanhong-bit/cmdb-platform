@@ -20,7 +20,9 @@ const (
 )
 
 func (w *WorkflowSubscriber) StartSLAChecker(ctx context.Context) {
-	ticker := time.NewTicker(60 * time.Second)
+	const interval = 60 * time.Second
+	w.registerScheduler(SchedNameSLAChecker, interval)
+	ticker := time.NewTicker(interval)
 	go func() {
 		for {
 			select {
@@ -28,6 +30,7 @@ func (w *WorkflowSubscriber) StartSLAChecker(ctx context.Context) {
 				ticker.Stop()
 				return
 			case <-ticker.C:
+				w.recordTick(SchedNameSLAChecker)
 				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.sla")
 				w.checkSLABreaches(tickCtx)
 				w.checkSLAWarnings(tickCtx)

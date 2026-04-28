@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -161,7 +160,6 @@ func (s *APIServer) GetEnergyTrend(c *gin.Context, params GetEnergyTrendParams) 
 	if params.Hours != nil && *params.Hours >= 1 && *params.Hours <= 168 {
 		hoursVal = *params.Hours
 	}
-	hours := strconv.Itoa(hoursVal)
 	ctx, cancel := context.WithTimeout(c.Request.Context(), energyQueryTimeout)
 	defer cancel()
 
@@ -171,10 +169,10 @@ func (s *APIServer) GetEnergyTrend(c *gin.Context, params GetEnergyTrendParams) 
 		       COALESCE(sum(value), 0) as total_kw
 		FROM metrics
 		WHERE tenant_id = $1 AND name = 'power_kw'
-		  AND time > now() - ($2 || ' hours')::interval
+		  AND time > now() - make_interval(hours => $2::int)
 		GROUP BY hour
 		ORDER BY hour
-	`, hours)
+	`, hoursVal)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

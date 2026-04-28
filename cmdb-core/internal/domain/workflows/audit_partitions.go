@@ -28,18 +28,21 @@ const sourceAuditPartitionSample = "workflows.audit.partition_sample"
 // the gauge is set to an absolute value, not incremented.
 func (w *WorkflowSubscriber) StartAuditPartitionSampler(ctx context.Context) {
 	const interval = 5 * time.Minute
+	w.registerScheduler(SchedNameAuditPartitionSample, interval)
 	ticker := time.NewTicker(interval)
 	go func() {
 		defer ticker.Stop()
 		// Sample once immediately so freshly-deployed servers report
 		// the current value without waiting 5 minutes for the first
 		// scrape to have data.
+		w.recordTick(SchedNameAuditPartitionSample)
 		w.sampleAuditPartitionCount(ctx)
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				w.recordTick(SchedNameAuditPartitionSample)
 				tickCtx, end := telemetry.StartTickSpan(ctx, "workflow.tick.audit_partition_sample")
 				w.sampleAuditPartitionCount(tickCtx)
 				end()

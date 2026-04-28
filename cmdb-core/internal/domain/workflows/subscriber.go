@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
@@ -13,6 +14,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
+
+// schedHealthTracker is the narrow interface the workflow tickers need
+// from schedhealth.Tracker. Defining it locally keeps this package
+// decoupled from the platform/schedhealth import. nil-safe: the helper
+// methods on WorkflowSubscriber check for nil before dispatching.
+type schedHealthTracker interface {
+	Register(name string, expectedInterval time.Duration)
+	Record(name string)
+}
 
 // resolveSystemUser returns the per-tenant system user UUID or (uuid.Nil, false)
 // on failure. Callers in workflow loops should check the bool and `continue`
@@ -62,6 +72,10 @@ type WorkflowSubscriber struct {
 	// deployment. Kept unexported so callers cannot accidentally
 	// depend on the override from outside the package.
 	qualityTenantListerOverride qualityTenantLister
+	// tracker reports per-loop heartbeats to the platform scheduler-
+	// health registry. nil is allowed; the helper methods short-circuit
+	// when unset so tests can omit the wiring.
+	tracker schedHealthTracker
 }
 
 // New creates a WorkflowSubscriber. The SystemUserResolver is built from
@@ -91,6 +105,34 @@ func New(pool *pgxpool.Pool, queries *dbgen.Queries, bus eventbus.Bus, maintenan
 func (w *WorkflowSubscriber) WithQualityScanner(qs qualityScanner) *WorkflowSubscriber {
 	w.qualitySvc = qs
 	return w
+}
+
+// WithSchedHealth wires the platform scheduler-health tracker so every
+// long-running ticker in this package surfaces on /admin/scheduler-health.
+// Returns the receiver so construction can chain. nil is allowed and
+// disables registration (the helpers turn into no-ops).
+func (w *WorkflowSubscriber) WithSchedHealth(tracker schedHealthTracker) *WorkflowSubscriber {
+	w.tracker = tracker
+	return w
+}
+
+// registerScheduler announces a ticker to the scheduler-health tracker.
+// Safe to call when no tracker is wired.
+func (w *WorkflowSubscriber) registerScheduler(name string, interval time.Duration) {
+	if w.tracker == nil {
+		return
+	}
+	w.tracker.Register(name, interval)
+}
+
+// recordTick stamps a heartbeat for the named ticker. Call at the top
+// of each tick body so a stuck loop is observable as stale even if it
+// hangs mid-work. Safe to call when no tracker is wired.
+func (w *WorkflowSubscriber) recordTick(name string) {
+	if w.tracker == nil {
+		return
+	}
+	w.tracker.Record(name)
 }
 
 // Register subscribes to all relevant event subjects.
