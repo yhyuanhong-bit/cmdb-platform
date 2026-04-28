@@ -1209,6 +1209,21 @@ func (e ListPredictiveRefreshParamsKind) Valid() bool {
 	}
 }
 
+// Defines values for GetPredictiveRefreshAggregateParamsBucket.
+const (
+	Month GetPredictiveRefreshAggregateParamsBucket = "month"
+)
+
+// Valid indicates whether the value is a known member of the GetPredictiveRefreshAggregateParamsBucket enum.
+func (e GetPredictiveRefreshAggregateParamsBucket) Valid() bool {
+	switch e {
+	case Month:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TransitionPredictiveRefreshParamsKind.
 const (
 	AgedOut          TransitionPredictiveRefreshParamsKind = "aged_out"
@@ -2063,6 +2078,17 @@ type PredictiveRefreshKind string
 
 // PredictiveRefreshStatus defines model for PredictiveRefresh.Status.
 type PredictiveRefreshStatus string
+
+// PredictiveRefreshAggregateBucket One time-bucket of open recommendations. `month` is the first-of-the-month (YYYY-MM-01) so the frontend can render a chronological X-axis without parsing semantics from a string.
+type PredictiveRefreshAggregateBucket struct {
+	AgedOut          int64              `json:"aged_out"`
+	Count            int64              `json:"count"`
+	EolApproaching   int64              `json:"eol_approaching"`
+	EolPassed        int64              `json:"eol_passed"`
+	Month            openapi_types.Date `json:"month"`
+	WarrantyExpired  int64              `json:"warranty_expired"`
+	WarrantyExpiring int64              `json:"warranty_expiring"`
+}
 
 // QRAssetPayload defines model for QRAssetPayload.
 type QRAssetPayload struct {
@@ -3019,6 +3045,21 @@ type ListPredictiveRefreshParamsStatus string
 
 // ListPredictiveRefreshParamsKind defines parameters for ListPredictiveRefresh.
 type ListPredictiveRefreshParamsKind string
+
+// GetPredictiveRefreshAggregateParams defines parameters for GetPredictiveRefreshAggregate.
+type GetPredictiveRefreshAggregateParams struct {
+	// Bucket Bucket granularity. Only `month` is supported today.
+	Bucket *GetPredictiveRefreshAggregateParamsBucket `form:"bucket,omitempty" json:"bucket,omitempty"`
+
+	// From Inclusive lower bound, compared against the bucket boundary (any day inside the target month is treated as that month).
+	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Inclusive upper bound, compared against the bucket boundary.
+	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
+}
+
+// GetPredictiveRefreshAggregateParamsBucket defines parameters for GetPredictiveRefreshAggregate.
+type GetPredictiveRefreshAggregateParamsBucket string
 
 // TransitionPredictiveRefreshJSONBody defines parameters for TransitionPredictiveRefresh.
 type TransitionPredictiveRefreshJSONBody struct {
@@ -4598,6 +4639,9 @@ type ServerInterface interface {
 	// List hardware-refresh recommendations
 	// (GET /predictive/refresh)
 	ListPredictiveRefresh(c *gin.Context, params ListPredictiveRefreshParams)
+	// Aggregate open recommendations into time buckets
+	// (GET /predictive/refresh/aggregate)
+	GetPredictiveRefreshAggregate(c *gin.Context, params GetPredictiveRefreshAggregateParams)
 	// Manually trigger the rule engine for the caller's tenant
 	// (POST /predictive/refresh/run)
 	RunPredictiveRefreshScan(c *gin.Context)
@@ -8481,6 +8525,50 @@ func (siw *ServerInterfaceWrapper) ListPredictiveRefresh(c *gin.Context) {
 	siw.Handler.ListPredictiveRefresh(c, params)
 }
 
+// GetPredictiveRefreshAggregate operation middleware
+func (siw *ServerInterfaceWrapper) GetPredictiveRefreshAggregate(c *gin.Context) {
+
+	var err error
+
+	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetPredictiveRefreshAggregateParams
+
+	// ------------- Optional query parameter "bucket" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "bucket", c.Request.URL.Query(), &params.Bucket, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter bucket: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "from", c.Request.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter from: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "to", c.Request.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter to: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetPredictiveRefreshAggregate(c, params)
+}
+
 // RunPredictiveRefreshScan operation middleware
 func (siw *ServerInterfaceWrapper) RunPredictiveRefreshScan(c *gin.Context) {
 
@@ -10185,6 +10273,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/prediction/rca/:id/verify", wrapper.VerifyRCA)
 	router.GET(options.BaseURL+"/prediction/rul/:id", wrapper.GetAssetRUL)
 	router.GET(options.BaseURL+"/predictive/refresh", wrapper.ListPredictiveRefresh)
+	router.GET(options.BaseURL+"/predictive/refresh/aggregate", wrapper.GetPredictiveRefreshAggregate)
 	router.POST(options.BaseURL+"/predictive/refresh/run", wrapper.RunPredictiveRefreshScan)
 	router.POST(options.BaseURL+"/predictive/refresh/:assetId/:kind/transition", wrapper.TransitionPredictiveRefresh)
 	router.GET(options.BaseURL+"/quality/dashboard", wrapper.GetQualityDashboard)

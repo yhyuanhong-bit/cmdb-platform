@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   predictiveRefreshApi,
+  type AggregatePredictiveRefreshParams,
   type ListPredictiveRefreshParams,
   type PredictiveRefreshKind,
   type PredictiveRefreshStatus,
@@ -10,6 +11,13 @@ export function usePredictiveRefresh(params?: ListPredictiveRefreshParams) {
   return useQuery({
     queryKey: ['predictive', 'refresh', params],
     queryFn: () => predictiveRefreshApi.list(params),
+  })
+}
+
+export function usePredictiveRefreshAggregate(params?: AggregatePredictiveRefreshParams) {
+  return useQuery({
+    queryKey: ['predictive', 'refresh', 'aggregate', params],
+    queryFn: () => predictiveRefreshApi.aggregate(params),
   })
 }
 

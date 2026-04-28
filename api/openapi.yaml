@@ -2183,6 +2183,53 @@ paths:
                   pagination: { $ref: '#/components/schemas/Pagination' }
                   meta: { $ref: '#/components/schemas/Meta' }
 
+  /predictive/refresh/aggregate:
+    get:
+      operationId: getPredictiveRefreshAggregate
+      tags: [predictive]
+      summary: Aggregate open recommendations into time buckets
+      description: >
+        Server-side roll-up for the capex-planning chart. Groups open
+        recommendations with a non-NULL target_date by the month it
+        falls in (only `month` is supported today; the bucket parameter
+        exists so we can extend to quarter/year without a route change).
+        Returns total count plus per-kind counts so the frontend can
+        render the stacked bar chart without paging the entire list.
+      parameters:
+        - name: bucket
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [month]
+            default: month
+          description: Bucket granularity. Only `month` is supported today.
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: >
+            Inclusive lower bound, compared against the bucket boundary
+            (any day inside the target month is treated as that month).
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: Inclusive upper bound, compared against the bucket boundary.
+      responses:
+        '200':
+          description: Buckets ordered by month ascending
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PredictiveRefreshAggregateBucket' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
   /predictive/refresh/run:
     post:
       operationId: runPredictiveRefreshScan
@@ -6028,6 +6075,22 @@ components:
         warranty_end:       { type: string, format: date, nullable: true }
         eol_date:           { type: string, format: date, nullable: true }
       required: [asset_id, kind, risk_score, reason, status, detected_at]
+
+    PredictiveRefreshAggregateBucket:
+      type: object
+      description: >
+        One time-bucket of open recommendations. `month` is the
+        first-of-the-month (YYYY-MM-01) so the frontend can render a
+        chronological X-axis without parsing semantics from a string.
+      properties:
+        month:              { type: string, format: date }
+        count:              { type: integer, format: int64 }
+        warranty_expiring:  { type: integer, format: int64 }
+        warranty_expired:   { type: integer, format: int64 }
+        eol_approaching:    { type: integer, format: int64 }
+        eol_passed:         { type: integer, format: int64 }
+        aged_out:           { type: integer, format: int64 }
+      required: [month, count, warranty_expiring, warranty_expired, eol_approaching, eol_passed, aged_out]
 
 
     # ── InventoryTask ─────────────────────────────────────────────────────

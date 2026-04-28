@@ -11,6 +11,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/predictive"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 )
@@ -459,5 +460,198 @@ func TestPredictive_TenantIsolation(t *testing.T) {
 	}
 	if got := countRecommendations(t, pool, tenantB); got != 0 {
 		t.Errorf("B rows = %d, want 0 (cross-tenant leak)", got)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// AggregatePredictiveRefreshByMonth — capex backlog roll-up.
+// ---------------------------------------------------------------------------
+
+// monthKey returns YYYY-MM-01 for the month containing t, in UTC.
+func monthKey(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
+}
+
+// TestPredictive_AggregateByMonth_BucketsAndCounts checks that the
+// aggregate query groups open recs by target_date month and returns
+// per-kind counts that sum to the bucket total. NULL target_date and
+// non-open rows are excluded by design.
+func TestPredictive_AggregateByMonth_BucketsAndCounts(t *testing.T) {
+	pool := newPredictiveTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	tenantA, _ := seedTwoTenantsForPredictive(t, pool)
+	q := dbgen.New(pool)
+	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	svc := predictive.NewService(q, pool).WithClock(func() time.Time { return now })
+
+	// Seed mix so we get rows in two distinct target_date months.
+	// Asset 1: warranty_expiring → target_date is the warranty_end (≈ Jul 2026).
+	end1 := now.AddDate(0, 2, 5) // 2026-07-06
+	_ = seedAssetWithLifecycle(t, pool, tenantA, nil, &end1, nil, nil)
+	// Asset 2: also warranty_expiring, same month bucket.
+	end2 := now.AddDate(0, 2, 20) // 2026-07-21
+	_ = seedAssetWithLifecycle(t, pool, tenantA, nil, &end2, nil, nil)
+	// Asset 3: eol_approaching → target_date is the eol_date (≈ Jun 2026).
+	eol3 := now.AddDate(0, 1, 10) // 2026-06-11
+	_ = seedAssetWithLifecycle(t, pool, tenantA, nil, nil, &eol3, nil)
+
+	if _, err := svc.ScanAndUpsert(ctx, tenantA, predictive.DefaultRuleConfig()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	rows, err := q.AggregatePredictiveRefreshByMonth(ctx, dbgen.AggregatePredictiveRefreshByMonthParams{TenantID: tenantA})
+	if err != nil {
+		t.Fatalf("aggregate: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("buckets = %d, want 2 (Jun 2026 + Jul 2026)", len(rows))
+	}
+	// Ascending order — Jun before Jul.
+	if got, want := monthKey(rows[0].Month.Time), monthKey(eol3); !got.Equal(want) {
+		t.Errorf("rows[0].Month = %s, want %s", got, want)
+	}
+	if got, want := monthKey(rows[1].Month.Time), monthKey(end1); !got.Equal(want) {
+		t.Errorf("rows[1].Month = %s, want %s", got, want)
+	}
+	if rows[0].Count != 1 || rows[0].EolApproaching != 1 {
+		t.Errorf("Jun bucket = %+v, want count=1 eol_approaching=1", rows[0])
+	}
+	if rows[1].Count != 2 || rows[1].WarrantyExpiring != 2 {
+		t.Errorf("Jul bucket = %+v, want count=2 warranty_expiring=2", rows[1])
+	}
+
+	// Per-kind breakdown must sum to bucket total.
+	for i, r := range rows {
+		sum := r.WarrantyExpiring + r.WarrantyExpired + r.EolApproaching + r.EolPassed + r.AgedOut
+		if sum != r.Count {
+			t.Errorf("rows[%d] kind sum = %d, want count=%d", i, sum, r.Count)
+		}
+	}
+}
+
+// TestPredictive_AggregateByMonth_RangeFilter exercises the from/to
+// month bounds. Anything outside the [from, to] window must be omitted.
+func TestPredictive_AggregateByMonth_RangeFilter(t *testing.T) {
+	pool := newPredictiveTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	tenantA, _ := seedTwoTenantsForPredictive(t, pool)
+	q := dbgen.New(pool)
+	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	svc := predictive.NewService(q, pool).WithClock(func() time.Time { return now })
+
+	// One per month from Jun through Aug 2026.
+	jun := now.AddDate(0, 1, 10) // 2026-06-11
+	jul := now.AddDate(0, 2, 10) // 2026-07-11
+	aug := now.AddDate(0, 3, 10) // 2026-08-11
+	_ = seedAssetWithLifecycle(t, pool, tenantA, nil, &jun, nil, nil)
+	_ = seedAssetWithLifecycle(t, pool, tenantA, nil, &jul, nil, nil)
+	_ = seedAssetWithLifecycle(t, pool, tenantA, nil, &aug, nil, nil)
+
+	if _, err := svc.ScanAndUpsert(ctx, tenantA, predictive.DefaultRuleConfig()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	from := pgtype.Date{Time: time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), Valid: true}
+	to := pgtype.Date{Time: time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC), Valid: true}
+	rows, err := q.AggregatePredictiveRefreshByMonth(ctx, dbgen.AggregatePredictiveRefreshByMonthParams{
+		TenantID:  tenantA,
+		FromMonth: from,
+		ToMonth:   to,
+	})
+	if err != nil {
+		t.Fatalf("aggregate: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("buckets = %d, want 1 (only Jul)", len(rows))
+	}
+	if got := monthKey(rows[0].Month.Time); !got.Equal(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("month = %s, want 2026-07-01", got)
+	}
+}
+
+// TestPredictive_AggregateByMonth_AcksAndNullTargetExcluded verifies
+// the rollup ignores acked/resolved rows and rows without target_date.
+func TestPredictive_AggregateByMonth_AcksAndNullTargetExcluded(t *testing.T) {
+	pool := newPredictiveTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	tenantA, _ := seedTwoTenantsForPredictive(t, pool)
+	q := dbgen.New(pool)
+	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	svc := predictive.NewService(q, pool).WithClock(func() time.Time { return now })
+
+	end := now.AddDate(0, 1, 10) // 2026-06-11
+	asset := seedAssetWithLifecycle(t, pool, tenantA, nil, &end, nil, nil)
+	if _, err := svc.ScanAndUpsert(ctx, tenantA, predictive.DefaultRuleConfig()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	// Open + has target_date → counted.
+	rows, err := q.AggregatePredictiveRefreshByMonth(ctx, dbgen.AggregatePredictiveRefreshByMonthParams{TenantID: tenantA})
+	if err != nil {
+		t.Fatalf("aggregate1: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Count != 1 {
+		t.Fatalf("baseline rows = %v, want 1 bucket count=1", rows)
+	}
+
+	// Now ack it — should disappear from the rollup.
+	if _, err := svc.Transition(ctx, tenantA, asset, "warranty_expiring", "ack", uuid.Nil, ""); err != nil {
+		t.Fatalf("ack: %v", err)
+	}
+	rows, err = q.AggregatePredictiveRefreshByMonth(ctx, dbgen.AggregatePredictiveRefreshByMonthParams{TenantID: tenantA})
+	if err != nil {
+		t.Fatalf("aggregate2: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("acked rows must not appear in rollup, got %v", rows)
+	}
+}
+
+// TestPredictive_AggregateByMonth_TenantIsolation ensures tenant A's
+// rollup never returns rows for tenant B's recommendations even when
+// both tenants have assets in the same month.
+func TestPredictive_AggregateByMonth_TenantIsolation(t *testing.T) {
+	pool := newPredictiveTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	tenantA, tenantB := seedTwoTenantsForPredictive(t, pool)
+	q := dbgen.New(pool)
+	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	svc := predictive.NewService(q, pool).WithClock(func() time.Time { return now })
+
+	end := now.AddDate(0, 1, 10)
+	_ = seedAssetWithLifecycle(t, pool, tenantA, nil, &end, nil, nil)
+	// Two assets for tenant B in the same month.
+	_ = seedAssetWithLifecycle(t, pool, tenantB, nil, &end, nil, nil)
+	_ = seedAssetWithLifecycle(t, pool, tenantB, nil, &end, nil, nil)
+
+	if _, err := svc.ScanAndUpsert(ctx, tenantA, predictive.DefaultRuleConfig()); err != nil {
+		t.Fatalf("scan A: %v", err)
+	}
+	if _, err := svc.ScanAndUpsert(ctx, tenantB, predictive.DefaultRuleConfig()); err != nil {
+		t.Fatalf("scan B: %v", err)
+	}
+
+	rowsA, err := q.AggregatePredictiveRefreshByMonth(ctx, dbgen.AggregatePredictiveRefreshByMonthParams{TenantID: tenantA})
+	if err != nil {
+		t.Fatalf("aggregate A: %v", err)
+	}
+	rowsB, err := q.AggregatePredictiveRefreshByMonth(ctx, dbgen.AggregatePredictiveRefreshByMonthParams{TenantID: tenantB})
+	if err != nil {
+		t.Fatalf("aggregate B: %v", err)
+	}
+
+	if len(rowsA) != 1 || rowsA[0].Count != 1 {
+		t.Errorf("A rollup = %v, want 1 bucket count=1 (B's 2 assets must not leak)", rowsA)
+	}
+	if len(rowsB) != 1 || rowsB[0].Count != 2 {
+		t.Errorf("B rollup = %v, want 1 bucket count=2", rowsB)
 	}
 }
