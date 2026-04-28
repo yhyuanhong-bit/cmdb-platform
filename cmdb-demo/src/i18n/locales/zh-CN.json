@@ -2973,6 +2973,7 @@
     "status_active": "运行中",
     "status_deprecated": "已弃用",
     "status_decommissioned": "已下架",
+    "status_filter_all": "全部状态",
     "health_healthy": "健康",
     "health_degraded": "降级",
     "health_unknown": "未评估",
