@@ -10,23 +10,19 @@ import (
 	"time"
 
 	"github.com/cmdb-platform/cmdb-core/internal/api"
-	"github.com/cmdb-platform/cmdb-core/internal/config"
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/dashboard"
-	"github.com/cmdb-platform/cmdb-core/internal/domain/integration"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/workflows"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
-	cmdbmcp "github.com/cmdb-platform/cmdb-core/internal/mcp"
 	"github.com/cmdb-platform/cmdb-core/internal/middleware"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/cache"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/database"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/telemetry"
-	cmdbws "github.com/cmdb-platform/cmdb-core/internal/websocket"
-	"github.com/gin-gonic/gin"
-	mcpserver "github.com/mark3labs/mcp-go/server"
 	"go.uber.org/zap"
+	// config is imported transitively via the helpers in services.go etc;
+	// main() only consumes config.Load() through the cfg variable.
+	"github.com/cmdb-platform/cmdb-core/internal/config"
 )
 
 
@@ -172,219 +168,20 @@ func main() {
 		zap.Int("resource_map_entries", len(rbacCfg.ResourceMap)),
 	)
 
-	// 10. Set up Gin router. Middleware chain + public routes live in
-	// routes.go to keep main.go focused on process lifecycle. The Wave 1
-	// skeleton only moves infra middleware + /healthz /readyz /metrics;
-	// the /api/v1 group stays here until Wave 11 because it needs
-	// deeper dependency threading.
-	gin.SetMode(gin.ReleaseMode)
-	router := gin.New()
-	infraMiddleware(router)
-
-	healthHandler := api.NewHealthHandler(pool, redisClient, natsBus)
-	registerPublicRoutes(router, healthHandler)
-
-	// API v1 group with auth middleware that skips public endpoints.
-	// The blacklist revokes access tokens on logout; PasswordChangedAt
-	// invalidates tokens issued before the user last rotated their password.
-	v1 := router.Group("/api/v1")
-	authMW := middleware.Auth(
-		cfg.JWTSecret,
-		middleware.WithBlacklist(svcs.blacklist),
-		middleware.WithPasswordChangeChecker(svcs.authSvc),
-	)
-	// Derive the auth-bypass set from the same RBAC config that drives
-	// publicPaths. Pre-4.9 this list was a second hardcoded string triple
-	// ("login"/"refresh"/"ws") that drifted from rbac.go's publicPaths.
-	// AuthBypassPaths returns every RBAC-public path except /auth/logout,
-	// which requires a valid access token to revoke its jti.
-	authBypass := middleware.AuthBypassPaths()
-	v1.Use(func(c *gin.Context) {
-		if _, ok := authBypass[c.Request.URL.Path]; ok {
-			c.Next()
-			return
-		}
-		authMW(c)
-	})
-
-	// Per-IP rate limit for login and refresh only. These endpoints are
-	// unauthenticated so we cannot key on user_id (the global limiter below
-	// would fall back to IP as well, but expresses its budget per-second
-	// rather than per-minute which is the useful granularity for brute-force
-	// mitigation). The wrapper ensures the limiter runs ONLY for these two
-	// paths and never for the rest of the API surface.
-	//
-	// Budget: 20/min/IP. Was 5/min, but real users behind shared NAT
-	// (office gateway, VPN egress) hit it just by mistyping a password
-	// twice — and the frontend showed "invalid credentials" instead of
-	// "rate limited", so users assumed their password was wrong and
-	// rotated it. 20/min still blocks credential-stuffing (which targets
-	// thousands per second) without harming legit retries. Override per
-	// environment via LOGIN_RATE_PER_MIN.
-	loginLimiter := middleware.NewIPRateLimiter(envIntOr("LOGIN_RATE_PER_MIN", 20))
-	loginLimiterMW := loginLimiter.Middleware()
-	v1.Use(func(c *gin.Context) {
-		path := c.Request.URL.Path
-		if path == "/api/v1/auth/login" || path == "/api/v1/auth/refresh" {
-			loginLimiterMW(c)
-			// When the limiter aborts, c.Next() is a no-op; when it
-			// allows, gin will advance to the next middleware after we
-			// return. We must NOT call c.Next() here or the chain runs
-			// twice.
-		}
-	})
-
-	// Rate limiter runs after auth so user_id keying beats shared-IP NAT collisions.
-	if cfg.RateLimitEnabled {
-		rl := middleware.NewRateLimiter(middleware.RateLimiterConfig{
-			RequestsPerSecond: cfg.RateLimitRPS,
-			Burst:             cfg.RateLimitBurst,
-			IdleTTL:           10 * time.Minute,
-		})
-		defer rl.Stop()
-		v1.Use(rl.Middleware())
-		zap.L().Info("Rate limiting enabled",
-			zap.Float64("rps", cfg.RateLimitRPS),
-			zap.Int("burst", cfg.RateLimitBurst))
+	// 10. Set up Gin router. See router_setup.go for the middleware chain
+	// + handler registration; the wsHub it returns is wired into the
+	// NATS broadcast bridge by startBackgroundWorkers below.
+	rs := setupRouter(cfg, pool, queries, redisClient, natsBus, svcs, apiServer)
+	if rs.Stop != nil {
+		defer rs.Stop()
 	}
 
-	v1.Use(middleware.RBAC(queries, redisClient))
-
-	// Register all API routes via generated handler
-	api.RegisterHandlers(v1, apiServer)
-
-	// One-time data migration: draft/pending → submitted (admin-only, not in spec).
-	// Discarding the UPDATE error used to let a broken work_orders
-	// table report a fake 200 — the caller would think the one-time
-	// migration succeeded while no rows actually moved.
-	v1.POST("/admin/migrate-statuses", func(c *gin.Context) {
-		res1, err1 := pool.Exec(c.Request.Context(), "UPDATE work_orders SET status = 'submitted' WHERE status IN ('draft', 'pending')")
-		if err1 != nil {
-			zap.L().Error("admin migrate-statuses: submitted update failed", zap.Error(err1))
-			c.JSON(500, gin.H{"error": "submitted migration failed", "detail": err1.Error()})
-			return
-		}
-		res2, err2 := pool.Exec(c.Request.Context(), "UPDATE work_orders SET status = 'verified' WHERE status = 'closed'")
-		if err2 != nil {
-			zap.L().Error("admin migrate-statuses: verified update failed", zap.Error(err2))
-			c.JSON(500, gin.H{"error": "verified migration failed", "detail": err2.Error()})
-			return
-		}
-		c.JSON(200, gin.H{"migrated_to_submitted": res1.RowsAffected(), "migrated_to_verified": res2.RowsAffected()})
-	})
-
-	// MCP Server
-	if cfg.MCPEnabled {
-		mcpSrv := cmdbmcp.New(queries)
-		sseServer := mcpserver.NewSSEServer(mcpSrv.Server())
-
-		// Wrap with API key auth if configured
-		var mcpHandler http.Handler = sseServer
-		if cfg.MCPApiKey != "" {
-			mcpHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				auth := r.Header.Get("Authorization")
-				if auth != "Bearer "+cfg.MCPApiKey {
-					http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-					return
-				}
-				sseServer.ServeHTTP(w, r)
-			})
-			zap.L().Info("MCP Server auth enabled")
-		}
-
-		// Wrap in an http.Server so Shutdown can tear it down on SIGTERM
-		// instead of orphaning the listener goroutine.
-		mcpHTTPSrv := &http.Server{
-			Addr:    fmt.Sprintf(":%d", cfg.MCPPort),
-			Handler: mcpHandler,
-		}
-		go func() {
-			zap.L().Info("MCP Server starting", zap.String("addr", mcpHTTPSrv.Addr))
-			if err := mcpHTTPSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				zap.L().Error("MCP Server error", zap.Error(err))
-			}
-		}()
-		// When the root ctx is cancelled (SIGTERM), shut the MCP listener
-		// down with its own bounded timeout.
-		go func() {
-			<-ctx.Done()
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer shutdownCancel()
-			_ = mcpHTTPSrv.Shutdown(shutdownCtx)
-		}()
-	}
-
-	// WebSocket Hub
-	var wsHub *cmdbws.Hub
-	if cfg.WSEnabled {
-		wsHub = cmdbws.NewHub()
-		go wsHub.Run(ctx)
-
-		// Register WS endpoint with WSAuth (supports Sec-WebSocket-Protocol auth)
-		wsAuthMW := middleware.WSAuth(cfg.JWTSecret)
-		v1.GET("/ws", wsAuthMW, cmdbws.HandleWS(wsHub))
-		zap.L().Info("WebSocket hub started")
-	}
-
-	// NATS -> WebSocket bridge
-	if bus != nil && wsHub != nil {
-		subjects := []string{"alert.>", "asset.>", "maintenance.>", "import.>", "notification.>"}
-		for _, subj := range subjects {
-			subj := subj // capture
-			bus.Subscribe(subj, func(ctx context.Context, event eventbus.Event) error {
-				wsHub.Broadcast(cmdbws.BroadcastMessage{
-					TenantID: event.TenantID,
-					Type:     event.Subject,
-					Payload:  event.Payload,
-				})
-				return nil
-			})
-		}
-		zap.L().Info("NATS -> WebSocket bridge active")
-	}
-
-	// Workflow subscribers (cross-module reactions). Register() wires the
-	// event-bus handlers; StartAll spawns every background loop. Phase 4.1
-	// consolidated the 8 individual Start* calls behind StartAll — see
-	// workflows/start.go for the full list and rationale.
-	if bus != nil {
-		wfSub := workflows.New(pool, queries, bus, svcs.maintenanceSvc, cipher).
-			WithQualityScanner(svcs.qualitySvc).
-			WithSchedHealth(svcs.schedTracker)
-		wfSub.Register()
-		wfSub.StartAll(ctx)
-
-		// Dashboard cache invalidator. Subscribes to asset/rack/alert/
-		// order events so the next GetStats call sees fresh numbers
-		// instead of waiting out the 60-second Redis TTL.
-		dashInval := dashboard.NewInvalidationSubscriber(svcs.dashboardSvc, bus, nil)
-		if err := dashInval.Start(); err != nil {
-			zap.L().Warn("dashboard invalidation subscribe failed", zap.Error(err))
-		}
-	}
-
-	// Alert evaluator goroutine. Uses the same server context as every
-	// other background worker so a single SIGTERM stops the whole stack.
-	// Starts unconditionally (no feature flag) — an empty alert_rules table
-	// is a zero-cost scan.
-	go svcs.alertEvaluator.Start(ctx)
-	zap.L().Info("Alert rule evaluator launched")
-
-	// Webhook dispatcher. Each fan-out delivery goroutine derives from the
-	// server ctx via WithBaseContext, so SIGTERM cancels in-flight retries
-	// (including the 1s / 5s backoff sleeps) instead of pinning them until
-	// the per-request HTTP timeout fires.
-	if bus != nil {
-		dispatcher := integration.NewWebhookDispatcher(queries, cipher, netGuard).
-			WithEventBus(bus).
-			WithBaseContext(ctx)
-		webhookSubjects := []string{"asset.>", "maintenance.>", "alert.>", "prediction.>"}
-		for _, subj := range webhookSubjects {
-			subj := subj
-			_ = bus.Subscribe(subj, dispatcher.HandleEvent)
-		}
-		zap.L().Info("Webhook dispatcher active")
-	}
+	// 11. Launch every background goroutine (MCP listener, WS hub run-loop,
+	// NATS→WS bridge, workflow subscribers, alert evaluator, webhook
+	// dispatcher). All derive their lifecycle from ctx so SIGTERM stops
+	// the whole stack atomically.
+	startBackgroundWorkers(ctx, cfg, pool, queries, bus, cipher, netGuard, svcs, rs.WSHub)
+	router := rs.Engine
 
 	// 11. Start HTTP server with graceful shutdown
 	addr := fmt.Sprintf(":%d", cfg.Port)
