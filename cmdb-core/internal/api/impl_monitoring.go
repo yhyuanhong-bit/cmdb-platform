@@ -130,7 +130,7 @@ func (s *APIServer) CreateAlertRule(c *gin.Context) {
 		"name":     rule.Name,
 		"severity": rule.Severity,
 	})
-	s.publishEvent(c.Request.Context(), eventbus.SubjectAlertFired, tenantIDFromContext(c).String(), map[string]any{
+	s.publishEvent(c.Request.Context(), eventbus.SubjectAlertRuleCreated, tenantIDFromContext(c).String(), map[string]any{
 		"rule_id": rule.ID.String(), "name": rule.Name,
 	})
 	response.Created(c, toAPIAlertRule(*rule))

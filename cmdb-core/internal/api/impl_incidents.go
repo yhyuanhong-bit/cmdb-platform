@@ -66,7 +66,7 @@ func (s *APIServer) CreateIncident(c *gin.Context) {
 		"title":    incident.Title,
 		"severity": incident.Severity,
 	})
-	s.publishEvent(c.Request.Context(), eventbus.SubjectAlertFired, tenantIDFromContext(c).String(), map[string]any{
+	s.publishEvent(c.Request.Context(), eventbus.SubjectIncidentCreated, tenantIDFromContext(c).String(), map[string]any{
 		"incident_id": incident.ID.String(), "title": incident.Title, "severity": incident.Severity,
 	})
 	response.Created(c, toAPIIncident(*incident))

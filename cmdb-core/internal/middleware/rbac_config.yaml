@@ -69,3 +69,10 @@ resourceMap:
   capacity-planning: assets
   fleet-metrics: monitoring
   services: services
+  # Added 2026-04-28 to close TestOpenAPIDriftContract failure (audit H6).
+  # All three URL segments existed in openapi.yaml but were missing from
+  # this map, causing every request to /api/v1/{admin,metrics,predictive}/...
+  # to fall through to the default-deny path and return 403.
+  admin: system           # /admin/scheduler-health — system-level admin info
+  metrics: monitoring     # /metrics/sources/... — metric sources are part of monitoring
+  predictive: prediction  # /predictive/refresh/... — prediction resource (naming-only difference)

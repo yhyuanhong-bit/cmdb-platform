@@ -40,6 +40,11 @@ const (
 	SubjectAlertRuleUpdated = "alert_rule.updated"
 	SubjectAlertRuleDeleted = "alert_rule.deleted"
 
+	// Incident lifecycle events. Added 2026-04-28 (audit H12) — before
+	// this, CreateIncident was publishing SubjectAlertFired with an
+	// incident payload, so subscribers saw type-confused events.
+	SubjectIncidentCreated = "incident.created"
+
 	SubjectOrderAnomaly = "maintenance.order_anomaly"
 
 	SubjectAssetLocationChanged = "asset.location_changed"
