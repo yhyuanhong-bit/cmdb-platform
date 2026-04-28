@@ -19,6 +19,12 @@ import (
 // trigger this error.
 var ErrCrossTenantRole = errors.New("cross-tenant role assignment")
 
+// ErrUserNotFound is returned when the target user either doesn't exist
+// OR exists in a different tenant. We deliberately use the same sentinel
+// for both cases so handlers can map it uniformly to HTTP 404 and avoid
+// leaking cross-tenant existence to the caller.
+var ErrUserNotFound = errors.New("user not found")
+
 // identityQueries is the subset of *dbgen.Queries that Service depends on.
 // Defined as an interface so AssignRole's cross-tenant check can be unit
 // tested with a lightweight fake. *dbgen.Queries satisfies this interface
@@ -27,6 +33,7 @@ type identityQueries interface {
 	ListUsers(ctx context.Context, arg dbgen.ListUsersParams) ([]dbgen.User, error)
 	CountUsers(ctx context.Context, tenantID uuid.UUID) (int64, error)
 	GetUser(ctx context.Context, id uuid.UUID) (dbgen.User, error)
+	GetUserScoped(ctx context.Context, arg dbgen.GetUserScopedParams) (dbgen.User, error)
 	CreateUser(ctx context.Context, arg dbgen.CreateUserParams) (dbgen.User, error)
 	UpdateUser(ctx context.Context, arg dbgen.UpdateUserParams) (dbgen.User, error)
 	DeactivateUser(ctx context.Context, arg dbgen.DeactivateUserParams) error
@@ -69,11 +76,16 @@ func (s *Service) ListUsers(ctx context.Context, tenantID uuid.UUID, limit, offs
 	return users, total, nil
 }
 
-// GetUser returns a single user by ID.
-func (s *Service) GetUser(ctx context.Context, id uuid.UUID) (*dbgen.User, error) {
-	user, err := s.queries.GetUser(ctx, id)
+// GetUser returns a single user by ID, scoped to the caller's tenant.
+// Returns ErrUserNotFound when the user doesn't exist OR belongs to a
+// different tenant — handlers must map both cases to HTTP 404 to avoid
+// leaking cross-tenant existence.
+func (s *Service) GetUser(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.User, error) {
+	user, err := s.queries.GetUserScoped(ctx, dbgen.GetUserScopedParams{
+		ID: id, TenantID: tenantID,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
+		return nil, ErrUserNotFound
 	}
 	return &user, nil
 }
@@ -102,11 +114,15 @@ func (s *Service) CreateUser(ctx context.Context, params dbgen.CreateUserParams,
 	return &user, nil
 }
 
-// UpdateUser updates an existing user's profile fields.
+// UpdateUser updates an existing user's profile fields. The TenantID
+// in params MUST be the caller's tenant — the SQL WHERE pair (id,
+// tenant_id) makes a cross-tenant write a 0-row UPDATE which sqlc
+// surfaces as pgx.ErrNoRows. We translate that to ErrUserNotFound so
+// the handler returns 404 and doesn't leak cross-tenant existence.
 func (s *Service) UpdateUser(ctx context.Context, params dbgen.UpdateUserParams) (*dbgen.User, error) {
 	user, err := s.queries.UpdateUser(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("update user: %w", err)
+		return nil, ErrUserNotFound
 	}
 	return &user, nil
 }
@@ -131,21 +147,24 @@ func (s *Service) UpdateRole(ctx context.Context, params dbgen.UpdateRoleParams)
 
 // AssignRole assigns a role to a user, enforcing same-tenant isolation.
 //
-// Two layers of defense:
-//  1. Application-layer check here — fetch users.tenant_id and roles.tenant_id,
-//     return ErrCrossTenantRole when the role is tenant-scoped and differs
-//     from the user's tenant. System roles (roles.tenant_id IS NULL) bypass
-//     this check and are assignable to any user.
-//  2. Database trigger trg_user_roles_tenant_check (migration 000045) which
-//     re-validates on INSERT/UPDATE and stamps user_roles.tenant_id. If this
-//     check is bypassed (e.g. raw SQL), the trigger still fails closed.
-//
-// Lookup failures for either the user or the role are propagated as errors,
-// never silently swallowed — fail-closed by design.
-func (s *Service) AssignRole(ctx context.Context, userID, roleID uuid.UUID) error {
-	user, err := s.queries.GetUser(ctx, userID)
+// Three layers of defense:
+//  1. Tenant-scoped user lookup (NEW): GetUserScoped fails closed when
+//     the target user doesn't belong to the caller's tenant. Without this
+//     check, a tenant A admin could assign a system role to a tenant B
+//     user — privilege escalation across tenants.
+//  2. Application-layer role check: fetch roles.tenant_id, return
+//     ErrCrossTenantRole when the role is tenant-scoped and differs
+//     from the user's tenant. System roles bypass this and are
+//     assignable to any user (within the caller's own tenant).
+//  3. Database trigger trg_user_roles_tenant_check (migration 000045)
+//     which re-validates on INSERT/UPDATE — last line of defense if
+//     application checks are bypassed.
+func (s *Service) AssignRole(ctx context.Context, tenantID, userID, roleID uuid.UUID) error {
+	user, err := s.queries.GetUserScoped(ctx, dbgen.GetUserScopedParams{
+		ID: userID, TenantID: tenantID,
+	})
 	if err != nil {
-		return fmt.Errorf("assign role: lookup user: %w", err)
+		return ErrUserNotFound
 	}
 	role, err := s.queries.GetRole(ctx, roleID)
 	if err != nil {
@@ -168,17 +187,30 @@ func (s *Service) AssignRole(ctx context.Context, userID, roleID uuid.UUID) erro
 	return nil
 }
 
-// RemoveRole removes a role from a user.
-func (s *Service) RemoveRole(ctx context.Context, userID, roleID uuid.UUID) error {
-	err := s.queries.RemoveRole(ctx, dbgen.RemoveRoleParams{UserID: userID, RoleID: roleID})
-	if err != nil {
+// RemoveRole removes a role from a user. Validates the user belongs to
+// the caller's tenant first — without this check, a tenant A admin
+// could strip roles from a tenant B user (DoS / lockout attack).
+func (s *Service) RemoveRole(ctx context.Context, tenantID, userID, roleID uuid.UUID) error {
+	if _, err := s.queries.GetUserScoped(ctx, dbgen.GetUserScopedParams{
+		ID: userID, TenantID: tenantID,
+	}); err != nil {
+		return ErrUserNotFound
+	}
+	if err := s.queries.RemoveRole(ctx, dbgen.RemoveRoleParams{UserID: userID, RoleID: roleID}); err != nil {
 		return fmt.Errorf("remove role: %w", err)
 	}
 	return nil
 }
 
-// ListUserRoleIDs returns the role IDs assigned to a user.
-func (s *Service) ListUserRoleIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+// ListUserRoleIDs returns the role IDs assigned to a user. Scoped to the
+// caller's tenant — without this, tenant A could enumerate tenant B's
+// user-role assignments.
+func (s *Service) ListUserRoleIDs(ctx context.Context, tenantID, userID uuid.UUID) ([]uuid.UUID, error) {
+	if _, err := s.queries.GetUserScoped(ctx, dbgen.GetUserScopedParams{
+		ID: userID, TenantID: tenantID,
+	}); err != nil {
+		return nil, ErrUserNotFound
+	}
 	ids, err := s.queries.ListUserRoleIDs(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list user role IDs: %w", err)

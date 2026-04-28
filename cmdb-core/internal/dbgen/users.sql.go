@@ -111,6 +111,10 @@ const getUser = `-- name: GetUser :one
 SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE id = $1
 `
 
+// DEPRECATED: this lookup is unscoped — callers can fetch a user from
+// any tenant by guessing the UUID. Kept ONLY for legacy paths (auth
+// token resolution, where we don't yet have a tenant context). New
+// code should use GetUserScoped which enforces tenant isolation.
 func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUser, id)
 	var i User
@@ -183,6 +187,43 @@ SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_ha
 // deactivated identity (matches the `idx_users_not_deleted` index).
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByUsername, username)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.DeptID,
+		&i.Username,
+		&i.DisplayName,
+		&i.Email,
+		&i.Phone,
+		&i.PasswordHash,
+		&i.Status,
+		&i.Source,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastLoginAt,
+		&i.LastLoginIp,
+		&i.DeletedAt,
+		&i.PasswordChangedAt,
+	)
+	return i, err
+}
+
+const getUserScoped = `-- name: GetUserScoped :one
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+`
+
+type GetUserScopedParams struct {
+	ID       uuid.UUID `json:"id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+// Tenant-scoped GetUser — used by every user-management endpoint
+// (UpdateUser, GetUser via the API, AssignRole, RemoveRole,
+// ListUserRoles). Returns ErrNoRows when the id exists in another
+// tenant; handler maps that to 404 to avoid leaking existence.
+func (q *Queries) GetUserScoped(ctx context.Context, arg GetUserScopedParams) (User, error) {
+	row := q.db.QueryRow(ctx, getUserScoped, arg.ID, arg.TenantID)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -320,6 +361,7 @@ UPDATE users SET
     status        = COALESCE($6, status),
     updated_at    = now()
 WHERE id = $7
+  AND tenant_id = $8
 RETURNING id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at
 `
 
@@ -331,8 +373,12 @@ type UpdateUserParams struct {
 	PasswordHash pgtype.Text `json:"password_hash"`
 	Status       pgtype.Text `json:"status"`
 	ID           uuid.UUID   `json:"id"`
+	TenantID     uuid.UUID   `json:"tenant_id"`
 }
 
+// Tenant-scoped update. Returns 0 rows (sql.ErrNoRows from sqlc) when
+// the target user belongs to a different tenant — handler maps that
+// to 404 to avoid leaking existence across tenants.
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, updateUser,
 		arg.DeptID,
@@ -342,6 +388,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		arg.PasswordHash,
 		arg.Status,
 		arg.ID,
+		arg.TenantID,
 	)
 	var i User
 	err := row.Scan(

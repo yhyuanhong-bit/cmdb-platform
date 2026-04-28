@@ -210,7 +210,9 @@ UPDATE roles SET
     name        = COALESCE($1, name),
     description = COALESCE($2, description),
     permissions = COALESCE($3, permissions)
-WHERE id = $4 AND is_system = false
+WHERE id = $4
+  AND tenant_id = $5
+  AND is_system = false
 RETURNING id, tenant_id, name, description, permissions, is_system, created_at
 `
 
@@ -219,14 +221,19 @@ type UpdateRoleParams struct {
 	Description pgtype.Text `json:"description"`
 	Permissions []byte      `json:"permissions"`
 	ID          uuid.UUID   `json:"id"`
+	TenantID    pgtype.UUID `json:"tenant_id"`
 }
 
+// Tenant-scoped role update. The (id, tenant_id) WHERE pair prevents
+// tenant A's admin from editing tenant B's custom role by guessing UUID.
+// System roles (tenant_id IS NULL) are protected by `is_system = false`.
 func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, error) {
 	row := q.db.QueryRow(ctx, updateRole,
 		arg.Name,
 		arg.Description,
 		arg.Permissions,
 		arg.ID,
+		arg.TenantID,
 	)
 	var i Role
 	err := row.Scan(

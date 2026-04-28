@@ -20,24 +20,24 @@ import (
 // mockIdentityService implements identityService for handler tests.
 type mockIdentityService struct {
 	listUsersFn       func(ctx context.Context, tenantID uuid.UUID, limit, offset int32) ([]dbgen.User, int64, error)
-	getUserFn         func(ctx context.Context, id uuid.UUID) (*dbgen.User, error)
+	getUserFn         func(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.User, error)
 	createUserFn      func(ctx context.Context, params dbgen.CreateUserParams, pw string) (*dbgen.User, error)
 	updateUserFn      func(ctx context.Context, params dbgen.UpdateUserParams) (*dbgen.User, error)
 	listRolesFn       func(ctx context.Context, tenantID uuid.UUID) ([]dbgen.Role, error)
 	createRoleFn      func(ctx context.Context, params dbgen.CreateRoleParams) (*dbgen.Role, error)
 	updateRoleFn      func(ctx context.Context, params dbgen.UpdateRoleParams) (*dbgen.Role, error)
 	deleteRoleFn      func(ctx context.Context, tenantID, id uuid.UUID) error
-	assignRoleFn      func(ctx context.Context, userID, roleID uuid.UUID) error
-	removeRoleFn      func(ctx context.Context, userID, roleID uuid.UUID) error
-	listUserRoleIDsFn func(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
+	assignRoleFn      func(ctx context.Context, tenantID, userID, roleID uuid.UUID) error
+	removeRoleFn      func(ctx context.Context, tenantID, userID, roleID uuid.UUID) error
+	listUserRoleIDsFn func(ctx context.Context, tenantID, userID uuid.UUID) ([]uuid.UUID, error)
 	deactivateFn      func(ctx context.Context, tenantID, userID uuid.UUID) error
 }
 
 func (m *mockIdentityService) ListUsers(ctx context.Context, tenantID uuid.UUID, limit, offset int32) ([]dbgen.User, int64, error) {
 	return m.listUsersFn(ctx, tenantID, limit, offset)
 }
-func (m *mockIdentityService) GetUser(ctx context.Context, id uuid.UUID) (*dbgen.User, error) {
-	return m.getUserFn(ctx, id)
+func (m *mockIdentityService) GetUser(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.User, error) {
+	return m.getUserFn(ctx, tenantID, id)
 }
 func (m *mockIdentityService) CreateUser(ctx context.Context, params dbgen.CreateUserParams, pw string) (*dbgen.User, error) {
 	return m.createUserFn(ctx, params, pw)
@@ -57,14 +57,14 @@ func (m *mockIdentityService) UpdateRole(ctx context.Context, params dbgen.Updat
 func (m *mockIdentityService) DeleteRole(ctx context.Context, tenantID, id uuid.UUID) error {
 	return m.deleteRoleFn(ctx, tenantID, id)
 }
-func (m *mockIdentityService) AssignRole(ctx context.Context, userID, roleID uuid.UUID) error {
-	return m.assignRoleFn(ctx, userID, roleID)
+func (m *mockIdentityService) AssignRole(ctx context.Context, tenantID, userID, roleID uuid.UUID) error {
+	return m.assignRoleFn(ctx, tenantID, userID, roleID)
 }
-func (m *mockIdentityService) RemoveRole(ctx context.Context, userID, roleID uuid.UUID) error {
-	return m.removeRoleFn(ctx, userID, roleID)
+func (m *mockIdentityService) RemoveRole(ctx context.Context, tenantID, userID, roleID uuid.UUID) error {
+	return m.removeRoleFn(ctx, tenantID, userID, roleID)
 }
-func (m *mockIdentityService) ListUserRoleIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
-	return m.listUserRoleIDsFn(ctx, userID)
+func (m *mockIdentityService) ListUserRoleIDs(ctx context.Context, tenantID, userID uuid.UUID) ([]uuid.UUID, error) {
+	return m.listUserRoleIDsFn(ctx, tenantID, userID)
 }
 func (m *mockIdentityService) Deactivate(ctx context.Context, tenantID, userID uuid.UUID) error {
 	return m.deactivateFn(ctx, tenantID, userID)
@@ -115,7 +115,7 @@ func TestAssignRoleToUser_Success(t *testing.T) {
 	roleID := uuid.New()
 	var capturedUser, capturedRole uuid.UUID
 	svc := &mockIdentityService{
-		assignRoleFn: func(_ context.Context, u, r uuid.UUID) error {
+		assignRoleFn: func(_ context.Context, _ uuid.UUID, u, r uuid.UUID) error {
 			capturedUser = u
 			capturedRole = r
 			return nil
@@ -160,7 +160,7 @@ func TestAssignRoleToUser_CrossTenantReturns400(t *testing.T) {
 	userID := uuid.New()
 	roleID := uuid.New()
 	svc := &mockIdentityService{
-		assignRoleFn: func(_ context.Context, _, _ uuid.UUID) error {
+		assignRoleFn: func(_ context.Context, _ uuid.UUID, _, _ uuid.UUID) error {
 			// Match the sentinel the service layer returns on cross-tenant.
 			return fmt.Errorf("wrapper: %w", identity.ErrCrossTenantRole)
 		},
@@ -194,7 +194,7 @@ func TestAssignRoleToUser_ServiceError(t *testing.T) {
 	userID := uuid.New()
 	roleID := uuid.New()
 	svc := &mockIdentityService{
-		assignRoleFn: func(_ context.Context, _, _ uuid.UUID) error {
+		assignRoleFn: func(_ context.Context, _ uuid.UUID, _, _ uuid.UUID) error {
 			return errors.New("db failure")
 		},
 	}
@@ -219,7 +219,7 @@ func TestRemoveRoleFromUser_Success(t *testing.T) {
 	roleID := uuid.New()
 	var capturedUser, capturedRole uuid.UUID
 	svc := &mockIdentityService{
-		removeRoleFn: func(_ context.Context, u, r uuid.UUID) error {
+		removeRoleFn: func(_ context.Context, _ uuid.UUID, u, r uuid.UUID) error {
 			capturedUser = u
 			capturedRole = r
 			return nil
@@ -246,7 +246,7 @@ func TestRemoveRoleFromUser_ServiceError(t *testing.T) {
 	userID := uuid.New()
 	roleID := uuid.New()
 	svc := &mockIdentityService{
-		removeRoleFn: func(_ context.Context, _, _ uuid.UUID) error {
+		removeRoleFn: func(_ context.Context, _ uuid.UUID, _, _ uuid.UUID) error {
 			return errors.New("db failure")
 		},
 	}
@@ -271,7 +271,7 @@ func TestListUserRoles_Success(t *testing.T) {
 	userID := uuid.New()
 	roles := []uuid.UUID{uuid.New(), uuid.New()}
 	svc := &mockIdentityService{
-		listUserRoleIDsFn: func(_ context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+		listUserRoleIDsFn: func(_ context.Context, _ uuid.UUID, id uuid.UUID) ([]uuid.UUID, error) {
 			if id != userID {
 				t.Errorf("userID = %s, want %s", id, userID)
 			}
@@ -300,7 +300,7 @@ func TestListUserRoles_Success(t *testing.T) {
 func TestListUserRoles_ServiceError(t *testing.T) {
 	userID := uuid.New()
 	svc := &mockIdentityService{
-		listUserRoleIDsFn: func(_ context.Context, _ uuid.UUID) ([]uuid.UUID, error) {
+		listUserRoleIDsFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID) ([]uuid.UUID, error) {
 			return nil, errors.New("db failure")
 		},
 	}

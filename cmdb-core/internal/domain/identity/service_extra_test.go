@@ -87,6 +87,21 @@ func (f *extendedFakeQueries) GetUser(_ context.Context, id uuid.UUID) (dbgen.Us
 	return u, nil
 }
 
+// GetUserScoped is the tenant-scoped lookup the service now uses.
+// Returns "user not found" when the row exists but belongs to a
+// different tenant — same shape as the real SQL with a (id, tenant_id)
+// WHERE pair.
+func (f *extendedFakeQueries) GetUserScoped(_ context.Context, arg dbgen.GetUserScopedParams) (dbgen.User, error) {
+	if f.getUserErr != nil {
+		return dbgen.User{}, f.getUserErr
+	}
+	u, ok := f.users[arg.ID]
+	if !ok || u.TenantID != arg.TenantID {
+		return dbgen.User{}, errors.New("user not found in tenant")
+	}
+	return u, nil
+}
+
 func (f *extendedFakeQueries) CreateUser(_ context.Context, arg dbgen.CreateUserParams) (dbgen.User, error) {
 	f.lastCreateUserParams = arg
 	if f.createUserErr != nil {
@@ -300,7 +315,7 @@ func TestGetUser(t *testing.T) {
 		q.users[userID] = want
 		svc := &Service{queries: q}
 
-		got, err := svc.GetUser(context.Background(), userID)
+		got, err := svc.GetUser(context.Background(), tenantID, userID)
 		if err != nil {
 			t.Fatalf("unexpected err: %v", err)
 		}
@@ -309,24 +324,40 @@ func TestGetUser(t *testing.T) {
 		}
 	})
 
-	t.Run("not found returns wrapped error", func(t *testing.T) {
+	t.Run("not found returns ErrUserNotFound", func(t *testing.T) {
 		t.Parallel()
 		q := newExtendedFake()
 		svc := &Service{queries: q}
-		_, err := svc.GetUser(context.Background(), uuid.New())
-		if err == nil {
-			t.Fatal("expected not-found error")
+		_, err := svc.GetUser(context.Background(), tenantID, uuid.New())
+		if !errors.Is(err, ErrUserNotFound) {
+			t.Fatalf("expected ErrUserNotFound, got: %v", err)
 		}
 	})
 
-	t.Run("query error propagates", func(t *testing.T) {
+	t.Run("cross-tenant returns ErrUserNotFound", func(t *testing.T) {
+		t.Parallel()
+		q := newExtendedFake()
+		q.users[userID] = want // user lives in tenantID
+		svc := &Service{queries: q}
+
+		// Caller passes a *different* tenant — must look like 404 to
+		// avoid leaking cross-tenant existence.
+		_, err := svc.GetUser(context.Background(), uuid.New(), userID)
+		if !errors.Is(err, ErrUserNotFound) {
+			t.Fatalf("expected ErrUserNotFound for cross-tenant call, got: %v", err)
+		}
+	})
+
+	t.Run("query error mapped to ErrUserNotFound", func(t *testing.T) {
 		t.Parallel()
 		q := newExtendedFake()
 		q.getUserErr = errors.New("db blown up")
 		svc := &Service{queries: q}
-		_, err := svc.GetUser(context.Background(), uuid.New())
-		if err == nil {
-			t.Fatal("expected wrapped error")
+		_, err := svc.GetUser(context.Background(), tenantID, uuid.New())
+		// All lookup failures (not-found, cross-tenant, db error) collapse
+		// into ErrUserNotFound so the handler returns a uniform 404.
+		if !errors.Is(err, ErrUserNotFound) {
+			t.Fatalf("expected ErrUserNotFound, got: %v", err)
 		}
 	})
 }
@@ -583,14 +614,17 @@ func TestDeleteRole_ScopedToTenant(t *testing.T) {
 func TestRemoveRole(t *testing.T) {
 	t.Parallel()
 
+	tenantID := uuid.New()
 	userID := uuid.New()
 	roleID := uuid.New()
 
 	t.Run("success", func(t *testing.T) {
 		t.Parallel()
 		q := newExtendedFake()
+		// Seed the user in our tenant so GetUserScoped finds it.
+		q.users[userID] = dbgen.User{ID: userID, TenantID: tenantID}
 		svc := &Service{queries: q}
-		if err := svc.RemoveRole(context.Background(), userID, roleID); err != nil {
+		if err := svc.RemoveRole(context.Background(), tenantID, userID, roleID); err != nil {
 			t.Fatalf("RemoveRole err: %v", err)
 		}
 		if q.lastRemoveRoleParams.UserID != userID || q.lastRemoveRoleParams.RoleID != roleID {
@@ -598,12 +632,33 @@ func TestRemoveRole(t *testing.T) {
 		}
 	})
 
-	t.Run("error propagates", func(t *testing.T) {
+	t.Run("cross-tenant returns ErrUserNotFound and skips RemoveRole", func(t *testing.T) {
 		t.Parallel()
 		q := newExtendedFake()
+		// User exists but in a *different* tenant.
+		otherTenant := uuid.New()
+		uid := uuid.New()
+		q.users[uid] = dbgen.User{ID: uid, TenantID: otherTenant}
+		svc := &Service{queries: q}
+
+		err := svc.RemoveRole(context.Background(), tenantID, uid, roleID)
+		if !errors.Is(err, ErrUserNotFound) {
+			t.Fatalf("expected ErrUserNotFound for cross-tenant RemoveRole, got: %v", err)
+		}
+		// The downstream RemoveRole DB call must NOT have happened
+		if q.lastRemoveRoleParams.UserID != uuid.Nil {
+			t.Errorf("RemoveRole DB call must be skipped on cross-tenant; got %+v", q.lastRemoveRoleParams)
+		}
+	})
+
+	t.Run("downstream error propagates", func(t *testing.T) {
+		t.Parallel()
+		q := newExtendedFake()
+		uid := uuid.New()
+		q.users[uid] = dbgen.User{ID: uid, TenantID: tenantID}
 		q.removeRoleErr = errors.New("fk violation")
 		svc := &Service{queries: q}
-		err := svc.RemoveRole(context.Background(), uuid.New(), uuid.New())
+		err := svc.RemoveRole(context.Background(), tenantID, uid, roleID)
 		if err == nil {
 			t.Fatal("expected wrapped error")
 		}
@@ -615,6 +670,7 @@ func TestRemoveRole(t *testing.T) {
 func TestListUserRoleIDs(t *testing.T) {
 	t.Parallel()
 
+	tenantID := uuid.New()
 	userID := uuid.New()
 	role1 := uuid.New()
 	role2 := uuid.New()
@@ -622,9 +678,10 @@ func TestListUserRoleIDs(t *testing.T) {
 	t.Run("returns configured ids", func(t *testing.T) {
 		t.Parallel()
 		q := newExtendedFake()
+		q.users[userID] = dbgen.User{ID: userID, TenantID: tenantID}
 		q.userRoleIDs[userID] = []uuid.UUID{role1, role2}
 		svc := &Service{queries: q}
-		ids, err := svc.ListUserRoleIDs(context.Background(), userID)
+		ids, err := svc.ListUserRoleIDs(context.Background(), tenantID, userID)
 		if err != nil {
 			t.Fatalf("err: %v", err)
 		}
@@ -633,12 +690,29 @@ func TestListUserRoleIDs(t *testing.T) {
 		}
 	})
 
-	t.Run("error propagates", func(t *testing.T) {
+	t.Run("cross-tenant returns ErrUserNotFound", func(t *testing.T) {
 		t.Parallel()
 		q := newExtendedFake()
+		uid := uuid.New()
+		// User exists but in another tenant
+		q.users[uid] = dbgen.User{ID: uid, TenantID: uuid.New()}
+		q.userRoleIDs[uid] = []uuid.UUID{role1}
+		svc := &Service{queries: q}
+
+		_, err := svc.ListUserRoleIDs(context.Background(), tenantID, uid)
+		if !errors.Is(err, ErrUserNotFound) {
+			t.Fatalf("expected ErrUserNotFound, got: %v", err)
+		}
+	})
+
+	t.Run("downstream error propagates", func(t *testing.T) {
+		t.Parallel()
+		q := newExtendedFake()
+		uid := uuid.New()
+		q.users[uid] = dbgen.User{ID: uid, TenantID: tenantID}
 		q.listUserRoleIDsErr = errors.New("pool closed")
 		svc := &Service{queries: q}
-		_, err := svc.ListUserRoleIDs(context.Background(), uuid.New())
+		_, err := svc.ListUserRoleIDs(context.Background(), tenantID, uid)
 		if err == nil {
 			t.Fatal("expected wrapped error")
 		}
@@ -696,7 +770,7 @@ func TestAssignRole_PropagatesQueryFailure(t *testing.T) {
 	q.assignRoleErr = errors.New("trigger rejected")
 
 	svc := &Service{queries: q}
-	err := svc.AssignRole(context.Background(), userID, roleID)
+	err := svc.AssignRole(context.Background(), tenantID, userID, roleID)
 	if err == nil {
 		t.Fatal("expected wrapped error from AssignRole query failure")
 	}

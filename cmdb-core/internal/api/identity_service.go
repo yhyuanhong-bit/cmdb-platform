@@ -13,16 +13,16 @@ import (
 // handlers can be unit-tested with a mock.
 type identityService interface {
 	ListUsers(ctx context.Context, tenantID uuid.UUID, limit, offset int32) ([]dbgen.User, int64, error)
-	GetUser(ctx context.Context, id uuid.UUID) (*dbgen.User, error)
+	GetUser(ctx context.Context, tenantID, id uuid.UUID) (*dbgen.User, error)
 	CreateUser(ctx context.Context, params dbgen.CreateUserParams, plainPassword string) (*dbgen.User, error)
 	UpdateUser(ctx context.Context, params dbgen.UpdateUserParams) (*dbgen.User, error)
 	ListRoles(ctx context.Context, tenantID uuid.UUID) ([]dbgen.Role, error)
 	CreateRole(ctx context.Context, params dbgen.CreateRoleParams) (*dbgen.Role, error)
 	UpdateRole(ctx context.Context, params dbgen.UpdateRoleParams) (*dbgen.Role, error)
 	DeleteRole(ctx context.Context, tenantID, id uuid.UUID) error
-	AssignRole(ctx context.Context, userID, roleID uuid.UUID) error
-	RemoveRole(ctx context.Context, userID, roleID uuid.UUID) error
-	ListUserRoleIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
+	AssignRole(ctx context.Context, tenantID, userID, roleID uuid.UUID) error
+	RemoveRole(ctx context.Context, tenantID, userID, roleID uuid.UUID) error
+	ListUserRoleIDs(ctx context.Context, tenantID, userID uuid.UUID) ([]uuid.UUID, error)
 	Deactivate(ctx context.Context, tenantID, userID uuid.UUID) error
 }
 

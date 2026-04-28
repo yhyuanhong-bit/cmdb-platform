@@ -11,11 +11,17 @@ INSERT INTO roles (
 ) RETURNING *;
 
 -- name: UpdateRole :one
+--
+-- Tenant-scoped role update. The (id, tenant_id) WHERE pair prevents
+-- tenant A's admin from editing tenant B's custom role by guessing UUID.
+-- System roles (tenant_id IS NULL) are protected by `is_system = false`.
 UPDATE roles SET
     name        = COALESCE(sqlc.narg('name'), name),
     description = COALESCE(sqlc.narg('description'), description),
     permissions = COALESCE(sqlc.narg('permissions'), permissions)
-WHERE id = sqlc.arg('id') AND is_system = false
+WHERE id = sqlc.arg('id')
+  AND tenant_id = sqlc.arg('tenant_id')
+  AND is_system = false
 RETURNING *;
 
 -- name: DeleteRole :exec

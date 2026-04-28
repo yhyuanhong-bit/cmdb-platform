@@ -338,71 +338,6 @@ type BiaScoringRule struct {
 	CreatedAt    time.Time      `json:"created_at"`
 }
 
-type Change struct {
-	ID                uuid.UUID          `json:"id"`
-	TenantID          uuid.UUID          `json:"tenant_id"`
-	Title             string             `json:"title"`
-	Description       pgtype.Text        `json:"description"`
-	Type              string             `json:"type"`
-	Risk              string             `json:"risk"`
-	Status            string             `json:"status"`
-	ApprovalThreshold int32              `json:"approval_threshold"`
-	RequestedBy       pgtype.UUID        `json:"requested_by"`
-	AssigneeUserID    pgtype.UUID        `json:"assignee_user_id"`
-	PlannedStart      pgtype.Timestamptz `json:"planned_start"`
-	PlannedEnd        pgtype.Timestamptz `json:"planned_end"`
-	ActualStart       pgtype.Timestamptz `json:"actual_start"`
-	ActualEnd         pgtype.Timestamptz `json:"actual_end"`
-	RollbackPlan      pgtype.Text        `json:"rollback_plan"`
-	ImpactSummary     pgtype.Text        `json:"impact_summary"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
-	SubmittedAt       pgtype.Timestamptz `json:"submitted_at"`
-	ApprovedAt        pgtype.Timestamptz `json:"approved_at"`
-	RejectedAt        pgtype.Timestamptz `json:"rejected_at"`
-}
-
-type ChangeApproval struct {
-	ID       uuid.UUID   `json:"id"`
-	TenantID uuid.UUID   `json:"tenant_id"`
-	ChangeID uuid.UUID   `json:"change_id"`
-	VoterID  uuid.UUID   `json:"voter_id"`
-	Vote     string      `json:"vote"`
-	Note     pgtype.Text `json:"note"`
-	VotedAt  time.Time   `json:"voted_at"`
-}
-
-type ChangeAsset struct {
-	ChangeID  uuid.UUID `json:"change_id"`
-	AssetID   uuid.UUID `json:"asset_id"`
-	TenantID  uuid.UUID `json:"tenant_id"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type ChangeComment struct {
-	ID        uuid.UUID   `json:"id"`
-	TenantID  uuid.UUID   `json:"tenant_id"`
-	ChangeID  uuid.UUID   `json:"change_id"`
-	AuthorID  pgtype.UUID `json:"author_id"`
-	Kind      string      `json:"kind"`
-	Body      string      `json:"body"`
-	CreatedAt time.Time   `json:"created_at"`
-}
-
-type ChangeProblem struct {
-	ChangeID  uuid.UUID `json:"change_id"`
-	ProblemID uuid.UUID `json:"problem_id"`
-	TenantID  uuid.UUID `json:"tenant_id"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type ChangeService struct {
-	ChangeID  uuid.UUID `json:"change_id"`
-	ServiceID uuid.UUID `json:"service_id"`
-	TenantID  uuid.UUID `json:"tenant_id"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
 type Credential struct {
 	ID        uuid.UUID   `json:"id"`
 	TenantID  uuid.UUID   `json:"tenant_id"`
@@ -443,57 +378,6 @@ type DiscoveredAsset struct {
 	ReviewReason    pgtype.Text        `json:"review_reason"`
 }
 
-type EnergyAnomaly struct {
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	AssetID        uuid.UUID          `json:"asset_id"`
-	Day            pgtype.Date        `json:"day"`
-	Kind           string             `json:"kind"`
-	BaselineMedian pgtype.Numeric     `json:"baseline_median"`
-	ObservedKwh    pgtype.Numeric     `json:"observed_kwh"`
-	Score          pgtype.Numeric     `json:"score"`
-	Status         string             `json:"status"`
-	DetectedAt     time.Time          `json:"detected_at"`
-	ReviewedBy     pgtype.UUID        `json:"reviewed_by"`
-	ReviewedAt     pgtype.Timestamptz `json:"reviewed_at"`
-	Note           pgtype.Text        `json:"note"`
-}
-
-type EnergyDailyKwh struct {
-	TenantID    uuid.UUID      `json:"tenant_id"`
-	AssetID     uuid.UUID      `json:"asset_id"`
-	Day         pgtype.Date    `json:"day"`
-	KwhTotal    pgtype.Numeric `json:"kwh_total"`
-	KwPeak      pgtype.Numeric `json:"kw_peak"`
-	KwAvg       pgtype.Numeric `json:"kw_avg"`
-	SampleCount int32          `json:"sample_count"`
-	ComputedAt  time.Time      `json:"computed_at"`
-}
-
-type EnergyLocationDaily struct {
-	TenantID        uuid.UUID      `json:"tenant_id"`
-	LocationID      uuid.UUID      `json:"location_id"`
-	Day             pgtype.Date    `json:"day"`
-	ItKwh           pgtype.Numeric `json:"it_kwh"`
-	NonItKwh        pgtype.Numeric `json:"non_it_kwh"`
-	TotalKwh        pgtype.Numeric `json:"total_kwh"`
-	ItAssetCount    int32          `json:"it_asset_count"`
-	NonItAssetCount int32          `json:"non_it_asset_count"`
-	ComputedAt      time.Time      `json:"computed_at"`
-}
-
-type EnergyTariff struct {
-	ID            uuid.UUID      `json:"id"`
-	TenantID      uuid.UUID      `json:"tenant_id"`
-	LocationID    pgtype.UUID    `json:"location_id"`
-	Currency      string         `json:"currency"`
-	RatePerKwh    pgtype.Numeric `json:"rate_per_kwh"`
-	EffectiveFrom pgtype.Date    `json:"effective_from"`
-	EffectiveTo   pgtype.Date    `json:"effective_to"`
-	Notes         pgtype.Text    `json:"notes"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-}
-
 type Incident struct {
 	ID                uuid.UUID          `json:"id"`
 	TenantID          uuid.UUID          `json:"tenant_id"`
@@ -523,14 +407,6 @@ type IncidentComment struct {
 	Kind       string      `json:"kind"`
 	Body       string      `json:"body"`
 	CreatedAt  time.Time   `json:"created_at"`
-}
-
-type IncidentProblemLink struct {
-	IncidentID uuid.UUID   `json:"incident_id"`
-	ProblemID  uuid.UUID   `json:"problem_id"`
-	TenantID   uuid.UUID   `json:"tenant_id"`
-	CreatedAt  time.Time   `json:"created_at"`
-	CreatedBy  pgtype.UUID `json:"created_by"`
 }
 
 type IntegrationAdapter struct {
@@ -725,36 +601,6 @@ type PredictiveRefreshRecommendation struct {
 	Note              pgtype.Text        `json:"note"`
 }
 
-type Problem struct {
-	ID             uuid.UUID          `json:"id"`
-	TenantID       uuid.UUID          `json:"tenant_id"`
-	Title          string             `json:"title"`
-	Description    pgtype.Text        `json:"description"`
-	Status         string             `json:"status"`
-	Priority       pgtype.Text        `json:"priority"`
-	Severity       string             `json:"severity"`
-	RootCause      pgtype.Text        `json:"root_cause"`
-	Workaround     pgtype.Text        `json:"workaround"`
-	Resolution     pgtype.Text        `json:"resolution"`
-	AssigneeUserID pgtype.UUID        `json:"assignee_user_id"`
-	CreatedBy      pgtype.UUID        `json:"created_by"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
-	ResolvedAt     pgtype.Timestamptz `json:"resolved_at"`
-	ResolvedBy     pgtype.UUID        `json:"resolved_by"`
-	ClosedAt       pgtype.Timestamptz `json:"closed_at"`
-}
-
-type ProblemComment struct {
-	ID        uuid.UUID   `json:"id"`
-	TenantID  uuid.UUID   `json:"tenant_id"`
-	ProblemID uuid.UUID   `json:"problem_id"`
-	AuthorID  pgtype.UUID `json:"author_id"`
-	Kind      string      `json:"kind"`
-	Body      string      `json:"body"`
-	CreatedAt time.Time   `json:"created_at"`
-}
-
 type QualityFlag struct {
 	ID             uuid.UUID          `json:"id"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
@@ -926,34 +772,6 @@ type SwitchPortMapping struct {
 	ConnectedUPosition pgtype.Int4        `json:"connected_u_position"`
 	Description        pgtype.Text        `json:"description"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-}
-
-type SyncConflict struct {
-	ID            uuid.UUID          `json:"id"`
-	TenantID      uuid.UUID          `json:"tenant_id"`
-	EntityType    string             `json:"entity_type"`
-	EntityID      uuid.UUID          `json:"entity_id"`
-	LocalVersion  int64              `json:"local_version"`
-	RemoteVersion int64              `json:"remote_version"`
-	LocalDiff     json.RawMessage    `json:"local_diff"`
-	RemoteDiff    json.RawMessage    `json:"remote_diff"`
-	Resolution    pgtype.Text        `json:"resolution"`
-	ResolvedBy    pgtype.UUID        `json:"resolved_by"`
-	ResolvedAt    pgtype.Timestamptz `json:"resolved_at"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-}
-
-type SyncState struct {
-	ID              uuid.UUID          `json:"id"`
-	NodeID          string             `json:"node_id"`
-	TenantID        uuid.UUID          `json:"tenant_id"`
-	EntityType      string             `json:"entity_type"`
-	LastSyncVersion pgtype.Int8        `json:"last_sync_version"`
-	LastSyncAt      pgtype.Timestamptz `json:"last_sync_at"`
-	Status          pgtype.Text        `json:"status"`
-	ErrorMessage    pgtype.Text        `json:"error_message"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Tenant struct {

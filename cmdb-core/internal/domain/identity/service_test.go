@@ -40,6 +40,24 @@ func (f *fakeIdentityQueries) GetUser(_ context.Context, id uuid.UUID) (dbgen.Us
 	return u, nil
 }
 
+// GetUserScoped is the tenant-scoped variant the service now uses for
+// AssignRole / RemoveRole / ListUserRoleIDs / GetUser. Returns the
+// fake's getUserErr when set (for the lookup-failure tests), otherwise
+// looks up by ID and returns "user not found" if (id, tenantID) mismatch.
+func (f *fakeIdentityQueries) GetUserScoped(_ context.Context, arg dbgen.GetUserScopedParams) (dbgen.User, error) {
+	if f.getUserErr != nil {
+		return dbgen.User{}, f.getUserErr
+	}
+	u, ok := f.users[arg.ID]
+	if !ok {
+		return dbgen.User{}, errors.New("user not found")
+	}
+	if u.TenantID != arg.TenantID {
+		return dbgen.User{}, errors.New("user not found in tenant")
+	}
+	return u, nil
+}
+
 func (f *fakeIdentityQueries) GetRole(_ context.Context, id uuid.UUID) (dbgen.Role, error) {
 	if f.getRoleErr != nil {
 		return dbgen.Role{}, f.getRoleErr
@@ -173,8 +191,13 @@ func TestAssignRole_TenantEnforcement(t *testing.T) {
 			q.roles[tc.role.ID] = tc.role
 			svc := &Service{queries: q}
 
-			// Act
-			err := svc.AssignRole(context.Background(), tc.user.ID, tc.role.ID)
+			// Act — caller's tenant equals the user's tenant (the
+			// authenticated admin is acting on a user in their own
+			// tenant). Cross-tenant *role* assignment is what
+			// ErrCrossTenantRole guards; cross-tenant *user* access
+			// is now blocked at the GetUserScoped lookup and tested
+			// separately in TestAssignRole_CrossTenantUser.
+			err := svc.AssignRole(context.Background(), tc.user.TenantID, tc.user.ID, tc.role.ID)
 
 			// Assert: error matches expectation.
 			if tc.wantErr == nil {
@@ -217,7 +240,7 @@ func TestAssignRole_LookupFailures(t *testing.T) {
 		q.getUserErr = errors.New("user pool down")
 		svc := &Service{queries: q}
 
-		err := svc.AssignRole(context.Background(), userID, roleID)
+		err := svc.AssignRole(context.Background(), uuid.New(), userID, roleID)
 		if err == nil {
 			t.Fatal("expected error when user lookup fails")
 		}
@@ -234,7 +257,7 @@ func TestAssignRole_LookupFailures(t *testing.T) {
 		q.getRoleErr = errors.New("role pool down")
 		svc := &Service{queries: q}
 
-		err := svc.AssignRole(context.Background(), userID, roleID)
+		err := svc.AssignRole(context.Background(), tenantID, userID, roleID)
 		if err == nil {
 			t.Fatal("expected error when role lookup fails")
 		}
@@ -242,4 +265,47 @@ func TestAssignRole_LookupFailures(t *testing.T) {
 			t.Errorf("AssignRole must not be called when role lookup fails, got %d calls", len(q.assignCalls))
 		}
 	})
+}
+
+// TestAssignRole_CrossTenantUser is the regression guard for the
+// cross-tenant user-management bug uncovered while reviewing the
+// "delete user does nothing" complaint. Tenant A's admin must NOT be
+// able to assign any role (including a system role they legitimately
+// have access to) to a user that belongs to tenant B.
+//
+// Pre-fix: AssignRole used the unscoped GetUser, which happily
+// returned tenant B's user; the only check left was on the *role's*
+// tenant. A system role (tenant_id IS NULL) bypassed that check, so
+// tenant A admin could assign 'platform_admin' to tenant B's user.
+//
+// Post-fix: GetUserScoped requires (id, tenantID) to match — when the
+// caller passes their own tenantID, tenant B's user is invisible and
+// the call returns ErrUserNotFound before any role logic runs.
+func TestAssignRole_CrossTenantUser(t *testing.T) {
+	t.Parallel()
+
+	tenantA := uuid.New()
+	tenantB := uuid.New()
+	userInB := dbgen.User{ID: uuid.New(), TenantID: tenantB, Username: "bob"}
+	systemRole := dbgen.Role{
+		ID:       uuid.New(),
+		TenantID: pgtype.UUID{Valid: false},
+		Name:     "platform_admin",
+		IsSystem: true,
+	}
+
+	q := newFakeQueries()
+	q.users[userInB.ID] = userInB
+	q.roles[systemRole.ID] = systemRole
+	svc := &Service{queries: q}
+
+	// Tenant A admin attempts to assign a system role to tenant B's user.
+	err := svc.AssignRole(context.Background(), tenantA, userInB.ID, systemRole.ID)
+
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("expected ErrUserNotFound for cross-tenant user, got: %v", err)
+	}
+	if len(q.assignCalls) != 0 {
+		t.Errorf("AssignRole must NOT be called when user is in another tenant, got %d calls", len(q.assignCalls))
+	}
 }

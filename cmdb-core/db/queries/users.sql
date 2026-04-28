@@ -1,5 +1,18 @@
 -- name: GetUser :one
+--
+-- DEPRECATED: this lookup is unscoped — callers can fetch a user from
+-- any tenant by guessing the UUID. Kept ONLY for legacy paths (auth
+-- token resolution, where we don't yet have a tenant context). New
+-- code should use GetUserScoped which enforces tenant isolation.
 SELECT * FROM users WHERE id = $1;
+
+-- name: GetUserScoped :one
+--
+-- Tenant-scoped GetUser — used by every user-management endpoint
+-- (UpdateUser, GetUser via the API, AssignRole, RemoveRole,
+-- ListUserRoles). Returns ErrNoRows when the id exists in another
+-- tenant; handler maps that to 404 to avoid leaking existence.
+SELECT * FROM users WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
 
 -- name: GetUserByUsername :one
 --
@@ -58,6 +71,10 @@ INSERT INTO users (
 ) RETURNING *;
 
 -- name: UpdateUser :one
+--
+-- Tenant-scoped update. Returns 0 rows (sql.ErrNoRows from sqlc) when
+-- the target user belongs to a different tenant — handler maps that
+-- to 404 to avoid leaking existence across tenants.
 UPDATE users SET
     dept_id       = COALESCE(sqlc.narg('dept_id'), dept_id),
     display_name  = COALESCE(sqlc.narg('display_name'), display_name),
@@ -67,6 +84,7 @@ UPDATE users SET
     status        = COALESCE(sqlc.narg('status'), status),
     updated_at    = now()
 WHERE id = sqlc.arg('id')
+  AND tenant_id = sqlc.arg('tenant_id')
 RETURNING *;
 
 -- name: DeactivateUser :exec

@@ -32,10 +32,11 @@ func (s *APIServer) ListUsers(c *gin.Context, params ListUsersParams) {
 	response.OKList(c, convertSlice(users, toAPIUser), page, pageSize, int(total))
 }
 
-// GetUser returns a single user by ID.
+// GetUser returns a single user by ID, scoped to the caller's tenant.
 // (GET /users/{id})
 func (s *APIServer) GetUser(c *gin.Context, id IdPath) {
-	user, err := s.identitySvc.GetUser(c.Request.Context(), uuid.UUID(id))
+	tenantID := tenantIDFromContext(c)
+	user, err := s.identitySvc.GetUser(c.Request.Context(), tenantID, uuid.UUID(id))
 	if err != nil {
 		response.NotFound(c, "user not found")
 		return
@@ -87,7 +88,9 @@ func (s *APIServer) CreateUser(c *gin.Context) {
 	response.Created(c, toAPIUser(*user))
 }
 
-// UpdateUser updates an existing user.
+// UpdateUser updates an existing user. Tenant-scoped — the SQL UPDATE
+// pairs id with tenant_id so a cross-tenant write becomes a 0-row
+// no-op which the service translates to ErrUserNotFound (404).
 // (PUT /users/{id})
 func (s *APIServer) UpdateUser(c *gin.Context, id IdPath) {
 	var req UpdateUserJSONRequestBody
@@ -97,7 +100,8 @@ func (s *APIServer) UpdateUser(c *gin.Context, id IdPath) {
 	}
 
 	params := dbgen.UpdateUserParams{
-		ID: uuid.UUID(id),
+		ID:       uuid.UUID(id),
+		TenantID: tenantIDFromContext(c),
 	}
 	if req.DisplayName != nil {
 		params.DisplayName = pgtype.Text{String: *req.DisplayName, Valid: true}
@@ -186,7 +190,8 @@ func (s *APIServer) UpdateRole(c *gin.Context, id IdPath) {
 	}
 
 	params := dbgen.UpdateRoleParams{
-		ID: uuid.UUID(id),
+		ID:       uuid.UUID(id),
+		TenantID: pgtype.UUID{Bytes: tenantIDFromContext(c), Valid: true},
 	}
 	if req.Name != nil {
 		params.Name = pgtype.Text{String: *req.Name, Valid: true}
@@ -230,13 +235,18 @@ func (s *APIServer) DeleteRole(c *gin.Context, id IdPath) {
 // (POST /users/{id}/roles)
 func (s *APIServer) AssignRoleToUser(c *gin.Context, id IdPath) {
 	userID := uuid.UUID(id)
+	tenantID := tenantIDFromContext(c)
 	var req AssignRoleToUserJSONRequestBody
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "role_id is required")
 		return
 	}
 	roleID := uuid.UUID(req.RoleId)
-	if err := s.identitySvc.AssignRole(c.Request.Context(), userID, roleID); err != nil {
+	if err := s.identitySvc.AssignRole(c.Request.Context(), tenantID, userID, roleID); err != nil {
+		if errors.Is(err, identity.ErrUserNotFound) {
+			response.NotFound(c, "user not found")
+			return
+		}
 		if errors.Is(err, identity.ErrCrossTenantRole) {
 			response.Err(c, http.StatusBadRequest, "CROSS_TENANT_ROLE",
 				"role belongs to a different tenant than the user")
@@ -256,7 +266,12 @@ func (s *APIServer) AssignRoleToUser(c *gin.Context, id IdPath) {
 func (s *APIServer) RemoveRoleFromUser(c *gin.Context, id IdPath, roleId openapi_types.UUID) {
 	userID := uuid.UUID(id)
 	roleID := uuid.UUID(roleId)
-	if err := s.identitySvc.RemoveRole(c.Request.Context(), userID, roleID); err != nil {
+	tenantID := tenantIDFromContext(c)
+	if err := s.identitySvc.RemoveRole(c.Request.Context(), tenantID, userID, roleID); err != nil {
+		if errors.Is(err, identity.ErrUserNotFound) {
+			response.NotFound(c, "user not found")
+			return
+		}
 		response.InternalError(c, "failed to remove role")
 		return
 	}
@@ -270,8 +285,13 @@ func (s *APIServer) RemoveRoleFromUser(c *gin.Context, id IdPath, roleId openapi
 // (GET /users/{id}/roles)
 func (s *APIServer) ListUserRoles(c *gin.Context, id IdPath) {
 	userID := uuid.UUID(id)
-	roleIDs, err := s.identitySvc.ListUserRoleIDs(c.Request.Context(), userID)
+	tenantID := tenantIDFromContext(c)
+	roleIDs, err := s.identitySvc.ListUserRoleIDs(c.Request.Context(), tenantID, userID)
 	if err != nil {
+		if errors.Is(err, identity.ErrUserNotFound) {
+			response.NotFound(c, "user not found")
+			return
+		}
 		response.InternalError(c, "failed to list user roles")
 		return
 	}
