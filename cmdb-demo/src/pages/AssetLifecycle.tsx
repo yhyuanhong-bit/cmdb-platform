@@ -66,16 +66,31 @@ export default function AssetLifecycle() {
     offline: 'Decommission',
   }
 
+  // Derive stage counts from the SERVER-side aggregation in
+  // `/assets/lifecycle-stats.by_status` so the totals reflect every
+  // asset in the tenant — not just the first page (audit finding H8,
+  // 2026-04-28). Falls back to local-page derivation if the stats
+  // endpoint hasn't responded yet so the UI still renders something.
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {
       Procurement: 0, Deployment: 0, Active: 0, Maintenance: 0, Decommission: 0, Disposal: 0,
     }
+    const byStatus = (lcStats as { by_status?: Record<string, number> } | undefined)?.by_status
+    if (byStatus && Object.keys(byStatus).length > 0) {
+      for (const [status, n] of Object.entries(byStatus)) {
+        const stage = statusToStage[status.toLowerCase()] ?? 'Active'
+        counts[stage] = (counts[stage] ?? 0) + (n ?? 0)
+      }
+      return counts
+    }
+    // Fallback: server stats not loaded yet — use the visible page so
+    // the chart isn't empty during the initial render.
     assets.forEach((a) => {
       const stage = statusToStage[a.status?.toLowerCase()] ?? 'Active'
       counts[stage] = (counts[stage] ?? 0) + 1
     })
     return counts
-  }, [assets])
+  }, [assets, lcStats])
 
   const lifecycleStages: LifecycleStage[] = lifecycleStagesDef.map((s) => ({
     ...s,
@@ -155,12 +170,14 @@ export default function AssetLifecycle() {
                 <span className="text-lg font-bold font-headline text-on-surface">
                   {stage.count.toLocaleString()}
                 </span>
-                {/* Proportion bar */}
+                {/* Proportion bar — width relative to the tenant's full
+                    asset count (audit H8); the previous magic 11205 was
+                    correct only for one demo dataset. */}
                 <div className="mt-2 w-20 h-1.5 rounded-full bg-surface-container-lowest overflow-hidden">
                   <div
                     className={`h-full rounded-full ${stage.color}`}
                     style={{
-                      width: `${Math.max(8, (stage.count / 11205) * 100)}%`,
+                      width: `${Math.max(8, totalAssets > 0 ? (stage.count / totalAssets) * 100 : 0)}%`,
                     }}
                   />
                 </div>
