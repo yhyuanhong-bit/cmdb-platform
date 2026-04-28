@@ -1,7 +1,9 @@
-import { memo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { usePredictionModels, useCreateRCA, useVerifyRCA } from '../../hooks/usePrediction'
+import { usePredictionModels } from '../../hooks/usePrediction'
+import { useAlerts } from '../../hooks/useMonitoring'
+import { usePredictiveRefresh } from '../../hooks/usePredictiveRefresh'
 import CreateRCAModal from '../../components/CreateRCAModal'
 import { Icon, TAB_DEFINITIONS, type TabKey } from './shared'
 import { PredictionOverviewTab } from './PredictionOverviewTab'
@@ -11,18 +13,90 @@ import { RecommendationsTab } from './RecommendationsTab'
 import { TimelineTab } from './TimelineTab'
 import { ForecastTab } from './ForecastTab'
 
+const PLACEHOLDER = '—'
+
 const PredictiveHub = memo(function PredictiveHub() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
   const [showCreateRCA, setShowCreateRCA] = useState(false)
-  // Preserve original hook calls to keep mutation hook lifecycle behavior identical.
-  // The results are intentionally unused here; the tabs that invoke these
-  // mutations hold their own hook instances.
-  void useCreateRCA()
-  void useVerifyRCA()
   const { data: modelsResponse } = usePredictionModels()
   const models = modelsResponse?.data ?? []
+  // C-H4/H5/H6 (audit 2026-04-28): the previous hardcoded values
+  // ('42' / '12' / '158h' / '14:20:05' / '98.4%') showed fabricated
+  // metrics in production. We now derive what the API exposes and
+  // mark the rest as unavailable so users can tell live data from
+  // missing data.
+  const { data: openRefreshResp } = usePredictiveRefresh({ status: 'open', page_size: 200 })
+  const { data: critAlertsResp } = useAlerts({ status: 'firing', severity: 'critical' })
+
+  const openRefreshRows = openRefreshResp?.data ?? []
+  const criticalAlerts = critAlertsResp?.data ?? []
+
+  const enabledModels = models.filter((m) => m.enabled)
+  const accuracies = enabledModels
+    .map((m) => (typeof m.accuracy === 'number' ? m.accuracy : null))
+    .filter((v): v is number => v !== null)
+  const avgAccuracy = accuracies.length > 0
+    ? accuracies.reduce((s, n) => s + n, 0) / accuracies.length
+    : null
+  const accuracyDisplay = avgAccuracy !== null
+    ? `${(avgAccuracy * (avgAccuracy <= 1 ? 100 : 1)).toFixed(1)}%`
+    : PLACEHOLDER
+
+  const lastTrained = useMemo(() => {
+    const stamps = models
+      .map((m) => (m.last_trained ? Date.parse(m.last_trained) : NaN))
+      .filter((n) => Number.isFinite(n)) as number[]
+    if (stamps.length === 0) return null
+    const max = Math.max(...stamps)
+    return new Date(max)
+  }, [models])
+  const lastUpdateDisplay = lastTrained
+    ? lastTrained.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : PLACEHOLDER
+
+  const totalAtRisk = openRefreshRows.length
+  const totalAtRiskDisplay = openRefreshResp ? String(totalAtRisk) : PLACEHOLDER
+  const highPriorityDisplay = critAlertsResp ? String(criticalAlerts.length) : PLACEHOLDER
+  // Downtime saved aggregate is not exposed by any current endpoint.
+  // Surface as unavailable rather than fabricate.
+  const downtimeSavedDisplay = PLACEHOLDER
+
+  type StatCard = {
+    labelKey: string
+    value: string
+    icon: string
+    deltaKey: string
+    deltaColor: string
+    isUnavailable: boolean
+  }
+  const statCards: StatCard[] = [
+    {
+      labelKey: 'predictive_hub.stat_total_assets_risk',
+      value: totalAtRiskDisplay,
+      icon: 'warning',
+      deltaKey: 'predictive_hub.stat_total_assets_delta',
+      deltaColor: 'text-tertiary',
+      isUnavailable: totalAtRiskDisplay === PLACEHOLDER,
+    },
+    {
+      labelKey: 'predictive_hub.stat_high_priority',
+      value: highPriorityDisplay,
+      icon: 'priority_high',
+      deltaKey: 'predictive_hub.stat_high_priority_delta',
+      deltaColor: 'text-error',
+      isUnavailable: highPriorityDisplay === PLACEHOLDER,
+    },
+    {
+      labelKey: 'predictive_hub.stat_downtime_saved',
+      value: downtimeSavedDisplay,
+      icon: 'timer',
+      deltaKey: 'predictive_hub.stat_downtime_delta',
+      deltaColor: 'text-primary',
+      isUnavailable: true,
+    },
+  ]
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -87,9 +161,14 @@ const PredictiveHub = memo(function PredictiveHub() {
               <p className="text-[10px] text-on-surface-variant font-label uppercase tracking-widest">
                 {t('predictive.model_accuracy')}
               </p>
-              <p className="text-primary font-headline text-xl font-bold leading-tight">
-                {models.length > 0 ? `${models.filter(m => m.enabled).length}/${models.length}` : '98.4%'}
+              <p className={`font-headline text-xl font-bold leading-tight ${accuracyDisplay === PLACEHOLDER ? 'text-on-surface-variant' : 'text-primary'}`}>
+                {accuracyDisplay}
               </p>
+              {accuracyDisplay === PLACEHOLDER && (
+                <p className="text-[9px] text-on-surface-variant font-label">
+                  {t('common.metric_unavailable')}
+                </p>
+              )}
             </div>
           </div>
           <div className="bg-surface-container-high px-4 py-2 rounded-lg flex items-center gap-2">
@@ -98,9 +177,14 @@ const PredictiveHub = memo(function PredictiveHub() {
               <p className="text-[10px] text-on-surface-variant font-label uppercase tracking-widest">
                 {t('predictive.last_update')}
               </p>
-              <p className="text-on-surface font-headline text-xl font-bold tabular-nums leading-tight">
-                14:20:05
+              <p className={`font-headline text-xl font-bold tabular-nums leading-tight ${lastUpdateDisplay === PLACEHOLDER ? 'text-on-surface-variant' : 'text-on-surface'}`}>
+                {lastUpdateDisplay}
               </p>
+              {lastUpdateDisplay === PLACEHOLDER && (
+                <p className="text-[9px] text-on-surface-variant font-label">
+                  {t('common.metric_unavailable')}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -108,11 +192,7 @@ const PredictiveHub = memo(function PredictiveHub() {
 
       {/* Stat cards row */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        {[
-          { labelKey: 'predictive_hub.stat_total_assets_risk', value: '42', icon: 'warning', deltaKey: 'predictive_hub.stat_total_assets_delta', deltaColor: 'text-tertiary' },
-          { labelKey: 'predictive_hub.stat_high_priority', value: '12', icon: 'priority_high', deltaKey: 'predictive_hub.stat_high_priority_delta', deltaColor: 'text-error' },
-          { labelKey: 'predictive_hub.stat_downtime_saved', value: '158h', icon: 'timer', deltaKey: 'predictive_hub.stat_downtime_delta', deltaColor: 'text-primary' },
-        ].map((s) => (
+        {statCards.map((s) => (
           <div key={s.labelKey} className="bg-surface-container rounded-xl p-5 flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <div className="bg-surface-container-high rounded-lg p-2">
@@ -122,10 +202,16 @@ const PredictiveHub = memo(function PredictiveHub() {
                 {t(s.labelKey)}
               </span>
             </div>
-            <p className="font-headline text-4xl font-extrabold tracking-tight text-on-surface">
+            <p className={`font-headline text-4xl font-extrabold tracking-tight ${s.isUnavailable ? 'text-on-surface-variant' : 'text-on-surface'}`}>
               {s.value}
             </p>
-            <p className={`text-xs font-label ${s.deltaColor}`}>{t(s.deltaKey)}</p>
+            {s.isUnavailable ? (
+              <p className="text-xs font-label text-on-surface-variant">
+                {t('common.metric_unavailable')}
+              </p>
+            ) : (
+              <p className={`text-xs font-label ${s.deltaColor}`}>{t(s.deltaKey)}</p>
+            )}
           </div>
         ))}
       </div>

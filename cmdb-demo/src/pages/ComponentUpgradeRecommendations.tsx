@@ -582,8 +582,14 @@ export default function ComponentUpgradeRecommendations() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
+                      // C-H10 (audit 2026-04-28): only fire the accept
+                      // mutation on transition INTO the selected state.
+                      // Previously this fired on every toggle (including
+                      // deselect), creating duplicate accept writes.
+                      if (!isSelected) {
+                        acceptMutation.mutate({ assetId: selectedAssetId, category: card.filterKey.toLowerCase() })
+                      }
                       toggleSelect(card.id)
-                      acceptMutation.mutate({ assetId: selectedAssetId, category: card.filterKey.toLowerCase() })
                     }}
                     className={`flex-1 rounded py-2.5 text-[10px] font-bold tracking-widest transition-colors cursor-pointer ${
                       isSelected

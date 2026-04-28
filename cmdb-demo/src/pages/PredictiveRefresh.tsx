@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -58,6 +58,129 @@ function scoreColor(score: string): string {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Transition note dialog                                             */
+/* ------------------------------------------------------------------ */
+
+interface TransitionTarget {
+  row: PredictiveRefresh
+  next: PredictiveRefreshStatus
+}
+
+function TransitionDialog({
+  open,
+  target,
+  onClose,
+  onSubmit,
+  submitting,
+}: {
+  open: boolean
+  target: TransitionTarget | null
+  onClose: () => void
+  onSubmit: (note: string) => void
+  submitting: boolean
+}) {
+  const { t } = useTranslation()
+  const [note, setNote] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setNote('')
+    const handle = setTimeout(() => textareaRef.current?.focus(), 0)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      clearTimeout(handle)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open, onClose, submitting])
+
+  if (!open || !target) return null
+
+  const titleKey =
+    target.next === 'ack'
+      ? 'predictive_refresh.dialog_ack_title'
+      : target.next === 'resolved'
+      ? 'predictive_refresh.dialog_resolve_title'
+      : 'predictive_refresh.dialog_reopen_title'
+  const descKey =
+    target.next === 'ack'
+      ? 'predictive_refresh.dialog_ack_desc'
+      : target.next === 'resolved'
+      ? 'predictive_refresh.dialog_resolve_desc'
+      : 'predictive_refresh.dialog_reopen_desc'
+  const placeholderKey =
+    target.next === 'ack'
+      ? 'predictive_refresh.prompt_ack'
+      : target.next === 'resolved'
+      ? 'predictive_refresh.prompt_resolve'
+      : 'predictive_refresh.prompt_reopen'
+  const confirmKey =
+    target.next === 'ack'
+      ? 'predictive_refresh.btn_ack'
+      : target.next === 'resolved'
+      ? 'predictive_refresh.btn_resolve'
+      : 'predictive_refresh.btn_reopen'
+  const confirmStyle =
+    target.next === 'resolved'
+      ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+      : target.next === 'ack'
+      ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+      : 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="predictive-refresh-dialog-title"
+    >
+      <div className="bg-surface-container rounded-lg max-w-lg w-full p-6 shadow-xl">
+        <h2 id="predictive-refresh-dialog-title" className="font-headline font-bold text-lg text-on-surface mb-2">
+          {t(titleKey)}
+        </h2>
+        <p className="text-sm text-on-surface-variant mb-4">
+          {t(descKey)}
+        </p>
+        <p className="text-xs text-on-surface-variant mb-3 font-mono">
+          {target.row.asset_name ?? target.row.asset_id} · {target.row.kind}
+        </p>
+        <label htmlFor="predictive-refresh-dialog-note" className="block text-xs text-on-surface-variant mb-1">
+          {t('predictive_refresh.dialog_note_label')}
+        </label>
+        <textarea
+          id="predictive-refresh-dialog-note"
+          ref={textareaRef}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={3}
+          className="w-full bg-surface-container-high text-on-surface text-sm rounded-lg p-3 outline-none resize-none"
+          placeholder={t(placeholderKey)}
+        />
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            className="px-4 py-2 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors"
+          >
+            {t('common.cancel')}
+          </button>
+          <button
+            onClick={() => onSubmit(note.trim())}
+            disabled={submitting}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-40 ${confirmStyle}`}
+          >
+            {submitting ? t('common.saving') : t(confirmKey)}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -70,6 +193,10 @@ export default function PredictiveRefreshPage() {
   const kind = (search.get('kind') as PredictiveRefreshKind | null) ?? null
   const monthFilter = search.get('month') ?? null // YYYY-MM
 
+  // C-H3 (audit 2026-04-28): page_size: 200 with client-side month
+  // filter is the current pragmatic shape — backend has no `month=`
+  // query param yet. When /predictive-refresh grows that filter, pass
+  // monthFilter through here and drop the client-side filter below.
   const listQ = usePredictiveRefresh({
     status,
     kind: kind ?? undefined,
@@ -77,6 +204,10 @@ export default function PredictiveRefreshPage() {
   })
   const runScan = useRunPredictiveRefreshScan()
   const transition = useTransitionPredictiveRefresh()
+  // C-H2 (audit 2026-04-28): replace window.prompt() with an
+  // accessible modal so transition notes can be collected without
+  // blocking the UI thread or breaking screen-reader flows.
+  const [pendingTransition, setPendingTransition] = useState<TransitionTarget | null>(null)
 
   const allRows: PredictiveRefresh[] = listQ.data?.data ?? []
 
@@ -116,16 +247,18 @@ export default function PredictiveRefreshPage() {
   }
 
   const onTransition = (r: PredictiveRefresh, next: PredictiveRefreshStatus) => {
-    const note =
-      next === 'ack'
-        ? window.prompt(t('predictive_refresh.prompt_ack')) ?? undefined
-        : next === 'resolved'
-        ? window.prompt(t('predictive_refresh.prompt_resolve')) ?? undefined
-        : window.prompt(t('predictive_refresh.prompt_reopen')) ?? undefined
+    setPendingTransition({ row: r, next })
+  }
+  const submitTransition = (note: string) => {
+    if (!pendingTransition) return
+    const { row, next } = pendingTransition
     transition.mutate(
-      { assetId: r.asset_id, kind: r.kind, status: next, note: note ?? undefined },
+      { assetId: row.asset_id, kind: row.kind, status: next, note: note || undefined },
       {
-        onSuccess: () => toast.success(t(`predictive_refresh.toast_${next}`)),
+        onSuccess: () => {
+          toast.success(t(`predictive_refresh.toast_${next}`))
+          setPendingTransition(null)
+        },
         onError: (e: unknown) => toast.error(e instanceof Error ? e.message : t('common.unknown_error')),
       },
     )
@@ -330,6 +463,13 @@ export default function PredictiveRefreshPage() {
           </table>
         </div>
       </section>
+      <TransitionDialog
+        open={pendingTransition !== null}
+        target={pendingTransition}
+        onClose={() => setPendingTransition(null)}
+        onSubmit={submitTransition}
+        submitting={transition.isPending}
+      />
     </div>
   )
 }

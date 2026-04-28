@@ -192,11 +192,13 @@ export default function PredictiveCapex() {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  // Pull all open recommendations (default page size 200 from the
-  // hook). For larger backlogs the future server filter would
-  // enumerate per-month counts directly; today this is fine for the
-  // expected scale.
-  const listQ = usePredictiveRefresh({ status: 'open', page_size: 1000 })
+  // C-H1 (audit 2026-04-28): page_size dropped from 1000 to 200.
+  // Backend has no per-month aggregation endpoint yet; client-side
+  // bucketing by target_date is acceptable at this scale. When the
+  // /predictive-refresh API grows a `month=YYYY-MM` filter or
+  // `/predictive-refresh/aggregate` endpoint, swap to that and remove
+  // this comment. Tracking: predictive backlog HIGH item C-H1.
+  const listQ = usePredictiveRefresh({ status: 'open', page_size: 200 })
   const rows: PredictiveRefresh[] = listQ.data?.data ?? []
   const buckets = useMemo(() => bucketByMonth(rows), [rows])
 

@@ -99,7 +99,8 @@
     "empty_awaiting_signal_title": "等待遥测信号",
     "empty_awaiting_signal_desc": "底层传感器或接口暂无新信号。",
     "empty_not_wired_title": "接口尚未接入",
-    "empty_not_wired_desc": "后端接口就绪后此视图将自动生效。"
+    "empty_not_wired_desc": "后端接口就绪后此视图将自动生效。",
+    "metric_unavailable": "指标暂不可用"
   },
   "nav": {
     "dashboard": "仪表盘",
@@ -1581,7 +1582,14 @@
     "toast_open": "建议已重新打开。",
     "toast_ack": "建议已确认。",
     "toast_resolved": "建议已解决。",
-    "toast_scan_done": "扫描完成 —— 共更新 {{count}} 条记录。"
+    "toast_scan_done": "扫描完成 —— 共更新 {{count}} 条记录。",
+    "dialog_ack_title": "确认建议",
+    "dialog_ack_desc": "将此建议标记为已确认，可选备注将写入审计记录。",
+    "dialog_resolve_title": "解决建议",
+    "dialog_resolve_desc": "解决此刷新建议，可选备注将写入审计记录。",
+    "dialog_reopen_title": "重新打开建议",
+    "dialog_reopen_desc": "重新打开此建议，可选原因将写入审计记录。",
+    "dialog_note_label": "备注（可选）"
   },
   "metric_sources": {
     "title": "指标源",

@@ -29,12 +29,39 @@ export function RecommendationsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Stats row */}
+      {/* Stats row — C-H9 (audit 2026-04-28): MTBF / availability /
+          ROI tiles previously hardcoded "128.5h" / "99.98%" / "87%".
+          No backend endpoint exposes these aggregates today, so we
+          render an unavailable state rather than fabricated metrics. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon="warning" label={t('predictive_recommendations.stat_critical_assets_at_risk')} value={alerts.filter(a => a.severity.toLowerCase() === 'critical').length || 0} sub={t('predictive_recommendations.stat_critical_sub')} subColor="text-error" />
-        <StatCard icon="schedule" label={t('predictive_recommendations.stat_downtime_saved')} value="128.5h" sub={t('predictive_recommendations.stat_downtime_sub')} subColor="text-[#34d399]" />
-        <StatCard icon="verified" label={t('predictive_recommendations.stat_system_reliability')} value="99.98%" sub={t('predictive_recommendations.stat_reliability_sub')} subColor="text-[#34d399]" />
-        <StatCard icon="query_stats" label={t('predictive_recommendations.stat_roi_diagnostics')} value="87%" sub={t('predictive_recommendations.stat_roi_sub')} subColor="text-primary" />
+        <StatCard
+          icon="warning"
+          label={t('predictive_recommendations.stat_critical_assets_at_risk')}
+          value={alerts.filter(a => a.severity.toLowerCase() === 'critical').length || 0}
+          sub={t('predictive_recommendations.stat_critical_sub')}
+          subColor="text-error"
+        />
+        <StatCard
+          icon="schedule"
+          label={t('predictive_recommendations.stat_downtime_saved')}
+          value="—"
+          sub={t('common.metric_unavailable')}
+          subColor="text-on-surface-variant"
+        />
+        <StatCard
+          icon="verified"
+          label={t('predictive_recommendations.stat_system_reliability')}
+          value="—"
+          sub={t('common.metric_unavailable')}
+          subColor="text-on-surface-variant"
+        />
+        <StatCard
+          icon="query_stats"
+          label={t('predictive_recommendations.stat_roi_diagnostics')}
+          value="—"
+          sub={t('common.metric_unavailable')}
+          subColor="text-on-surface-variant"
+        />
       </div>
 
       {/* Confidence table */}

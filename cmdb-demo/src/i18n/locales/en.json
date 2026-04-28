@@ -99,7 +99,8 @@
     "empty_awaiting_signal_title": "Awaiting telemetry",
     "empty_awaiting_signal_desc": "No recent signal from the underlying sensors or APIs.",
     "empty_not_wired_title": "Not yet wired",
-    "empty_not_wired_desc": "This view will light up once the backend endpoint is available."
+    "empty_not_wired_desc": "This view will light up once the backend endpoint is available.",
+    "metric_unavailable": "Metric unavailable"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -1581,7 +1582,14 @@
     "toast_open": "Recommendation reopened.",
     "toast_ack": "Recommendation acknowledged.",
     "toast_resolved": "Recommendation resolved.",
-    "toast_scan_done": "Scan complete — {{count}} rows upserted."
+    "toast_scan_done": "Scan complete — {{count}} rows upserted.",
+    "dialog_ack_title": "Acknowledge recommendation",
+    "dialog_ack_desc": "Mark this recommendation as acknowledged. The optional note is appended to the audit trail.",
+    "dialog_resolve_title": "Resolve recommendation",
+    "dialog_resolve_desc": "Resolve this refresh recommendation and capture an optional note for the audit trail.",
+    "dialog_reopen_title": "Reopen recommendation",
+    "dialog_reopen_desc": "Reopen this recommendation and capture an optional reason for the audit trail.",
+    "dialog_note_label": "Note (optional)"
   },
   "metric_sources": {
     "title": "Metric Sources",

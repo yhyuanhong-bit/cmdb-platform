@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { usePredictionsByAsset, useVerifyRCA, useFailureDistribution } from '../../hooks/usePrediction'
 import { useAssets } from '../../hooks/useAssets'
 import { useAuthStore } from '../../stores/authStore'
 import { Icon, RulBar, type AdvisorMessage } from './shared'
+
+const PAGE_SIZE = 10
 
 const CATEGORY_COLOR: Record<string, string> = {
   Mechanical: 'bg-error',
@@ -80,8 +82,28 @@ export function PredictionOverviewTab() {
     })
   }, [predictions, t])
 
+  // C-H8 (audit 2026-04-28): pagination now reflects the real
+  // prediction list length — previously it hardcoded {shown:4,
+  // total:42} and the page buttons did not move data. The list comes
+  // from a single asset's predictions endpoint so we paginate
+  // client-side until that endpoint grows server-side paging.
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedAssetId])
+
+  const totalPredictions = predictions.length
+  const totalPages = Math.max(1, Math.ceil(totalPredictions / PAGE_SIZE))
+  const safePage = Math.min(currentPage, totalPages)
+  const pageStart = (safePage - 1) * PAGE_SIZE
+  const pageEnd = Math.min(pageStart + PAGE_SIZE, totalPredictions)
+  const pagePredictions = predictions.slice(pageStart, pageEnd)
+  const pageNumbers = useMemo(() => {
+    const max = Math.min(totalPages, 5)
+    return Array.from({ length: max }, (_, i) => i + 1)
+  }, [totalPages])
+
   // Map API predictions to ASSETS shape, fall back to empty array
-  const ASSETS = predictions.map((p) => {
+  const ASSETS = pagePredictions.map((p) => {
     const sevKey = (p.severity ?? 'medium').toLowerCase()
     const sevStyle = SEVERITY_MAP[sevKey] ?? SEVERITY_MAP.medium
     const daysUntilExpiry = p.expires_at ? Math.max(0, Math.round((new Date(p.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 45
@@ -186,40 +208,51 @@ export function PredictionOverviewTab() {
           </div>
         ))}
 
-        <div className="px-6 py-4 flex items-center justify-between">
-          <span className="text-xs text-on-surface-variant font-label">
-            {t('predictive.showing_assets', { shown: 4, total: 42 })}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              className="bg-surface-container-high hover:bg-surface-container-highest w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            >
-              <Icon name="chevron_left" className="text-base text-on-surface-variant" />
-            </button>
-            {[1, 2, 3].map((p) => (
-              <button
-                key={p}
-                onClick={() => setCurrentPage(p)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-label transition-colors ${
-                  p === currentPage
-                    ? 'bg-primary text-on-primary font-bold'
-                    : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-            <span className="text-on-surface-variant text-xs px-1">...</span>
-            <button
-              className="bg-surface-container-high hover:bg-surface-container-highest w-8 h-8 rounded-lg flex items-center justify-center transition-colors"
-              onClick={() => setCurrentPage((p) => p + 1)}
-            >
-              <Icon name="chevron_right" className="text-base text-on-surface-variant" />
-            </button>
+        {totalPredictions > 0 && (
+          <div className="px-6 py-4 flex items-center justify-between">
+            <span className="text-xs text-on-surface-variant font-label">
+              {t('predictive.showing_assets', {
+                shown: totalPredictions === 0 ? 0 : pageEnd - pageStart,
+                total: totalPredictions,
+              })}
+            </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  className="bg-surface-container-high hover:bg-surface-container-highest w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30"
+                  disabled={safePage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  aria-label={t('common.previous')}
+                >
+                  <Icon name="chevron_left" className="text-base text-on-surface-variant" />
+                </button>
+                {pageNumbers.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setCurrentPage(p)}
+                    aria-current={p === safePage ? 'page' : undefined}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-label transition-colors ${
+                      p === safePage
+                        ? 'bg-primary text-on-primary font-bold'
+                        : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+                {totalPages > 5 && <span className="text-on-surface-variant text-xs px-1">…</span>}
+                <button
+                  className="bg-surface-container-high hover:bg-surface-container-highest w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-30"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  aria-label={t('common.next')}
+                >
+                  <Icon name="chevron_right" className="text-base text-on-surface-variant" />
+                </button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* AI Advisor panel */}

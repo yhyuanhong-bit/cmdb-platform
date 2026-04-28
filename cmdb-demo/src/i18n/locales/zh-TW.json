@@ -99,7 +99,8 @@
     "empty_awaiting_signal_title": "等待遙測訊號",
     "empty_awaiting_signal_desc": "底層感測器或介面暫無新訊號。",
     "empty_not_wired_title": "介面尚未接入",
-    "empty_not_wired_desc": "後端介面就緒後此視圖將自動生效。"
+    "empty_not_wired_desc": "後端介面就緒後此視圖將自動生效。",
+    "metric_unavailable": "指標暫不可用"
   },
   "nav": {
     "dashboard": "儀表板",
@@ -1581,7 +1582,14 @@
     "toast_open": "建議已重新開啟。",
     "toast_ack": "建議已確認。",
     "toast_resolved": "建議已解決。",
-    "toast_scan_done": "掃描完成 —— 共更新 {{count}} 筆紀錄。"
+    "toast_scan_done": "掃描完成 —— 共更新 {{count}} 筆紀錄。",
+    "dialog_ack_title": "確認建議",
+    "dialog_ack_desc": "將此建議標記為已確認，選填備註會寫入稽核紀錄。",
+    "dialog_resolve_title": "解決建議",
+    "dialog_resolve_desc": "解決此汰換建議並可加上選填備註，內容會寫入稽核紀錄。",
+    "dialog_reopen_title": "重新開啟建議",
+    "dialog_reopen_desc": "重新開啟此建議並可加上選填原因，內容會寫入稽核紀錄。",
+    "dialog_note_label": "備註（選填）"
   },
   "metric_sources": {
     "title": "指標來源",
