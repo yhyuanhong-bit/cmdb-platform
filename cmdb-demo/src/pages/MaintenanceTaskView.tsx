@@ -194,14 +194,50 @@ export default function MaintenanceTaskView() {
               <Icon name="edit" className="text-[18px]" />
               {t('maintenance_task.edit_task')}
             </button>
-            <button
-              onClick={() => { if (taskId) transitionWO.mutate({ id: taskId, data: { status: 'completed', comment: 'Task completed' } }) }}
-              disabled={transitionWO.isPending}
-              className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2.5 text-sm font-semibold text-white rounded hover:brightness-110 transition-all disabled:opacity-50"
-            >
-              <Icon name="check_circle" className="text-[18px]" />
-              {transitionWO.isPending ? 'Completing...' : t('maintenance_task.complete_action')}
-            </button>
+            {(() => {
+              // The state machine only allows in_progress -> completed.
+              // Only render the Complete button when the order is in that state;
+              // for other states show a disabled hint button so users know why.
+              const status = workOrder?.status?.toLowerCase() ?? ''
+              const canComplete = status === 'in_progress'
+              const tooltipKey = !workOrder
+                ? 'maintenance_task.complete_disabled_loading'
+                : status === 'completed' || status === 'verified'
+                  ? 'maintenance_task.complete_disabled_already_completed'
+                  : status === 'submitted' || status === 'rejected'
+                    ? 'maintenance_task.complete_disabled_not_started'
+                    : status === 'approved'
+                      ? 'maintenance_task.complete_disabled_not_in_progress'
+                      : 'maintenance_task.complete_disabled_invalid_state'
+              return (
+                <button
+                  onClick={() => {
+                    if (!canComplete || !taskId) return
+                    transitionWO.mutate(
+                      { id: taskId, data: { status: 'completed', comment: 'Task completed' } },
+                      {
+                        onError: (err: unknown) => {
+                          const status = (err as { status?: number })?.status
+                          const code = (err as { code?: string })?.code
+                          if (status === 403 || code === 'FORBIDDEN') {
+                            toast.error(t('maintenance_task.complete_disabled_already_completed'))
+                          } else {
+                            toast.error(t('maintenance_task.complete_failed'))
+                          }
+                        },
+                      },
+                    )
+                  }}
+                  disabled={!canComplete || transitionWO.isPending}
+                  title={canComplete ? '' : t(tooltipKey)}
+                  aria-disabled={!canComplete || transitionWO.isPending}
+                  className="flex items-center gap-1.5 bg-on-primary-container px-4 py-2.5 text-sm font-semibold text-white rounded hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Icon name="check_circle" className="text-[18px]" />
+                  {transitionWO.isPending ? t('maintenance_task.completing') : t('maintenance_task.complete_action')}
+                </button>
+              )
+            })()}
           </div>
         </div>
       </div>

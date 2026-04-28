@@ -218,14 +218,35 @@ function TaskDispatch() {
     }
     const task = TASKS.find((t) => t.id === taskDisplayId);
     if (!task) return;
+    // UpdateWorkOrder only accepts edits on submitted/rejected orders.
+    // Pre-check here so users get an actionable message rather than a silent 403.
+    // TODO: Replace with a dedicated POST /maintenance/orders/{id}/assign endpoint
+    // that allows assignee changes on a wider state set (approved, in_progress).
+    const status = task.status?.toLowerCase();
+    if (status !== 'submitted' && status !== 'rejected') {
+      toast.error(
+        t('task_dispatch.cannot_reassign', { status: task.status }) ||
+          `Cannot reassign — order is in ${task.status} state`,
+      );
+      return;
+    }
     updateWorkOrder.mutate(
       { id: task.rawId, data: { assignee_id: selectedTech } },
       {
         onSuccess: () => {
           setSelectedTech("");
+          toast.success(t('task_dispatch.assigned_success') || 'Technician assigned');
         },
-        onError: () => {
-          toast.error('Failed to assign technician');
+        onError: (err: unknown) => {
+          const apiError = err as { status?: number; code?: string; message?: string };
+          if (apiError.status === 403 || apiError.code === 'FORBIDDEN') {
+            toast.error(
+              t('task_dispatch.cannot_reassign', { status: task.status }) ||
+                `Cannot reassign — order is in ${task.status} state`,
+            );
+          } else {
+            toast.error(apiError.message || 'Failed to assign technician');
+          }
         },
       },
     );

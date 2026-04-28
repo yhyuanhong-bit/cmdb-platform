@@ -2,9 +2,11 @@ import { toast } from 'sonner'
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useQueryClient } from '@tanstack/react-query'
 import Icon from '../components/Icon'
 import StatCard from '../components/StatCard'
 import { useWorkOrders, useTransitionWorkOrder, useDeleteWorkOrder } from '../hooks/useMaintenance'
+import { maintenanceApi } from '../lib/api/maintenance'
 import type { WorkOrder as ApiWorkOrder } from '../lib/api/maintenance'
 
 /* ------------------------------------------------------------------ */
@@ -391,6 +393,7 @@ function AiPanel({ order }: { order: WorkOrderItem | null }) {
 export default function WorkOrder() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('all')
   const [selectedOrderId, setSelectedOrderId] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -608,11 +611,49 @@ export default function WorkOrder() {
                 {t('common.cancel')}
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!approvalComment.trim()) { toast.error(t('work_order.comment_required')); return }
+                  if (!approvalTargetId) return
+                  // Re-validate latest server state to catch concurrent approvals
+                  // between modal-open and confirm-click.
+                  try {
+                    const fresh = await queryClient.fetchQuery({
+                      queryKey: ['workOrders', approvalTargetId],
+                      queryFn: () => maintenanceApi.getById(approvalTargetId),
+                      staleTime: 0,
+                    })
+                    const currentStatus = fresh?.data?.status?.toLowerCase()
+                    if (currentStatus !== 'submitted') {
+                      toast.error(t('work_order.already_decided', { status: currentStatus ?? 'unknown' }))
+                      setShowApprovalModal(false)
+                      setApprovalComment('')
+                      queryClient.invalidateQueries({ queryKey: ['workOrders'] })
+                      return
+                    }
+                  } catch {
+                    toast.error(t('work_order.refresh_failed'))
+                    return
+                  }
                   transitionWO.mutate(
                     { id: approvalTargetId, data: { status: approvalAction, comment: approvalComment } },
-                    { onSuccess: () => { setShowApprovalModal(false); setApprovalComment(''); toast.success(approvalAction === 'approved' ? t('work_order.approved_success') : t('work_order.rejected_success')) } }
+                    {
+                      onSuccess: () => {
+                        setShowApprovalModal(false)
+                        setApprovalComment('')
+                        toast.success(approvalAction === 'approved' ? t('work_order.approved_success') : t('work_order.rejected_success'))
+                      },
+                      onError: (err: unknown) => {
+                        const apiError = err as { status?: number; code?: string; message?: string }
+                        if (apiError.status === 403 || apiError.code === 'FORBIDDEN') {
+                          toast.error(t('work_order.already_decided', { status: 'changed' }))
+                          queryClient.invalidateQueries({ queryKey: ['workOrders'] })
+                          setShowApprovalModal(false)
+                          setApprovalComment('')
+                        } else {
+                          toast.error(apiError.message || t('work_order.transition_failed'))
+                        }
+                      },
+                    }
                   )
                 }}
                 disabled={transitionWO.isPending}
