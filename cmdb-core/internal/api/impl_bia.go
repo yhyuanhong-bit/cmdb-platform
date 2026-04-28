@@ -391,9 +391,12 @@ func (s *APIServer) GetBIAStats(c *gin.Context) {
 // GetBIAImpact returns the BIA assessments impacted by a given asset.
 // (GET /bia/impact/{id})
 func (s *APIServer) GetBIAImpact(c *gin.Context, id IdPath) {
-	assessments, err := s.biaSvc.GetImpactedAssessments(c.Request.Context(), uuid.UUID(id))
+	assessments, err := s.biaSvc.GetImpactedAssessments(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
-		// Table may not exist yet (migration not run) — return empty array instead of 500
+		// Table may not exist yet (migration not run) — return empty array instead of 500.
+		// Audit C HIGH (2026-04-28): swallowing the error masks real failures from
+		// operators; log it so problems surface.
+		zap.L().Warn("GetBIAImpact: query failed; returning empty list", zap.Error(err))
 		response.OK(c, []any{})
 		return
 	}

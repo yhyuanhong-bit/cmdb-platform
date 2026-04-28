@@ -157,4 +157,4 @@ SELECT tenant_id FROM bia_assessments WHERE id = $1;
 -- name: GetImpactedAssessments :many
 SELECT ba.* FROM bia_assessments ba
 JOIN bia_dependencies bd ON bd.assessment_id = ba.id
-WHERE bd.asset_id = $1;
+WHERE bd.asset_id = $1 AND bd.tenant_id = $2 AND ba.tenant_id = $2;

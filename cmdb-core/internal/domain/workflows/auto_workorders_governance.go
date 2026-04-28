@@ -34,7 +34,8 @@ func (w *WorkflowSubscriber) checkMissingAssets(ctx context.Context) {
 		   )
 		   AND NOT EXISTS (
 		     SELECT 1 FROM work_orders wo
-		     WHERE wo.asset_id = a.id
+		     WHERE wo.tenant_id = a.tenant_id
+		     AND wo.asset_id = a.id
 		     AND wo.type = 'asset_verification'
 		     AND wo.status NOT IN ('completed','verified','rejected')
 		     AND wo.deleted_at IS NULL

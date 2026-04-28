@@ -504,3 +504,45 @@ func TestIntegration_BIA_UpdateScoringRule_CrossTenant_Returns404(t *testing.T) 
 		t.Fatalf("CRITICAL: tenantB rule display_name overwritten by tenantA — got %q", name)
 	}
 }
+
+// TestIntegration_BIA_GetImpact_CrossTenant_ReturnsEmpty pins audit
+// C HIGH (tenant-isolation): GetImpactedAssessments query previously
+// joined only on bd.asset_id, so a caller from tenantA could observe
+// tenantB's BIA assessments by guessing an asset UUID that exists in
+// tenantB's bia_dependencies. After v3.3.11 the JOIN is tenant-scoped.
+func TestIntegration_BIA_GetImpact_CrossTenant_ReturnsEmpty(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	tenantA := setupBIAFixture(t, pool)
+	tenantB := setupBIAFixture(t, pool)
+
+	// Plant a real bia_dependency under tenantB linking its asset to its
+	// own assessment so a leak would show non-empty data.
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO bia_dependencies (id, tenant_id, assessment_id, asset_id, dependency_type, criticality)
+		 VALUES (gen_random_uuid(), $1, $2, $3, 'runs_on', 'high')`,
+		tenantB.tenantID, tenantB.assessmentID, tenantB.assetID,
+	); err != nil {
+		t.Fatalf("plant tenantB dep: %v", err)
+	}
+
+	s := newBIATestServer(pool)
+	c, rec := newBIACtx(t, http.MethodGet,
+		"/bia/impact/"+tenantB.assetID.String(),
+		tenantA.tenantID, tenantA.userID, "")
+	s.GetBIAImpact(c, IdPath(tenantB.assetID))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s, want 200", rec.Code, rec.Body.String())
+	}
+	var env struct {
+		Data []struct{ ID string `json:"id"` } `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal: %v body=%s", err, rec.Body.String())
+	}
+	if len(env.Data) != 0 {
+		t.Fatalf("CRITICAL: tenantA leaked %d impacted assessments from tenantB — body=%s",
+			len(env.Data), rec.Body.String())
+	}
+}

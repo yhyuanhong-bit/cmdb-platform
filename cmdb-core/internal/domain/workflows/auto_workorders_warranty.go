@@ -25,7 +25,8 @@ func (w *WorkflowSubscriber) checkWarrantyExpiry(ctx context.Context) {
 		   AND a.deleted_at IS NULL
 		   AND NOT EXISTS (
 		     SELECT 1 FROM work_orders wo
-		     WHERE wo.asset_id = a.id
+		     WHERE wo.tenant_id = a.tenant_id
+		     AND wo.asset_id = a.id
 		     AND wo.type = 'warranty_renewal'
 		     AND wo.status NOT IN ('completed','verified','rejected')
 		     AND wo.deleted_at IS NULL
@@ -102,7 +103,8 @@ func (w *WorkflowSubscriber) checkEOLReached(ctx context.Context) {
 		   AND a.deleted_at IS NULL
 		   AND NOT EXISTS (
 		     SELECT 1 FROM work_orders wo
-		     WHERE wo.asset_id = a.id
+		     WHERE wo.tenant_id = a.tenant_id
+		     AND wo.asset_id = a.id
 		     AND wo.type = 'decommission'
 		     AND wo.status NOT IN ('completed','verified','rejected')
 		     AND wo.deleted_at IS NULL
@@ -170,7 +172,8 @@ func (w *WorkflowSubscriber) checkOverLifespan(ctx context.Context) {
 		   AND a.deleted_at IS NULL
 		   AND NOT EXISTS (
 		     SELECT 1 FROM work_orders wo
-		     WHERE wo.asset_id = a.id
+		     WHERE wo.tenant_id = a.tenant_id
+		     AND wo.asset_id = a.id
 		     AND wo.type = 'lifespan_evaluation'
 		     AND wo.status NOT IN ('completed','verified','rejected')
 		     AND wo.deleted_at IS NULL

@@ -10,10 +10,20 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/maintenance"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// newWOTestServer wires the bare minimum the maintenance handlers need,
+// including the maintenanceSvc that CreateWorkOrderComment uses for the
+// cross-tenant pre-check (audit D-H4, 2026-04-28).
+func newWOTestServer(pool *pgxpool.Pool) *APIServer {
+	q := dbgen.New(pool)
+	return &APIServer{pool: pool, maintenanceSvc: maintenance.NewService(q, nil, pool)}
+}
 
 // Post-sqlc migration coverage for work_order_comments handlers.
 //
@@ -131,7 +141,7 @@ func TestIntegration_ListWorkOrderComments_OrderScoped(t *testing.T) {
 	defer pool.Close()
 	fix := setupWorkOrderCommentFixture(t, pool)
 
-	s := &APIServer{pool: pool}
+	s := newWOTestServer(pool)
 	c, rec := newWorkOrderCtx(t, http.MethodGet, "/maintenance/orders/"+fix.orderA.String()+"/comments", fix, nil)
 	s.ListWorkOrderComments(c, IdPath(fix.orderA))
 
@@ -169,7 +179,7 @@ func TestIntegration_ListWorkOrderComments_NullAuthor(t *testing.T) {
 	defer pool.Close()
 	fix := setupWorkOrderCommentFixture(t, pool)
 
-	s := &APIServer{pool: pool}
+	s := newWOTestServer(pool)
 	c, rec := newWorkOrderCtx(t, http.MethodGet, "/maintenance/orders/"+fix.orderB.String()+"/comments", fix, nil)
 	s.ListWorkOrderComments(c, IdPath(fix.orderB))
 
@@ -207,7 +217,7 @@ func TestIntegration_CreateWorkOrderComment_RoundTrip(t *testing.T) {
 	defer pool.Close()
 	fix := setupWorkOrderCommentFixture(t, pool)
 
-	s := &APIServer{pool: pool}
+	s := newWOTestServer(pool)
 	payload, _ := json.Marshal(map[string]string{"text": "hello via sqlc"})
 	c, rec := newWorkOrderCtx(t, http.MethodPost, "/maintenance/orders/"+fix.orderA.String()+"/comments", fix, payload)
 	s.CreateWorkOrderComment(c, IdPath(fix.orderA))
@@ -240,5 +250,43 @@ func TestIntegration_CreateWorkOrderComment_RoundTrip(t *testing.T) {
 	}
 	if gotAuthor != fix.userID {
 		t.Errorf("author_id = %s, want %s", gotAuthor, fix.userID)
+	}
+}
+
+// TestIntegration_CreateWorkOrderComment_CrossTenant_Returns404 pins
+// audit D-H4 (2026-04-28). Before v3.3.11 CreateWorkOrderComment had no
+// pre-check that the parent work order belonged to the caller's tenant,
+// so any authenticated user could post comments on another tenant's WOs
+// by guessing a UUID. work_order_comments has no tenant_id column so
+// without this check there is no other defense.
+func TestIntegration_CreateWorkOrderComment_CrossTenant_Returns404(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	tenantA := setupWorkOrderCommentFixture(t, pool)
+	tenantB := setupWorkOrderCommentFixture(t, pool)
+	s := newWOTestServer(pool)
+
+	// Caller authenticated as tenantA targets tenantB's work order.
+	payload, _ := json.Marshal(map[string]string{"text": "PWNED-from-A"})
+	c, rec := newWorkOrderCtx(t, http.MethodPost,
+		"/maintenance/orders/"+tenantB.orderA.String()+"/comments", tenantA, payload)
+	s.CreateWorkOrderComment(c, IdPath(tenantB.orderA))
+
+	if rec.Code == http.StatusCreated {
+		t.Fatalf("CRITICAL: tenantA was allowed to post comment on tenantB WO (status=201, body=%s)",
+			rec.Body.String())
+	}
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 — body=%s", rec.Code, rec.Body.String())
+	}
+
+	var count int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM work_order_comments WHERE order_id = $1 AND text = 'PWNED-from-A'`,
+		tenantB.orderA).Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("CRITICAL: hostile comment landed on tenantB's WO (count=%d)", count)
 	}
 }

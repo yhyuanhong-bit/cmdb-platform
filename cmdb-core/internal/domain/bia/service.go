@@ -257,9 +257,12 @@ func (s *Service) verifyAssessmentTenant(ctx context.Context, q *dbgen.Queries, 
 	return nil
 }
 
-// GetImpactedAssessments returns BIA assessments that depend on a given asset.
-func (s *Service) GetImpactedAssessments(ctx context.Context, assetID uuid.UUID) ([]dbgen.BiaAssessment, error) {
-	return s.queries.GetImpactedAssessments(ctx, assetID)
+// GetImpactedAssessments returns BIA assessments that depend on a given asset, scoped to the given tenant.
+func (s *Service) GetImpactedAssessments(ctx context.Context, tenantID, assetID uuid.UUID) ([]dbgen.BiaAssessment, error) {
+	return s.queries.GetImpactedAssessments(ctx, dbgen.GetImpactedAssessmentsParams{
+		AssetID:  assetID,
+		TenantID: tenantID,
+	})
 }
 
 // GetStats returns aggregated BIA statistics for a tenant.

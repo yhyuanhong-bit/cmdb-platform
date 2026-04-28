@@ -346,11 +346,16 @@ func (q *Queries) GetBIADependency(ctx context.Context, arg GetBIADependencyPara
 const getImpactedAssessments = `-- name: GetImpactedAssessments :many
 SELECT ba.id, ba.tenant_id, ba.system_name, ba.system_code, ba.owner, ba.bia_score, ba.tier, ba.rto_hours, ba.rpo_minutes, ba.mtpd_hours, ba.data_compliance, ba.asset_compliance, ba.audit_compliance, ba.description, ba.last_assessed, ba.assessed_by, ba.created_at, ba.updated_at, ba.service_id FROM bia_assessments ba
 JOIN bia_dependencies bd ON bd.assessment_id = ba.id
-WHERE bd.asset_id = $1
+WHERE bd.asset_id = $1 AND bd.tenant_id = $2 AND ba.tenant_id = $2
 `
 
-func (q *Queries) GetImpactedAssessments(ctx context.Context, assetID uuid.UUID) ([]BiaAssessment, error) {
-	rows, err := q.db.Query(ctx, getImpactedAssessments, assetID)
+type GetImpactedAssessmentsParams struct {
+	AssetID  uuid.UUID `json:"asset_id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetImpactedAssessments(ctx context.Context, arg GetImpactedAssessmentsParams) ([]BiaAssessment, error) {
+	rows, err := q.db.Query(ctx, getImpactedAssessments, arg.AssetID, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}

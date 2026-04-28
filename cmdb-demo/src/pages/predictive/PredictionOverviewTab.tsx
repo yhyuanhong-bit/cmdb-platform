@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { usePredictionsByAsset, useVerifyRCA, useFailureDistribution } from '../../hooks/usePrediction'
 import { useAssets } from '../../hooks/useAssets'
+import { useAuthStore } from '../../stores/authStore'
 import { Icon, RulBar, type AdvisorMessage } from './shared'
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -23,6 +24,13 @@ export function PredictionOverviewTab() {
     if (firstAssetId && !selectedAssetId) setSelectedAssetId(firstAssetId)
   }, [firstAssetId])
   const verifyRCA = useVerifyRCA()
+  // Audit C-H7 (2026-04-28): the previous `'current-user'` literal made
+  // the audit trail anonymous; verifier identity now flows from the
+  // authenticated user. Falls back to '' if somehow not signed in so
+  // the mutation surfaces a clear backend error rather than silently
+  // attributing to a hardcoded string.
+  const currentUser = useAuthStore((s) => s.user)
+  const verifierIdentity = currentUser?.username || currentUser?.id || ''
 
   const { data: predictionsResponse } = usePredictionsByAsset(selectedAssetId)
   const { data: failDistData } = useFailureDistribution()
@@ -166,7 +174,7 @@ export function PredictionOverviewTab() {
               {a.severity}
             </span>
             <div className="text-right flex items-center gap-2 justify-end">
-              <button onClick={() => verifyRCA.mutate({ id: a.name, data: { verified_by: 'current-user' } })}
+              <button onClick={() => verifyRCA.mutate({ id: a.name, data: { verified_by: verifierIdentity } })}
                 className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30">
                 {verifyRCA.isPending ? '...' : t('predictive_hub.btn_verify')}
               </button>

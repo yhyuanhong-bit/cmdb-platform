@@ -283,8 +283,15 @@ func (s *APIServer) ListWorkOrderComments(c *gin.Context, id IdPath) {
 
 // CreateWorkOrderComment handles POST /maintenance/orders/{id}/comments
 // Creates a new comment on a work order.
+//
+// Audit D-H4 (2026-04-28): work_order_comments has no tenant_id column,
+// so tenant isolation depends on the caller verifying the parent work
+// order belongs to the caller's tenant before INSERT. ListWorkOrderComments
+// already does this; CreateWorkOrderComment did not, so any authenticated
+// user could post comments on another tenant's WOs by guessing a UUID.
 func (s *APIServer) CreateWorkOrderComment(c *gin.Context, id IdPath) {
 	orderID := uuid.UUID(id)
+	tenantID := tenantIDFromContext(c)
 	userID := userIDFromContext(c)
 
 	var body struct {
@@ -296,6 +303,14 @@ func (s *APIServer) CreateWorkOrderComment(c *gin.Context, id IdPath) {
 	}
 	if body.Text == "" {
 		response.BadRequest(c, "text must not be empty")
+		return
+	}
+
+	// Tenant pre-check on the parent work order. Mirrors what
+	// ListWorkOrderComments does — cross-tenant orderID returns 404
+	// instead of inserting a comment that the requester can never read.
+	if _, err := s.maintenanceSvc.GetByID(c.Request.Context(), tenantID, orderID); err != nil {
+		response.NotFound(c, "work order not found")
 		return
 	}
 
