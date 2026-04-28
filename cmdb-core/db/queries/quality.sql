@@ -45,7 +45,7 @@ LIMIT 10;
 
 -- name: GetAssetQualityHistory :many
 SELECT * FROM quality_scores
-WHERE asset_id = $1
+WHERE asset_id = $1 AND tenant_id = $2
 ORDER BY scan_date DESC
 LIMIT 30;
 

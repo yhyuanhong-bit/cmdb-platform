@@ -72,12 +72,14 @@ async def create_scan_target(
         raise HTTPException(status_code=400, detail="cidrs must not be empty")
 
     target_id = str(uuid.uuid4())
+    tenant_uuid = uuid.UUID(body.tenant_id)
 
     async with pool.acquire() as conn:
-        # Validate credential exists
+        # Validate credential exists in the SAME tenant — prevents cross-tenant
+        # credential attachment (audit C/E1, 2026-04-28).
         cred = await conn.fetchrow(
-            "SELECT id FROM credentials WHERE id = $1",
-            uuid.UUID(body.credential_id),
+            "SELECT id FROM credentials WHERE id = $1 AND tenant_id = $2",
+            uuid.UUID(body.credential_id), tenant_uuid,
         )
         if not cred:
             raise HTTPException(status_code=404, detail="Credential not found")
@@ -108,10 +110,16 @@ async def create_scan_target(
 @router.put("/scan-targets/{target_id}")
 async def update_scan_target(
     target_id: str,
+    tenant_id: str,
     body: UpdateScanTargetRequest,
     pool: asyncpg.Pool = Depends(get_db_pool),
 ):
-    """Update a scan target (dynamic SET clause)."""
+    """Update a scan target (dynamic SET clause).
+
+    Audit C/E1 (2026-04-28): both the existence check and the UPDATE
+    must scope by tenant_id. Before this fix any caller could overwrite
+    a foreign tenant's scan target by guessing its UUID.
+    """
     if body.collector_type is not None and body.collector_type not in VALID_COLLECTOR_TYPES:
         raise HTTPException(
             status_code=400,
@@ -140,35 +148,39 @@ async def update_scan_target(
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
 
+    tenant_uuid = uuid.UUID(tenant_id)
+    target_uuid = uuid.UUID(target_id)
+
     async with pool.acquire() as conn:
-        # Validate target exists
+        # Tenant-scoped existence check.
         existing = await conn.fetchrow(
-            "SELECT id FROM scan_targets WHERE id = $1",
-            uuid.UUID(target_id),
+            "SELECT id FROM scan_targets WHERE id = $1 AND tenant_id = $2",
+            target_uuid, tenant_uuid,
         )
         if not existing:
             raise HTTPException(status_code=404, detail="Scan target not found")
 
-        # Validate credential if being updated
+        # Validate credential (also tenant-scoped) if being updated.
         if body.credential_id is not None:
             cred = await conn.fetchrow(
-                "SELECT id FROM credentials WHERE id = $1",
-                uuid.UUID(body.credential_id),
+                "SELECT id FROM credentials WHERE id = $1 AND tenant_id = $2",
+                uuid.UUID(body.credential_id), tenant_uuid,
             )
             if not cred:
                 raise HTTPException(status_code=404, detail="Credential not found")
 
-        # Build dynamic SET clause
+        # Build dynamic SET clause.
         set_parts = []
         values = []
         for i, (col, val) in enumerate(updates.items(), start=1):
             set_parts.append(f"{col} = ${i}")
             values.append(val)
 
-        values.append(uuid.UUID(target_id))
+        values.append(target_uuid)
+        values.append(tenant_uuid)
         set_clause = ", ".join(set_parts)
         await conn.execute(
-            f"UPDATE scan_targets SET {set_clause} WHERE id = ${len(values)}",
+            f"UPDATE scan_targets SET {set_clause} WHERE id = ${len(values) - 1} AND tenant_id = ${len(values)}",
             *values,
         )
 
@@ -176,8 +188,8 @@ async def update_scan_target(
             """SELECT st.*, c.name as credential_name
                FROM scan_targets st
                LEFT JOIN credentials c ON c.id = st.credential_id
-               WHERE st.id = $1""",
-            uuid.UUID(target_id),
+               WHERE st.id = $1 AND st.tenant_id = $2""",
+            target_uuid, tenant_uuid,
         )
 
     return dict(row)
@@ -186,13 +198,14 @@ async def update_scan_target(
 @router.delete("/scan-targets/{target_id}", status_code=204)
 async def delete_scan_target(
     target_id: str,
+    tenant_id: str,
     pool: asyncpg.Pool = Depends(get_db_pool),
 ):
-    """Delete a scan target."""
+    """Delete a scan target. Tenant-scoped per audit C/E1 (2026-04-28)."""
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "DELETE FROM scan_targets WHERE id = $1",
-            uuid.UUID(target_id),
+            "DELETE FROM scan_targets WHERE id = $1 AND tenant_id = $2",
+            uuid.UUID(target_id), uuid.UUID(tenant_id),
         )
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail="Scan target not found")

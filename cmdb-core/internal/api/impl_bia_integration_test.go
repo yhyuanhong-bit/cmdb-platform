@@ -381,3 +381,126 @@ func TestIntegration_BIA_CreateDependency_AtomicWithPropagation(t *testing.T) {
 		t.Fatalf("after atomic create: bia_level=%q, want 'critical'", got)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Cross-tenant isolation tests — pin audit findings C1, C2, C3 (2026-04-28).
+// Before the fix in v3.3.10 each of UpdateBIAAssessment, UpdateBIAScoringRule
+// and ListBIADependencies had a sqlc query missing tenant_id in WHERE — any
+// authenticated user with a UUID could overwrite or enumerate cross-tenant
+// BIA records.
+// ---------------------------------------------------------------------------
+
+func TestIntegration_BIA_UpdateAssessment_CrossTenant_Returns404(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	tenantA := setupBIAFixture(t, pool)
+	tenantB := setupBIAFixture(t, pool)
+	s := newBIATestServer(pool)
+
+	// Caller authenticated as tenantA targets tenantB's assessment.
+	body := `{"system_name":"PWNED-from-A"}`
+	c, rec := newBIACtx(t, http.MethodPut,
+		"/bia/assessments/"+tenantB.assessmentID.String(),
+		tenantA.tenantID, tenantA.userID, body)
+	s.UpdateBIAAssessment(c, IdPath(tenantB.assessmentID))
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("CRITICAL: tenantA was allowed to PATCH tenantB's BIA assessment (status=200, body=%s)",
+			rec.Body.String())
+	}
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status=%d, want 404 — body=%s", rec.Code, rec.Body.String())
+	}
+
+	// tenantB's row must be untouched.
+	var name string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT system_name FROM bia_assessments WHERE id = $1`,
+		tenantB.assessmentID).Scan(&name); err != nil {
+		t.Fatalf("select tenantB assessment: %v", err)
+	}
+	if name == "PWNED-from-A" {
+		t.Fatalf("CRITICAL: tenantB system_name overwritten by tenantA — got %q", name)
+	}
+}
+
+func TestIntegration_BIA_ListDependencies_CrossTenant_ReturnsEmpty(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	tenantA := setupBIAFixture(t, pool)
+	tenantB := setupBIAFixture(t, pool)
+
+	// Plant a real dependency under tenantB so a leak would be visible.
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO bia_dependencies (id, tenant_id, assessment_id, asset_id, dependency_type, criticality)
+		 VALUES (gen_random_uuid(), $1, $2, $3, 'runs_on', 'high')`,
+		tenantB.tenantID, tenantB.assessmentID, tenantB.assetID,
+	); err != nil {
+		t.Fatalf("plant tenantB dep: %v", err)
+	}
+
+	s := newBIATestServer(pool)
+	c, rec := newBIACtx(t, http.MethodGet,
+		"/bia/assessments/"+tenantB.assessmentID.String()+"/dependencies",
+		tenantA.tenantID, tenantA.userID, "")
+	s.ListBIADependencies(c, IdPath(tenantB.assessmentID))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s, want 200", rec.Code, rec.Body.String())
+	}
+	var env struct {
+		Data []struct{ ID string `json:"id"` } `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("unmarshal: %v body=%s", err, rec.Body.String())
+	}
+	if len(env.Data) != 0 {
+		t.Fatalf("CRITICAL: tenantA leaked %d dependencies from tenantB — body=%s",
+			len(env.Data), rec.Body.String())
+	}
+}
+
+func TestIntegration_BIA_UpdateScoringRule_CrossTenant_Returns404(t *testing.T) {
+	pool := newTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+	tenantA := setupBIAFixture(t, pool)
+	tenantB := setupBIAFixture(t, pool)
+
+	// Plant a scoring rule directly in tenantB so the test has a target.
+	ruleID := uuid.New()
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO bia_scoring_rules (id, tenant_id, tier_name, tier_level, display_name, min_score, max_score, rto_threshold, rpo_threshold, description, color, icon)
+		 VALUES ($1, $2, 'platinum', 0, 'tenantB platinum', 90, 100, 1, 5, 'top tier', '#fff', 'star')`,
+		ruleID, tenantB.tenantID,
+	); err != nil {
+		t.Fatalf("plant tenantB rule: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM bia_scoring_rules WHERE id = $1`, ruleID) })
+
+	s := newBIATestServer(pool)
+	body := `{"display_name":"PWNED-from-A"}`
+	c, rec := newBIACtx(t, http.MethodPut,
+		"/bia/rules/"+ruleID.String(),
+		tenantA.tenantID, tenantA.userID, body)
+	s.UpdateBIAScoringRule(c, IdPath(ruleID))
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("CRITICAL: tenantA was allowed to PATCH tenantB's scoring rule (status=200, body=%s)",
+			rec.Body.String())
+	}
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status=%d, want 404 — body=%s", rec.Code, rec.Body.String())
+	}
+
+	// tenantB row untouched.
+	var name string
+	if err := pool.QueryRow(ctx,
+		`SELECT display_name FROM bia_scoring_rules WHERE id = $1`,
+		ruleID).Scan(&name); err != nil {
+		t.Fatalf("select rule: %v", err)
+	}
+	if name == "PWNED-from-A" {
+		t.Fatalf("CRITICAL: tenantB rule display_name overwritten by tenantA — got %q", name)
+	}
+}

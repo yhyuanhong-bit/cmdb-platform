@@ -74,20 +74,20 @@ export const ingestionApi = {
     apiClient.get<ApiListResponse<Credential>>('/ingestion/credentials', params),
   createCredential: (data: CreateCredentialInput) =>
     apiClient.post<ApiResponse<Credential>>('/ingestion/credentials', data),
-  updateCredential: (id: string, data: UpdateCredentialInput) =>
-    apiClient.put<ApiResponse<Credential>>(`/ingestion/credentials/${id}`, data),
-  deleteCredential: (id: string) =>
-    apiClient.del(`/ingestion/credentials/${id}`),
+  updateCredential: (id: string, data: UpdateCredentialInput, tenantId: string) =>
+    apiClient.put<ApiResponse<Credential>>(`/ingestion/credentials/${id}?tenant_id=${encodeURIComponent(tenantId)}`, data),
+  deleteCredential: (id: string, tenantId: string) =>
+    apiClient.del(`/ingestion/credentials/${id}?tenant_id=${encodeURIComponent(tenantId)}`),
 
   // Scan Targets
   listScanTargets: (params?: Record<string, string>) =>
     apiClient.get<ApiListResponse<ScanTarget>>('/ingestion/scan-targets', params),
   createScanTarget: (data: CreateScanTargetInput) =>
     apiClient.post<ApiResponse<ScanTarget>>('/ingestion/scan-targets', data),
-  updateScanTarget: (id: string, data: UpdateScanTargetInput) =>
-    apiClient.put<ApiResponse<ScanTarget>>(`/ingestion/scan-targets/${id}`, data),
-  deleteScanTarget: (id: string) =>
-    apiClient.del(`/ingestion/scan-targets/${id}`),
+  updateScanTarget: (id: string, data: UpdateScanTargetInput, tenantId: string) =>
+    apiClient.put<ApiResponse<ScanTarget>>(`/ingestion/scan-targets/${id}?tenant_id=${encodeURIComponent(tenantId)}`, data),
+  deleteScanTarget: (id: string, tenantId: string) =>
+    apiClient.del(`/ingestion/scan-targets/${id}?tenant_id=${encodeURIComponent(tenantId)}`),
 
   // Discovery
   triggerScan: (targetIdOrData: string | { scan_target_ids: string[] }) =>

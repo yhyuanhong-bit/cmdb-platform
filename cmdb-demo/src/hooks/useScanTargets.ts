@@ -1,16 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ingestionApi } from '../lib/api/ingestion'
-const DEFAULT_TENANT = 'a0000000-0000-0000-0000-000000000001'
+import { useAuthStore } from '../stores/authStore'
 
-function useTenantId() {
-  return DEFAULT_TENANT
+// Audit E3 (2026-04-28): the previous DEFAULT_TENANT constant routed every
+// scan-target / discovery-task call to the demo tenant regardless of the
+// signed-in user. tenant_id now flows from the auth store. If the user is
+// not signed in (`tenant_id` undefined) the queries are skipped via the
+// `enabled` flag so we never send the literal string "undefined" upstream.
+function useTenantId(): string | undefined {
+  return useAuthStore((s) => s.user?.tenant_id)
 }
 
 export function useScanTargets() {
   const tenantId = useTenantId()
   return useQuery({
     queryKey: ['scanTargets', tenantId],
-    queryFn: () => ingestionApi.listScanTargets({ tenant_id: tenantId }),
+    queryFn: () => ingestionApi.listScanTargets({ tenant_id: tenantId! }),
+    enabled: !!tenantId,
   })
 }
 
@@ -24,17 +30,24 @@ export function useCreateScanTarget() {
 
 export function useUpdateScanTarget() {
   const qc = useQueryClient()
+  const tenantId = useTenantId()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
-      ingestionApi.updateScanTarget(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      if (!tenantId) throw new Error('not signed in')
+      return ingestionApi.updateScanTarget(id, data, tenantId)
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scanTargets'] }),
   })
 }
 
 export function useDeleteScanTarget() {
   const qc = useQueryClient()
+  const tenantId = useTenantId()
   return useMutation({
-    mutationFn: (id: string) => ingestionApi.deleteScanTarget(id),
+    mutationFn: (id: string) => {
+      if (!tenantId) throw new Error('not signed in')
+      return ingestionApi.deleteScanTarget(id, tenantId)
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scanTargets'] }),
   })
 }
@@ -51,8 +64,9 @@ export function useDiscoveryTasks() {
   const tenantId = useTenantId()
   return useQuery({
     queryKey: ['discoveryTasks', tenantId],
-    queryFn: () => ingestionApi.listTasks({ tenant_id: tenantId }),
+    queryFn: () => ingestionApi.listTasks({ tenant_id: tenantId! }),
     refetchInterval: 10000,
+    enabled: !!tenantId,
   })
 }
 

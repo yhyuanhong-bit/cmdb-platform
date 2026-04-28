@@ -1,16 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ingestionApi } from '../lib/api/ingestion'
-const DEFAULT_TENANT = 'a0000000-0000-0000-0000-000000000001'
+import { useAuthStore } from '../stores/authStore'
 
-function useTenantId() {
-  return DEFAULT_TENANT
+// Audit E3 (2026-04-28): replaced the `DEFAULT_TENANT` constant with the
+// signed-in user's tenant from the auth store so every credential call
+// scopes correctly. Queries are gated on a non-empty tenant_id so
+// unauthenticated state doesn't send the literal "undefined".
+function useTenantId(): string | undefined {
+  return useAuthStore((s) => s.user?.tenant_id)
 }
 
 export function useCredentials() {
   const tenantId = useTenantId()
   return useQuery({
     queryKey: ['credentials', tenantId],
-    queryFn: () => ingestionApi.listCredentials({ tenant_id: tenantId }),
+    queryFn: () => ingestionApi.listCredentials({ tenant_id: tenantId! }),
+    enabled: !!tenantId,
   })
 }
 
@@ -24,17 +29,24 @@ export function useCreateCredential() {
 
 export function useUpdateCredential() {
   const qc = useQueryClient()
+  const tenantId = useTenantId()
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
-      ingestionApi.updateCredential(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      if (!tenantId) throw new Error('not signed in')
+      return ingestionApi.updateCredential(id, data, tenantId)
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['credentials'] }),
   })
 }
 
 export function useDeleteCredential() {
   const qc = useQueryClient()
+  const tenantId = useTenantId()
   return useMutation({
-    mutationFn: (id: string) => ingestionApi.deleteCredential(id),
+    mutationFn: (id: string) => {
+      if (!tenantId) throw new Error('not signed in')
+      return ingestionApi.deleteCredential(id, tenantId)
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['credentials'] }),
   })
 }

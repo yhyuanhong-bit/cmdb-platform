@@ -75,9 +75,12 @@ func (s *Service) GetWorstAssets(ctx context.Context, tenantID uuid.UUID) ([]dbg
 	return s.queries.GetWorstAssets(ctx, tenantID)
 }
 
-// GetAssetHistory returns up to 30 recent quality scores for an asset.
-func (s *Service) GetAssetHistory(ctx context.Context, assetID uuid.UUID) ([]dbgen.QualityScore, error) {
-	return s.queries.GetAssetQualityHistory(ctx, assetID)
+// GetAssetHistory returns up to 30 recent quality scores for an asset, scoped to the given tenant.
+func (s *Service) GetAssetHistory(ctx context.Context, tenantID, assetID uuid.UUID) ([]dbgen.QualityScore, error) {
+	return s.queries.GetAssetQualityHistory(ctx, dbgen.GetAssetQualityHistoryParams{
+		AssetID:  assetID,
+		TenantID: tenantID,
+	})
 }
 
 // FlagIssueParams is the input for FlagIssue. ReporterID is optional —

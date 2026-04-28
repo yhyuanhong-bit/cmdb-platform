@@ -151,13 +151,14 @@ async def list_tasks(
 @router.get("/discovery/tasks/{task_id}")
 async def get_task(
     task_id: str,
+    tenant_id: str,
     pool: asyncpg.Pool = Depends(get_db_pool),
 ):
-    """Get a single discovery task by ID."""
+    """Get a single discovery task by ID. Tenant-scoped per audit E5 (2026-04-28)."""
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT * FROM discovery_tasks WHERE id = $1",
-            uuid.UUID(task_id),
+            "SELECT * FROM discovery_tasks WHERE id = $1 AND tenant_id = $2",
+            uuid.UUID(task_id), uuid.UUID(tenant_id),
         )
     if not row:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -166,13 +167,15 @@ async def get_task(
 
 @router.post("/discovery/mac-scan")
 async def trigger_mac_scan(
+    tenant_id: str,
     pool: asyncpg.Pool = Depends(get_db_pool),
     nats_client: NATSClient | None = Depends(get_nats),
 ):
-    """Trigger an immediate MAC/CDP table scan for all network assets."""
-    from app.config import settings
-
-    tenant_id = settings.tenant_id
+    """Trigger an immediate MAC/CDP table scan for all network assets in the
+    given tenant. Audit E2 (2026-04-28): tenant_id is now required from the
+    caller — previously this fell back to settings.tenant_id (the demo tenant
+    UUID), so every operator's "Scan Now" landed in the same demo tenant.
+    """
     result = await run_mac_scan(pool, nats_client, tenant_id)
     return {
         "status": "ok",

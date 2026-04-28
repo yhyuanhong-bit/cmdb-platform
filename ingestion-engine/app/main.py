@@ -53,12 +53,30 @@ async def _periodic_mac_scan(application: FastAPI) -> None:
 
                 pool = application.state.db_pool
                 nats_client = application.state.nats_client
-                result = await run_mac_scan(pool, nats_client, settings.tenant_id)
+                # Iterate every active tenant rather than running under the
+                # hardcoded demo tenant — audit E2 (2026-04-28). Before this
+                # fix every non-demo tenant's location detection was blind.
+                async with pool.acquire() as conn:
+                    tenant_rows = await conn.fetch(
+                        "SELECT id FROM tenants WHERE status = 'active'"
+                    )
+                total_ips = 0
+                total_entries = 0
+                for trow in tenant_rows:
+                    try:
+                        result = await run_mac_scan(pool, nats_client, str(trow["id"]))
+                        total_ips += result.get("scanned_ips", 0) or 0
+                        total_entries += result.get("entries", 0) or 0
+                    except Exception:
+                        logger.warning(
+                            "Periodic MAC scan failed for tenant %s", trow["id"], exc_info=True
+                        )
                 logger.info(
-                    "Periodic MAC scan completed (leader=%s): scanned_ips=%s entries=%s",
+                    "Periodic MAC scan completed (leader=%s, tenants=%s): scanned_ips=%s entries=%s",
                     node_id,
-                    result.get("scanned_ips", 0),
-                    result.get("entries", 0),
+                    len(tenant_rows),
+                    total_ips,
+                    total_entries,
                 )
         except Exception:
             logger.warning("Periodic MAC scan failed", exc_info=True)

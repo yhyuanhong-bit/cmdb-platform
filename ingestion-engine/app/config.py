@@ -31,7 +31,12 @@ class Settings(BaseSettings):
     upload_dir: str = "/tmp/cmdb-uploads"
     max_upload_size_mb: int = 50
     deploy_mode: str = _DEPLOY_MODE
-    tenant_id: str = "a0000000-0000-0000-0000-000000000001"
+    # tenant_id was previously a fallback default ("a0000000-...-001") which
+    # silently routed every periodic scan and on-demand /mac-scan to the demo
+    # tenant — audit E2/E3 (2026-04-28). All call sites now require tenant_id
+    # from the caller and the periodic scan iterates every active tenant.
+    # The field is removed; if any future code path still needs a global
+    # default, add it back here with a hard fail-fast on the demo UUID.
     credential_encryption_key: str = ""
     # Service discovery: cmdb-core reachable address. Read from env so
     # multi-replica deployments can point each replica at its local

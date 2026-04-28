@@ -100,20 +100,29 @@ async def create_credential(
 @router.put("/credentials/{credential_id}")
 async def update_credential(
     credential_id: str,
+    tenant_id: str,
     body: CredentialUpdate,
     pool: asyncpg.Pool = Depends(get_db_pool),
 ):
-    """Update a credential. Params are optional; if omitted, existing params are kept."""
+    """Update a credential. Params are optional; if omitted, existing params are kept.
+
+    Audit E4 (2026-04-28): both the existence check and the UPDATE must be
+    tenant-scoped. Before this fix any caller could overwrite a foreign
+    tenant's credential by guessing its UUID.
+    """
     if body.type is not None and body.type not in VALID_CREDENTIAL_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid credential type '{body.type}'. Must be one of: {', '.join(sorted(VALID_CREDENTIAL_TYPES))}",
         )
 
+    tenant_uuid = uuid.UUID(tenant_id)
+    cred_uuid = uuid.UUID(credential_id)
+
     async with pool.acquire() as conn:
         existing = await conn.fetchrow(
-            "SELECT id FROM credentials WHERE id = $1",
-            uuid.UUID(credential_id),
+            "SELECT id FROM credentials WHERE id = $1 AND tenant_id = $2",
+            cred_uuid, tenant_uuid,
         )
         if not existing:
             raise HTTPException(status_code=404, detail="Credential not found")
@@ -144,11 +153,12 @@ async def update_credential(
             raise HTTPException(status_code=400, detail="No fields to update")
 
         set_parts.append(f"updated_at = now()")
-        params.append(uuid.UUID(credential_id))
+        params.append(cred_uuid)
+        params.append(tenant_uuid)
 
         query = (
             f"UPDATE credentials SET {', '.join(set_parts)} "
-            f"WHERE id = ${idx} "
+            f"WHERE id = ${idx} AND tenant_id = ${idx + 1} "
             f"RETURNING id, tenant_id, name, type, created_at, updated_at"
         )
 
@@ -166,20 +176,26 @@ async def update_credential(
 @router.delete("/credentials/{credential_id}", status_code=204)
 async def delete_credential(
     credential_id: str,
+    tenant_id: str,
     pool: asyncpg.Pool = Depends(get_db_pool),
 ):
-    """Delete a credential. Rejected with 409 if referenced by scan_targets."""
+    """Delete a credential. Tenant-scoped per audit E4 (2026-04-28).
+    Rejected with 409 if referenced by scan_targets in the same tenant.
+    """
+    tenant_uuid = uuid.UUID(tenant_id)
+    cred_uuid = uuid.UUID(credential_id)
+
     async with pool.acquire() as conn:
         existing = await conn.fetchrow(
-            "SELECT id FROM credentials WHERE id = $1",
-            uuid.UUID(credential_id),
+            "SELECT id FROM credentials WHERE id = $1 AND tenant_id = $2",
+            cred_uuid, tenant_uuid,
         )
         if not existing:
             raise HTTPException(status_code=404, detail="Credential not found")
 
         ref_count = await conn.fetchval(
-            "SELECT count(*) FROM scan_targets WHERE credential_id = $1",
-            uuid.UUID(credential_id),
+            "SELECT count(*) FROM scan_targets WHERE credential_id = $1 AND tenant_id = $2",
+            cred_uuid, tenant_uuid,
         )
         if ref_count and ref_count > 0:
             raise HTTPException(
@@ -188,6 +204,6 @@ async def delete_credential(
             )
 
         await conn.execute(
-            "DELETE FROM credentials WHERE id = $1",
-            uuid.UUID(credential_id),
+            "DELETE FROM credentials WHERE id = $1 AND tenant_id = $2",
+            cred_uuid, tenant_uuid,
         )

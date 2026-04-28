@@ -112,9 +112,12 @@ func (s *Service) UpdateRule(ctx context.Context, params dbgen.UpdateBIAScoringR
 	return &r, nil
 }
 
-// ListDependencies returns all dependencies for an assessment.
-func (s *Service) ListDependencies(ctx context.Context, assessmentID uuid.UUID) ([]dbgen.BiaDependency, error) {
-	deps, err := s.queries.ListBIADependencies(ctx, assessmentID)
+// ListDependencies returns all dependencies for an assessment, scoped to the given tenant.
+func (s *Service) ListDependencies(ctx context.Context, tenantID, assessmentID uuid.UUID) ([]dbgen.BiaDependency, error) {
+	deps, err := s.queries.ListBIADependencies(ctx, dbgen.ListBIADependenciesParams{
+		AssessmentID: assessmentID,
+		TenantID:     tenantID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list bia dependencies: %w", err)
 	}

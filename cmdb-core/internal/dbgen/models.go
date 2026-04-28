@@ -446,6 +446,7 @@ type InventoryNote struct {
 	Severity  string      `json:"severity"`
 	Text      string      `json:"text"`
 	CreatedAt time.Time   `json:"created_at"`
+	TenantID  uuid.UUID   `json:"tenant_id"`
 }
 
 type InventoryScanHistory struct {
@@ -456,6 +457,7 @@ type InventoryScanHistory struct {
 	Method    string      `json:"method"`
 	Result    string      `json:"result"`
 	Note      pgtype.Text `json:"note"`
+	TenantID  uuid.UUID   `json:"tenant_id"`
 }
 
 type InventoryTask struct {

@@ -115,7 +115,8 @@ func (s *APIServer) UpdateBIAAssessment(c *gin.Context, id IdPath) {
 	}
 
 	params := dbgen.UpdateBIAAssessmentParams{
-		ID: uuid.UUID(id),
+		ID:       uuid.UUID(id),
+		TenantID: tenantIDFromContext(c),
 	}
 	diff := map[string]any{}
 	if req.SystemName != nil {
@@ -218,7 +219,8 @@ func (s *APIServer) UpdateBIAScoringRule(c *gin.Context, id IdPath) {
 	}
 
 	params := dbgen.UpdateBIAScoringRuleParams{
-		ID: uuid.UUID(id),
+		ID:       uuid.UUID(id),
+		TenantID: tenantIDFromContext(c),
 	}
 	diff := map[string]any{}
 	if req.DisplayName != nil {
@@ -266,7 +268,7 @@ func (s *APIServer) UpdateBIAScoringRule(c *gin.Context, id IdPath) {
 // ListBIADependencies returns dependencies for a BIA assessment.
 // (GET /bia/assessments/{id}/dependencies)
 func (s *APIServer) ListBIADependencies(c *gin.Context, id IdPath) {
-	deps, err := s.biaSvc.ListDependencies(c.Request.Context(), uuid.UUID(id))
+	deps, err := s.biaSvc.ListDependencies(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.InternalError(c, "failed to list BIA dependencies")
 		return

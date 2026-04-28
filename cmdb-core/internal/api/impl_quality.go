@@ -117,7 +117,7 @@ func (s *APIServer) GetWorstAssets(c *gin.Context) {
 // GetAssetQualityHistory returns quality score history for an asset.
 // (GET /quality/history/{id})
 func (s *APIServer) GetAssetQualityHistory(c *gin.Context, id IdPath) {
-	scores, err := s.qualitySvc.GetAssetHistory(c.Request.Context(), uuid.UUID(id))
+	scores, err := s.qualitySvc.GetAssetHistory(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
 		response.InternalError(c, "failed to get asset quality history")
 		return

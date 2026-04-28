@@ -444,11 +444,16 @@ func (q *Queries) ListBIAAssessments(ctx context.Context, arg ListBIAAssessments
 
 const listBIADependencies = `-- name: ListBIADependencies :many
 SELECT id, tenant_id, assessment_id, asset_id, dependency_type, criticality, created_at FROM bia_dependencies
-WHERE assessment_id = $1
+WHERE assessment_id = $1 AND tenant_id = $2
 `
 
-func (q *Queries) ListBIADependencies(ctx context.Context, assessmentID uuid.UUID) ([]BiaDependency, error) {
-	rows, err := q.db.Query(ctx, listBIADependencies, assessmentID)
+type ListBIADependenciesParams struct {
+	AssessmentID uuid.UUID `json:"assessment_id"`
+	TenantID     uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) ListBIADependencies(ctx context.Context, arg ListBIADependenciesParams) ([]BiaDependency, error) {
+	rows, err := q.db.Query(ctx, listBIADependencies, arg.AssessmentID, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -608,7 +613,7 @@ UPDATE bia_assessments SET
     description      = COALESCE($11, description),
     last_assessed    = now(),
     updated_at       = now()
-WHERE id = $12
+WHERE id = $12 AND tenant_id = $13
 RETURNING id, tenant_id, system_name, system_code, owner, bia_score, tier, rto_hours, rpo_minutes, mtpd_hours, data_compliance, asset_compliance, audit_compliance, description, last_assessed, assessed_by, created_at, updated_at, service_id
 `
 
@@ -625,6 +630,7 @@ type UpdateBIAAssessmentParams struct {
 	AuditCompliance pgtype.Bool    `json:"audit_compliance"`
 	Description     pgtype.Text    `json:"description"`
 	ID              uuid.UUID      `json:"id"`
+	TenantID        uuid.UUID      `json:"tenant_id"`
 }
 
 func (q *Queries) UpdateBIAAssessment(ctx context.Context, arg UpdateBIAAssessmentParams) (BiaAssessment, error) {
@@ -641,6 +647,7 @@ func (q *Queries) UpdateBIAAssessment(ctx context.Context, arg UpdateBIAAssessme
 		arg.AuditCompliance,
 		arg.Description,
 		arg.ID,
+		arg.TenantID,
 	)
 	var i BiaAssessment
 	err := row.Scan(
@@ -676,7 +683,7 @@ UPDATE bia_scoring_rules SET
     rpo_threshold  = COALESCE($5, rpo_threshold),
     description    = COALESCE($6, description),
     color          = COALESCE($7, color)
-WHERE id = $8
+WHERE id = $8 AND tenant_id = $9
 RETURNING id, tenant_id, tier_name, tier_level, display_name, min_score, max_score, rto_threshold, rpo_threshold, description, color, icon, created_at
 `
 
@@ -689,6 +696,7 @@ type UpdateBIAScoringRuleParams struct {
 	Description  pgtype.Text    `json:"description"`
 	Color        pgtype.Text    `json:"color"`
 	ID           uuid.UUID      `json:"id"`
+	TenantID     uuid.UUID      `json:"tenant_id"`
 }
 
 func (q *Queries) UpdateBIAScoringRule(ctx context.Context, arg UpdateBIAScoringRuleParams) (BiaScoringRule, error) {
@@ -701,6 +709,7 @@ func (q *Queries) UpdateBIAScoringRule(ctx context.Context, arg UpdateBIAScoring
 		arg.Description,
 		arg.Color,
 		arg.ID,
+		arg.TenantID,
 	)
 	var i BiaScoringRule
 	err := row.Scan(

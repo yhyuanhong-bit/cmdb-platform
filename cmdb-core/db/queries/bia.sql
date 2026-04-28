@@ -34,7 +34,7 @@ UPDATE bia_assessments SET
     description      = COALESCE(sqlc.narg('description'), description),
     last_assessed    = now(),
     updated_at       = now()
-WHERE id = sqlc.arg('id')
+WHERE id = sqlc.arg('id') AND tenant_id = sqlc.arg('tenant_id')
 RETURNING *;
 
 -- name: DeleteBIAAssessment :exec
@@ -59,12 +59,12 @@ UPDATE bia_scoring_rules SET
     rpo_threshold  = COALESCE(sqlc.narg('rpo_threshold'), rpo_threshold),
     description    = COALESCE(sqlc.narg('description'), description),
     color          = COALESCE(sqlc.narg('color'), color)
-WHERE id = sqlc.arg('id')
+WHERE id = sqlc.arg('id') AND tenant_id = sqlc.arg('tenant_id')
 RETURNING *;
 
 -- name: ListBIADependencies :many
 SELECT * FROM bia_dependencies
-WHERE assessment_id = $1;
+WHERE assessment_id = $1 AND tenant_id = $2;
 
 -- name: CreateBIADependency :one
 INSERT INTO bia_dependencies (tenant_id, assessment_id, asset_id, dependency_type, criticality)

@@ -252,13 +252,18 @@ func (q *Queries) CreateQualityScore(ctx context.Context, arg CreateQualityScore
 
 const getAssetQualityHistory = `-- name: GetAssetQualityHistory :many
 SELECT id, tenant_id, asset_id, completeness, accuracy, timeliness, consistency, total_score, issue_details, scan_date, access_weight FROM quality_scores
-WHERE asset_id = $1
+WHERE asset_id = $1 AND tenant_id = $2
 ORDER BY scan_date DESC
 LIMIT 30
 `
 
-func (q *Queries) GetAssetQualityHistory(ctx context.Context, assetID uuid.UUID) ([]QualityScore, error) {
-	rows, err := q.db.Query(ctx, getAssetQualityHistory, assetID)
+type GetAssetQualityHistoryParams struct {
+	AssetID  uuid.UUID `json:"asset_id"`
+	TenantID uuid.UUID `json:"tenant_id"`
+}
+
+func (q *Queries) GetAssetQualityHistory(ctx context.Context, arg GetAssetQualityHistoryParams) ([]QualityScore, error) {
+	rows, err := q.db.Query(ctx, getAssetQualityHistory, arg.AssetID, arg.TenantID)
 	if err != nil {
 		return nil, err
 	}
