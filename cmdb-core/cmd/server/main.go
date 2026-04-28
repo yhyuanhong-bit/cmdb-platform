@@ -424,7 +424,8 @@ func main() {
 
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
-		pool, cfg, bus, authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
+		pool, cfg, bus, redisClient, natsBus,
+		authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, locationDetectSvc,
 		serviceSvc, predictiveSvc, metricSourceSvc, schedTracker, cipher, netGuard,

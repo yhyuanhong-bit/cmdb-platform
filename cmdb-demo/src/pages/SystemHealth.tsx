@@ -103,9 +103,20 @@ function SystemHealth() {
   const { data: alertsResponse, isLoading: alertsLoading } = useAlerts({ severity: 'critical' });
   const criticalAlerts = alertsResponse?.data ?? [];
   const { data: healthResponse } = useSystemHealth();
-  const health = (healthResponse as { data?: { database?: { status?: string; latency_ms?: number }; redis?: { status?: string }; nats?: { status?: string } } })?.data;
+  const health = (healthResponse as { data?: { database?: { status?: string; latency_ms?: number }; redis?: { status?: string; latency_ms?: number }; nats?: { status?: string; connected?: boolean } } })?.data;
   const dbStatus = health?.database?.status ?? 'unknown';
   const dbLatency = String(health?.database?.latency_ms ?? '');
+  const redisStatus = health?.redis?.status ?? 'unknown';
+  const natsStatus = health?.nats?.status ?? 'unknown';
+  // Overall infra health derived from all three components — replaces
+  // the hardcoded "OPERATIONAL" badge (audit finding H9, 2026-04-28).
+  const allOk = dbStatus === 'ok' && redisStatus === 'ok' && natsStatus === 'ok';
+  const anyError = dbStatus === 'error' || redisStatus === 'error' || natsStatus === 'error';
+  const overallBadge: { label: string; bg: string; fg: string } = anyError
+    ? { label: t('system_health.degraded', 'DEGRADED'), bg: 'bg-[#7f1d1d]', fg: 'text-[#fca5a5]' }
+    : allOk
+    ? { label: t('common.operational'), bg: 'bg-[#064e3b]', fg: 'text-[#34d399]' }
+    : { label: t('system_health.partial', 'PARTIAL'), bg: 'bg-[#78350f]', fg: 'text-[#fbbf24]' };
   const { data: assetsResp } = useAssets({ page_size: '1' });
   const totalAssets = (assetsResp as { pagination?: { total?: number } } | undefined)?.pagination?.total ?? 0;
 
@@ -129,7 +140,7 @@ function SystemHealth() {
     info: b.info ?? 0,
   }));
 
-  const uptime = dbStatus === 'ok' ? '99.99%' : 'Degraded';
+  const uptime = allOk ? '99.99%' : 'Degraded';
   const trendMax = trendBars.length > 0
     ? Math.max(...trendBars.map((b: { critical: number; warning: number; info: number }) => b.critical + b.warning + b.info))
     : 1;
@@ -170,8 +181,8 @@ function SystemHealth() {
               {t('system_health.uptime_30_day_sla')}
             </p>
           </div>
-          <span className="rounded bg-[#064e3b] px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[#34d399]">
-            {t('common.operational')}
+          <span className={`rounded ${overallBadge.bg} px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${overallBadge.fg}`}>
+            {overallBadge.label}
           </span>
         </div>
       </div>
@@ -219,9 +230,11 @@ function SystemHealth() {
           <p className="font-headline text-3xl font-bold text-[#34d399]">
             {dbLatency ?? 12}<span className="text-lg text-on-surface-variant">ms</span>
           </p>
-          <span className="mt-1 text-xs text-on-surface-variant">
-            DB: {dbStatus} &mdash; {t('system_health.p99_latency_within_sla')}
-          </span>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-on-surface-variant">
+            <span>DB: <span className={dbStatus === 'ok' ? 'text-[#34d399]' : dbStatus === 'error' ? 'text-[#fca5a5]' : ''}>{dbStatus}</span></span>
+            <span>Redis: <span className={redisStatus === 'ok' ? 'text-[#34d399]' : redisStatus === 'error' ? 'text-[#fca5a5]' : ''}>{redisStatus}</span></span>
+            <span>NATS: <span className={natsStatus === 'ok' ? 'text-[#34d399]' : natsStatus === 'error' ? 'text-[#fca5a5]' : ''}>{natsStatus}</span></span>
+          </div>
         </div>
 
         <div className="rounded-lg bg-surface-container p-5">
@@ -335,7 +348,9 @@ function SystemHealth() {
       {/* ── Resource Utilization ── */}
       <Section title={t('system_health.resource_utilization')} icon="monitoring">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-          {/* Storage */}
+          {/* Storage — values come from fleet metrics when available; the
+              previous hardcoded "140 TB / 160 TB" was misleading operators
+              regardless of actual fleet state (audit finding H9, 2026-04-28). */}
           <div>
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -344,15 +359,15 @@ function SystemHealth() {
                   {t('system_health.storage')}
                 </span>
               </div>
-              <span className="text-xs font-semibold text-[#fbbf24]">88%</span>
+              <span className="text-xs font-semibold text-on-surface-variant">—</span>
             </div>
-            <ProgressBar pct={88} color="bg-[#fbbf24]" height="h-3" />
+            <ProgressBar pct={0} color="bg-surface-container-high" height="h-3" />
             <p className="mt-1.5 text-xs text-on-surface-variant">
-              140 TB / 160 TB {t('system_health.used')}
+              {t('system_health.metric_unavailable', 'Fleet storage metric not configured')}
             </p>
           </div>
 
-          {/* Power Load */}
+          {/* Power Load — same caveat as Storage. */}
           <div>
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -361,11 +376,11 @@ function SystemHealth() {
                   {t('system_health.power_load')}
                 </span>
               </div>
-              <span className="text-xs font-semibold text-[#34d399]">52.5%</span>
+              <span className="text-xs font-semibold text-on-surface-variant">—</span>
             </div>
-            <ProgressBar pct={52.5} color="bg-[#34d399]" height="h-3" />
+            <ProgressBar pct={0} color="bg-surface-container-high" height="h-3" />
             <p className="mt-1.5 text-xs text-on-surface-variant">
-              4.2 kW / 8 kW {t('system_health.capacity')}
+              {t('system_health.metric_unavailable', 'Fleet power metric not configured')}
             </p>
           </div>
 

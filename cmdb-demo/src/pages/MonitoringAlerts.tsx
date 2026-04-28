@@ -70,12 +70,24 @@ function MonitoringAlerts() {
   const [urlState, setUrlState] = useUrlState('alerts', alertsListDefaults);
   const { search, severity, page: currentPage } = urlState;
 
-  const filterParams: Record<string, string> = {};
+  // Server-side pagination (audit finding H11, 2026-04-28). Before this
+  // the page fetched the full alerts list and sliced client-side, which
+  // OOMs on large fleets. Page size is capped at 10 to match the existing
+  // table layout. Search is intentionally page-scoped — making it global
+  // would require a backend full-text endpoint.
+  const PAGE_SIZE = 10;
+  const filterParams: Record<string, string> = {
+    page: String(currentPage),
+    page_size: String(PAGE_SIZE),
+  };
   if (severity !== "all") filterParams.severity = severity;
   const { data: alertsResponse, isLoading, error } = useAlerts(filterParams);
   const acknowledgeAlert = useAcknowledgeAlert();
   const resolveAlert = useResolveAlert();
   const alerts = alertsResponse?.data ?? [];
+  const serverPagination = (alertsResponse as { pagination?: { total?: number; total_pages?: number } } | undefined)?.pagination;
+  const totalAlerts = serverPagination?.total ?? alerts.length;
+  const serverTotalPages = serverPagination?.total_pages ?? 1;
 
   // Wave 5.1b: Active incidents panel — surface incidents that are not yet
   // closed so the operator can pivot to the new IncidentDetail page. We do
@@ -287,7 +299,7 @@ function MonitoringAlerts() {
             </tr>
           </thead>
           <tbody>
-            {filtered.slice((currentPage - 1) * 10, currentPage * 10).map((alert) => (
+            {filtered.map((alert) => (
               <tr
                 key={alert.id}
                 onClick={() => navigate('/monitoring/topology')}
@@ -354,7 +366,7 @@ function MonitoringAlerts() {
 
       {/* ── Pagination ── */}
       {(() => {
-        const totalPages = Math.max(1, Math.ceil(filtered.length / 10));
+        const totalPages = Math.max(1, serverTotalPages);
         // Sliding window: show up to 5 pages centered on current page
         const windowSize = 5;
         let start = Math.max(1, currentPage - Math.floor(windowSize / 2));
@@ -364,7 +376,7 @@ function MonitoringAlerts() {
         return (
           <div className="flex items-center justify-between text-xs text-on-surface-variant">
             <p>
-              {t('monitoring.pagination_showing', { count: Math.min(10, filtered.length - (currentPage - 1) * 10), total: filtered.length })}
+              {t('monitoring.pagination_showing', { count: filtered.length, total: totalAlerts })}
             </p>
             <div className="flex items-center gap-1">
               <button

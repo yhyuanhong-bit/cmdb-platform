@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
@@ -40,6 +41,11 @@ type APIServer struct {
 	pool              *pgxpool.Pool
 	cfg               *config.Config
 	eventBus          eventbus.Bus
+	// redis + nats are exposed here so /system/health can mirror /readyz
+	// component checks (audit finding H9, 2026-04-28). Both may be nil
+	// in tests; impl_system.go falls back to "not_configured" in that case.
+	redis             *redis.Client
+	nats              natsChecker
 	authSvc           authService
 	identitySvc       identityService
 	topologySvc       topologyService
@@ -64,10 +70,17 @@ type APIServer struct {
 }
 
 // NewAPIServer constructs an APIServer with all required domain services.
+//
+// redis and nats may be nil — impl_system.GetSystemHealth handles that
+// case as "not_configured" rather than panicking. They are passed
+// separately from the eventBus interface so /system/health can introspect
+// connection state without bus type-assertions.
 func NewAPIServer(
 	pool *pgxpool.Pool,
 	cfg *config.Config,
 	bus eventbus.Bus,
+	redisClient *redis.Client,
+	natsHealth natsChecker,
 	authSvc authService,
 	identitySvc identityService,
 	topologySvc topologyService,
@@ -94,6 +107,8 @@ func NewAPIServer(
 		pool:              pool,
 		cfg:               cfg,
 		eventBus:          bus,
+		redis:             redisClient,
+		nats:              natsHealth,
 		authSvc:           authSvc,
 		identitySvc:       identitySvc,
 		topologySvc:       topologySvc,
