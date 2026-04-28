@@ -16,6 +16,7 @@ const countUsers = `-- name: CountUsers :one
 SELECT count(*) FROM users
 WHERE tenant_id = $1
   AND source <> 'system'
+  AND deleted_at IS NULL
 `
 
 func (q *Queries) CountUsers(ctx context.Context, tenantID uuid.UUID) (int64, error) {
@@ -82,7 +83,11 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const deactivateUser = `-- name: DeactivateUser :exec
-UPDATE users SET status = 'deleted', updated_at = now() WHERE id = $1 AND tenant_id = $2
+UPDATE users
+SET status = 'deleted',
+    deleted_at = now(),
+    updated_at = now()
+WHERE id = $1 AND tenant_id = $2
 `
 
 type DeactivateUserParams struct {
@@ -90,6 +95,13 @@ type DeactivateUserParams struct {
 	TenantID uuid.UUID `json:"tenant_id"`
 }
 
+// Soft-delete a user. Sets BOTH status='deleted' AND deleted_at=now().
+// The deleted_at column is what every other query (ListUsers,
+// GetUserByUsername, etc) uses to filter; status='deleted' is kept for
+// backward compatibility and the auth_service `Status != 'active'`
+// gate. Migration 000075 made (tenant_id, username) UNIQUE *only*
+// among non-deleted rows so the same username can be reused after
+// a delete.
 func (q *Queries) DeactivateUser(ctx context.Context, arg DeactivateUserParams) error {
 	_, err := q.db.Exec(ctx, deactivateUser, arg.ID, arg.TenantID)
 	return err
@@ -124,7 +136,8 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const getUserByTenantAndUsername = `-- name: GetUserByTenantAndUsername :one
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE tenant_id = $1 AND username = $2
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users
+WHERE tenant_id = $1 AND username = $2 AND deleted_at IS NULL
 `
 
 type GetUserByTenantAndUsernameParams struct {
@@ -157,7 +170,7 @@ func (q *Queries) GetUserByTenantAndUsername(ctx context.Context, arg GetUserByT
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE username = $1
+SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users WHERE username = $1 AND deleted_at IS NULL
 `
 
 // Legacy global-unique lookup. Phase 1.3 scoped username uniqueness to
@@ -165,6 +178,9 @@ SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_ha
 // context is known. This query now returns multiple rows when two tenants
 // reuse the same username — callers must treat "more than one match" as
 // ambiguous and fail closed.
+//
+// Soft-deleted rows are excluded so logins/lookups don't resurrect a
+// deactivated identity (matches the `idx_users_not_deleted` index).
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByUsername, username)
 	var i User
@@ -193,6 +209,7 @@ const listUsers = `-- name: ListUsers :many
 SELECT id, tenant_id, dept_id, username, display_name, email, phone, password_hash, status, source, created_at, updated_at, last_login_at, last_login_ip, deleted_at, password_changed_at FROM users
 WHERE tenant_id = $1
   AND source <> 'system'
+  AND deleted_at IS NULL
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
 `
@@ -206,6 +223,11 @@ type ListUsersParams struct {
 // The per-tenant source='system' user (seeded by migration 000052) is
 // filtered out here so UI pickers and user lists don't expose it. It's a
 // FK-safe sentinel, not a human identity.
+//
+// Soft-deleted users (deleted_at NOT NULL) are also excluded. Without
+// this filter, clicking "Delete" in System Settings looks like a no-op
+// because the row stays in the list — see migration 000075 + the
+// DeactivateUser query update below.
 func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
 	rows, err := q.db.Query(ctx, listUsers, arg.TenantID, arg.Limit, arg.Offset)
 	if err != nil {

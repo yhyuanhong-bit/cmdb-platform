@@ -8,10 +8,14 @@ SELECT * FROM users WHERE id = $1;
 -- context is known. This query now returns multiple rows when two tenants
 -- reuse the same username — callers must treat "more than one match" as
 -- ambiguous and fail closed.
-SELECT * FROM users WHERE username = $1;
+--
+-- Soft-deleted rows are excluded so logins/lookups don't resurrect a
+-- deactivated identity (matches the `idx_users_not_deleted` index).
+SELECT * FROM users WHERE username = $1 AND deleted_at IS NULL;
 
 -- name: GetUserByTenantAndUsername :one
-SELECT * FROM users WHERE tenant_id = $1 AND username = $2;
+SELECT * FROM users
+WHERE tenant_id = $1 AND username = $2 AND deleted_at IS NULL;
 
 -- name: ListUsersByUsername :many
 --
@@ -26,16 +30,23 @@ SELECT * FROM users WHERE username = $1 AND deleted_at IS NULL;
 -- The per-tenant source='system' user (seeded by migration 000052) is
 -- filtered out here so UI pickers and user lists don't expose it. It's a
 -- FK-safe sentinel, not a human identity.
+--
+-- Soft-deleted users (deleted_at NOT NULL) are also excluded. Without
+-- this filter, clicking "Delete" in System Settings looks like a no-op
+-- because the row stays in the list — see migration 000075 + the
+-- DeactivateUser query update below.
 SELECT * FROM users
 WHERE tenant_id = $1
   AND source <> 'system'
+  AND deleted_at IS NULL
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CountUsers :one
 SELECT count(*) FROM users
 WHERE tenant_id = $1
-  AND source <> 'system';
+  AND source <> 'system'
+  AND deleted_at IS NULL;
 
 -- name: CreateUser :one
 INSERT INTO users (
@@ -59,4 +70,16 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: DeactivateUser :exec
-UPDATE users SET status = 'deleted', updated_at = now() WHERE id = $1 AND tenant_id = $2;
+--
+-- Soft-delete a user. Sets BOTH status='deleted' AND deleted_at=now().
+-- The deleted_at column is what every other query (ListUsers,
+-- GetUserByUsername, etc) uses to filter; status='deleted' is kept for
+-- backward compatibility and the auth_service `Status != 'active'`
+-- gate. Migration 000075 made (tenant_id, username) UNIQUE *only*
+-- among non-deleted rows so the same username can be reused after
+-- a delete.
+UPDATE users
+SET status = 'deleted',
+    deleted_at = now(),
+    updated_at = now()
+WHERE id = $1 AND tenant_id = $2;
