@@ -37,7 +37,7 @@ UPDATE racks SET deleted_at = now() WHERE id = $1 AND tenant_id = $2 AND deleted
 
 -- name: ListAssetsByRack :many
 SELECT a.* FROM assets a
-WHERE a.rack_id = $1 AND a.deleted_at IS NULL
+WHERE a.rack_id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL
 ORDER BY a.name;
 
 -- name: GetRackOccupancy :one

@@ -149,9 +149,12 @@ func (s *Service) GetRack(ctx context.Context, tenantID, id uuid.UUID) (dbgen.Ra
 	return s.queries.GetRack(ctx, dbgen.GetRackParams{ID: id, TenantID: tenantID})
 }
 
-// ListAssetsByRack returns all assets mounted in a rack.
-func (s *Service) ListAssetsByRack(ctx context.Context, rackID uuid.UUID) ([]dbgen.Asset, error) {
-	return s.queries.ListAssetsByRack(ctx, pgtype.UUID{Bytes: rackID, Valid: true})
+// ListAssetsByRack returns all assets mounted in a rack, scoped to the given tenant.
+func (s *Service) ListAssetsByRack(ctx context.Context, tenantID, rackID uuid.UUID) ([]dbgen.Asset, error) {
+	return s.queries.ListAssetsByRack(ctx, dbgen.ListAssetsByRackParams{
+		RackID:   pgtype.UUID{Bytes: rackID, Valid: true},
+		TenantID: tenantID,
+	})
 }
 
 // CreateLocation inserts a new location.

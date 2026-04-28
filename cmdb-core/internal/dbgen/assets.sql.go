@@ -627,7 +627,7 @@ UPDATE assets SET
     eol_date                 = COALESCE($26, eol_date),
     owner_team               = COALESCE($27, owner_team),
     updated_at               = now()
-WHERE id = $28
+WHERE id = $28 AND tenant_id = $29
 RETURNING id, tenant_id, asset_tag, property_number, control_number, name, type, sub_type, status, bia_level, location_id, rack_id, vendor, model, serial_number, attributes, tags, created_at, updated_at, ip_address, deleted_at, sync_version, bmc_ip, bmc_type, bmc_firmware, purchase_date, purchase_cost, warranty_start, warranty_end, warranty_vendor, warranty_contract, expected_lifespan_months, eol_date, access_count_24h, last_accessed_at, owner_team
 `
 
@@ -660,6 +660,7 @@ type UpdateAssetParams struct {
 	EolDate                pgtype.Date    `json:"eol_date"`
 	OwnerTeam              pgtype.Text    `json:"owner_team"`
 	ID                     uuid.UUID      `json:"id"`
+	TenantID               uuid.UUID      `json:"tenant_id"`
 }
 
 func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset, error) {
@@ -692,6 +693,7 @@ func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset
 		arg.EolDate,
 		arg.OwnerTeam,
 		arg.ID,
+		arg.TenantID,
 	)
 	var i Asset
 	err := row.Scan(

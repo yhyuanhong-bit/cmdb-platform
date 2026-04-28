@@ -79,7 +79,7 @@ UPDATE assets SET
     eol_date                 = COALESCE(sqlc.narg('eol_date'), eol_date),
     owner_team               = COALESCE(sqlc.narg('owner_team'), owner_team),
     updated_at               = now()
-WHERE id = sqlc.arg('id')
+WHERE id = sqlc.arg('id') AND tenant_id = sqlc.arg('tenant_id')
 RETURNING *;
 
 -- name: DeleteAsset :exec

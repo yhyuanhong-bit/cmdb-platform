@@ -34,7 +34,7 @@ type mockTopologyService struct {
 	deleteLocationFn               func(ctx context.Context, tenantID, id uuid.UUID, recursive bool) error
 	listRacksByLocationFn          func(ctx context.Context, tenantID, locationID uuid.UUID) ([]dbgen.Rack, error)
 	getRackFn                      func(ctx context.Context, tenantID, id uuid.UUID) (dbgen.Rack, error)
-	listAssetsByRackFn             func(ctx context.Context, rackID uuid.UUID) ([]dbgen.Asset, error)
+	listAssetsByRackFn             func(ctx context.Context, tenantID, rackID uuid.UUID) ([]dbgen.Asset, error)
 	getRackOccupancyFn             func(ctx context.Context, rackID uuid.UUID) (dbgen.GetRackOccupancyRow, error)
 	getRackOccupanciesByLocationFn func(ctx context.Context, tenantID, locationID uuid.UUID) ([]dbgen.GetRackOccupanciesByLocationRow, error)
 	createRackFn                   func(ctx context.Context, params dbgen.CreateRackParams) (*dbgen.Rack, error)
@@ -91,8 +91,8 @@ func (m *mockTopologyService) ListRacksByLocation(ctx context.Context, tenantID,
 func (m *mockTopologyService) GetRack(ctx context.Context, tenantID, id uuid.UUID) (dbgen.Rack, error) {
 	return m.getRackFn(ctx, tenantID, id)
 }
-func (m *mockTopologyService) ListAssetsByRack(ctx context.Context, rackID uuid.UUID) ([]dbgen.Asset, error) {
-	return m.listAssetsByRackFn(ctx, rackID)
+func (m *mockTopologyService) ListAssetsByRack(ctx context.Context, tenantID, rackID uuid.UUID) ([]dbgen.Asset, error) {
+	return m.listAssetsByRackFn(ctx, tenantID, rackID)
 }
 func (m *mockTopologyService) GetRackOccupancy(ctx context.Context, rackID uuid.UUID) (dbgen.GetRackOccupancyRow, error) {
 	if m.getRackOccupancyFn == nil {

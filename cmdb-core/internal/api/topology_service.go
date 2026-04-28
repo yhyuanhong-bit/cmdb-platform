@@ -33,7 +33,7 @@ type topologyService interface {
 	// Rack reads
 	ListRacksByLocation(ctx context.Context, tenantID, locationID uuid.UUID) ([]dbgen.Rack, error)
 	GetRack(ctx context.Context, tenantID, id uuid.UUID) (dbgen.Rack, error)
-	ListAssetsByRack(ctx context.Context, rackID uuid.UUID) ([]dbgen.Asset, error)
+	ListAssetsByRack(ctx context.Context, tenantID, rackID uuid.UUID) ([]dbgen.Asset, error)
 	GetRackOccupancy(ctx context.Context, rackID uuid.UUID) (dbgen.GetRackOccupancyRow, error)
 	GetRackOccupanciesByLocation(ctx context.Context, tenantID, locationID uuid.UUID) ([]dbgen.GetRackOccupanciesByLocationRow, error)
 

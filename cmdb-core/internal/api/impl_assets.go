@@ -208,8 +208,10 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 		return
 	}
 
+	tenantID := tenantIDFromContext(c)
 	params := dbgen.UpdateAssetParams{
-		ID: uuid.UUID(id),
+		ID:       uuid.UUID(id),
+		TenantID: tenantID,
 	}
 	if req.Name != nil {
 		params.Name = pgtype.Text{String: *req.Name, Valid: true}
@@ -286,7 +288,6 @@ func (s *APIServer) UpdateAsset(c *gin.Context, id IdPath) {
 	const apiSourcePriority = 50
 	var authorityWarnings []string
 
-	tenantID := tenantIDFromContext(c)
 	if s.pool != nil {
 		authSc := database.Scope(s.pool, tenantID)
 		authRows, authErr := authSc.Query(c.Request.Context(),

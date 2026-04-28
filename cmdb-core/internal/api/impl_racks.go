@@ -98,7 +98,8 @@ func (s *APIServer) GetRack(c *gin.Context, id IdPath) {
 // ListRackAssets returns all assets in a rack.
 // (GET /racks/{id}/assets)
 func (s *APIServer) ListRackAssets(c *gin.Context, id IdPath) {
-	assets, err := s.topologySvc.ListAssetsByRack(c.Request.Context(), uuid.UUID(id))
+	tenantID := tenantIDFromContext(c)
+	assets, err := s.topologySvc.ListAssetsByRack(c.Request.Context(), tenantID, uuid.UUID(id))
 	if err != nil {
 		response.InternalError(c, "failed to list rack assets")
 		return
