@@ -75,6 +75,7 @@ describe('AuthGuard', () => {
       refreshToken: 'valid-refresh-token',
       user: {
         id: 'a0000000-0000-0000-0000-000000000001',
+        tenant_id: 'a0000000-0000-0000-0000-000000000001',
         username: 'testuser',
         display_name: 'Test User',
         email: 'test@example.invalid',

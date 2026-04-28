@@ -30,8 +30,11 @@ type RefreshRequest struct {
 }
 
 // CurrentUser represents the authenticated user with merged permissions.
+// TenantID is included so the frontend doesn't have to hardcode a tenant
+// UUID for tenant-scoped writes (audit finding H4, 2026-04-28).
 type CurrentUser struct {
 	ID          uuid.UUID            `json:"id"`
+	TenantID    uuid.UUID            `json:"tenant_id"`
 	Username    string               `json:"username"`
 	DisplayName string               `json:"display_name"`
 	Email       string               `json:"email"`

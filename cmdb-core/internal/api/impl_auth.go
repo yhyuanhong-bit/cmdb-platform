@@ -106,6 +106,7 @@ func (s *APIServer) GetCurrentUser(c *gin.Context) {
 	}
 	response.OK(c, CurrentUser{
 		Id:          cu.ID,
+		TenantId:    cu.TenantID,
 		Username:    cu.Username,
 		DisplayName: cu.DisplayName,
 		Email:       cu.Email,

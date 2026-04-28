@@ -359,6 +359,7 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, userID string) (*Curre
 
 	return &CurrentUser{
 		ID:          user.ID,
+		TenantID:    user.TenantID,
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
 		Email:       user.Email,

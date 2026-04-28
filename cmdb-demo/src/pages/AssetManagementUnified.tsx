@@ -166,9 +166,14 @@ export default function AssetManagementUnified() {
 
     setImporting(true)
     try {
+      const tenantId = useAuthStore.getState().user?.tenant_id
+      if (!tenantId) {
+        toast.error('Not signed in — cannot import without a tenant context.')
+        return
+      }
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('tenant_id', 'a0000000-0000-0000-0000-000000000001')
+      formData.append('tenant_id', tenantId)
 
       const resp = await fetch('/api/v1/ingestion/import/upload', {
         method: 'POST',

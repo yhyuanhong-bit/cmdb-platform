@@ -56,9 +56,9 @@ export default function EquipmentHealthOverview() {
   const navigate = useNavigate()
 
   // Fetch server assets for health overview context
-  const { data: apiData } = useAssets({ type: 'server' })
+  const { data: apiData, isLoading: assetsLoading, isError: assetsError } = useAssets({ type: 'server' })
   const allAssets = apiData?.data ?? []
-  const { data: alertsResp } = useAlerts({ severity: 'warning' })
+  const { data: alertsResp, isError: alertsError } = useAlerts({ severity: 'warning' })
   const allAlerts = alertsResp?.data ?? []
 
   // Lifecycle stats for warranty-aware scoring
@@ -89,6 +89,26 @@ export default function EquipmentHealthOverview() {
   const warrantyExpiredCount = lifecycleStats.warranty_expired_count ?? 0
   const effectiveHealthy = operationalCount - Math.min(warrantyExpiredCount, operationalCount) * 0.2
   const healthScore = Math.round((effectiveHealthy / totalCount) * 100 * 10) / 10
+
+  // Derive health badge state from real data instead of a hardcoded
+  // "status_normal" (audit finding H10, 2026-04-28).
+  const criticalAlertCount = allAlerts.filter(
+    (a: AlertEvent) => a.severity === 'critical' || a.severity === 'high',
+  ).length
+  type HealthBadge = { tone: 'ok' | 'warn' | 'error' | 'loading'; labelKey: string }
+  const healthBadge: HealthBadge = (() => {
+    if (assetsLoading) return { tone: 'loading', labelKey: 'equipment_health_overview.status_loading' }
+    if (assetsError) return { tone: 'error', labelKey: 'equipment_health_overview.status_error' }
+    if (criticalAlertCount > 0) return { tone: 'error', labelKey: 'equipment_health_overview.status_degraded' }
+    if (healthScore < 70 || warrantyExpiredCount > 0) return { tone: 'warn', labelKey: 'equipment_health_overview.status_warning' }
+    return { tone: 'ok', labelKey: 'equipment_health_overview.status_normal' }
+  })()
+  const badgeTone = {
+    ok:      { bg: 'bg-[#69db7c]/15', dot: 'bg-[#69db7c]', text: 'text-[#69db7c]' },
+    warn:    { bg: 'bg-[#ffd43b]/15', dot: 'bg-[#ffd43b]', text: 'text-[#ffd43b]' },
+    error:   { bg: 'bg-[#ff6b6b]/15', dot: 'bg-[#ff6b6b]', text: 'text-[#ff6b6b]' },
+    loading: { bg: 'bg-surface-container',    dot: 'bg-on-surface-variant', text: 'text-on-surface-variant' },
+  }[healthBadge.tone]
 
   // Fleet metric lookups
   const diskMetric = getMetric('disk_usage')
@@ -265,13 +285,18 @@ export default function EquipmentHealthOverview() {
             {t('equipment_health_overview.title')}
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <span className="flex items-center gap-1.5 rounded bg-[#69db7c]/15 px-3 py-1 text-[10px] font-bold tracking-widest text-[#69db7c]">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#69db7c]" />
-              {t('equipment_health_overview.status_normal')}
+            <span className={`flex items-center gap-1.5 rounded ${badgeTone.bg} px-3 py-1 text-[10px] font-bold tracking-widest ${badgeTone.text}`}>
+              <span className={`inline-block h-1.5 w-1.5 rounded-full ${badgeTone.dot}`} />
+              {t(healthBadge.labelKey, healthBadge.labelKey.split('.').pop() ?? '')}
             </span>
             <span className="text-xs text-on-surface-variant">
               {t('equipment_health_overview.last_sync')}：{new Date().toLocaleString()}
             </span>
+            {(assetsError || alertsError) && (
+              <span className="rounded border border-[#ff6b6b]/40 bg-[#ff6b6b]/10 px-2 py-1 text-[10px] text-[#ff6b6b]">
+                {t('equipment_health_overview.fetch_error', 'Some metrics failed to load — values may be stale')}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">

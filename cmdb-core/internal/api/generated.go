@@ -1648,7 +1648,12 @@ type CurrentUser struct {
 	Email       string              `json:"email"`
 	Id          openapi_types.UUID  `json:"id"`
 	Permissions map[string][]string `json:"permissions"`
-	Username    string              `json:"username"`
+
+	// TenantId The authenticated user's tenant. Frontend uses this so it
+	// never has to hardcode a tenant UUID for tenant-scoped writes
+	// (audit finding H4, 2026-04-28).
+	TenantId openapi_types.UUID `json:"tenant_id"`
+	Username string             `json:"username"`
 }
 
 // DashboardStats defines model for DashboardStats.

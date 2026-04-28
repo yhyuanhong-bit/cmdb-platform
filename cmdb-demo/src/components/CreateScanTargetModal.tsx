@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useCreateScanTarget, useUpdateScanTarget } from '../hooks/useScanTargets'
 import { useCredentials } from '../hooks/useCredentials'
+import { useAuthStore } from '../stores/authStore'
 
 interface Credential {
   id: string
@@ -48,7 +49,7 @@ const initial = {
 
 export default function CreateScanTargetModal({ open, onClose, editing }: Props) {
   const { t } = useTranslation()
-  const tenantId = 'a0000000-0000-0000-0000-000000000001'
+  const tenantId = useAuthStore((s) => s.user?.tenant_id) ?? ''
   const [formData, setFormData] = useState({ ...initial })
 
   const createMutation = useCreateScanTarget()

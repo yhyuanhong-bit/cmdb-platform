@@ -34,6 +34,7 @@ export interface TokenPair {
 
 export interface CurrentUser {
   id: string
+  tenant_id: string
   username: string
   display_name: string
   email: string

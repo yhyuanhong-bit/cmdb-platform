@@ -113,6 +113,7 @@ describe('authStore', () => {
       refreshToken: 'refresh',
       user: {
         id: '1',
+        tenant_id: 'a0000000-0000-0000-0000-000000000001',
         username: 'admin',
         display_name: 'Admin',
         email: '',

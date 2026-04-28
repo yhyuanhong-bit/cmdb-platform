@@ -5415,6 +5415,13 @@ components:
         id:
           type: string
           format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+          description: |
+            The authenticated user's tenant. Frontend uses this so it
+            never has to hardcode a tenant UUID for tenant-scoped writes
+            (audit finding H4, 2026-04-28).
         username:
           type: string
         display_name:
@@ -5427,7 +5434,7 @@ components:
             type: array
             items:
               type: string
-      required: [id, username, display_name, email, permissions]
+      required: [id, tenant_id, username, display_name, email, permissions]
 
     LoginRequest:
       type: object
