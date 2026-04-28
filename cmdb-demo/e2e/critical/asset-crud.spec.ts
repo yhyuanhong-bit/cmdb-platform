@@ -34,8 +34,10 @@ const FAKE_ASSET = {
 
 test.describe('Asset list', () => {
   test.beforeEach(async ({ page }) => {
-    await stubAssetsList(page, [FAKE_ASSET])
+    // Register catch-all FIRST; specific stubs registered later override it
+    // (Playwright matches the most-recently-added route first).
     await stubApiCatchAll(page)
+    await stubAssetsList(page, [FAKE_ASSET])
     await login(page)
   })
 
@@ -91,76 +93,67 @@ test.describe('Asset list', () => {
 
 test.describe('Asset create modal', () => {
   test.beforeEach(async ({ page }) => {
-    await stubAssetsList(page, [])
-    // Stub the creation endpoint before mounting
-    await stubCreateAsset(page, FAKE_ASSET)
+    // Catch-all first so specific stubs override it.
     await stubApiCatchAll(page)
+    await stubAssetsList(page, [])
+    await stubCreateAsset(page, FAKE_ASSET)
     await login(page)
   })
 
   test('create asset modal opens when Add Asset button is clicked', async ({ page }) => {
     await page.goto('/assets')
 
-    // Click "Add Asset" / "+" button
-    const addBtn = page.locator(
-      'button:has-text("Add Asset"), button:has-text("add"), button:has-text("Create")'
-    ).first()
+    const addBtn = page.locator('button:has-text("Add Asset")').first()
     await expect(addBtn).toBeVisible({ timeout: 10000 })
     await addBtn.click()
 
     // Modal heading should appear
     await expect(
-      page.locator('h3, h2, [role="dialog"]').filter({ hasText: /asset|create/i }).first()
+      page.locator('div.fixed h3:has-text("Create Asset")').first()
     ).toBeVisible({ timeout: 5000 })
   })
+
+  // The CreateAssetModal renders fields as <div><label>Asset Tag *</label><input/></div>.
+  // Labels are not associated via htmlFor, so we locate inputs by sibling label text.
+  const tagInputSel  = 'div:has(> label:has-text("Asset Tag")) input'
+  const nameInputSel = 'div:has(> label:has-text("Name")) input'
 
   test('create modal has asset tag and name inputs', async ({ page }) => {
     await page.goto('/assets')
 
-    const addBtn = page.locator(
-      'button:has-text("Add Asset"), button:has-text("add"), button:has-text("Create")'
-    ).first()
+    const addBtn = page.locator('button:has-text("Add Asset")').first()
     await expect(addBtn).toBeVisible({ timeout: 10000 })
     await addBtn.click()
 
     // Both required fields must be visible
-    await expect(page.locator('input[placeholder*="tag" i], input[placeholder*="TAG" i]').first()).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('input[placeholder*="name" i], input[placeholder*="Name" i]').first()).toBeVisible({ timeout: 5000 })
+    await expect(page.locator(tagInputSel).first()).toBeVisible({ timeout: 5000 })
+    await expect(page.locator(nameInputSel).first()).toBeVisible({ timeout: 5000 })
   })
 
   test('create button is disabled when required fields are empty', async ({ page }) => {
     await page.goto('/assets')
 
-    const addBtn = page.locator(
-      'button:has-text("Add Asset"), button:has-text("add"), button:has-text("Create")'
-    ).first()
+    const addBtn = page.locator('button:has-text("Add Asset")').first()
     await expect(addBtn).toBeVisible({ timeout: 10000 })
     await addBtn.click()
 
-    // Save/Create button should be disabled
-    const saveBtn = page.locator(
-      'button:has-text("Create Asset"), button:has-text("Save"), button:has-text("创建")'
-    ).first()
+    // Modal contents — find the Create submit button INSIDE the modal, not the
+    // page-level "Add Asset"/"Create" buttons. The modal is a fixed-position div.
+    const saveBtn = page.locator('div.fixed button:text-is("Create")').first()
     await expect(saveBtn).toBeDisabled({ timeout: 5000 })
   })
 
   test('filling required fields enables create button', async ({ page }) => {
     await page.goto('/assets')
 
-    const addBtn = page.locator(
-      'button:has-text("Add Asset"), button:has-text("add"), button:has-text("Create")'
-    ).first()
+    const addBtn = page.locator('button:has-text("Add Asset")').first()
     await expect(addBtn).toBeVisible({ timeout: 10000 })
     await addBtn.click()
 
-    const tagInput  = page.locator('input[placeholder*="tag" i], input[placeholder*="TAG" i]').first()
-    const nameInput = page.locator('input[placeholder*="name" i], input[placeholder*="Name" i]').first()
-    await tagInput.fill('E2E-0001')
-    await nameInput.fill('e2e-test-server-alpha')
+    await page.locator(tagInputSel).first().fill('E2E-0001')
+    await page.locator(nameInputSel).first().fill('e2e-test-server-alpha')
 
-    const saveBtn = page.locator(
-      'button:has-text("Create Asset"), button:has-text("Save"), button:has-text("创建")'
-    ).first()
+    const saveBtn = page.locator('div.fixed button:text-is("Create")').first()
     await expect(saveBtn).toBeEnabled({ timeout: 3000 })
   })
 
@@ -181,7 +174,7 @@ test.describe('Asset create modal', () => {
           body: JSON.stringify({
             success: true,
             data: [FAKE_ASSET],
-            pagination: { total: 1, page: 1, limit: 20, total_pages: 1 },
+            pagination: { total: 1, page: 1, page_size: 20, total_pages: 1 },
           }),
         })
       }
@@ -189,24 +182,20 @@ test.describe('Asset create modal', () => {
 
     await page.goto('/assets')
 
-    const addBtn = page.locator(
-      'button:has-text("Add Asset"), button:has-text("add"), button:has-text("Create")'
-    ).first()
+    const addBtn = page.locator('button:has-text("Add Asset")').first()
     await expect(addBtn).toBeVisible({ timeout: 10000 })
     await addBtn.click()
 
-    await page.locator('input[placeholder*="tag" i], input[placeholder*="TAG" i]').first().fill('E2E-0001')
-    await page.locator('input[placeholder*="name" i], input[placeholder*="Name" i]').first().fill('e2e-test-server-alpha')
+    await page.locator(tagInputSel).first().fill('E2E-0001')
+    await page.locator(nameInputSel).first().fill('e2e-test-server-alpha')
 
-    const saveBtn = page.locator(
-      'button:has-text("Create Asset"), button:has-text("Save"), button:has-text("创建")'
-    ).first()
+    const saveBtn = page.locator('div.fixed button:text-is("Create")').first()
     await saveBtn.click()
 
-    // Modal should close
+    // Modal should close — its title heading goes away
     await expect(
-      page.locator('h3, h2').filter({ hasText: /asset|create/i }).first()
-    ).not.toBeVisible({ timeout: 6000 })
+      page.locator('div.fixed h3:has-text("Create Asset")').first()
+    ).toBeHidden({ timeout: 6000 })
 
     expect(postFired).toBe(true)
   })
@@ -214,10 +203,11 @@ test.describe('Asset create modal', () => {
 
 test.describe('Asset delete', () => {
   test.beforeEach(async ({ page }) => {
+    // Catch-all first so specific stubs override it.
+    await stubApiCatchAll(page)
     await stubAssetsList(page, [FAKE_ASSET])
     await stubAsset(page, FAKE_ASSET)
     await stubDeleteAsset(page, FAKE_ASSET_ID)
-    await stubApiCatchAll(page)
     await login(page)
   })
 
