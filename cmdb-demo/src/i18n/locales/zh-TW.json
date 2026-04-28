@@ -763,7 +763,14 @@
     "type_corrective_maintenance": "矯正性維護",
     "created": "建立時間",
     "last_updated": "最近更新",
-    "estimated_duration": "預估持續時間"
+    "estimated_duration": "預估持續時間",
+    "completing": "完成中...",
+    "complete_failed": "完成此工單失敗，請重試。",
+    "complete_disabled_loading": "工單載入中…",
+    "complete_disabled_already_completed": "此工單已完成。",
+    "complete_disabled_not_started": "工單尚未開始 — 必須先核准並調度後才能完成。",
+    "complete_disabled_not_in_progress": "工單已核准但尚未開始執行。",
+    "complete_disabled_invalid_state": "目前狀態不允許完成此工單。"
   },
   "maintenance_records": {
     "title_zh": "維護記錄",
@@ -1047,7 +1054,10 @@
     "moderate": "適中",
     "hardware_replacement": "硬體更換",
     "software_patch": "軟體修補",
-    "routine_inspection": "例行巡檢"
+    "routine_inspection": "例行巡檢",
+    "select_technician_first": "請先選擇技術人員",
+    "cannot_reassign": "無法重新指派 — 工單目前狀態為 {{status}}，僅核准前可重新指派。",
+    "assigned_success": "技術人員已指派"
   },
   "facility_energy": {
     "title": "設施能源消耗",
@@ -2518,7 +2528,10 @@
     "btn_resubmit": "重新提交",
     "resubmitted": "工單已重新提交",
     "edit_blocked": "僅提交中或已駁回的工單可編輯",
-    "updated_success": "工單更新成功"
+    "updated_success": "工單更新成功",
+    "already_decided": "此工單已被另一位管理員處理（目前狀態：{{status}}）。請重新整理後再試。",
+    "transition_failed": "更新工單狀態失敗，請重試。",
+    "refresh_failed": "無法確認工單最新狀態，請重試。"
   },
   "quality": {
     "title": "數據質量治理",

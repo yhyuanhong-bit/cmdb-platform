@@ -763,7 +763,14 @@
     "type_corrective_maintenance": "Corrective Maintenance",
     "created": "Created",
     "last_updated": "Last Updated",
-    "estimated_duration": "Estimated Duration"
+    "estimated_duration": "Estimated Duration",
+    "completing": "Completing...",
+    "complete_failed": "Failed to complete this work order. Please try again.",
+    "complete_disabled_loading": "Loading work order…",
+    "complete_disabled_already_completed": "This work order has already been completed.",
+    "complete_disabled_not_started": "Work order has not started yet — it must be approved and dispatched before it can be completed.",
+    "complete_disabled_not_in_progress": "Work order is approved but not in progress yet.",
+    "complete_disabled_invalid_state": "Work order is not in a state that can be completed."
   },
   "maintenance_records": {
     "title_zh": "Maintenance Records",
@@ -1047,7 +1054,10 @@
     "moderate": "MODERATE",
     "hardware_replacement": "Hardware Replacement",
     "software_patch": "Software Patch",
-    "routine_inspection": "Routine Inspection"
+    "routine_inspection": "Routine Inspection",
+    "select_technician_first": "Please select a technician first",
+    "cannot_reassign": "Cannot reassign — order is in {{status}} state. Reassignment is only allowed before approval.",
+    "assigned_success": "Technician assigned"
   },
   "facility_energy": {
     "title": "Facility Energy Consumption",
@@ -2518,7 +2528,10 @@
     "btn_resubmit": "Resubmit",
     "resubmitted": "Work order resubmitted",
     "edit_blocked": "Only submitted or rejected orders can be edited",
-    "updated_success": "Work order updated"
+    "updated_success": "Work order updated",
+    "already_decided": "This work order was already updated by another admin (current status: {{status}}). Please refresh and try again.",
+    "transition_failed": "Failed to update work order status. Please try again.",
+    "refresh_failed": "Could not verify the latest status of this work order. Please try again."
   },
   "quality": {
     "title": "Data Quality Governance",
@@ -2960,6 +2973,7 @@
     "status_active": "Active",
     "status_deprecated": "Deprecated",
     "status_decommissioned": "Decommissioned",
+    "status_filter_all": "All statuses",
     "health_healthy": "Healthy",
     "health_degraded": "Degraded",
     "health_unknown": "Unknown",
