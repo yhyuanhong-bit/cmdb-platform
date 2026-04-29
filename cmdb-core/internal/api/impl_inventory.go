@@ -245,7 +245,10 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 		response.InternalError(c, "failed to start transaction")
 		return
 	}
-	defer tx.Rollback(ctx)
+	// Always attempt rollback; safe no-op once Commit succeeds. Wrap in
+	// a closure so the deferred call never appears as an unchecked-error
+	// candidate to vet/staticcheck.
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	for _, item := range req.Items {
 		stats["total"]++
@@ -260,9 +263,12 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 
 		asset, err := s.assetSvc.FindBySerialOrTag(ctx, tenantID, serial, tag)
 
-		// Fallback: try property_number
+		// Fallback: try property_number. Reads go through tx so they see
+		// any prior writes performed in this same import (e.g. an earlier
+		// row that registered an asset by side-effect — defensive even
+		// though current code does not write assets in the loop).
 		if (err != nil || asset == nil) && item.PropertyNumber != nil && *item.PropertyNumber != "" {
-			row := s.pool.QueryRow(ctx,
+			row := tx.QueryRow(ctx,
 				"SELECT id FROM assets WHERE tenant_id = $1 AND property_number = $2 LIMIT 1",
 				tenantID, *item.PropertyNumber)
 			var assetID uuid.UUID
@@ -277,7 +283,7 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 
 		// Fallback: try control_number
 		if (err != nil || asset == nil) && item.ControlNumber != nil && *item.ControlNumber != "" {
-			row := s.pool.QueryRow(ctx,
+			row := tx.QueryRow(ctx,
 				"SELECT id FROM assets WHERE tenant_id = $1 AND control_number = $2 LIMIT 1",
 				tenantID, *item.ControlNumber)
 			var assetID uuid.UUID
@@ -311,25 +317,41 @@ func (s *APIServer) ImportInventoryItems(c *gin.Context, id IdPath) {
 
 		if err != nil || asset == nil {
 			stats["not_found"]++
-			// Insert as missing item (no asset_id)
-			tx.Exec(ctx,
+			// Insert as missing item (no asset_id). A failure here means
+			// the entire import is inconsistent (some rows already
+			// inserted, this one dropped) — abort the whole tx so the
+			// caller can retry the batch atomically. The deferred
+			// Rollback handles the cleanup.
+			if _, execErr := tx.Exec(ctx,
 				"INSERT INTO inventory_items (task_id, expected, status) VALUES ($1, $2, 'missing')",
-				taskID, expectedJSON)
+				taskID, expectedJSON); execErr != nil {
+				response.InternalError(c, "failed to insert missing inventory item")
+				return
+			}
 			continue
 		}
 
 		stats["matched"]++
-		// Insert matched item
-		tx.Exec(ctx,
+		// Insert matched item. A failure here corrupts the partial batch,
+		// so abort + rollback rather than silently dropping a row.
+		if _, execErr := tx.Exec(ctx,
 			"INSERT INTO inventory_items (task_id, asset_id, rack_id, expected, status) VALUES ($1, $2, $3, $4, 'pending')",
-			taskID, asset.ID, asset.RackID, expectedJSON)
+			taskID, asset.ID, asset.RackID, expectedJSON); execErr != nil {
+			response.InternalError(c, "failed to insert matched inventory item")
+			return
+		}
 	}
 
 	// Auto-transition task: planned → in_progress (inside transaction).
-	// Tenant-scoped so a cross-tenant task UUID cannot be flipped.
-	tx.Exec(ctx,
+	// Tenant-scoped so a cross-tenant task UUID cannot be flipped.  An
+	// error here is also fatal for the import: items inserted under a
+	// task that failed to flip status would leave the UI inconsistent.
+	if _, execErr := tx.Exec(ctx,
 		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND tenant_id = $2 AND status = 'planned'",
-		taskID, tenantID)
+		taskID, tenantID); execErr != nil {
+		response.InternalError(c, "failed to advance inventory task status")
+		return
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		response.InternalError(c, "failed to commit import")
@@ -389,9 +411,24 @@ func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context, id IdPath, itemI
 	}
 
 	ctx := c.Request.Context()
+	userID := userIDFromContext(c)
+	tenantID := tenantIDFromContext(c)
+
+	// Wrap the four writes (item status flip, note, scan-history, task
+	// auto-activate) in a single tx. Pre-W5.2 these ran as four separate
+	// pool.Exec calls; a mid-sequence failure left a flipped item with
+	// no audit note or scan history (and the operator unable to retry
+	// because the status had already moved). Now they all commit or all
+	// roll back together.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		response.InternalError(c, "failed to start transaction")
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Update item status
-	tag, err := s.pool.Exec(ctx,
+	tag, err := tx.Exec(ctx,
 		"UPDATE inventory_items SET status = $1, scanned_at = now() WHERE id = $2",
 		newStatus, itemID)
 	if err != nil {
@@ -403,45 +440,46 @@ func (s *APIServer) ResolveInventoryDiscrepancy(c *gin.Context, id IdPath, itemI
 		return
 	}
 
-	userID := userIDFromContext(c)
-
-	// Create a note for the resolution. A failed INSERT here is
-	// non-fatal for the caller — the item status already flipped —
-	// but a broken inventory_notes table would silently drop the
-	// audit paper trail. Log it.
+	// Create a note for the resolution.  Promoted from non-fatal log to
+	// hard error: a missing audit note alongside a status flip is the
+	// exact kind of partial state the W5.2 audit was opened to fix.
 	noteText := req.Note
 	if noteText == "" {
 		noteText = "Resolved via action: " + req.Action
 	}
 	noteID := uuid.New()
-	if _, err := s.pool.Exec(ctx,
-		"INSERT INTO inventory_notes (id, item_id, author_id, severity, text, created_at) VALUES ($1, $2, $3, 'info', $4, now())",
-		noteID, itemID, userID, noteText,
+	if _, err := tx.Exec(ctx,
+		"INSERT INTO inventory_notes (id, item_id, tenant_id, author_id, severity, text, created_at) VALUES ($1, $2, $3, $4, 'info', $5, now())",
+		noteID, itemID, tenantID, userID, noteText,
 	); err != nil {
-		zap.L().Warn("inventory resolve: note insert failed",
-			zap.String("item_id", itemID.String()), zap.Error(err))
+		response.InternalError(c, "failed to record resolution note")
+		return
 	}
 
-	// Create scan history record. Same non-fatal logging contract as
-	// the note INSERT above.
+	// Create scan history record.
 	scanID := uuid.New()
-	if _, err := s.pool.Exec(ctx,
-		"INSERT INTO inventory_scan_history (id, item_id, scanned_by, method, result, note, scanned_at) VALUES ($1, $2, $3, 'manual', $4, $5, now())",
-		scanID, itemID, userID, req.Action, req.Note,
+	if _, err := tx.Exec(ctx,
+		"INSERT INTO inventory_scan_history (id, item_id, tenant_id, scanned_by, method, result, note, scanned_at) VALUES ($1, $2, $3, $4, 'manual', $5, $6, now())",
+		scanID, itemID, tenantID, userID, req.Action, req.Note,
 	); err != nil {
-		zap.L().Warn("inventory resolve: scan history insert failed",
-			zap.String("item_id", itemID.String()), zap.Error(err))
+		response.InternalError(c, "failed to record scan history")
+		return
 	}
 
 	// Auto-activate task if still planned. Tenant-scoped so a cross-tenant
 	// task UUID (or one leaked via an item-ID resolve) cannot flip another
 	// tenant's task state.
-	if _, err := s.pool.Exec(ctx,
+	if _, err := tx.Exec(ctx,
 		"UPDATE inventory_tasks SET status = 'in_progress' WHERE id = $1 AND tenant_id = $2 AND status = 'planned'",
-		taskID, tenantIDFromContext(c),
+		taskID, tenantID,
 	); err != nil {
-		zap.L().Warn("inventory resolve: auto-activate task failed",
-			zap.String("task_id", taskID.String()), zap.Error(err))
+		response.InternalError(c, "failed to advance inventory task status")
+		return
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		response.InternalError(c, "failed to commit resolution")
+		return
 	}
 
 	s.recordAudit(c, "item.discrepancy_resolved", "inventory", "inventory_item", itemID, map[string]any{
