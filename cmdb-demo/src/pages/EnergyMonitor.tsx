@@ -5,6 +5,9 @@ import { useQuery } from '@tanstack/react-query'
 import { useLocationContext } from '../contexts/LocationContext'
 import { apiClient } from '../lib/api/client'
 import EmptyState from '../components/EmptyState'
+import { useRackHeatmap, type RackHeatmapCell } from '../hooks/useDashboard'
+import { useAuditEvents } from '../hooks/useAudit'
+import type { AuditEvent } from '../lib/api/audit'
 
 /* ------------------------------------------------------------------ */
 /*  Shared helpers                                                     */
@@ -347,8 +350,10 @@ function FacilityView({
             <p className="mt-2 font-headline text-3xl font-bold text-on-surface">
               {peakMW ?? '—'} <span className="text-lg text-on-surface-variant">MW</span>
             </p>
-            {/* TODO(phase-3.10): surface the actual peak-recorded date from the
-                /power/summary endpoint once the backend exposes it. */}
+            {/* Backend follow-up: /energy/summary currently returns peak_kw
+                only (max over last 30 days) — no peak_at timestamp. Add a
+                `peak_at` field in impl_energy.go GetEnergySummary to surface
+                the recorded date here. */}
             <span className="text-[10px] text-on-surface-variant">{t('facility_energy.monthly_co2_equivalent')}</span>
           </div>
         </div>
@@ -425,10 +430,14 @@ function PowerLoadView({
   t,
   trendPoints,
   summaryData,
+  rackHeatmap,
+  powerEvents,
 }: {
   t: ReturnType<typeof useTranslation>['t']
   trendPoints: TrendPoint[]
   summaryData: SummaryData | undefined
+  rackHeatmap: RackHeatmapCell[]
+  powerEvents: AuditEvent[]
 }) {
   const chartW = 560
   const chartH = 260
@@ -468,6 +477,18 @@ function PowerLoadView({
   const donutTotal = donutSegments.reduce((s, d) => s + d.value, 0)
   let donutOffset = 0
 
+  // Group rack heatmap cells by row_label for the grouped grid view.
+  const rackHeatmapRows = useMemo(() => {
+    const groups = new Map<string, RackHeatmapCell[]>()
+    for (const cell of rackHeatmap) {
+      const key = cell.row_label ?? '—'
+      const existing = groups.get(key)
+      if (existing) existing.push(cell)
+      else groups.set(key, [cell])
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b))
+  }, [rackHeatmap])
+
   return (
     <>
       {/* Stats Row */}
@@ -499,8 +520,11 @@ function PowerLoadView({
         </div>
         <div className="rounded-lg bg-surface-container p-5">
           <p className="text-xs uppercase tracking-wider text-on-surface-variant">{t('power_load.stat_ups_autonomy')}</p>
-          {/* TODO(phase-3.10): wire up GET /power/ups-autonomy when the
-              backend endpoint is available. Previously hardcoded "42 min". */}
+          {/* Backend follow-up: needs GET /energy/ups-autonomy (or extend
+              /energy/summary). UPS autonomy = remaining_battery_kwh /
+              current_load_kw — both available in the metrics table but not
+              yet exposed via an endpoint. Until then we render an em-dash
+              rather than a fabricated "42 min". */}
           <p className="mt-2 font-headline text-3xl font-bold text-primary">—</p>
           <p className="mt-1 text-xs text-on-surface-variant">{t('common.coming_soon')}</p>
         </div>
@@ -601,33 +625,87 @@ function PowerLoadView({
         </div>
       </div>
 
-      {/* Rack Heatmap */}
+      {/* Rack Heatmap — wired to GET /dashboard/rack-heatmap. Racks are
+          grouped client-side by `row_label` (schema has no explicit grid
+          column) and color-coded by the backend-supplied status band. */}
       <div className="rounded-lg bg-surface-container p-5">
         <h3 className="mb-3 font-headline text-sm font-bold text-on-surface">{t('power_load.section_rack_heatmap')}</h3>
-        {/* TODO(phase-3.10): wire up GET /power/racks/heatmap when the backend
-            endpoint ships. Previously rendered a 12-cell fabricated grid. */}
-        <EmptyState
-          icon="view_module"
-          title={t('common.empty_not_wired_title')}
-          description={t('common.empty_not_wired_desc')}
-          tone="neutral"
-          compact
-        />
+        {rackHeatmap.length === 0 ? (
+          <EmptyState
+            icon="view_module"
+            title={t('common.empty_no_data')}
+            description={t('dashboard.no_racks_yet')}
+            tone="info"
+            compact
+          />
+        ) : (
+          <div className="space-y-2">
+            {rackHeatmapRows.map(([rowLabel, racks]) => (
+              <div key={rowLabel} className="flex items-center gap-3">
+                <div className="w-8 text-xs font-medium uppercase tracking-wider text-on-surface-variant">
+                  {rowLabel}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {racks.map((rack) => {
+                    const colorClass =
+                      rack.status === 'critical'
+                        ? 'bg-error/80 hover:bg-error text-on-error'
+                        : rack.status === 'warning'
+                          ? 'bg-warning/70 hover:bg-warning text-on-warning'
+                          : 'bg-success/60 hover:bg-success text-on-success'
+                    const powerLabel = rack.power_capacity_kw != null
+                      ? ` · ${rack.power_capacity_kw.toFixed(1)} kW`
+                      : ''
+                    return (
+                      <span
+                        key={rack.rack_id}
+                        title={`${rack.rack_name} — ${rack.occupancy_pct.toFixed(0)}% (${rack.u_used}/${rack.u_total} U)${powerLabel}`}
+                        className={`rounded px-2 py-1.5 text-[10px] font-medium ${colorClass}`}
+                      >
+                        {rack.rack_name}
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Power Events Table */}
+      {/* Power Events Table — wired to GET /audit/events?module=power.
+          Falls back to an empty state when no power-related audit events
+          exist yet. */}
       <div className="rounded-lg bg-surface-container p-5">
         <h3 className="mb-4 font-headline text-sm font-bold text-on-surface">{t('power_load.section_power_events')}</h3>
-        {/* TODO(phase-3.10): wire up GET /power/events when the backend event
-            stream endpoint ships. Previously rendered a static list of
-            fabricated severity-tagged rows. */}
-        <EmptyState
-          icon="event_note"
-          title={t('common.empty_not_wired_title')}
-          description={t('common.empty_not_wired_desc')}
-          tone="neutral"
-          compact
-        />
+        {powerEvents.length === 0 ? (
+          <EmptyState
+            icon="event_note"
+            title={t('common.empty_no_data')}
+            description={t('common.empty_not_wired_desc')}
+            tone="neutral"
+            compact
+          />
+        ) : (
+          <ul className="divide-y divide-outline-variant/40">
+            {powerEvents.map((evt) => (
+              <li key={evt.id} className="flex items-center justify-between gap-4 py-2 text-xs">
+                <div className="flex items-center gap-3">
+                  <IconSpan name="bolt" className="text-base text-primary" />
+                  <div>
+                    <p className="font-medium text-on-surface">{evt.action}</p>
+                    <p className="text-[11px] text-on-surface-variant">
+                      {evt.target_type} · {evt.target_id}
+                    </p>
+                  </div>
+                </div>
+                <span className="font-mono text-[11px] text-on-surface-variant">
+                  {new Date(evt.created_at).toLocaleString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </>
   )
@@ -662,6 +740,16 @@ function EnergyMonitor() {
     queryKey: ['energyTrend', 168],
     queryFn: () => apiClient.get<{ trend: TrendPoint[] }>('/energy/trend', { hours: '168' }),
   })
+
+  // Rack heatmap (live data for the Power Load → Rack Heatmap panel).
+  // Tenant-wide; passing locationId would scope to a campus/idc.
+  const { data: heatmapResp } = useRackHeatmap()
+  const rackHeatmap: RackHeatmapCell[] = heatmapResp?.data ?? []
+
+  // Power-related audit events drive the Power Load → Power Events timeline.
+  // Filtered to module=power so we only surface PDU/UPS/breaker activity.
+  const { data: powerEventsResp } = useAuditEvents({ module: 'power', page_size: '20' })
+  const powerEvents: AuditEvent[] = powerEventsResp?.data ?? []
 
   // Unwrap — energy endpoints return payload directly (no ApiResponse wrapper)
   const bd = breakdownRaw as Record<string, unknown> | undefined
@@ -763,6 +851,8 @@ function EnergyMonitor() {
           t={t}
           trendPoints={trendPoints}
           summaryData={summaryData}
+          rackHeatmap={rackHeatmap}
+          powerEvents={powerEvents}
         />
       )}
     </div>
