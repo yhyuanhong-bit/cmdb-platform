@@ -1496,6 +1496,21 @@ type AssetLifecycleUpgradePriority string
 // AssetLifecycleWarrantyStatus defines model for AssetLifecycle.WarrantyStatus.
 type AssetLifecycleWarrantyStatus string
 
+// AssetLifespanConfig defines model for AssetLifespanConfig.
+type AssetLifespanConfig struct {
+	// Network Expected useful life of network assets in years.
+	Network *int64 `json:"network,omitempty"`
+
+	// Power Expected useful life of power assets in years.
+	Power *int64 `json:"power,omitempty"`
+
+	// Server Expected useful life of server assets in years.
+	Server *int64 `json:"server,omitempty"`
+
+	// Storage Expected useful life of storage assets in years.
+	Storage *int64 `json:"storage,omitempty"`
+}
+
 // AssetServiceMembership defines model for AssetServiceMembership.
 type AssetServiceMembership struct {
 	Code       string                       `json:"code"`
@@ -3385,6 +3400,9 @@ type UpdateServiceJSONRequestBody = UpdateServiceRequest
 // AddServiceAssetJSONRequestBody defines body for AddServiceAsset for application/json ContentType.
 type AddServiceAssetJSONRequestBody = AddServiceAssetRequest
 
+// UpdateAssetLifespanSettingsJSONRequestBody defines body for UpdateAssetLifespanSettings for application/json ContentType.
+type UpdateAssetLifespanSettingsJSONRequestBody = AssetLifespanConfig
+
 // CreateAssetDependencyJSONRequestBody defines body for CreateAssetDependency for application/json ContentType.
 type CreateAssetDependencyJSONRequestBody = CreateAssetDependencyRequest
 
@@ -4802,6 +4820,12 @@ type ServerInterface interface {
 	// Aggregate health of a service based on critical assets
 	// (GET /services/{id}/health)
 	GetServiceHealth(c *gin.Context, id IdPath)
+	// Get the per-asset-type expected lifespan (years) for the current tenant
+	// (GET /settings/asset-lifespan)
+	GetAssetLifespanSettings(c *gin.Context)
+	// Update the per-asset-type expected lifespan (years) for the current tenant
+	// (PUT /settings/asset-lifespan)
+	UpdateAssetLifespanSettings(c *gin.Context)
 	// Get system health status
 	// (GET /system/health)
 	GetSystemHealth(c *gin.Context)
@@ -9662,6 +9686,36 @@ func (siw *ServerInterfaceWrapper) GetServiceHealth(c *gin.Context) {
 	siw.Handler.GetServiceHealth(c, id)
 }
 
+// GetAssetLifespanSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetLifespanSettings(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAssetLifespanSettings(c)
+}
+
+// UpdateAssetLifespanSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAssetLifespanSettings(c *gin.Context) {
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateAssetLifespanSettings(c)
+}
+
 // GetSystemHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetSystemHealth(c *gin.Context) {
 
@@ -10375,6 +10429,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/services/:id/assets", wrapper.AddServiceAsset)
 	router.DELETE(options.BaseURL+"/services/:id/assets/:assetId", wrapper.RemoveServiceAsset)
 	router.GET(options.BaseURL+"/services/:id/health", wrapper.GetServiceHealth)
+	router.GET(options.BaseURL+"/settings/asset-lifespan", wrapper.GetAssetLifespanSettings)
+	router.PUT(options.BaseURL+"/settings/asset-lifespan", wrapper.UpdateAssetLifespanSettings)
 	router.GET(options.BaseURL+"/system/health", wrapper.GetSystemHealth)
 	router.GET(options.BaseURL+"/topology/dependencies", wrapper.ListAssetDependencies)
 	router.POST(options.BaseURL+"/topology/dependencies", wrapper.CreateAssetDependency)

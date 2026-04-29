@@ -76,3 +76,7 @@ resourceMap:
   admin: system           # /admin/scheduler-health — system-level admin info
   metrics: monitoring     # /metrics/sources/... — metric sources are part of monitoring
   predictive: prediction  # /predictive/refresh/... — prediction resource (naming-only difference)
+  # W3.2-backend (2026-04-28): per-tenant configuration store. New
+  # resource family — admin/operator roles need explicit grants in
+  # roles.permissions.settings = ["read","write"].
+  settings: settings      # /settings/asset-lifespan — per-tenant config

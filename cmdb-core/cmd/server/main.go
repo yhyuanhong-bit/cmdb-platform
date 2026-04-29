@@ -36,6 +36,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/predictive"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	svcdomain "github.com/cmdb-platform/cmdb-core/internal/domain/service"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/settings"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/topology"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/workflows"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
@@ -422,13 +423,18 @@ func main() {
 	// No background scheduler needed — freshness is computed on read.
 	metricSourceSvc := metricsource.NewService(queries, pool)
 
+	// W3.2-backend: per-tenant configurable settings store (asset
+	// lifespan today, more knobs as the product grows). Backed by
+	// migration 000078_tenant_settings.
+	settingsSvc := settings.NewService(pool)
+
 	// 9. Create unified API server
 	apiServer := api.NewAPIServer(
 		pool, cfg, bus, redisClient, natsBus,
 		authSvc, identitySvc, topologySvc, assetSvc, maintenanceSvc,
 		monitoringSvc, inventorySvc, auditSvc, dashboardSvc, predictionSvc,
 		integrationSvc, biaSvc, qualitySvc, discoverySvc, locationDetectSvc,
-		serviceSvc, predictiveSvc, metricSourceSvc, schedTracker, cipher, netGuard,
+		serviceSvc, predictiveSvc, metricSourceSvc, settingsSvc, schedTracker, cipher, netGuard,
 	)
 
 	// 9a. Load and freeze RBAC routing config (publicPaths, resourceMap)

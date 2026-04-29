@@ -295,6 +295,8 @@ func TestDefaultYAML_MatchesHistoricalMaps(t *testing.T) {
 		"admin":      "system",
 		"metrics":    "monitoring",
 		"predictive": "prediction",
+		// Added 2026-04-28 (W3.2-backend) — per-tenant settings store.
+		"settings": "settings",
 	}
 	if len(cfg.ResourceMap) != len(expectedResource) {
 		t.Errorf("resourceMap size drift: got %d want %d — update rbac_config.yaml AND this test together", len(cfg.ResourceMap), len(expectedResource))

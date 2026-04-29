@@ -39,6 +39,8 @@ tags:
     description: Data Quality Governance
   - name: discovery
     description: Auto-Discovery staging area
+  - name: settings
+    description: Per-tenant configuration (asset lifespan, etc.)
 
 paths:
   # ── Auth ────────────────────────────────────────────────────────────────
@@ -5333,6 +5335,60 @@ paths:
                   data: { $ref: '#/components/schemas/FleetMetrics' }
                   meta: { $ref: '#/components/schemas/Meta' }
 
+  # ── Tenant settings (W3.2-backend) ────────────────────────────────────────
+  # Per-tenant configuration store. Replaces the hardcoded asset-lifespan
+  # map in impl_prediction_upgrades.go with a tenant-customisable value.
+  /settings/asset-lifespan:
+    get:
+      operationId: getAssetLifespanSettings
+      tags: [settings]
+      summary: Get the per-asset-type expected lifespan (years) for the current tenant
+      description: |
+        Returns the merged config (custom values overlaid on canonical defaults).
+        A tenant that has never customised these values gets:
+        server=5, network=7, storage=5, power=10.
+      responses:
+        '200':
+          description: Asset-lifespan config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AssetLifespanConfig' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+                required: [data]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      operationId: updateAssetLifespanSettings
+      tags: [settings]
+      summary: Update the per-asset-type expected lifespan (years) for the current tenant
+      description: |
+        Each value must be in the range [1, 30] years. Omitting a field (or
+        sending 0) leaves the field unset, which means "fall back to the
+        canonical default" on the next read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssetLifespanConfig' }
+      responses:
+        '200':
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AssetLifespanConfig' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+                required: [data]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -7300,6 +7356,40 @@ components:
         priority: { type: string, enum: [low, medium, high] }
         recommendation: { type: string }
         enabled: { type: boolean }
+
+    # ── Tenant settings (W3.2-backend) ─────────────────────────────────────
+    # Per-tenant expected useful life (years) per asset type. Drives the
+    # RUL endpoint and upgrade-recommendation lifecycle filter. Each
+    # field is optional; the server fills in the canonical default
+    # (server=5, network=7, storage=5, power=10) for any omitted or
+    # zero-valued field on read. Range on write: [1, 30].
+    AssetLifespanConfig:
+      type: object
+      properties:
+        server:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 30
+          description: Expected useful life of server assets in years.
+        network:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 30
+          description: Expected useful life of network assets in years.
+        storage:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 30
+          description: Expected useful life of storage assets in years.
+        power:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 30
+          description: Expected useful life of power assets in years.
 
     # ── Inventory scan ─────────────────────────────────────────────────────
     ItemScanRecord:

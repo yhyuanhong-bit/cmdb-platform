@@ -19,6 +19,7 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/domain/prediction"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/service"
+	"github.com/cmdb-platform/cmdb-core/internal/domain/settings"
 	"github.com/cmdb-platform/cmdb-core/internal/eventbus"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/crypto"
 	"github.com/cmdb-platform/cmdb-core/internal/platform/netguard"
@@ -64,6 +65,7 @@ type APIServer struct {
 	serviceSvc        *service.Service
 	predictiveSvc     *predictive.Service
 	metricSourceSvc   *metricsource.Service
+	settingsSvc       *settings.Service
 	schedTracker      *schedhealth.Tracker
 	cipher            crypto.Cipher
 	netGuard          *netguard.Guard
@@ -99,6 +101,7 @@ func NewAPIServer(
 	serviceSvc *service.Service,
 	predictiveSvc *predictive.Service,
 	metricSourceSvc *metricsource.Service,
+	settingsSvc *settings.Service,
 	schedTracker *schedhealth.Tracker,
 	cipher crypto.Cipher,
 	netGuard *netguard.Guard,
@@ -127,6 +130,7 @@ func NewAPIServer(
 		serviceSvc:        serviceSvc,
 		predictiveSvc:     predictiveSvc,
 		metricSourceSvc:   metricSourceSvc,
+		settingsSvc:       settingsSvc,
 		schedTracker:      schedTracker,
 		cipher:            cipher,
 		netGuard:          netGuard,

@@ -83,19 +83,18 @@ func (s *APIServer) GetAssetRUL(c *gin.Context, id IdPath) {
 		}
 	}
 
-	// Expected lifespan by type (years)
-	lifespanYears := map[string]int64{
-		"server":  5,
-		"network": 7,
-		"storage": 5,
-		"power":   10,
-	}
+	// W3.2-backend: lifespan is now a per-tenant setting. The settings
+	// service falls back to the same canonical defaults this map used
+	// to hardcode (server=5, network=7, storage=5, power=10) for any
+	// tenant that has not customised the value, so behaviour is
+	// preserved by default. Substring matching against assetType is
+	// done inside cfg.GetForType, mirroring the previous map's
+	// strings.Contains lookup so "rack_server" still picks the server
+	// value.
 	expectedLifespanYears := int64(5)
-	assetTypeLower := strings.ToLower(assetType)
-	for k, v := range lifespanYears {
-		if strings.Contains(assetTypeLower, k) {
-			expectedLifespanYears = v
-			break
+	if s.settingsSvc != nil {
+		if cfg, lifespanErr := s.settingsSvc.GetAssetLifespan(c.Request.Context(), tenantID); lifespanErr == nil {
+			expectedLifespanYears = cfg.GetForType(assetType)
 		}
 	}
 	lifespanDays := expectedLifespanYears * 365
