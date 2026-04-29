@@ -1,7 +1,9 @@
 import { memo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { useServices, useCreateService } from '../hooks/useServices'
+import { useBIAAssessments } from '../hooks/useBIA'
 import type { Service } from '../lib/api/services'
 import EmptyState from '../components/EmptyState'
 
@@ -197,9 +199,18 @@ function CreateServiceModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const create = useCreateService()
+  // BIA list is opt-in — we tolerate the failure so the modal still works
+  // on tenants that don't have BIA enabled. If the query fails the picker
+  // simply shows zero options and the user can leave the field blank.
+  const biaQ = useBIAAssessments()
+  const biaList = biaQ.data?.data ?? []
+
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
   const [tier, setTier] = useState<Service['tier']>('normal')
+  const [description, setDescription] = useState('')
+  const [ownerTeam, setOwnerTeam] = useState('')
+  const [biaAssessmentId, setBiaAssessmentId] = useState('')
   const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -212,12 +223,24 @@ function CreateServiceModal({ onClose }: { onClose: () => void }) {
       return
     }
     try {
-      const res = await create.mutateAsync({ code, name, tier })
+      const res = await create.mutateAsync({
+        code,
+        name,
+        tier,
+        // Spread optional fields only when set so the request body stays
+        // tight — the backend treats omitted vs. empty-string differently.
+        ...(description.trim() ? { description: description.trim() } : {}),
+        ...(ownerTeam.trim() ? { owner_team: ownerTeam.trim() } : {}),
+        ...(biaAssessmentId ? { bia_assessment_id: biaAssessmentId } : {}),
+      })
+      toast.success(t('services.toast_created'))
       onClose()
       if (res.data?.id) navigate(`/services/${res.data.id}`)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      setError(msg.includes('409') ? t('services.error_duplicate_code') : msg)
+      const friendly = msg.includes('409') ? t('services.error_duplicate_code') : msg
+      setError(friendly)
+      toast.error(friendly)
     }
   }
 
@@ -225,7 +248,7 @@ function CreateServiceModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <form
         onSubmit={handleSubmit}
-        className="bg-surface-container w-full max-w-md rounded-2xl p-6 shadow-xl"
+        className="bg-surface-container w-full max-w-md rounded-2xl p-6 shadow-xl max-h-[90vh] overflow-y-auto"
       >
         <h2 className="font-headline text-xl font-bold mb-4 text-on-surface">
           {t('services.create')}
@@ -266,6 +289,49 @@ function CreateServiceModal({ onClose }: { onClose: () => void }) {
           <option value="important">{t('services.tier_important')}</option>
           <option value="normal">{t('services.tier_normal')}</option>
           <option value="low">{t('services.tier_low')}</option>
+        </select>
+
+        <label className="block text-xs font-label text-on-surface-variant mb-1">
+          {t('services.field_description')}
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          className="w-full mb-3 px-3 py-2 rounded-lg bg-surface text-on-surface text-sm border border-outline-variant focus:outline-none focus:ring-1 focus:ring-primary resize-y"
+          placeholder={t('services.placeholder_description')}
+        />
+
+        <label className="block text-xs font-label text-on-surface-variant mb-1">
+          {t('services.field_owner_team')}
+        </label>
+        <input
+          type="text"
+          value={ownerTeam}
+          onChange={(e) => setOwnerTeam(e.target.value)}
+          placeholder={t('services.placeholder_owner_team')}
+          className="w-full mb-3 px-3 py-2 rounded-lg bg-surface text-on-surface text-sm border border-outline-variant focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+
+        <label className="block text-xs font-label text-on-surface-variant mb-1">
+          {t('services.field_bia_assessment')}
+          <span className="text-on-surface-variant/60 normal-case ml-1">
+            ({t('common.optional')})
+          </span>
+        </label>
+        <select
+          value={biaAssessmentId}
+          onChange={(e) => setBiaAssessmentId(e.target.value)}
+          className="w-full mb-3 px-3 py-2 rounded-lg bg-surface text-on-surface text-sm border border-outline-variant focus:outline-none focus:ring-1 focus:ring-primary"
+          disabled={biaQ.isLoading}
+        >
+          <option value="">{t('services.bia_none')}</option>
+          {biaList.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.system_code ?? b.name ?? b.id.slice(0, 8)}
+              {b.system_name ? ` — ${b.system_name}` : ''}
+            </option>
+          ))}
         </select>
 
         {error && (
