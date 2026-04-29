@@ -229,22 +229,61 @@ jobs:
           if-no-files-found: warn
 
   e2e-tests:
-    name: E2E Tests
+    name: E2E Tests (critical, hermetic)
     runs-on: ubuntu-latest
-    if: false  # Disabled until CI has Docker Compose for backend
+    # Run on PRs and direct pushes to main/master.
+    # Only the critical/ suite is executed here — all specs in that suite stub
+    # every API call via stubApiCatchAll, so no backend service is required.
+    # The extended/ suite makes real API calls and is quarantined until a
+    # backend service container is wired up (tracked: W6.4 follow-up).
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: cmdb-demo
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - run: npm ci
-      - run: npx playwright install chromium --with-deps
-      - run: npx playwright test
-      - uses: actions/upload-artifact@v4
-        if: failure()
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: cmdb-demo/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      # Install Chromium only — Firefox and mobile-Chrome add ~3 min with no
+      # additional coverage for hermetic stub tests.
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      # Run critical/ suite only; --project=chromium matches playwright.config.ts.
+      # CI=true sets retries:2 and forbidOnly:true (see playwright.config.ts).
+      - name: Run E2E tests (critical suite, chromium)
+        env:
+          CI: 'true'
+          PLAYWRIGHT_BASE_URL: 'http://localhost:5175'
+        run: npx playwright test e2e/critical --project=chromium --reporter=list,html
+
+      # Always upload the HTML report so failures are diagnosable in the
+      # Actions artifacts panel. Screenshots and traces are captured
+      # automatically on failure/first-retry per playwright.config.ts.
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ github.run_id }}
           path: cmdb-demo/playwright-report/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload screenshots and traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts-${{ github.run_id }}
+          path: |
+            cmdb-demo/test-results/
+          if-no-files-found: warn
+          retention-days: 7
