@@ -211,7 +211,7 @@ func (q *Queries) CreateBIAScoringRule(ctx context.Context, arg CreateBIAScoring
 	return i, err
 }
 
-const deleteBIAAssessment = `-- name: DeleteBIAAssessment :exec
+const deleteBIAAssessment = `-- name: DeleteBIAAssessment :execrows
 DELETE FROM bia_assessments WHERE id = $1 AND tenant_id = $2
 `
 
@@ -220,9 +220,14 @@ type DeleteBIAAssessmentParams struct {
 	TenantID uuid.UUID `json:"tenant_id"`
 }
 
-func (q *Queries) DeleteBIAAssessment(ctx context.Context, arg DeleteBIAAssessmentParams) error {
-	_, err := q.db.Exec(ctx, deleteBIAAssessment, arg.ID, arg.TenantID)
-	return err
+// Returns rows affected so the service can map 0 → ErrNotFound;
+// otherwise cross-tenant deletes silently 204 (IDOR-style success oracle).
+func (q *Queries) DeleteBIAAssessment(ctx context.Context, arg DeleteBIAAssessmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteBIAAssessment, arg.ID, arg.TenantID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteBIADependency = `-- name: DeleteBIADependency :exec

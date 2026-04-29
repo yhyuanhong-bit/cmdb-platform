@@ -87,9 +87,16 @@ func (s *Service) UpdateAssessment(ctx context.Context, params dbgen.UpdateBIAAs
 }
 
 // DeleteAssessment removes a BIA assessment by ID, scoped to the given tenant.
+// Returns ErrNotFound when no row matched (cross-tenant access or already deleted).
+// Pre-W6.3 this returned nil on 0 rows — callers responded 204 even when the
+// row belonged to another tenant, leaking existence as a side channel.
 func (s *Service) DeleteAssessment(ctx context.Context, tenantID, id uuid.UUID) error {
-	if err := s.queries.DeleteBIAAssessment(ctx, dbgen.DeleteBIAAssessmentParams{ID: id, TenantID: tenantID}); err != nil {
+	rows, err := s.queries.DeleteBIAAssessment(ctx, dbgen.DeleteBIAAssessmentParams{ID: id, TenantID: tenantID})
+	if err != nil {
 		return fmt.Errorf("delete bia assessment: %w", err)
+	}
+	if rows == 0 {
+		return ErrNotFound
 	}
 	return nil
 }

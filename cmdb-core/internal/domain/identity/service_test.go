@@ -103,7 +103,7 @@ func (f *fakeIdentityQueries) CreateRole(context.Context, dbgen.CreateRoleParams
 func (f *fakeIdentityQueries) UpdateRole(context.Context, dbgen.UpdateRoleParams) (dbgen.Role, error) {
 	panic("UpdateRole not implemented in fake")
 }
-func (f *fakeIdentityQueries) DeleteRole(context.Context, dbgen.DeleteRoleParams) error {
+func (f *fakeIdentityQueries) DeleteRole(context.Context, dbgen.DeleteRoleParams) (int64, error) {
 	panic("DeleteRole not implemented in fake")
 }
 func (f *fakeIdentityQueries) RemoveRole(context.Context, dbgen.RemoveRoleParams) error {

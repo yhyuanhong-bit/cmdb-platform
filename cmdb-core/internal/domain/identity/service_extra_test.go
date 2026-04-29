@@ -202,13 +202,16 @@ func (f *extendedFakeQueries) UpdateRole(_ context.Context, arg dbgen.UpdateRole
 	return r, nil
 }
 
-func (f *extendedFakeQueries) DeleteRole(_ context.Context, arg dbgen.DeleteRoleParams) error {
+func (f *extendedFakeQueries) DeleteRole(_ context.Context, arg dbgen.DeleteRoleParams) (int64, error) {
 	f.lastDeleteRoleParams = arg
 	if f.deleteRoleErr != nil {
-		return f.deleteRoleErr
+		return 0, f.deleteRoleErr
+	}
+	if _, ok := f.roles[arg.ID]; !ok {
+		return 0, nil
 	}
 	delete(f.roles, arg.ID)
-	return nil
+	return 1, nil
 }
 
 func (f *extendedFakeQueries) AssignRole(_ context.Context, arg dbgen.AssignRoleParams) error {
@@ -580,6 +583,10 @@ func TestDeleteRole_ScopedToTenant(t *testing.T) {
 	t.Run("success forwards tenant", func(t *testing.T) {
 		t.Parallel()
 		q := newExtendedFake()
+		// Pre-populate the role so the fake's DeleteRole returns rows=1.
+		// W6.3: the service now treats rows=0 as ErrRoleNotFound, so the
+		// fake must reflect a real DELETE-hit to test the success path.
+		q.roles[roleID] = dbgen.Role{ID: roleID}
 		svc := &Service{queries: q}
 		err := svc.DeleteRole(context.Background(), tenantID, roleID)
 		if err != nil {

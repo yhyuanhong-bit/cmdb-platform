@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 	"github.com/cmdb-platform/cmdb-core/internal/domain/quality"
@@ -156,6 +157,13 @@ func (s *APIServer) FlagQualityIssue(c *gin.Context) {
 
 	flag, err := s.qualitySvc.FlagIssue(c.Request.Context(), params)
 	if err != nil {
+		// W6.3: cross-tenant asset_id surfaces as ErrAssetNotInTenant; map
+		// to 404 (not 403) so the existence of the foreign asset is not
+		// leaked as an information oracle.
+		if errors.Is(err, quality.ErrAssetNotInTenant) {
+			response.NotFound(c, "asset not found")
+			return
+		}
 		response.InternalError(c, "failed to create quality flag")
 		return
 	}

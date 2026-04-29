@@ -95,11 +95,25 @@ type FlagIssueParams struct {
 	Message      string
 }
 
+// ErrAssetNotInTenant is returned by FlagIssue when the asset_id does not
+// belong to the caller's tenant. Handlers should map this to 404 (not 403)
+// to avoid leaking cross-tenant existence as an oracle.
+var ErrAssetNotInTenant = fmt.Errorf("asset not found in tenant")
+
 // FlagIssue records a consumer-side report that an asset's data is
 // wrong. The scanner picks it up on its next pass via
 // countRecentFlagsByAsset and applies an accuracy penalty until the
 // flag is triaged (resolved/rejected).
+//
+// W6.3 hardening: verify the asset belongs to p.TenantID before insert.
+// Pre-W6.3 the handler accepted any asset_id and INSERT-ed a flag row
+// with (tenant_id=caller, asset_id=victim) — DB invariant break and a
+// cross-tenant existence oracle. We now look up the asset under the
+// caller's tenant; a miss surfaces as ErrAssetNotInTenant -> 404.
 func (s *Service) FlagIssue(ctx context.Context, p FlagIssueParams) (*dbgen.QualityFlag, error) {
+	if _, err := s.queries.GetAsset(ctx, dbgen.GetAssetParams{ID: p.AssetID, TenantID: p.TenantID}); err != nil {
+		return nil, ErrAssetNotInTenant
+	}
 	params := dbgen.CreateQualityFlagParams{
 		TenantID:     p.TenantID,
 		AssetID:      p.AssetID,

@@ -66,7 +66,7 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 	return i, err
 }
 
-const deleteRole = `-- name: DeleteRole :exec
+const deleteRole = `-- name: DeleteRole :execrows
 DELETE FROM roles WHERE id = $1 AND tenant_id = $2 AND is_system = false
 `
 
@@ -75,9 +75,14 @@ type DeleteRoleParams struct {
 	TenantID pgtype.UUID `json:"tenant_id"`
 }
 
-func (q *Queries) DeleteRole(ctx context.Context, arg DeleteRoleParams) error {
-	_, err := q.db.Exec(ctx, deleteRole, arg.ID, arg.TenantID)
-	return err
+// Returns rows affected so the service can map 0 → ErrNotFound;
+// otherwise cross-tenant or system-role deletes silently 204 (IDOR oracle).
+func (q *Queries) DeleteRole(ctx context.Context, arg DeleteRoleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRole, arg.ID, arg.TenantID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getRole = `-- name: GetRole :one

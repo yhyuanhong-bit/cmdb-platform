@@ -24,7 +24,9 @@ WHERE id = sqlc.arg('id')
   AND is_system = false
 RETURNING *;
 
--- name: DeleteRole :exec
+-- name: DeleteRole :execrows
+-- Returns rows affected so the service can map 0 → ErrNotFound;
+-- otherwise cross-tenant or system-role deletes silently 204 (IDOR oracle).
 DELETE FROM roles WHERE id = $1 AND tenant_id = $2 AND is_system = false;
 
 -- name: GetRole :one

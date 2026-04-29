@@ -37,7 +37,9 @@ UPDATE bia_assessments SET
 WHERE id = sqlc.arg('id') AND tenant_id = sqlc.arg('tenant_id')
 RETURNING *;
 
--- name: DeleteBIAAssessment :exec
+-- name: DeleteBIAAssessment :execrows
+-- Returns rows affected so the service can map 0 → ErrNotFound;
+-- otherwise cross-tenant deletes silently 204 (IDOR-style success oracle).
 DELETE FROM bia_assessments WHERE id = $1 AND tenant_id = $2;
 
 -- name: ListBIAScoringRules :many

@@ -220,6 +220,8 @@ func (s *APIServer) UpdateRole(c *gin.Context, id IdPath) {
 func (s *APIServer) DeleteRole(c *gin.Context, id IdPath) {
 	err := s.identitySvc.DeleteRole(c.Request.Context(), tenantIDFromContext(c), uuid.UUID(id))
 	if err != nil {
+		// Pre-W6.3 returned 204 silently on cross-tenant or system-role hits;
+		// service now surfaces ErrRoleNotFound on 0 rows. Either way uniform 404.
 		response.NotFound(c, "role not found or is a system role")
 		return
 	}

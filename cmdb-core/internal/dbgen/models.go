@@ -786,6 +786,15 @@ type Tenant struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
+// Per-tenant configuration. Single row per tenant; settings JSONB holds nested config blobs (e.g. asset_lifespan_config). Falls back to code defaults when a tenant has no row.
+type TenantSetting struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	// JSONB blob of all tenant settings. Top-level keys are namespaced by feature (asset_lifespan_config, ...). Schema validation happens in the application layer, not the DB.
+	Settings  json.RawMessage `json:"settings"`
+	UpdatedAt time.Time       `json:"updated_at"`
+	UpdatedBy pgtype.UUID     `json:"updated_by"`
+}
+
 type UpgradeRule struct {
 	ID             uuid.UUID      `json:"id"`
 	TenantID       uuid.UUID      `json:"tenant_id"`

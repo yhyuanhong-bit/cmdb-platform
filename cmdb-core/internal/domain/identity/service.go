@@ -25,6 +25,11 @@ var ErrCrossTenantRole = errors.New("cross-tenant role assignment")
 // leaking cross-tenant existence to the caller.
 var ErrUserNotFound = errors.New("user not found")
 
+// ErrRoleNotFound is returned by DeleteRole when the role either doesn't
+// exist, belongs to another tenant, or is a system role. Same uniform-404
+// rationale as ErrUserNotFound — never tell the caller which case it was.
+var ErrRoleNotFound = errors.New("role not found")
+
 // identityQueries is the subset of *dbgen.Queries that Service depends on.
 // Defined as an interface so AssignRole's cross-tenant check can be unit
 // tested with a lightweight fake. *dbgen.Queries satisfies this interface
@@ -41,7 +46,7 @@ type identityQueries interface {
 	GetRole(ctx context.Context, id uuid.UUID) (dbgen.Role, error)
 	CreateRole(ctx context.Context, arg dbgen.CreateRoleParams) (dbgen.Role, error)
 	UpdateRole(ctx context.Context, arg dbgen.UpdateRoleParams) (dbgen.Role, error)
-	DeleteRole(ctx context.Context, arg dbgen.DeleteRoleParams) error
+	DeleteRole(ctx context.Context, arg dbgen.DeleteRoleParams) (int64, error)
 	AssignRole(ctx context.Context, arg dbgen.AssignRoleParams) error
 	RemoveRole(ctx context.Context, arg dbgen.RemoveRoleParams) error
 	ListUserRoleIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
@@ -250,10 +255,16 @@ func (s *Service) Deactivate(ctx context.Context, tenantID, userID uuid.UUID) er
 }
 
 // DeleteRole deletes a non-system role by ID, scoped to the given tenant.
+// Returns ErrRoleNotFound when no row matched (cross-tenant access, system role,
+// or already deleted). Pre-W6.3 this returned nil on 0 rows — handlers
+// responded 204 even for cross-tenant attempts, leaking existence.
 func (s *Service) DeleteRole(ctx context.Context, tenantID, id uuid.UUID) error {
-	err := s.queries.DeleteRole(ctx, dbgen.DeleteRoleParams{ID: id, TenantID: pgtype.UUID{Bytes: tenantID, Valid: true}})
+	rows, err := s.queries.DeleteRole(ctx, dbgen.DeleteRoleParams{ID: id, TenantID: pgtype.UUID{Bytes: tenantID, Valid: true}})
 	if err != nil {
 		return fmt.Errorf("delete role: %w", err)
+	}
+	if rows == 0 {
+		return ErrRoleNotFound
 	}
 	return nil
 }
