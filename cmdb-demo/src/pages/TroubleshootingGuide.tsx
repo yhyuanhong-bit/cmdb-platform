@@ -1,6 +1,7 @@
 import { memo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useTroubleshootingCounts } from "../hooks/useTroubleshootingCounts";
 
 /* ──────────────────────────────────────────────
    Types & mock data
@@ -10,7 +11,6 @@ interface Category {
   icon: string;
   labelKey: string;
   filterKey: string;
-  count: number;
   color: string;
 }
 
@@ -30,12 +30,12 @@ interface CommonIssue {
 }
 
 const CATEGORIES: Category[] = [
-  { icon: "lock", labelKey: "troubleshooting.category_auth", filterKey: "Auth", count: 18, color: "#ff6b6b" },
-  { icon: "dns", labelKey: "troubleshooting.category_assets", filterKey: "Assets", count: 24, color: "#9ecaff" },
-  { icon: "monitoring", labelKey: "troubleshooting.category_monitoring", filterKey: "Monitoring", count: 15, color: "#ffa94d" },
-  { icon: "build", labelKey: "troubleshooting.category_maintenance", filterKey: "Maintenance", count: 21, color: "#c4b5fd" },
-  { icon: "lan", labelKey: "troubleshooting.category_network", filterKey: "Network", count: 12, color: "#69db7c" },
-  { icon: "analytics", labelKey: "troubleshooting.category_data", filterKey: "Data", count: 17, color: "#ffb5a0" },
+  { icon: "lock", labelKey: "troubleshooting.category_auth", filterKey: "Auth", color: "#ff6b6b" },
+  { icon: "dns", labelKey: "troubleshooting.category_assets", filterKey: "Assets", color: "#9ecaff" },
+  { icon: "monitoring", labelKey: "troubleshooting.category_monitoring", filterKey: "Monitoring", color: "#ffa94d" },
+  { icon: "build", labelKey: "troubleshooting.category_maintenance", filterKey: "Maintenance", color: "#c4b5fd" },
+  { icon: "lan", labelKey: "troubleshooting.category_network", filterKey: "Network", color: "#69db7c" },
+  { icon: "analytics", labelKey: "troubleshooting.category_data", filterKey: "Data", color: "#ffb5a0" },
 ];
 
 const COMMON_ISSUES: CommonIssue[] = [
@@ -228,6 +228,7 @@ const TroubleshootingGuide = memo(function TroubleshootingGuide() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const { counts: categoryCounts } = useTroubleshootingCounts();
 
   const handleToggle = useCallback((id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -329,7 +330,7 @@ const TroubleshootingGuide = memo(function TroubleshootingGuide() {
                     {t(cat.labelKey)}
                   </p>
                   <p className="text-[0.65rem] text-on-surface-variant mt-0.5">
-                    {cat.count} {t('troubleshooting.issues')}
+                    {categoryCounts[cat.filterKey] ?? "—"} {t('troubleshooting.issues')}
                   </p>
                 </div>
               </button>
