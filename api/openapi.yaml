@@ -4853,7 +4853,21 @@ paths:
     get:
       operationId: downloadImportTemplate
       tags: [assets]
-      summary: Download CSV import template for assets
+      summary: Download CSV import template for assets (multi-language)
+      description: |
+        Returns a CSV template with localised column headers. Chinese
+        templates round-trip cleanly through ingestion-engine because
+        FIELD_ALIASES recognises Traditional and Simplified Chinese
+        column names and maps them to canonical schema fields.
+      parameters:
+        - name: lang
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [en, zh-TW, zh-CN]
+            default: en
+          description: Template language; falls back to English on unknown values
       responses:
         '200':
           description: CSV template stream

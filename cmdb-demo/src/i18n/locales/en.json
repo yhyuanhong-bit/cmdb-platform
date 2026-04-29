@@ -251,7 +251,9 @@
     "view_table": "Table View",
     "table_property_number": "Property No.",
     "table_control_number": "Control No.",
-    "download_template": "Download Template"
+    "download_template": "Download Template",
+    "download_template_failed": "Failed to download template",
+    "download_template_select_language": "Select template language"
   },
   "import": {
     "upload_title": "Import Assets",

@@ -981,6 +981,27 @@ func (e GetActivityFeedParamsTargetType) Valid() bool {
 	}
 }
 
+// Defines values for DownloadImportTemplateParamsLang.
+const (
+	En   DownloadImportTemplateParamsLang = "en"
+	ZhCN DownloadImportTemplateParamsLang = "zh-CN"
+	ZhTW DownloadImportTemplateParamsLang = "zh-TW"
+)
+
+// Valid indicates whether the value is a known member of the DownloadImportTemplateParamsLang enum.
+func (e DownloadImportTemplateParamsLang) Valid() bool {
+	switch e {
+	case En:
+		return true
+	case ZhCN:
+		return true
+	case ZhTW:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetDashboardAssetsTrendParamsPeriod.
 const (
 	N30d GetDashboardAssetsTrendParamsPeriod = "30d"
@@ -2575,6 +2596,15 @@ type ListAssetsParams struct {
 	OwnerTeam *string `form:"owner_team,omitempty" json:"owner_team,omitempty"`
 	Search    *string `form:"search,omitempty" json:"search,omitempty"`
 }
+
+// DownloadImportTemplateParams defines parameters for DownloadImportTemplate.
+type DownloadImportTemplateParams struct {
+	// Lang Template language; falls back to English on unknown values
+	Lang *DownloadImportTemplateParamsLang `form:"lang,omitempty" json:"lang,omitempty"`
+}
+
+// DownloadImportTemplateParamsLang defines parameters for DownloadImportTemplate.
+type DownloadImportTemplateParamsLang string
 
 // UpdateAssetJSONBody defines parameters for UpdateAsset.
 type UpdateAssetJSONBody struct {
@@ -4278,9 +4308,9 @@ type ServerInterface interface {
 	// Create a new asset
 	// (POST /assets)
 	CreateAsset(c *gin.Context)
-	// Download CSV import template for assets
+	// Download CSV import template for assets (multi-language)
 	// (GET /assets/import-template)
-	DownloadImportTemplate(c *gin.Context)
+	DownloadImportTemplate(c *gin.Context, params DownloadImportTemplateParams)
 	// Get asset counts by lifecycle status
 	// (GET /assets/lifecycle-stats)
 	GetAssetLifecycleStats(c *gin.Context)
@@ -5069,7 +5099,20 @@ func (siw *ServerInterfaceWrapper) CreateAsset(c *gin.Context) {
 // DownloadImportTemplate operation middleware
 func (siw *ServerInterfaceWrapper) DownloadImportTemplate(c *gin.Context) {
 
+	var err error
+
 	c.Set(BearerAuthScopes, []string{})
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DownloadImportTemplateParams
+
+	// ------------- Optional query parameter "lang" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "lang", c.Request.URL.Query(), &params.Lang, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter lang: %w", err), http.StatusBadRequest)
+		return
+	}
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -5078,7 +5121,7 @@ func (siw *ServerInterfaceWrapper) DownloadImportTemplate(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.DownloadImportTemplate(c)
+	siw.Handler.DownloadImportTemplate(c, params)
 }
 
 // GetAssetLifecycleStats operation middleware

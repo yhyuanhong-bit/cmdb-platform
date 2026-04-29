@@ -251,7 +251,9 @@
     "view_table": "表格视图",
     "table_property_number": "财产编号",
     "table_control_number": "管制编号",
-    "download_template": "下载导入模板"
+    "download_template": "下载导入模板",
+    "download_template_failed": "下载模板失败",
+    "download_template_select_language": "选择模板语言"
   },
   "import": {
     "upload_title": "导入资产",

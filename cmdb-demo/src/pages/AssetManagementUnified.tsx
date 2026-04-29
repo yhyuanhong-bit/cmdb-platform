@@ -11,6 +11,106 @@ import type { Asset } from '../lib/api/assets'
 import { useLocationContext } from '../contexts/LocationContext'
 import { useAuthStore } from '../stores/authStore'
 
+// Split button: primary action downloads the import-template CSV in the
+// current UI language; the chevron opens a popover with all 3 languages
+// so a user can grab another locale's template without changing UI lang.
+// Backend supports lang=en|zh-TW|zh-CN; unknown values fall back to en.
+function ImportTemplateSplitButton() {
+  const { t, i18n } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const langs: { code: 'en' | 'zh-TW' | 'zh-CN'; label: string }[] = [
+    { code: 'zh-TW', label: '繁體中文' },
+    { code: 'en', label: 'English' },
+    { code: 'zh-CN', label: '简体中文' },
+  ]
+
+  // Map any UI language (e.g. 'en-US') to one of the 3 supported codes.
+  const normaliseLang = (raw: string): 'en' | 'zh-TW' | 'zh-CN' => {
+    if (raw.startsWith('zh-CN') || raw === 'zh') return 'zh-CN'
+    if (raw.startsWith('zh-TW') || raw.startsWith('zh-Hant')) return 'zh-TW'
+    return 'en'
+  }
+  const currentLang = normaliseLang(i18n.language)
+
+  const download = async (lang: 'en' | 'zh-TW' | 'zh-CN') => {
+    setOpen(false)
+    const accessToken = useAuthStore.getState().accessToken
+    const res = await fetch(`/api/v1/assets/import-template?lang=${lang}`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    })
+    if (!res.ok) {
+      toast.error(t('assets.download_template_failed') || 'Failed to download template')
+      return
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const suffix = lang === 'en' ? '' : `-${lang}`
+    a.download = `asset-import-template${suffix}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Close popover when clicking outside or pressing Esc.
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <button
+        onClick={() => download(currentLang)}
+        className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded-l hover:bg-surface-container-highest transition-all"
+      >
+        <Icon name="download" className="text-[18px]" />
+        {t('assets.download_template')}
+      </button>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t('assets.download_template_select_language') || 'Select template language'}
+        className="flex items-center bg-surface-container-high px-2 py-2.5 text-sm text-on-surface rounded-r hover:bg-surface-container-highest border-l border-outline-variant/30 transition-all"
+      >
+        <Icon name="expand_more" className="text-[18px]" />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute top-full right-0 mt-1 w-44 bg-surface-container shadow-lg rounded border border-outline-variant/20 z-50"
+        >
+          {langs.map((opt) => (
+            <button
+              key={opt.code}
+              role="menuitem"
+              onClick={() => download(opt.code)}
+              className="flex w-full items-center justify-between px-4 py-2 text-sm text-on-surface hover:bg-surface-container-high text-left first:rounded-t last:rounded-b"
+            >
+              <span>{opt.label}</span>
+              {opt.code === currentLang && <Icon name="check" className="text-[16px] text-primary" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // URL-persisted filter + pagination + view-mode state for the Assets list.
 // Shape is captured here so the `useUrlState` generic can infer it and keep
 // string literal unions (viewMode) narrow.
@@ -343,26 +443,8 @@ export default function AssetManagementUnified() {
           accept=".xlsx,.csv"
           onChange={handleImport}
         />
-        <button
-          onClick={async () => {
-            const a = document.createElement('a')
-            const accessToken = useAuthStore.getState().accessToken
-            const res = await fetch('/api/v1/assets/import-template', {
-              headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-            })
-            if (!res.ok) { toast.error('Failed to download template'); return }
-            const blob = await res.blob()
-            const url = URL.createObjectURL(blob)
-            a.href = url
-            a.download = 'asset-import-template.csv'
-            a.click()
-            URL.revokeObjectURL(url)
-          }}
-          className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"
-        >
-          <Icon name="download" className="text-[18px]" />
-          {t('assets.download_template')}
-        </button>
+        <ImportTemplateSplitButton />
+
         <button
           onClick={handleExport}
           className="flex items-center gap-1.5 bg-surface-container-high px-4 py-2.5 text-sm font-medium text-on-surface rounded hover:bg-surface-container-highest transition-all"

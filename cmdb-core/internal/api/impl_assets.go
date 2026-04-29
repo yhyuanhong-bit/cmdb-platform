@@ -426,16 +426,41 @@ func (s *APIServer) DeleteAsset(c *gin.Context, id IdPath) {
 }
 
 // DownloadImportTemplate serves a CSV template for asset import.
-// GET /api/v1/assets/import-template
-func (s *APIServer) DownloadImportTemplate(c *gin.Context) {
+// Supports lang=en (default) / zh-TW / zh-CN. Chinese headers are
+// resolved to canonical fields by ingestion-engine FIELD_ALIASES at
+// import time, so all three templates are fully importable.
+// GET /api/v1/assets/import-template?lang=zh-TW
+func (s *APIServer) DownloadImportTemplate(c *gin.Context, params DownloadImportTemplateParams) {
+	lang := "en"
+	if params.Lang != nil {
+		lang = string(*params.Lang)
+	}
+	header, example, suffix := importTemplateForLang(lang)
+
 	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", "attachment; filename=asset-import-template.csv")
+	c.Header("Content-Disposition", "attachment; filename=asset-import-template"+suffix+".csv")
 
 	// BOM for Excel UTF-8 recognition
-	bom := "\xEF\xBB\xBF"
+	c.String(200, "\xEF\xBB\xBF"+header+example)
+}
 
-	header := "asset_tag,name,type,sub_type,status,bia_level,vendor,model,serial_number,property_number,control_number,ip_address,location,rack,tags,bmc_ip,bmc_type,bmc_firmware,purchase_date,purchase_cost,warranty_start,warranty_end,warranty_vendor,warranty_contract,expected_lifespan_months,eol_date\n"
-	example := "SRV-001,Production Server 01,server,rack_mount,operational,important,Dell,PowerEdge R750,SN-EXAMPLE-001,PN-001,CN-001,10.0.1.100,Taipei DC,Rack-A01,\"production,critical\",10.0.100.5,ilo,iLO 5 v2.72,2024-01-15,248500.00,2024-01-15,2027-01-15,Dell Technologies,CTR-2024-001,48,2028-01-15\n"
-
-	c.String(200, bom+header+example)
+// importTemplateForLang returns CSV header + example rows + filename suffix.
+// Chinese variants use FIELD_ALIASES-recognised header names so a re-uploaded
+// file will round-trip without preprocessing.
+func importTemplateForLang(lang string) (header, example, suffix string) {
+	switch lang {
+	case "zh-TW":
+		header = "資產編號,名稱,類型,子類型,狀態,影響等級,廠牌,型號,序列號,財產編號,管制編號,IP,位置,機櫃,標籤,帶外管理IP,管理介面,韌體版本,採購日期,採購金額,保固開始,保固到期,保固廠商,合約編號,預計使用月數,報廢日期\n"
+		example = "SRV-001,生產伺服器 01,server,rack_mount,operational,important,Dell,PowerEdge R750,SN-EXAMPLE-001,PN-001,CN-001,10.0.1.100,台北機房,Rack-A01,\"生產,關鍵\",10.0.100.5,ilo,iLO 5 v2.72,2024-01-15,248500.00,2024-01-15,2027-01-15,Dell Technologies,CTR-2024-001,48,2028-01-15\n"
+		suffix = "-zh-TW"
+	case "zh-CN":
+		header = "资产编号,名称,类型,子类型,状态,影响等级,厂牌,型号,序列号,财产编号,管制编号,IP,位置,机柜,标签,带外管理IP,管理接口,固件版本,采购日期,采购金额,保固开始,质保到期,保固厂商,合同编号,预计使用月数,报废日期\n"
+		example = "SRV-001,生产服务器 01,server,rack_mount,operational,important,Dell,PowerEdge R750,SN-EXAMPLE-001,PN-001,CN-001,10.0.1.100,台北机房,Rack-A01,\"生产,关键\",10.0.100.5,ilo,iLO 5 v2.72,2024-01-15,248500.00,2024-01-15,2027-01-15,Dell Technologies,CTR-2024-001,48,2028-01-15\n"
+		suffix = "-zh-CN"
+	default: // en (and any unknown)
+		header = "asset_tag,name,type,sub_type,status,bia_level,vendor,model,serial_number,property_number,control_number,ip_address,location,rack,tags,bmc_ip,bmc_type,bmc_firmware,purchase_date,purchase_cost,warranty_start,warranty_end,warranty_vendor,warranty_contract,expected_lifespan_months,eol_date\n"
+		example = "SRV-001,Production Server 01,server,rack_mount,operational,important,Dell,PowerEdge R750,SN-EXAMPLE-001,PN-001,CN-001,10.0.1.100,Taipei DC,Rack-A01,\"production,critical\",10.0.100.5,ilo,iLO 5 v2.72,2024-01-15,248500.00,2024-01-15,2027-01-15,Dell Technologies,CTR-2024-001,48,2028-01-15\n"
+		suffix = ""
+	}
+	return
 }

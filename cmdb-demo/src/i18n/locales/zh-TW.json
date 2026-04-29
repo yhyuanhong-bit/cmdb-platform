@@ -251,7 +251,9 @@
     "view_table": "表格檢視",
     "table_property_number": "財產編號",
     "table_control_number": "管制編號",
-    "download_template": "下載匯入模板"
+    "download_template": "下載匯入模板",
+    "download_template_failed": "下載模板失敗",
+    "download_template_select_language": "選擇模板語言"
   },
   "import": {
     "upload_title": "匯入資產",
