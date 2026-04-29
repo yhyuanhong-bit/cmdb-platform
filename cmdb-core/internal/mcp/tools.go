@@ -12,11 +12,16 @@ import (
 	"github.com/cmdb-platform/cmdb-core/internal/dbgen"
 )
 
+// tenantIDDescription is the standard description for the optional tenant_id
+// argument supported by tenant-scoped MCP tools.
+const tenantIDDescription = "Optional tenant UUID; defaults to first tenant for single-org deployments"
+
 // registerTools registers all 7 MCP tools on the server.
 func (s *MCPServer) registerTools() {
 	s.srv.AddTool(
 		mcp.NewTool("search_assets",
 			mcp.WithDescription("Search assets with optional type/status/query filters"),
+			mcp.WithString("tenant_id", mcp.Description(tenantIDDescription)),
 			mcp.WithString("type", mcp.Description("Asset type filter (e.g. server, network, storage)")),
 			mcp.WithString("status", mcp.Description("Asset status filter (e.g. active, maintenance, decommissioned)")),
 			mcp.WithString("query", mcp.Description("Free-text query (matched against serial_number)")),
@@ -27,6 +32,7 @@ func (s *MCPServer) registerTools() {
 	s.srv.AddTool(
 		mcp.NewTool("get_asset_detail",
 			mcp.WithDescription("Get detailed asset information by UUID or asset_tag"),
+			mcp.WithString("tenant_id", mcp.Description(tenantIDDescription)),
 			mcp.WithString("id", mcp.Description("Asset UUID")),
 			mcp.WithString("asset_tag", mcp.Description("Asset tag identifier")),
 		),
@@ -36,6 +42,7 @@ func (s *MCPServer) registerTools() {
 	s.srv.AddTool(
 		mcp.NewTool("query_alerts",
 			mcp.WithDescription("Query alert events with severity/status/asset_id filters"),
+			mcp.WithString("tenant_id", mcp.Description(tenantIDDescription)),
 			mcp.WithString("severity", mcp.Description("Severity filter (critical, warning, info)")),
 			mcp.WithString("status", mcp.Description("Status filter (firing, acknowledged, resolved)")),
 			mcp.WithString("asset_id", mcp.Description("Asset UUID to filter alerts for")),
@@ -46,6 +53,7 @@ func (s *MCPServer) registerTools() {
 	s.srv.AddTool(
 		mcp.NewTool("get_topology",
 			mcp.WithDescription("Get location hierarchy — root locations or children of a location"),
+			mcp.WithString("tenant_id", mcp.Description(tenantIDDescription)),
 			mcp.WithString("location_id", mcp.Description("Parent location UUID; omit for root locations")),
 		),
 		s.handleGetTopology,
@@ -64,6 +72,7 @@ func (s *MCPServer) registerTools() {
 	s.srv.AddTool(
 		mcp.NewTool("query_work_orders",
 			mcp.WithDescription("Query work orders with optional status filter"),
+			mcp.WithString("tenant_id", mcp.Description(tenantIDDescription)),
 			mcp.WithString("status", mcp.Description("Status filter (e.g. open, in_progress, completed)")),
 		),
 		s.handleQueryWorkOrders,
@@ -88,6 +97,53 @@ func (s *MCPServer) defaultTenantID(ctx context.Context) (uuid.UUID, error) {
 		return uuid.UUID{}, fmt.Errorf("no tenants found")
 	}
 	return tenants[0].ID, nil
+}
+
+// parseTenantIDArg inspects the tenant_id field of an MCP tool args map.
+// Return values:
+//   - (id, true, nil): a valid UUID was supplied; use id
+//   - (Nil, false, nil): tenant_id was absent or an empty string; caller
+//     should fall back to the default tenant
+//   - (Nil, false, err): tenant_id was supplied but invalid (wrong type or
+//     not a UUID); caller should surface the error
+//
+// Splitting this from resolveTenantID keeps the parsing logic pure and
+// exercisable without a database.
+func parseTenantIDArg(args map[string]any) (uuid.UUID, bool, error) {
+	raw, ok := args["tenant_id"]
+	if !ok || raw == nil {
+		return uuid.Nil, false, nil
+	}
+	str, ok := raw.(string)
+	if !ok {
+		return uuid.Nil, false, fmt.Errorf("tenant_id must be a UUID string")
+	}
+	if str == "" {
+		return uuid.Nil, false, nil
+	}
+	parsed, err := uuid.Parse(str)
+	if err != nil {
+		return uuid.Nil, false, fmt.Errorf("invalid tenant_id UUID: %w", err)
+	}
+	return parsed, true, nil
+}
+
+// resolveTenantID returns the tenant_id from args if present and valid,
+// otherwise falls back to the default tenant. Returns an error when the
+// tenant_id arg is provided but is not a valid UUID string.
+//
+// This allows MCP clients (AI assistants) to scope each call to a specific
+// tenant in multi-org deployments while preserving single-org backwards
+// compatibility (omit tenant_id → first tenant).
+func (s *MCPServer) resolveTenantID(ctx context.Context, args map[string]any) (uuid.UUID, error) {
+	id, present, err := parseTenantIDArg(args)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if present {
+		return id, nil
+	}
+	return s.defaultTenantID(ctx)
 }
 
 // Helper to build pgtype.Text from an optional string arg.
@@ -116,7 +172,7 @@ func optUUID(args map[string]any, key string) pgtype.UUID {
 
 func (s *MCPServer) handleSearchAssets(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
-	tid, err := s.defaultTenantID(ctx)
+	tid, err := s.resolveTenantID(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +194,7 @@ func (s *MCPServer) handleSearchAssets(ctx context.Context, req mcp.CallToolRequ
 func (s *MCPServer) handleGetAssetDetail(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
 
-	tid, err := s.defaultTenantID(ctx)
+	tid, err := s.resolveTenantID(ctx, args)
 	if err != nil {
 		return nil, fmt.Errorf("resolve tenant: %w", err)
 	}
@@ -170,7 +226,7 @@ func (s *MCPServer) handleGetAssetDetail(ctx context.Context, req mcp.CallToolRe
 
 func (s *MCPServer) handleQueryAlerts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
-	tid, err := s.defaultTenantID(ctx)
+	tid, err := s.resolveTenantID(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +247,7 @@ func (s *MCPServer) handleQueryAlerts(ctx context.Context, req mcp.CallToolReque
 
 func (s *MCPServer) handleGetTopology(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
-	tid, err := s.defaultTenantID(ctx)
+	tid, err := s.resolveTenantID(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +357,7 @@ func (s *MCPServer) handleQueryMetrics(ctx context.Context, req mcp.CallToolRequ
 
 func (s *MCPServer) handleQueryWorkOrders(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	args := req.GetArguments()
-	tid, err := s.defaultTenantID(ctx)
+	tid, err := s.resolveTenantID(ctx, args)
 	if err != nil {
 		return nil, err
 	}
