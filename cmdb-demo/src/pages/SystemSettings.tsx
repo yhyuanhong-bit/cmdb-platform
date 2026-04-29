@@ -12,6 +12,7 @@ import CreateWebhookModal from '../components/CreateWebhookModal'
 import EditAdapterModal from '../components/EditAdapterModal'
 import EditWebhookModal from '../components/EditWebhookModal'
 import CreateCredentialModal from '../components/CreateCredentialModal'
+import AssetLifespanSection from '../components/AssetLifespanSection'
 import type { User, Role } from '../lib/api/identity'
 import type { AdapterConfig, WebhookSubscription } from '../lib/api/integration'
 
@@ -483,6 +484,9 @@ export default function SystemSettings() {
           </div>
         </div>
       </div>
+
+      {/* Asset Lifespan (W3.2-frontend) — drives upgrade recommendations + health scoring */}
+      <AssetLifespanSection />
 
       </>
       )}

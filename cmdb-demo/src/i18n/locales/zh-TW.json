@@ -2406,7 +2406,22 @@
     "select_role": "-- 選擇角色 --",
     "role_assigned": "角色指派成功",
     "role_required": "請為新用戶選擇一個角色",
-    "user_created": "用戶建立成功"
+    "user_created": "用戶建立成功",
+    "lifespan_title": "資產壽命設定",
+    "lifespan_subtitle": "各類資產的預期使用年限（年）。會影響升級建議與設備健康分數計算。預設值：伺服器 5、網路 7、儲存 5、電源 10。",
+    "lifespan_server": "伺服器",
+    "lifespan_network": "網路設備",
+    "lifespan_storage": "儲存設備",
+    "lifespan_power": "電源設備",
+    "lifespan_unit_years": "年",
+    "lifespan_save": "儲存",
+    "lifespan_saving": "儲存中…",
+    "lifespan_reset": "重設為預設值",
+    "lifespan_saved": "資產壽命設定已儲存",
+    "lifespan_error": "資產壽命設定儲存失敗",
+    "lifespan_loading": "正在載入設定…",
+    "lifespan_load_error": "無法載入資產壽命設定",
+    "lifespan_validation_range": "必須是 {{min}} 到 {{max}} 之間的整數"
   },
   "user_profile": {
     "role_badge": "高級管理員 L2",

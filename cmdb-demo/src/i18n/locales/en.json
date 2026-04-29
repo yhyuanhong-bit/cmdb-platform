@@ -2406,7 +2406,22 @@
     "select_role": "-- Select Role --",
     "role_assigned": "Role assigned successfully",
     "role_required": "Please select a role for the new user",
-    "user_created": "User created successfully"
+    "user_created": "User created successfully",
+    "lifespan_title": "Asset Lifespan",
+    "lifespan_subtitle": "Expected useful life (in years) for each asset class. Drives upgrade recommendations and equipment health scoring. Defaults: server 5, network 7, storage 5, power 10.",
+    "lifespan_server": "Server",
+    "lifespan_network": "Network",
+    "lifespan_storage": "Storage",
+    "lifespan_power": "Power",
+    "lifespan_unit_years": "years",
+    "lifespan_save": "Save",
+    "lifespan_saving": "Saving…",
+    "lifespan_reset": "Reset to defaults",
+    "lifespan_saved": "Asset lifespan settings saved",
+    "lifespan_error": "Failed to save asset lifespan settings",
+    "lifespan_loading": "Loading settings…",
+    "lifespan_load_error": "Failed to load asset lifespan settings",
+    "lifespan_validation_range": "Must be an integer between {{min}} and {{max}}"
   },
   "user_profile": {
     "role_badge": "Senior Administrator L2",

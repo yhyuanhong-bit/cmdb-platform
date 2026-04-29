@@ -2406,7 +2406,22 @@
     "select_role": "-- 选择角色 --",
     "role_assigned": "角色指派成功",
     "role_required": "请为新用户选择一个角色",
-    "user_created": "用户创建成功"
+    "user_created": "用户创建成功",
+    "lifespan_title": "资产寿命设置",
+    "lifespan_subtitle": "各类资产的预期使用年限（年）。会影响升级建议与设备健康评分计算。默认值：服务器 5、网络 7、存储 5、电源 10。",
+    "lifespan_server": "服务器",
+    "lifespan_network": "网络设备",
+    "lifespan_storage": "存储设备",
+    "lifespan_power": "电源设备",
+    "lifespan_unit_years": "年",
+    "lifespan_save": "保存",
+    "lifespan_saving": "保存中…",
+    "lifespan_reset": "重置为默认值",
+    "lifespan_saved": "资产寿命设置已保存",
+    "lifespan_error": "资产寿命设置保存失败",
+    "lifespan_loading": "正在加载设置…",
+    "lifespan_load_error": "无法加载资产寿命设置",
+    "lifespan_validation_range": "必须是 {{min}} 到 {{max}} 之间的整数"
   },
   "user_profile": {
     "role_badge": "高级管理员 L2",
