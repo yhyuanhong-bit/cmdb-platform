@@ -205,17 +205,109 @@
       {
         "id": 10,
         "type": "row",
-        "title": "Active SLO alerts",
+        "title": "Sync apply (7d SLO target 99%)",
         "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
         "collapsed": false,
         "panels": []
       },
       {
         "id": 11,
+        "title": "Sync apply success — 30m (target 99%)",
+        "description": "applied / (applied + failed + rejected) over the last 30 minutes. Skipped envelopes (version-gate no-ops) intentionally excluded. Returns no data until cmdb_sync_envelope_* counters are registered (OBS-SYNC).",
+        "type": "gauge",
+        "gridPos": { "h": 7, "w": 12, "x": 0, "y": 25 },
+        "targets": [
+          {
+            "expr": "sli:sync_apply:ratio_30m",
+            "refId": "A",
+            "legendFormat": "applied"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0.9,
+            "max": 1,
+            "decimals": 3,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "orange", "value": 0.99 },
+                { "color": "green", "value": 0.995 }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": { "showThresholdLabels": false, "showThresholdMarkers": true }
+      },
+      {
+        "id": 12,
+        "title": "Sync apply burn — 1h",
+        "description": "Current 1h bad-outcome ratio as multiples of the 7d budget burn (0.01). >14.4× over 1h consumes 2% of the 7d budget per hour.",
+        "type": "stat",
+        "gridPos": { "h": 7, "w": 12, "x": 12, "y": 25 },
+        "targets": [
+          {
+            "expr": "slo:sync_bad:ratio_1h / 0.01",
+            "refId": "A",
+            "legendFormat": "burn"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 1 },
+                { "color": "orange", "value": 6 },
+                { "color": "red", "value": 14.4 }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "graphMode": "area",
+          "colorMode": "background",
+          "reduceOptions": { "calcs": ["lastNotNull"] }
+        }
+      },
+      {
+        "id": 13,
+        "title": "Sync bad-outcome ratio (multi-window)",
+        "description": "slo:sync_bad:ratio_5m / 30m / 1h / 6h. Failed + rejected envelopes / total. Skipped excluded.",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+        "targets": [
+          { "expr": "slo:sync_bad:ratio_5m", "legendFormat": "5m", "refId": "A" },
+          { "expr": "slo:sync_bad:ratio_30m", "legendFormat": "30m", "refId": "B" },
+          { "expr": "slo:sync_bad:ratio_1h", "legendFormat": "1h", "refId": "C" },
+          { "expr": "slo:sync_bad:ratio_6h", "legendFormat": "6h", "refId": "D" }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "percentunit", "decimals": 4 },
+          "overrides": []
+        }
+      },
+      {
+        "id": 14,
+        "type": "row",
+        "title": "Active SLO alerts",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+        "collapsed": false,
+        "panels": []
+      },
+      {
+        "id": 15,
         "title": "Firing alerts (slo label)",
         "description": "ALERTS{slo!=\"\"} — fast/slow burn pages and tickets sourced from slo.yml. severity=page → on-call. severity=ticket → next business day.",
         "type": "table",
-        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 25 },
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 41 },
         "targets": [
           {
             "expr": "ALERTS{slo!=\"\"}",

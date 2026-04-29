@@ -308,3 +308,175 @@ groups:
             SLO target: 99% of requests < 1s over 30d.
             Runbook: docs/slo-definition.md#2-latency-slo
 
+  # ---------------------------------------------------------------
+  # Recording rules: sync apply success (7d window)
+  #
+  # SLI = applied / (applied + failed + rejected)
+  # Skipped envelopes are version-gate no-ops and intentionally NOT
+  # in the denominator (see slo-definition.md §3 "Signal boundary").
+  #
+  # NOTE: As of this commit the cmdb_sync_envelope_* counters are
+  # documented in docs/slo-definition.md but not yet registered in
+  # internal/platform/telemetry/metrics.go (tracked as OBS-SYNC).
+  # These rules will return no data until the counters land — they
+  # will NOT generate alerts because the burn-rate expression
+  # short-circuits to NaN when the denominator is empty.
+  # ---------------------------------------------------------------
+  - name: slo-sync-apply-recording
+    interval: 30s
+    rules:
+      - record: sli:sync_envelope_applied:rate5m
+        expr: sum(rate(cmdb_sync_envelope_applied_total[5m]))
+
+      - record: sli:sync_envelope_applied:rate30m
+        expr: sum(rate(cmdb_sync_envelope_applied_total[30m]))
+
+      - record: sli:sync_envelope_applied:rate1h
+        expr: sum(rate(cmdb_sync_envelope_applied_total[1h]))
+
+      - record: sli:sync_envelope_applied:rate6h
+        expr: sum(rate(cmdb_sync_envelope_applied_total[6h]))
+
+      # "Bad outcome" = failed + rejected. Skipped is excluded.
+      - record: sli:sync_envelope_bad:rate5m
+        expr: |
+          sum(rate(cmdb_sync_envelope_failed_total[5m]))
+          +
+          sum(rate(cmdb_sync_envelope_rejected_total[5m]))
+
+      - record: sli:sync_envelope_bad:rate30m
+        expr: |
+          sum(rate(cmdb_sync_envelope_failed_total[30m]))
+          +
+          sum(rate(cmdb_sync_envelope_rejected_total[30m]))
+
+      - record: sli:sync_envelope_bad:rate1h
+        expr: |
+          sum(rate(cmdb_sync_envelope_failed_total[1h]))
+          +
+          sum(rate(cmdb_sync_envelope_rejected_total[1h]))
+
+      - record: sli:sync_envelope_bad:rate6h
+        expr: |
+          sum(rate(cmdb_sync_envelope_failed_total[6h]))
+          +
+          sum(rate(cmdb_sync_envelope_rejected_total[6h]))
+
+      # Total = applied + bad. Excludes skipped (version-gate no-ops).
+      - record: sli:sync_envelope_total:rate5m
+        expr: sli:sync_envelope_applied:rate5m + sli:sync_envelope_bad:rate5m
+
+      - record: sli:sync_envelope_total:rate30m
+        expr: sli:sync_envelope_applied:rate30m + sli:sync_envelope_bad:rate30m
+
+      - record: sli:sync_envelope_total:rate1h
+        expr: sli:sync_envelope_applied:rate1h + sli:sync_envelope_bad:rate1h
+
+      - record: sli:sync_envelope_total:rate6h
+        expr: sli:sync_envelope_applied:rate6h + sli:sync_envelope_bad:rate6h
+
+      # Success ratio (drives dashboards).
+      - record: sli:sync_apply:ratio_5m
+        expr: |
+          sli:sync_envelope_applied:rate5m
+          /
+          (sli:sync_envelope_total:rate5m > 0)
+
+      - record: sli:sync_apply:ratio_30m
+        expr: |
+          sli:sync_envelope_applied:rate30m
+          /
+          (sli:sync_envelope_total:rate30m > 0)
+
+      - record: sli:sync_apply:ratio_1h
+        expr: |
+          sli:sync_envelope_applied:rate1h
+          /
+          (sli:sync_envelope_total:rate1h > 0)
+
+      - record: sli:sync_apply:ratio_6h
+        expr: |
+          sli:sync_envelope_applied:rate6h
+          /
+          (sli:sync_envelope_total:rate6h > 0)
+
+      # Bad-ratio form for burn-rate alerts.
+      - record: slo:sync_bad:ratio_5m
+        expr: |
+          sli:sync_envelope_bad:rate5m
+          /
+          sli:sync_envelope_total:rate5m
+
+      - record: slo:sync_bad:ratio_30m
+        expr: |
+          sli:sync_envelope_bad:rate30m
+          /
+          sli:sync_envelope_total:rate30m
+
+      - record: slo:sync_bad:ratio_1h
+        expr: |
+          sli:sync_envelope_bad:rate1h
+          /
+          sli:sync_envelope_total:rate1h
+
+      - record: slo:sync_bad:ratio_6h
+        expr: |
+          sli:sync_envelope_bad:rate6h
+          /
+          sli:sync_envelope_total:rate6h
+
+  # ---------------------------------------------------------------
+  # Sync apply burn-rate alerts (7d budget, target 99%)
+  #
+  # 7d budget = 0.01 * 7 * 24h = ~1h 40m of bad envelope outcomes.
+  # Burn-rate scaled identically to the HTTP SLOs — the multipliers
+  # represent fraction of the 7d budget consumed per hour.
+  # ---------------------------------------------------------------
+  - name: slo-sync-burn-rate-alerts
+    rules:
+      - alert: SyncApplyFastBurn
+        expr: |
+          (
+            slo:sync_bad:ratio_1h > (14.4 * 0.01)
+            and
+            slo:sync_bad:ratio_5m > (14.4 * 0.01)
+          )
+        for: 2m
+        labels:
+          severity: page
+          slo: sync_apply
+          window: 1h
+        annotations:
+          summary: "cmdb-core sync apply burning 7d budget >14.4x (fast burn)"
+          description: |
+            Share of bad sync envelope outcomes (failed + rejected) over
+            the last 1h is {{ $value | humanizePercentage }}. Likely
+            causes: schema drift between nodes, signature mismatch,
+            DB constraint violation on the apply path.
+
+            SLO target: 99% applied over 7d (budget: 1h 40m 48s).
+            Runbook: docs/slo-definition.md#3-sync-apply-success-slo
+
+      - alert: SyncApplySlowBurn
+        expr: |
+          (
+            slo:sync_bad:ratio_6h > (1.0 * 0.01)
+            and
+            slo:sync_bad:ratio_30m > (1.0 * 0.01)
+          )
+        for: 15m
+        labels:
+          severity: ticket
+          slo: sync_apply
+          window: 6h
+        annotations:
+          summary: "cmdb-core sync apply burning 7d budget at baseline (slow burn)"
+          description: |
+            Share of bad sync envelope outcomes (failed + rejected) over
+            the last 6h is {{ $value | humanizePercentage }}. Open a
+            ticket for the next business day to investigate which
+            entity_type / reason is dominating the failure mix.
+
+            SLO target: 99% applied over 7d (budget: 1h 40m 48s).
+            Runbook: docs/slo-definition.md#3-sync-apply-success-slo
+
