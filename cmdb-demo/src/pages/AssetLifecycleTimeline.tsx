@@ -2,7 +2,7 @@ import { toast } from 'sonner'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useAsset, useAssetLifecycle } from '../hooks/useAssets'
+import { useAsset, useAssetLifecycle, useAssetComplianceScan } from '../hooks/useAssets'
 import EmptyState from '../components/EmptyState'
 import type { LifecycleEvent } from '../lib/api/assets'
 
@@ -46,9 +46,13 @@ export default function AssetLifecycleTimeline() {
   // Fetch asset basic info and lifecycle timeline
   const assetQ = useAsset(assetId ?? '')
   const lifecycleQ = useAssetLifecycle(assetId ?? '')
+  const complianceQ = useAssetComplianceScan(assetId ?? '')
   const apiAsset = assetQ.data?.data
   const lifecycleData = lifecycleQ.data?.data
   const summary = lifecycleData?.summary
+  const complianceData = complianceQ.data?.data
+  const complianceEvents = complianceData?.events ?? []
+  const lastScanAt = complianceData?.last_scan_at ?? null
 
   const asset = {
     id: apiAsset?.asset_tag ?? assetId ?? EMPTY,
@@ -230,22 +234,56 @@ export default function AssetLifecycleTimeline() {
             </div>
           </div>
 
-          {/* Compliance Summary */}
+          {/* Compliance Summary — last scan-style audit activity for this asset. */}
           <div className="rounded-lg bg-surface-container p-6">
             <h2 className="mb-5 text-[10px] font-bold tracking-widest text-on-surface-variant">
               {t('asset_lifecycle_timeline.section_compliance_summary')}
             </h2>
-            {/* TODO(phase-3.10): wire up GET /compliance/assets/{id} when the
-                compliance scan endpoint ships. Previously rendered a static
-                fabricated list (ISO 27001, Security Patching, Physical Audit). */}
-            <EmptyState
-              icon="verified"
-              title={t('common.empty_not_wired_title')}
-              description={t('common.empty_not_wired_desc')}
-              tone="neutral"
-              compact
-            />
-            <button onClick={() => toast.info('Coming Soon')} className="mt-5 w-full rounded bg-surface-container-high py-3 text-[10px] font-bold tracking-widest text-primary transition-colors hover:bg-surface-container-low">
+            {complianceQ.isLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-sky-400 border-t-transparent" />
+              </div>
+            ) : complianceEvents.length === 0 ? (
+              <EmptyState
+                icon="verified"
+                title={t('asset_lifecycle_timeline.compliance_empty_title')}
+                description={t('asset_lifecycle_timeline.compliance_empty_desc')}
+                tone="neutral"
+                compact
+              />
+            ) : (
+              <div className="space-y-3">
+                {lastScanAt && (
+                  <div className="flex items-center justify-between text-[10px] tracking-widest text-on-surface-variant">
+                    <span>{t('asset_lifecycle_timeline.compliance_last_scan')}</span>
+                    <span className="font-mono text-on-surface">
+                      {new Date(lastScanAt).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                <ul className="divide-y divide-outline-variant">
+                  {complianceEvents.slice(0, 5).map((evt, idx) => (
+                    <li key={`${evt.scanned_at}-${idx}`} className="py-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-on-surface">{evt.action}</span>
+                        <span className="text-[10px] text-on-surface-variant">
+                          {new Date(evt.scanned_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {(evt.module || evt.source) && (
+                        <div className="mt-1 text-[10px] uppercase tracking-widest text-on-surface-variant">
+                          {[evt.module, evt.source].filter(Boolean).join(' · ')}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <button
+              onClick={() => toast.info(t('common.coming_soon', 'Coming Soon'))}
+              className="mt-5 w-full rounded bg-surface-container-high py-3 text-[10px] font-bold tracking-widest text-primary transition-colors hover:bg-surface-container-low"
+            >
               {t('asset_lifecycle_timeline.btn_generate_audit_report')}
             </button>
           </div>

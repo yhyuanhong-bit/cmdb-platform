@@ -672,6 +672,40 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        /**
+         * AssetComplianceScanEvent — single scan-style audit event row
+         * surfaced by GET /assets/{id}/compliance-scan. Manually inserted
+         * because src/generated/api-types.ts is out of sync with
+         * api/openapi.yaml (regenerating drops several pre-existing types
+         * that other modules still reference). Replace with a clean
+         * `npm run generate-api` once that drift is resolved.
+         */
+        AssetComplianceScanEvent: {
+            action: string;
+            module?: string | null;
+            source?: string | null;
+            /** Format: uuid */
+            operator_id?: string | null;
+            /** Format: date-time */
+            scanned_at: string;
+        };
+        /**
+         * AssetComplianceScan — payload for GET /assets/{id}/compliance-scan.
+         * last_scan_at is null when no scan-style audit_events exist yet;
+         * the UI renders an empty state in that case rather than fabricating
+         * compliance findings.
+         */
+        AssetComplianceScan: {
+            /** Format: uuid */
+            asset_id: string;
+            /** Format: date-time */
+            last_scan_at?: string | null;
+            last_scan_action?: string | null;
+            last_scan_module?: string | null;
+            last_scan_source?: string | null;
+            event_count: number;
+            events: components["schemas"]["AssetComplianceScanEvent"][];
+        };
         Location: {
             /** Format: uuid */
             id: string;

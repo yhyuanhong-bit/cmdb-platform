@@ -4901,6 +4901,32 @@ paths:
                     items: { $ref: '#/components/schemas/LocationChange' }
                   meta: { $ref: '#/components/schemas/Meta' }
 
+  /assets/{id}/compliance-scan:
+    get:
+      operationId: getAssetComplianceScan
+      tags: [assets]
+      summary: |
+        Return the most recent scan-style audit activity for an asset.
+        Today this surfaces the latest discovery / integration audit_events
+        targeting the asset; we do not (yet) write a dedicated
+        module='compliance' event so the endpoint is honest about that.
+        When no events exist the response has last_scan_at=null and an
+        empty events array, and the UI renders an empty state.
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Compliance / scan summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AssetComplianceScan' }
+                  meta: { $ref: '#/components/schemas/Meta' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /assets/{id}/qr-data:
     get:
       operationId: getAssetQRData
@@ -7175,6 +7201,35 @@ components:
         detected_at: { type: string, format: date-time }
         work_order_id: { type: string, format: uuid, nullable: true }
       additionalProperties: true
+
+    AssetComplianceScanEvent:
+      type: object
+      properties:
+        action: { type: string }
+        module: { type: string, nullable: true }
+        source: { type: string, nullable: true }
+        operator_id: { type: string, format: uuid, nullable: true }
+        scanned_at: { type: string, format: date-time }
+      required: [action, scanned_at]
+
+    AssetComplianceScan:
+      type: object
+      description: |
+        Most-recent scan / discovery / integration activity for an asset.
+        last_scan_at is null when no audit_events match — the UI then renders
+        an "no compliance scan recorded yet" empty state instead of fabricating
+        compliance findings.
+      properties:
+        asset_id: { type: string, format: uuid }
+        last_scan_at: { type: string, format: date-time, nullable: true }
+        last_scan_action: { type: string, nullable: true }
+        last_scan_module: { type: string, nullable: true }
+        last_scan_source: { type: string, nullable: true }
+        event_count: { type: integer }
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/AssetComplianceScanEvent' }
+      required: [asset_id, event_count, events]
 
     QRAssetPayload:
       type: object

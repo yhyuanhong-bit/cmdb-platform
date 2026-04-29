@@ -9,6 +9,17 @@ export function useAssetLifecycle(assetId: string) {
   })
 }
 
+// Surfaces the most recent scan-style audit_events for an asset (discovery /
+// integration today). Backend returns last_scan_at=null with an empty events
+// array when nothing matches — the page renders an empty state in that case.
+export function useAssetComplianceScan(assetId: string) {
+  return useQuery({
+    queryKey: ['assetComplianceScan', assetId],
+    queryFn: () => assetApi.getComplianceScan(assetId),
+    enabled: !!assetId,
+  })
+}
+
 export function useLifecycleStats() {
   return useQuery({
     queryKey: ['lifecycleStats'],

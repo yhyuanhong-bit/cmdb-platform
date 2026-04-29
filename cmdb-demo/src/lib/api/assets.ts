@@ -3,6 +3,8 @@ import type { ApiResponse, ApiListResponse } from './types'
 import type { components } from '../../generated/api-types'
 
 export type Asset = components['schemas']['Asset']
+export type AssetComplianceScan = components['schemas']['AssetComplianceScan']
+export type AssetComplianceScanEvent = components['schemas']['AssetComplianceScanEvent']
 
 export const assetApi = {
   list: (params?: Record<string, string>) =>
@@ -25,6 +27,8 @@ export const assetApi = {
     apiClient.post(`/assets/${assetId}/upgrade-recommendations/${category}/accept`, data ?? {}),
   getCapacityPlanning: () =>
     apiClient.get<ApiResponse<CapacityForecast[]>>('/capacity-planning'),
+  getComplianceScan: (id: string) =>
+    apiClient.get<ApiResponse<AssetComplianceScan>>(`/assets/${id}/compliance-scan`),
 }
 
 export interface CapacityForecast {

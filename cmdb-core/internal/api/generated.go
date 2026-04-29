@@ -1425,6 +1425,29 @@ type Asset struct {
 	WarrantyVendor *string `json:"warranty_vendor,omitempty"`
 }
 
+// AssetComplianceScan Most-recent scan / discovery / integration activity for an asset.
+// last_scan_at is null when no audit_events match — the UI then renders
+// an "no compliance scan recorded yet" empty state instead of fabricating
+// compliance findings.
+type AssetComplianceScan struct {
+	AssetId        openapi_types.UUID         `json:"asset_id"`
+	EventCount     int                        `json:"event_count"`
+	Events         []AssetComplianceScanEvent `json:"events"`
+	LastScanAction *string                    `json:"last_scan_action,omitempty"`
+	LastScanAt     *time.Time                 `json:"last_scan_at,omitempty"`
+	LastScanModule *string                    `json:"last_scan_module,omitempty"`
+	LastScanSource *string                    `json:"last_scan_source,omitempty"`
+}
+
+// AssetComplianceScanEvent defines model for AssetComplianceScanEvent.
+type AssetComplianceScanEvent struct {
+	Action     string              `json:"action"`
+	Module     *string             `json:"module,omitempty"`
+	OperatorId *openapi_types.UUID `json:"operator_id,omitempty"`
+	ScannedAt  time.Time           `json:"scanned_at"`
+	Source     *string             `json:"source,omitempty"`
+}
+
 // AssetDiff Field-by-field differences between two point-in-time asset states
 // (D10-P2). Both anchors resolve to the most-recent snapshot at or
 // before their respective query time. `changes` is empty when the
@@ -4252,6 +4275,14 @@ type ServerInterface interface {
 	// Update an asset
 	// (PUT /assets/{id})
 	UpdateAsset(c *gin.Context, id IdPath)
+	// Return the most recent scan-style audit activity for an asset.
+	// Today this surfaces the latest discovery / integration audit_events
+	// targeting the asset; we do not (yet) write a dedicated
+	// module='compliance' event so the endpoint is honest about that.
+	// When no events exist the response has last_scan_at=null and an
+	// empty events array, and the UI renders an empty state.
+	// (GET /assets/{id}/compliance-scan)
+	GetAssetComplianceScan(c *gin.Context, id IdPath)
 	// Update asset location from a QR scan
 	// (POST /assets/{id}/confirm-location)
 	ConfirmAssetLocation(c *gin.Context, id IdPath)
@@ -5117,6 +5148,32 @@ func (siw *ServerInterfaceWrapper) UpdateAsset(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateAsset(c, id)
+}
+
+// GetAssetComplianceScan operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetComplianceScan(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id IdPath
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", c.Param("id"), &id, runtime.BindStyledParameterOptions{Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter id: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	c.Set(BearerAuthScopes, []string{})
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetAssetComplianceScan(c, id)
 }
 
 // ConfirmAssetLocation operation middleware
@@ -10144,6 +10201,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.DELETE(options.BaseURL+"/assets/:id", wrapper.DeleteAsset)
 	router.GET(options.BaseURL+"/assets/:id", wrapper.GetAsset)
 	router.PUT(options.BaseURL+"/assets/:id", wrapper.UpdateAsset)
+	router.GET(options.BaseURL+"/assets/:id/compliance-scan", wrapper.GetAssetComplianceScan)
 	router.POST(options.BaseURL+"/assets/:id/confirm-location", wrapper.ConfirmAssetLocation)
 	router.GET(options.BaseURL+"/assets/:id/diff", wrapper.DiffAssetState)
 	router.GET(options.BaseURL+"/assets/:id/lifecycle", wrapper.GetAssetLifecycle)
