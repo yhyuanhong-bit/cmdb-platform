@@ -368,10 +368,18 @@ export default function AssetDetailUnified() {
 
       {/* Tab Content */}
       <div className="px-8 pb-10">
-        {activeTab === 'overview' && <OverviewTab asset={asset} assetId={assetId} impactedSystems={impactedSystems} />}
+        {activeTab === 'overview' && (
+          <OverviewTab
+            asset={asset}
+            assetId={assetId}
+            rackUuid={(apiAsset as Record<string, unknown>)?.rack_id as string | undefined}
+            locationUuid={(apiAsset as Record<string, unknown>)?.location_id as string | undefined}
+            impactedSystems={impactedSystems}
+          />
+        )}
         {activeTab === 'health' && <HealthTab assetId={assetId} />}
         {activeTab === 'usage' && <UsageTab />}
-        {activeTab === 'maintenance' && <MaintenanceTab />}
+        {activeTab === 'maintenance' && <MaintenanceTab assetId={assetId} />}
       </div>
     </div>
   )

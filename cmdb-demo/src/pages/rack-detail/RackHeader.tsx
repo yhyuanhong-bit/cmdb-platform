@@ -26,6 +26,19 @@ export function RackBreadcrumb({ rack }: { rack?: Rack }) {
         <button onClick={() => navigate("/racks")} className="hover:text-primary transition-colors">
           {t("racks.breadcrumb_rack_management")}
         </button>
+        {rack?.location_id && (
+          <>
+            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+            <button
+              onClick={() => navigate("/locations")}
+              className="hover:text-primary transition-colors hover:underline flex items-center gap-1"
+              title="View location"
+            >
+              <span className="material-symbols-outlined text-[14px]">location_on</span>
+              Location
+            </button>
+          </>
+        )}
         <span className="material-symbols-outlined text-[14px]">chevron_right</span>
         <span className="text-primary">{rack?.name ?? "RACK-042"}</span>
       </div>

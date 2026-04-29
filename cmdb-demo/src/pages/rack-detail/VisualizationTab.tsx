@@ -117,14 +117,17 @@ export function VisualizationTab({
                       <div className="flex-1 relative">
                         {slot ? (
                           isTopU && (
-                            <div
-                              className={`absolute inset-x-0 z-10 m-px rounded flex items-center justify-center text-[10px] font-bold tracking-wide
+                            <button
+                              type="button"
+                              onClick={() => slot.asset_tag && navigate(`/assets/${slot.asset_tag}`)}
+                              disabled={!slot.asset_tag}
+                              className={`absolute inset-x-0 z-10 m-px rounded flex items-center justify-center text-[10px] font-bold tracking-wide cursor-pointer hover:brightness-110 transition-all disabled:cursor-default
                                 ${SLOT_BIA_COLORS[slot.bia_level ?? 'normal'] || SLOT_BIA_COLORS.normal}`}
                               style={{ height: `${(slot.end_u - slot.start_u + 1) * 24 - 4}px` }}
                               title={`${slot.asset_name} (${slot.asset_tag}) — BIA: ${slot.bia_level}`}
                             >
                               {slot.asset_name || slot.asset_tag}
-                            </div>
+                            </button>
                           )
                         ) : (
                           <span className="text-[9px] text-on-surface-variant/20 ml-2 leading-6">&mdash;</span>

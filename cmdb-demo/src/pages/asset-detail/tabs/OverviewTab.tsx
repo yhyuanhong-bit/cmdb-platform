@@ -61,7 +61,7 @@ interface BIAImpactItem {
 }
 
 
-export default function OverviewTab({ asset, assetId, impactedSystems = [] }: { asset: AssetView; assetId?: string; impactedSystems?: BIAImpactItem[] }) {
+export default function OverviewTab({ asset, assetId, rackUuid, locationUuid, impactedSystems = [] }: { asset: AssetView; assetId?: string; rackUuid?: string; locationUuid?: string; impactedSystems?: BIAImpactItem[] }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const width = 480
@@ -133,7 +133,11 @@ export default function OverviewTab({ asset, assetId, impactedSystems = [] }: { 
                 <DataRow
                   label={t('asset_detail.label_facility')}
                   value={
-                    <span className="flex items-center gap-2">
+                    <span
+                      className={`flex items-center gap-2 ${locationUuid ? 'cursor-pointer text-primary hover:underline' : ''}`}
+                      onClick={() => locationUuid && navigate('/locations')}
+                      role={locationUuid ? 'link' : undefined}
+                    >
                       <span className="material-symbols-outlined text-[16px] text-primary">domain</span>
                       {asset.facility}
                     </span>
@@ -141,7 +145,23 @@ export default function OverviewTab({ asset, assetId, impactedSystems = [] }: { 
                 />
               </div>
               <DataRow label={t('asset_detail.label_room_hall')} value={asset.room} />
-              <DataRow label={t('asset_detail.label_rack_id')} value={<span className="cursor-pointer text-primary hover:underline" onClick={() => navigate('/racks/detail')}>{asset.rackId}</span>} mono />
+              <DataRow
+                label={t('asset_detail.label_rack_id')}
+                value={
+                  rackUuid ? (
+                    <span
+                      className="cursor-pointer text-primary hover:underline"
+                      onClick={() => navigate(`/racks/${rackUuid}`)}
+                      role="link"
+                    >
+                      {asset.rackId}
+                    </span>
+                  ) : (
+                    <span>{asset.rackId}</span>
+                  )
+                }
+                mono
+              />
               <DataRow label={t('asset_detail.label_u_position')} value={asset.uPosition} mono />
             </div>
             <RackIllustration />
