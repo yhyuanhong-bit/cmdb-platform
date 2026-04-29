@@ -34,7 +34,11 @@ export default defineConfig({
         },
       },
     },
-    chunkSizeWarningLimit: 600,
+    // elkjs is a 1.4MB graph-layout vendor lib that is already isolated
+    // into its own lazy chunk (only loaded by the topology page). It can't
+    // be split further. Lift the warning ceiling above its size so genuine
+    // regressions in app code still trigger.
+    chunkSizeWarningLimit: 1500,
   },
   server: {
     port: 5175,
