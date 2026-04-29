@@ -1918,7 +1918,15 @@
     "label_cpu_usage": "CPU Usage",
     "label_thread_count": "Thread Count",
     "section_operational_events": "Operational Events",
-    "section_component_integrity": "Component Integrity"
+    "section_component_integrity": "Component Integrity",
+    "uptime_unavailable": "Not tracked",
+    "no_telemetry_data": "No telemetry data",
+    "no_recent_events": "No recent events",
+    "integrity_cpu_avg": "CPU Avg",
+    "integrity_memory_avg": "Memory Avg",
+    "integrity_temperature_avg": "Temperature Avg",
+    "integrity_power_avg": "Power Avg",
+    "sensor_not_configured": "Sensor not configured"
   },
   "credential_modal": {
     "title_create": "Create Credential",

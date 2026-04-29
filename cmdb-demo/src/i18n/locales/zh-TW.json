@@ -1918,7 +1918,15 @@
     "label_cpu_usage": "CPU 使用率",
     "label_thread_count": "執行緒數量",
     "section_operational_events": "Operational Events / 操作日誌",
-    "section_component_integrity": "元件完整性"
+    "section_component_integrity": "元件完整性",
+    "uptime_unavailable": "未追蹤",
+    "no_telemetry_data": "尚無遙測資料",
+    "no_recent_events": "近期無事件",
+    "integrity_cpu_avg": "CPU 平均",
+    "integrity_memory_avg": "記憶體平均",
+    "integrity_temperature_avg": "溫度平均",
+    "integrity_power_avg": "功耗平均",
+    "sensor_not_configured": "尚未配置感測器"
   },
   "credential_modal": {
     "title_create": "建立憑證",

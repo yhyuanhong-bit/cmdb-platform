@@ -130,15 +130,34 @@ export default function RackDetailUnified() {
       }));
   }, [allAlerts, rackAssetIds]);
 
-  // Environmental metrics: temperature from API, power from rack data, humidity/airflow placeholder (Phase 4 Group 2)
+  // Environmental metrics: temperature + power are real; humidity/airflow have no
+  // matching metric_name in the metrics hypertable today, so we surface them as
+  // "sensor not configured" rather than fabricating numbers. Sensor JSON readings
+  // exist on rack rows but are seed-only and not exposed via metrics API.
   const firstAssetId = rackAssets?.[0]?.id || ''
   const { data: tempMetrics } = useMetrics({ asset_id: firstAssetId, metric_name: 'temperature', time_range: '1h' })
-  const latestTemp = tempMetrics?.data?.[0]?.value ?? 23.0
+  const tempPoints = tempMetrics?.data ?? []
+  const latestTemp = tempPoints.length > 0 ? tempPoints[0].value : null
+  const tempValues = tempPoints.map((p) => p.value)
+  const tempMin = tempValues.length > 0 ? Math.min(...tempValues) : null
+  const tempMax = tempValues.length > 0 ? Math.max(...tempValues) : null
   const environmentMetrics = {
-    temperature: { current: Number(latestTemp.toFixed(1)), min: Number((latestTemp - 3).toFixed(1)), max: Number((latestTemp + 3).toFixed(1)), threshold: 30, unit: '°C' },
-    humidity: { current: 45, min: 38, max: 52, threshold: 60, unit: '%' },
-    powerDraw: { current: Number(rack?.power_current_kw ?? 0), min: 0, max: Number(rack?.power_capacity_kw ?? 40), threshold: Number(rack?.power_capacity_kw ?? 40), unit: 'kW' },
-    airflow: { current: 1250, min: 1100, max: 1400, threshold: 1500, unit: 'CFM' },
+    temperature: {
+      current: latestTemp != null ? Number(latestTemp.toFixed(1)) : null,
+      min: tempMin != null ? Number(tempMin.toFixed(1)) : null,
+      max: tempMax != null ? Number(tempMax.toFixed(1)) : null,
+      threshold: 30,
+      unit: '°C',
+    },
+    humidity: { current: null, min: null, max: null, threshold: 60, unit: '%' },
+    powerDraw: {
+      current: rack?.power_current_kw != null ? Number(rack.power_current_kw) : null,
+      min: 0,
+      max: Number(rack?.power_capacity_kw ?? 40),
+      threshold: Number(rack?.power_capacity_kw ?? 40),
+      unit: 'kW',
+    },
+    airflow: { current: null, min: null, max: null, threshold: 1500, unit: 'CFM' },
   }
 
   const [editingRack, setEditingRack] = useState(false)

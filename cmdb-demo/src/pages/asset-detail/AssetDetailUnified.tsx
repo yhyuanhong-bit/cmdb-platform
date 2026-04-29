@@ -378,7 +378,7 @@ export default function AssetDetailUnified() {
           />
         )}
         {activeTab === 'health' && <HealthTab assetId={assetId} />}
-        {activeTab === 'usage' && <UsageTab />}
+        {activeTab === 'usage' && <UsageTab assetId={assetId} />}
         {activeTab === 'maintenance' && <MaintenanceTab assetId={assetId} />}
       </div>
     </div>

@@ -10,14 +10,34 @@ function MetricGauge({
   icon,
 }: {
   label: string;
-  current: number;
-  min: number;
-  max: number;
+  current: number | null;
+  min: number | null;
+  max: number | null;
   unit: string;
   threshold: number;
   icon: string;
 }) {
   const { t } = useTranslation();
+
+  // No reading available — surface "sensor not configured" rather than a fabricated number.
+  if (current == null) {
+    return (
+      <div className="bg-surface-container-low rounded p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="material-symbols-outlined text-[18px] text-on-surface-variant">{icon}</span>
+          <span className="text-[10px] uppercase tracking-widest text-on-surface-variant">{label}</span>
+        </div>
+        <p className="text-3xl font-headline font-bold mb-1 text-on-surface-variant">
+          &mdash;
+        </p>
+        <div className="w-full h-1.5 bg-surface-container-lowest rounded-full overflow-hidden mb-2" />
+        <p className="text-[10px] text-on-surface-variant">
+          {t("component_usage.sensor_not_configured")}
+        </p>
+      </div>
+    );
+  }
+
   const pct = (current / threshold) * 100;
   const isWarning = pct > 80;
   return (
@@ -37,8 +57,8 @@ function MetricGauge({
         />
       </div>
       <div className="flex justify-between text-[10px] text-on-surface-variant">
-        <span>{t("rack_detail.min")}: {min}{unit}</span>
-        <span>{t("rack_detail.max")}: {max}{unit}</span>
+        <span>{t("rack_detail.min")}: {min ?? "—"}{unit}</span>
+        <span>{t("rack_detail.max")}: {max ?? "—"}{unit}</span>
         <span>{t("rack_detail.limit")}: {threshold}{unit}</span>
       </div>
     </div>
@@ -48,10 +68,10 @@ function MetricGauge({
 export function MaintenanceTab({ maintenanceHistory, environmentMetrics }: {
   maintenanceHistory: Array<{ date: string; type: string; description: string; engineer: string; status: string }>;
   environmentMetrics: {
-    temperature: { current: number; min: number; max: number; threshold: number; unit: string };
-    humidity: { current: number; min: number; max: number; threshold: number; unit: string };
-    powerDraw: { current: number; min: number; max: number; threshold: number; unit: string };
-    airflow: { current: number; min: number; max: number; threshold: number; unit: string };
+    temperature: { current: number | null; min: number | null; max: number | null; threshold: number; unit: string };
+    humidity: { current: number | null; min: number | null; max: number | null; threshold: number; unit: string };
+    powerDraw: { current: number | null; min: number | null; max: number | null; threshold: number; unit: string };
+    airflow: { current: number | null; min: number | null; max: number | null; threshold: number; unit: string };
   };
 }) {
   const { t } = useTranslation();
