@@ -1,7 +1,14 @@
+import logging
 import os
-import sys
 
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
+
+# Minimum acceptable length for the credential encryption key in any non-dev
+# deploy mode. 32 characters is the floor; production setups should use a
+# 64-char hex string (32 random bytes) generated via `secrets.token_hex(32)`.
+_MIN_ENCRYPTION_KEY_LEN = 32
 
 
 # Deploy mode must be set explicitly. A default here previously allowed
@@ -49,29 +56,59 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Guard against the zero-key dev fallback leaking into any non-development
-# environment. Previously the "== 0*64" path silently rewrote the key in dev
-# but the check to *reject* it lived behind `deploy_mode != "development"`,
-# which defaulted to development — so a forgotten env var could keep the
-# zero key in prod. Deploy mode is now required above, and we reject the
-# zero key for every non-dev mode.
-if settings.deploy_mode != "development" and settings.credential_encryption_key == "0" * 64:
-    raise ValueError(
-        "zero encryption key only allowed in development mode; "
-        "set INGESTION_CREDENTIAL_ENCRYPTION_KEY to a 64-character hex string "
-        "(generate with: python3 -c \"import secrets; print(secrets.token_hex(32))\")"
-    )
 
-if not settings.credential_encryption_key:
-    if settings.deploy_mode != "development":
-        print(
-            "FATAL: INGESTION_CREDENTIAL_ENCRYPTION_KEY must be set to a 64-character hex string",
-            file=sys.stderr,
+def _is_zero_key(key: str) -> bool:
+    """A key composed entirely of '0' chars is the dev fallback sentinel
+    and offers no real encryption. Any length ≥1 made of only zeros counts."""
+    return len(key) > 0 and set(key) == {"0"}
+
+
+def _validate_encryption_key(deploy_mode: str, key: str) -> None:
+    """Fail fast if the credential encryption key is unsafe for the current
+    deploy mode. Non-dev environments must have a real key (non-empty,
+    non-all-zeros, ≥32 chars). Dev mode is allowed to run with a degraded
+    key for local convenience but logs a warning so the operator knows."""
+    is_dev = deploy_mode == "development"
+
+    if is_dev:
+        if not key or _is_zero_key(key) or len(key) < _MIN_ENCRYPTION_KEY_LEN:
+            logger.warning(
+                "INGESTION_CREDENTIAL_ENCRYPTION_KEY is empty, all-zero, or "
+                "shorter than %d chars; falling back to the all-zero dev key. "
+                "Credentials are NOT meaningfully encrypted. This is only "
+                "acceptable for local development (INGESTION_DEPLOY_MODE=development).",
+                _MIN_ENCRYPTION_KEY_LEN,
+            )
+        return
+
+    # Non-dev (staging / production): every weak-key shape must hard-fail.
+    if not key:
+        raise ValueError(
+            "INGESTION_CREDENTIAL_ENCRYPTION_KEY is required in "
+            f"deploy_mode={deploy_mode!r}; generate one with: "
+            'python3 -c "import secrets; print(secrets.token_hex(32))"'
         )
-        print(
-            "Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\"",
-            file=sys.stderr,
+    if _is_zero_key(key):
+        raise ValueError(
+            "zero encryption key only allowed in development mode; "
+            "set INGESTION_CREDENTIAL_ENCRYPTION_KEY to a 64-character hex string "
+            "(generate with: python3 -c \"import secrets; print(secrets.token_hex(32))\")"
         )
-        sys.exit(1)
-    # Development mode fallback
+    if len(key) < _MIN_ENCRYPTION_KEY_LEN:
+        raise ValueError(
+            f"INGESTION_CREDENTIAL_ENCRYPTION_KEY is too short "
+            f"({len(key)} chars); require at least {_MIN_ENCRYPTION_KEY_LEN} "
+            f"chars in deploy_mode={deploy_mode!r}. Generate one with: "
+            'python3 -c "import secrets; print(secrets.token_hex(32))"'
+        )
+
+
+_validate_encryption_key(settings.deploy_mode, settings.credential_encryption_key)
+
+# Apply the dev fallback *after* validation so the warning above always
+# reflects what the operator actually configured.
+if settings.deploy_mode == "development" and (
+    not settings.credential_encryption_key
+    or len(settings.credential_encryption_key) < _MIN_ENCRYPTION_KEY_LEN
+):
     settings.credential_encryption_key = "0" * 64
